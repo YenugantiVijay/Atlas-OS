@@ -96,7 +96,8 @@ export function hasPermission(role: Role | undefined | null, action: Action): bo
   return permissions ? permissions.includes(action) : false;
 }
 
-export function getRoleBadgeVariant(role: Role): 'violet' | 'success' | 'warning' | 'info' | 'default' {
+export function getRoleBadgeVariant(role: Role | null | undefined): 'violet' | 'success' | 'warning' | 'info' | 'default' {
+  if (!role) return 'default';
   switch (role) {
     case 'owner':
       return 'violet';

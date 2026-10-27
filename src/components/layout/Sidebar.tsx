@@ -107,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               {currentOrg.name}
             </span>
             <Badge variant={getRoleBadgeVariant(currentRole)} size="sm" className="shrink-0">
-              {currentRole}
+              {currentRole || 'No Role'}
             </Badge>
           </div>
           <div className="text-[11px] text-content-secondary truncate">
