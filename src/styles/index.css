@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-violet: 139 92 246;
+    --deep-violet: 109 40 217;
+    --light-violet: 237 233 254;
+    --pale-lavender: 247 245 255;
+    --main-surface: 255 255 255;
+    --main-text: 33 27 53;
+    --secondary-text: 116 109 133;
+    --border-color: 232 227 240;
+  }
+
+  body {
+    background-color: #F7F5FF;
+    color: #211B35;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar for data tables & navigation */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #DDD6FE;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C4B5FD;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .subtle-border {
+    border: 1px solid #E8E3F0;
+  }
+
+  .brand-gradient {
+    background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+  }
+
+  .brand-gradient-subtle {
+    background: linear-gradient(135deg, #F7F5FF 0%, #EDE9FE 100%);
+  }
+}
