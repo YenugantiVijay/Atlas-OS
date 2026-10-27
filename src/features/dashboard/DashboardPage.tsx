@@ -53,24 +53,20 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
             onClick={() => navigate('/orders?action=create')}
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="bg-white text-atlas-900 hover:bg-atlas-50 shadow-sm border-0 font-semibold"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white text-atlas-900 hover:bg-atlas-50 shadow-md hover:shadow-lg transition-all active:scale-[0.99]"
           >
-            New Sales Order
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+            <Plus className="w-4 h-4 text-atlas-700" />
+            <span>New Sales Order</span>
+          </button>
+          <button
             onClick={() => navigate('/ai')}
-            leftIcon={<Sparkles className="w-4 h-4 text-atlas-300" />}
-            className="bg-atlas-800/60 hover:bg-atlas-800 text-white border-white/20"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-atlas-900/40 hover:bg-atlas-900/60 text-white border border-white/20 backdrop-blur-md shadow-xs transition-all active:scale-[0.99]"
           >
-            ATLAS AI
-          </Button>
+            <Sparkles className="w-4 h-4 text-atlas-200" />
+            <span>ATLAS AI</span>
+          </button>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
       {/* Original Geometric Glyph */}
-      <div className="relative w-8 h-8 rounded-lg bg-surface-card border border-border shadow-sm flex items-center justify-center shrink-0 overflow-hidden group">
+      <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-atlas-50 to-atlas-100 border border-atlas-200/80 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
         <svg viewBox="0 0 48 48" className="w-5 h-5" fill="none">
           <path
             d="M24 8L38 16V32L24 40L10 32V16L24 8Z"
@@ -19,22 +19,22 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
           />
           <path d="M24 8V24L38 32" stroke="#8B5CF6" strokeWidth="2.5" strokeLinejoin="round" />
           <path d="M24 24L10 32" stroke="#8B5CF6" strokeWidth="2.5" strokeLinejoin="round" />
-          <circle cx="24" cy="24" r="4" fill="#8B5CF6" />
+          <circle cx="24" cy="24" r="4.5" fill="#8B5CF6" />
           <circle cx="24" cy="24" r="2" fill="#EDE9FE" />
         </svg>
       </div>
 
       {!collapsed && (
         <div className="flex flex-col text-left">
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold tracking-tight text-base text-content-primary">
+          <div className="flex items-center gap-1.5 leading-none">
+            <span className="font-extrabold tracking-tight text-[17px] text-content-primary">
               ATLAS
             </span>
-            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-atlas-100 text-atlas-800 tracking-wider">
+            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-atlas-100 text-atlas-800 tracking-wider border border-atlas-200/60">
               OS
             </span>
           </div>
-          <span className="text-[10px] text-content-secondary font-medium tracking-tight -mt-0.5">
+          <span className="text-[11px] text-content-secondary font-medium tracking-tight mt-1">
             Electrical Distribution
           </span>
         </div>

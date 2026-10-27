@@ -48,9 +48,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main
-        className={`pt-20 px-6 pb-12 transition-all duration-200 ${
-          collapsed ? 'pl-26' : 'pl-70'
-        }`}
+        className={`transition-all duration-200 ${
+          collapsed ? 'ml-20' : 'ml-64'
+        } pt-20 px-8 pb-12`}
       >
         <div className="mx-auto max-w-7xl">
           <Outlet />
