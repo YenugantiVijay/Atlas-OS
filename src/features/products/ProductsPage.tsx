@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
@@ -61,6 +62,7 @@ export const ProductsPage: React.FC = () => {
   const [hsnCode, setHsnCode] = useState('8544');
   const [reorderThreshold, setReorderThreshold] = useState('10');
   const [openingStock, setOpeningStock] = useState('0');
+  const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadProducts = () => {
@@ -90,6 +92,7 @@ export const ProductsPage: React.FC = () => {
     setHsnCode('8544');
     setReorderThreshold('10');
     setOpeningStock('0');
+    setImageUrl('');
     setEditingProduct(null);
     setIsCreateModalOpen(true);
   };
@@ -106,6 +109,7 @@ export const ProductsPage: React.FC = () => {
     setTaxRate(String(p.taxRate));
     setHsnCode(p.hsnCode || '');
     setReorderThreshold(String(p.reorderThreshold));
+    setImageUrl(p.imageUrl || '');
     setIsCreateModalOpen(true);
   };
 
@@ -132,6 +136,7 @@ export const ProductsPage: React.FC = () => {
           taxRate: parseFloat(taxRate) || 0,
           hsnCode: hsnCode.trim() || undefined,
           reorderThreshold: parseInt(reorderThreshold, 10) || 0,
+          imageUrl: imageUrl || undefined,
         });
         showToast('success', 'Product Updated', `Successfully updated product ${sku}`);
       } else {
@@ -148,6 +153,7 @@ export const ProductsPage: React.FC = () => {
             taxRate: parseFloat(taxRate) || 0,
             hsnCode: hsnCode.trim() || undefined,
             reorderThreshold: parseInt(reorderThreshold, 10) || 0,
+            imageUrl: imageUrl || undefined,
             isActive: true,
           },
           parseInt(openingStock, 10) || 0
@@ -281,12 +287,27 @@ export const ProductsPage: React.FC = () => {
               return (
                 <TableRow key={p.id}>
                   <TableCell>
-                    <div className="font-semibold text-content-primary">{p.name}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="font-mono text-xs text-atlas-700 bg-atlas-50 px-1.5 py-0.5 rounded border border-atlas-200/60">
-                        {p.sku}
-                      </span>
-                      <span className="text-[11px] text-content-muted">UOM: {p.uom}</span>
+                    <div className="flex items-center gap-3">
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.name}
+                          className="w-10 h-10 rounded-lg object-cover border border-border shadow-xs shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-surface-panel border border-border flex items-center justify-center text-content-muted shrink-0">
+                          <Boxes className="w-5 h-5 text-atlas-400" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-semibold text-content-primary truncate max-w-sm">{p.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-xs text-atlas-700 bg-atlas-50 px-1.5 py-0.5 rounded border border-atlas-200/60">
+                            {p.sku}
+                          </span>
+                          <span className="text-[11px] text-content-muted">UOM: {p.uom}</span>
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
 
@@ -358,6 +379,14 @@ export const ProductsPage: React.FC = () => {
         maxWidth="xl"
       >
         <form onSubmit={handleSaveProduct} className="space-y-4">
+          <ImageUpload
+            label="Product Photo"
+            value={imageUrl}
+            onChange={setImageUrl}
+            shape="square"
+            helperText="Upload catalog thumbnail or component image (Optional)"
+          />
+
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="SKU Code"

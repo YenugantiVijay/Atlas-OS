@@ -175,13 +175,18 @@ export const DashboardPage: React.FC = () => {
         {/* Recent Orders */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-atlas-600" />
-              <CardTitle>Recent Sales Orders</CardTitle>
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <FileText className="w-4 h-4 text-atlas-600 shrink-0" />
+              <CardTitle className="truncate">Recent Sales Orders</CardTitle>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/orders')}>
-              <span>View All</span>
-              <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/orders')}
+              rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+              className="shrink-0 whitespace-nowrap"
+            >
+              View All
             </Button>
           </CardHeader>
 
@@ -237,13 +242,18 @@ export const DashboardPage: React.FC = () => {
         {/* Low Stock Watchlist */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Boxes className="w-4 h-4 text-atlas-600" />
-              <CardTitle>Inventory Replenishment Watchlist</CardTitle>
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <Boxes className="w-4 h-4 text-atlas-600 shrink-0" />
+              <CardTitle className="truncate">Inventory Replenishment Watchlist</CardTitle>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/inventory')}>
-              <span>Ledger</span>
-              <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/inventory')}
+              rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+              className="shrink-0 whitespace-nowrap"
+            >
+              Ledger
             </Button>
           </CardHeader>
 

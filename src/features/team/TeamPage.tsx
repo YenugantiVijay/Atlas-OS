@@ -14,8 +14,16 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { useToast } from '@/components/ui/Toast';
 import { getRoleBadgeVariant } from '@/lib/permissions';
+
+function getInitials(name: string): string {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return parts[0].slice(0, 2).toUpperCase();
+}
 
 const ROLES: Role[] = ['owner', 'admin', 'sales', 'inventory', 'accounts', 'viewer'];
 
@@ -27,6 +35,7 @@ export const TeamPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<Role>('sales');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInvite = (e: React.FormEvent) => {
@@ -50,6 +59,7 @@ export const TeamPage: React.FC = () => {
           id: 'u-' + Date.now(),
           email: email.trim(),
           fullName: fullName.trim(),
+          avatarUrl: avatarUrl || undefined,
         },
       };
 
@@ -66,6 +76,7 @@ export const TeamPage: React.FC = () => {
       setIsInviteModalOpen(false);
       setEmail('');
       setFullName('');
+      setAvatarUrl('');
       refreshOrgData();
     } catch (err: any) {
       showToast('error', 'Invite Failed', err.message);
@@ -120,11 +131,26 @@ export const TeamPage: React.FC = () => {
             {memberships.map((m) => (
               <TableRow key={m.id}>
                 <TableCell>
-                  <div className="font-semibold text-content-primary">
-                    {m.user?.fullName || 'Distributor Staff'}
-                  </div>
-                  <div className="text-xs text-content-secondary font-mono">
-                    {m.user?.email || 'user@atlas-os.local'}
+                  <div className="flex items-center gap-3">
+                    {m.user?.avatarUrl ? (
+                      <img
+                        src={m.user.avatarUrl}
+                        alt={m.user?.fullName || 'User'}
+                        className="w-9 h-9 rounded-full object-cover border border-border shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-atlas-200 text-atlas-800 font-bold text-xs flex items-center justify-center border border-atlas-300 shrink-0">
+                        {getInitials(m.user?.fullName || 'Staff')}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-semibold text-content-primary">
+                        {m.user?.fullName || 'Distributor Staff'}
+                      </div>
+                      <div className="text-xs text-content-secondary font-mono">
+                        {m.user?.email || 'user@atlas-os.local'}
+                      </div>
+                    </div>
                   </div>
                 </TableCell>
 
@@ -198,6 +224,14 @@ export const TeamPage: React.FC = () => {
         maxWidth="md"
       >
         <form onSubmit={handleInvite} className="space-y-4">
+          <ImageUpload
+            label="Member Photo"
+            value={avatarUrl}
+            onChange={setAvatarUrl}
+            shape="circle"
+            helperText="Upload member profile picture (Optional)"
+          />
+
           <Input
             label="Full Name"
             required

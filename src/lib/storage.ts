@@ -1,4 +1,5 @@
 import {
+  User,
   Organization,
   Membership,
   Product,
@@ -31,6 +32,14 @@ const STORAGE_KEYS = {
   PAYMENT_ALLOCATIONS: 'atlas_payment_allocations_v1',
   AUDIT_EVENTS: 'atlas_audit_events_v1',
   CURRENT_ORG_ID: 'atlas_current_org_id_v1',
+  CURRENT_USER: 'atlas_current_user_v1',
+};
+
+const DEFAULT_CURRENT_USER: User = {
+  id: 'u0000000-0000-0000-0000-000000000001',
+  email: 'vijay@srilakshmielectricals.in',
+  fullName: 'Vijay Kumar',
+  avatarUrl: '',
 };
 
 // Initial Seed Data for Demo & Development
@@ -471,6 +480,12 @@ class StorageEngine {
       this.setItem(STORAGE_KEYS.AUDIT_EVENTS, [auditLog]);
     }
 
+    // Ensure currentUser is always initialized
+    const user = this.getItem<User | null>(STORAGE_KEYS.CURRENT_USER, null);
+    if (!user) {
+      this.setItem(STORAGE_KEYS.CURRENT_USER, DEFAULT_CURRENT_USER);
+    }
+
     this.initialized = true;
   }
 
@@ -619,6 +634,57 @@ class StorageEngine {
     return newOrg;
   }
 
+  public updateOrganization(orgId: string, updates: Partial<Organization>): Organization {
+    this.initialize();
+    const orgs = this.getOrganizations();
+    const index = orgs.findIndex((o) => o.id === orgId);
+    if (index === -1) throw new Error('Organization not found');
+
+    const updated: Organization = {
+      ...orgs[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    orgs[index] = updated;
+    this.setItem(STORAGE_KEYS.ORGS, orgs);
+    this.logAuditEvent(orgId, 'UPDATE_ORGANIZATION_SETTINGS', 'ORGANIZATION', orgId, updates);
+    return updated;
+  }
+
+  // --- Current User & Profile ---
+  public getCurrentUser(): User {
+    this.initialize();
+    return this.getItem<User>(STORAGE_KEYS.CURRENT_USER, DEFAULT_CURRENT_USER);
+  }
+
+  public updateCurrentUser(updates: Partial<User>): User {
+    this.initialize();
+    const current = this.getCurrentUser();
+    const updated: User = {
+      ...current,
+      ...updates,
+    };
+    this.setItem(STORAGE_KEYS.CURRENT_USER, updated);
+
+    // Update memberships where user matches
+    const memberships = this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []);
+    let modified = false;
+    for (const m of memberships) {
+      if (m.userId === updated.id && m.user) {
+        m.user = {
+          ...m.user,
+          ...updates,
+        };
+        modified = true;
+      }
+    }
+    if (modified) {
+      this.setItem(STORAGE_KEYS.MEMBERSHIPS, memberships);
+    }
+
+    return updated;
+  }
+
   // --- Memberships ---
   public getMemberships(orgId: string): Membership[] {
     this.initialize();
@@ -738,6 +804,23 @@ class StorageEngine {
     this.setItem(STORAGE_KEYS.CUSTOMERS, customers);
     this.logAuditEvent(orgId, 'CREATE_CUSTOMER', 'CUSTOMER', newCust.id, { name: newCust.name });
     return newCust;
+  }
+
+  public updateCustomer(orgId: string, id: string, updates: Partial<Customer>): Customer {
+    this.initialize();
+    const customers = this.getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const index = customers.findIndex((c) => c.id === id && c.organizationId === orgId);
+    if (index === -1) throw new Error('Customer not found in this organization');
+
+    const updated: Customer = {
+      ...customers[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    customers[index] = updated;
+    this.setItem(STORAGE_KEYS.CUSTOMERS, customers);
+    this.logAuditEvent(orgId, 'UPDATE_CUSTOMER', 'CUSTOMER', id, updates);
+    return updated;
   }
 
   // --- Suppliers ---

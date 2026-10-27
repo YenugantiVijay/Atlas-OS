@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Database } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { getSupabaseStatus } from '@/lib/supabase';
 
 export const SettingsPage: React.FC = () => {
-  const { currentOrg, refreshOrgData } = useOrg();
+  const { currentOrg, updateOrganization, refreshOrgData } = useOrg();
   const { showToast } = useToast();
 
   const [name, setName] = useState('');
@@ -24,6 +24,7 @@ export const SettingsPage: React.FC = () => {
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [currency, setCurrency] = useState('INR');
+  const [logoUrl, setLogoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export const SettingsPage: React.FC = () => {
       setState(currentOrg.state || '');
       setPincode(currentOrg.pincode || '');
       setCurrency(currentOrg.currency || 'INR');
+      setLogoUrl(currentOrg.logoUrl || '');
     }
   }, [currentOrg]);
 
@@ -52,30 +54,20 @@ export const SettingsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const orgs = storage.getOrganizations();
-      const idx = orgs.findIndex((o) => o.id === currentOrg.id);
-      if (idx !== -1) {
-        orgs[idx] = {
-          ...orgs[idx],
-          name: name.trim(),
-          legalName: legalName.trim() || undefined,
-          gstin: gstin.trim().toUpperCase() || undefined,
-          pan: pan.trim().toUpperCase() || undefined,
-          phone: phone.trim() || undefined,
-          email: email.trim() || undefined,
-          addressLine1: addressLine1.trim() || undefined,
-          city: city.trim() || undefined,
-          state: state.trim() || undefined,
-          pincode: pincode.trim() || undefined,
-          currency,
-          updatedAt: new Date().toISOString(),
-        };
-        localStorage.setItem('atlas_organizations_v1', JSON.stringify(orgs));
-        storage.logAuditEvent(currentOrg.id, 'UPDATE_ORGANIZATION_SETTINGS', 'ORGANIZATION', currentOrg.id, {
-          name,
-          gstin,
-        });
-      }
+      updateOrganization(currentOrg.id, {
+        name: name.trim(),
+        legalName: legalName.trim() || undefined,
+        gstin: gstin.trim().toUpperCase() || undefined,
+        pan: pan.trim().toUpperCase() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        addressLine1: addressLine1.trim() || undefined,
+        city: city.trim() || undefined,
+        state: state.trim() || undefined,
+        pincode: pincode.trim() || undefined,
+        currency,
+        logoUrl: logoUrl || undefined,
+      });
 
       showToast('success', 'Settings Saved', 'Organization profile updated.');
       refreshOrgData();
@@ -116,6 +108,14 @@ export const SettingsPage: React.FC = () => {
             </CardHeader>
 
             <form onSubmit={handleSave} className="space-y-4">
+              <ImageUpload
+                label="Shop / Business Logo"
+                value={logoUrl}
+                onChange={setLogoUrl}
+                shape="square"
+                helperText="Distributor logo for invoices, quotations & header (Optional)"
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="Distributor Operating Name"

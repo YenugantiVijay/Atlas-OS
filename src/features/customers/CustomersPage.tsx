@@ -22,6 +22,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
+function getInitials(name: string): string {
+  if (!name) return 'C';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 export const CustomersPage: React.FC = () => {
   const { currentOrg } = useOrg();
   const { showToast } = useToast();
@@ -97,27 +104,16 @@ export const CustomersPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (editingCustomer) {
-        // Update customer in storage
-        const allCusts = storage.getCustomers(currentOrg.id);
-        const idx = allCusts.findIndex((c) => c.id === editingCustomer.id);
-        if (idx !== -1) {
-          allCusts[idx] = {
-            ...allCusts[idx],
-            name: name.trim(),
-            companyName: companyName.trim() || undefined,
-            phone: phone.trim() || undefined,
-            email: email.trim() || undefined,
-            billingAddress: billingAddress.trim() || undefined,
-            gstin: gstin.trim().toUpperCase() || undefined,
-            creditLimit: parseFloat(creditLimit) || 0,
-            creditDays: parseInt(creditDays, 10) || 30,
-            updatedAt: new Date().toISOString(),
-          };
-          localStorage.setItem('atlas_customers_v1', JSON.stringify(allCusts));
-          storage.logAuditEvent(currentOrg.id, 'UPDATE_CUSTOMER', 'CUSTOMER', editingCustomer.id, {
-            name,
-          });
-        }
+        storage.updateCustomer(currentOrg.id, editingCustomer.id, {
+          name: name.trim(),
+          companyName: companyName.trim() || undefined,
+          phone: phone.trim() || undefined,
+          email: email.trim() || undefined,
+          billingAddress: billingAddress.trim() || undefined,
+          gstin: gstin.trim().toUpperCase() || undefined,
+          creditLimit: parseFloat(creditLimit) || 0,
+          creditDays: parseInt(creditDays, 10) || 30,
+        });
         showToast('success', 'Customer Updated', `Saved details for ${companyName || name}`);
       } else {
         storage.createCustomer(currentOrg.id, {
@@ -222,20 +218,35 @@ export const CustomersPage: React.FC = () => {
               return (
                 <TableRow key={c.id}>
                   <TableCell>
-                    <div className="font-semibold text-content-primary">
-                      {c.companyName || c.name}
+                    <div className="flex items-center gap-3">
+                      {c.avatarUrl ? (
+                        <img
+                          src={c.avatarUrl}
+                          alt={c.companyName || c.name}
+                          className="w-10 h-10 rounded-full object-cover border border-border shadow-xs shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-atlas-100 text-atlas-800 font-bold text-xs flex items-center justify-center border border-atlas-200 shrink-0">
+                          {getInitials(c.name)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-semibold text-content-primary truncate max-w-xs">
+                          {c.companyName || c.name}
+                        </div>
+                        {c.companyName && (
+                          <div className="text-xs text-content-secondary mt-0.5 truncate">
+                            Prop: {c.name}
+                          </div>
+                        )}
+                        {c.billingAddress && (
+                          <div className="text-[11px] text-content-muted mt-1 truncate max-w-xs flex items-center gap-1">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{c.billingAddress}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {c.companyName && (
-                      <div className="text-xs text-content-secondary mt-0.5">
-                        Prop: {c.name}
-                      </div>
-                    )}
-                    {c.billingAddress && (
-                      <div className="text-[11px] text-content-muted mt-1 truncate max-w-xs flex items-center gap-1">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{c.billingAddress}</span>
-                      </div>
-                    )}
                   </TableCell>
 
                   <TableCell>

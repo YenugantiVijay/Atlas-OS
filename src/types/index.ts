@@ -20,6 +20,7 @@ export interface Organization {
   state?: string;
   pincode?: string;
   currency: string;
+  logoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +45,7 @@ export interface Product {
   brand?: string;
   category: string;
   description?: string;
+  imageUrl?: string;
   uom: UOM;
   purchaseCost: number;
   sellingPrice: number;
@@ -91,6 +93,7 @@ export interface Customer {
   pan?: string;
   creditLimit: number;
   creditDays: number;
+  avatarUrl?: string;
   isActive: boolean;
   currentReceivable?: number;
   createdAt: string;

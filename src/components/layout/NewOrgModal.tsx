@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useToast } from '@/components/ui/Toast';
 
@@ -23,6 +24,7 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
   const [state, setState] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [pincode, setPincode] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -45,6 +47,7 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
         addressLine1: addressLine1.trim() || undefined,
         pincode: pincode.trim() || undefined,
         currency: 'INR',
+        logoUrl: logoUrl || undefined,
       });
 
       showToast('success', 'Organization Created', `Switched to newly created organization: ${name}`);
@@ -53,6 +56,7 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
       setName('');
       setLegalName('');
       setGstin('');
+      setLogoUrl('');
     } catch (err: any) {
       showToast('error', 'Failed to create organization', err.message);
     } finally {
@@ -68,6 +72,14 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
       description="Set up an independent distributor workspace with dedicated inventory, orders, and ledger."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <ImageUpload
+          label="Shop / Business Logo"
+          value={logoUrl}
+          onChange={setLogoUrl}
+          shape="square"
+          helperText="Upload store logo or branding (Optional)"
+        />
+
         <Input
           label="Distributor Business Name"
           required
