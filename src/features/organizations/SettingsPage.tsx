@@ -7,7 +7,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
-import { getSupabaseStatus } from '@/lib/supabase';
+import { getSupabaseStatus, verifySupabaseConnection, SupabaseVerificationResult } from '@/lib/supabase';
 
 export const SettingsPage: React.FC = () => {
   const { currentOrg, updateOrganization, refreshOrgData } = useOrg();
@@ -26,6 +26,26 @@ export const SettingsPage: React.FC = () => {
   const [currency, setCurrency] = useState('INR');
   const [logoUrl, setLogoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<SupabaseVerificationResult | null>(null);
+
+  const handleVerifyConnection = async () => {
+    setIsVerifying(true);
+    try {
+      const result = await verifySupabaseConnection();
+      setVerifyResult(result);
+      if (result.status === 'configured_and_reachable') {
+        showToast('success', 'Supabase Connection Verified', 'Auth endpoint is reachable.');
+      } else {
+        showToast('warning', 'Supabase Notice', result.message);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast('error', 'Verification Error', msg);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   useEffect(() => {
     if (currentOrg) {
@@ -221,6 +241,45 @@ export const SettingsPage: React.FC = () => {
                 <code className="text-[10px] font-mono text-atlas-700 bg-surface-card p-1 rounded border border-border block truncate">
                   {currentOrg?.id}
                 </code>
+              </div>
+
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs font-medium"
+                  onClick={handleVerifyConnection}
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? 'Checking Auth Endpoint...' : 'Verify Supabase Connection'}
+                </Button>
+                {verifyResult && (
+                  <div
+                    className={`mt-2 p-2.5 rounded-lg text-[11px] border leading-relaxed ${
+                      verifyResult.status === 'configured_and_reachable'
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                        : 'bg-amber-50 text-amber-900 border-amber-200'
+                    }`}
+                  >
+                    <div className="font-semibold flex items-center justify-between pb-1 border-b border-black/5">
+                      <span>
+                        {verifyResult.status === 'configured_and_reachable'
+                          ? '✓ Client Ready & Auth Reachable'
+                          : '⚠ Verification Notice'}
+                      </span>
+                      {verifyResult.latencyMs !== undefined && (
+                        <span className="text-[10px] opacity-75">{verifyResult.latencyMs}ms</span>
+                      )}
+                    </div>
+                    <p className="mt-1">{verifyResult.message}</p>
+                    {verifyResult.projectUrl && (
+                      <p className="mt-1 font-mono text-[10px] text-content-secondary truncate">
+                        Endpoint: {verifyResult.projectUrl}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </Card>

@@ -795,7 +795,7 @@ class StorageEngine {
     const customers = this.getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
     const newCust: Customer = {
       ...data,
-      id: 'cust-' + Date.now(),
+      id: 'cust-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1110,10 +1110,10 @@ class StorageEngine {
    * If any item is insufficient, rejects confirmation and rolls back.
    * Otherwise deducts stock through ledger movements and sets status to CONFIRMED.
    */
-  public confirmSalesOrder(orgId: string, orderId: string, userRole: Role = 'owner'): SalesOrder {
+  public confirmSalesOrder(orgId: string, orderId: string, userRole?: Role | null): SalesOrder {
     this.initialize();
-    if (!['owner', 'admin', 'sales'].includes(userRole)) {
-      throw new Error(`Permission denied: Role "${userRole}" cannot confirm sales orders.`);
+    if (!userRole || !['owner', 'admin', 'sales'].includes(userRole)) {
+      throw new Error(`Permission denied: Role "${userRole || 'unassigned'}" cannot confirm sales orders.`);
     }
 
     const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
@@ -1280,6 +1280,12 @@ class StorageEngine {
     this.initialize();
     if (data.amount <= 0) throw new Error('Payment amount must be greater than zero.');
 
+    const customers = this.getCustomers(orgId);
+    const customer = customers.find((c) => c.id === data.customerId);
+    if (!customer) {
+      throw new Error(`Customer not found in organization ${orgId}`);
+    }
+
     const payments = this.getItem<Payment[]>(STORAGE_KEYS.PAYMENTS, []);
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const allocations = this.getItem<PaymentAllocation[]>(STORAGE_KEYS.PAYMENT_ALLOCATIONS, []);
@@ -1305,6 +1311,11 @@ class StorageEngine {
       if (invIndex === -1) throw new Error('Target invoice not found in this organization');
 
       const inv = invoices[invIndex];
+      if (inv.customerId !== data.customerId) {
+        throw new Error(
+          `Customer mismatch: Payment customer (${data.customerId}) does not match invoice customer (${inv.customerId})`
+        );
+      }
       const remainingBalance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
 
       if (data.amount > remainingBalance) {

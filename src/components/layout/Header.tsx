@@ -301,7 +301,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {currentOrg?.name || 'Sri Lakshmi Electrical Distributors'}
                 </div>
                 <div className="text-[11px] font-medium text-content-secondary leading-tight truncate max-w-[140px] sm:max-w-[175px]">
-                  {currentUser?.fullName || 'Vijay Kumar'} • <span className="capitalize text-atlas-700 font-semibold">{currentRole}</span>
+                  {currentUser?.fullName || 'Vijay Kumar'} • <span className="capitalize text-atlas-700 font-semibold">{currentRole || 'No Role'}</span>
                 </div>
               </div>
 
@@ -339,7 +339,7 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                         <Badge variant={getRoleBadgeVariant(currentRole)} size="sm">
-                          {currentRole}
+                          {currentRole || 'No Role'}
                         </Badge>
                         <span className="text-[11px] text-content-muted font-medium truncate max-w-[140px]">
                           {currentOrg?.name}
@@ -451,7 +451,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-content-secondary">{currentOrg?.name}</span>
             </div>
             <Badge variant={getRoleBadgeVariant(currentRole)} size="sm">
-              {currentRole}
+              {currentRole || 'No Role'}
             </Badge>
           </div>
 
