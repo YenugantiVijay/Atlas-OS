@@ -110,6 +110,7 @@ export interface Supplier {
   email?: string;
   address?: string;
   gstin?: string;
+  pan?: string;
   paymentTerms?: string;
   isActive: boolean;
   createdAt: string;
@@ -132,6 +133,7 @@ export interface QuotationItem {
   lineSubtotal: number;
   lineTax: number;
   lineTotal: number;
+  documentDiscountShare?: number;
 }
 
 export interface Quotation {
@@ -145,6 +147,7 @@ export interface Quotation {
   discountAmount: number;
   taxAmount: number;
   totalAmount: number;
+  totalsVersion?: number;
   notes?: string;
   createdBy?: string;
   createdAt: string;
@@ -169,6 +172,7 @@ export interface SalesOrderItem {
   lineSubtotal: number;
   lineTax: number;
   lineTotal: number;
+  documentDiscountShare?: number;
 }
 
 export interface SalesOrder {
@@ -183,6 +187,7 @@ export interface SalesOrder {
   discountAmount: number;
   taxAmount: number;
   totalAmount: number;
+  totalsVersion?: number;
   notes?: string;
   createdBy?: string;
   confirmedAt?: string;
@@ -210,6 +215,7 @@ export interface InvoiceItem {
   lineSubtotal: number;
   lineTax: number;
   lineTotal: number;
+  documentDiscountShare?: number;
 }
 
 export interface Invoice {
@@ -226,6 +232,7 @@ export interface Invoice {
   taxAmount: number;
   totalAmount: number;
   totalPaid: number;
+  totalsVersion?: number;
   notes?: string;
   createdBy?: string;
   createdAt: string;

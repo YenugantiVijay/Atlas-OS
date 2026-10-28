@@ -14,8 +14,9 @@ import {
   AuditEvent,
   DashboardMetrics,
   Role,
+  UOM,
 } from '@/types';
-import { calculateLineItem, calculateInvoiceBalance } from './money';
+import { calculateInvoiceBalance, calculateDocumentTotals, parseTaxRate } from './money';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -392,12 +393,11 @@ class StorageEngine {
     }
   }
 
-  public initialize(): void {
-    if (this.initialized) return;
-
-    // Check if organizations exist
+  public initialize(force: boolean = false): void {
     const orgs = this.getItem<Organization[]>(STORAGE_KEYS.ORGS, []);
-    if (orgs.length === 0) {
+    if (this.initialized && !force && orgs.length > 0) return;
+
+    if (orgs.length === 0 || force) {
       // Seed default data
       this.setItem(STORAGE_KEYS.ORGS, [SEED_ORG_1, SEED_ORG_2]);
       this.setItem(STORAGE_KEYS.CURRENT_ORG_ID, SEED_ORG_1.id);
@@ -490,13 +490,10 @@ class StorageEngine {
   }
 
   private createInitialOrder(orgId: string): SalesOrder {
-    const item1 = calculateLineItem(10, 2250, 5, 18);
-    const item2 = calculateLineItem(4, 680, 0, 18);
-
-    const subtotal = item1.taxableAmount + item2.taxableAmount;
-    const tax = item1.taxAmount + item2.taxAmount;
-    const discount = item1.discountAmount + item2.discountAmount;
-    const total = item1.totalAmount + item2.totalAmount;
+    const docTotals = calculateDocumentTotals([
+      { quantity: 10, unitPrice: 2250, discountPercent: 5, taxRate: 18 },
+      { quantity: 4, unitPrice: 680, discountPercent: 0, taxRate: 18 },
+    ]);
 
     return {
       id: 'ord-001',
@@ -505,10 +502,11 @@ class StorageEngine {
       customerId: SEED_CUSTOMERS_ORG_1[0].id,
       status: 'CONFIRMED',
       orderDate: '2026-02-15',
-      subtotal,
-      discountAmount: discount,
-      taxAmount: tax,
-      totalAmount: total,
+      subtotal: docTotals.grossSubtotal,
+      discountAmount: docTotals.discountTotal,
+      taxAmount: docTotals.taxAmount,
+      totalAmount: docTotals.totalAmount,
+      totalsVersion: 2,
       notes: 'Urgent commercial wiring contract order',
       createdAt: '2026-02-15T11:00:00Z',
       updatedAt: '2026-02-15T11:30:00Z',
@@ -525,9 +523,9 @@ class StorageEngine {
           unitPrice: 2250,
           discountPercent: 5,
           taxRate: 18,
-          lineSubtotal: item1.taxableAmount,
-          lineTax: item1.taxAmount,
-          lineTotal: item1.totalAmount,
+          lineSubtotal: docTotals.items[0].taxableAmount,
+          lineTax: docTotals.items[0].taxAmount,
+          lineTotal: docTotals.items[0].totalAmount,
         },
         {
           id: 'item-02',
@@ -540,9 +538,9 @@ class StorageEngine {
           unitPrice: 680,
           discountPercent: 0,
           taxRate: 18,
-          lineSubtotal: item2.taxableAmount,
-          lineTax: item2.taxAmount,
-          lineTotal: item2.totalAmount,
+          lineSubtotal: docTotals.items[1].taxableAmount,
+          lineTax: docTotals.items[1].taxAmount,
+          lineTotal: docTotals.items[1].totalAmount,
         },
       ],
     };
@@ -563,6 +561,7 @@ class StorageEngine {
       taxAmount: order.taxAmount,
       totalAmount: order.totalAmount,
       totalPaid: 25000,
+      totalsVersion: 2,
       notes: 'Generated from Sales Order SO-2026-0001',
       createdAt: '2026-02-16T10:00:00Z',
       updatedAt: '2026-02-20T14:30:00Z',
@@ -847,6 +846,23 @@ class StorageEngine {
     return newSup;
   }
 
+  public updateSupplier(orgId: string, id: string, updates: Partial<Supplier>): Supplier {
+    this.initialize();
+    const suppliers = this.getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
+    const index = suppliers.findIndex((s) => s.id === id && s.organizationId === orgId);
+    if (index === -1) throw new Error('Supplier not found in this organization');
+
+    const updated: Supplier = {
+      ...suppliers[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    suppliers[index] = updated;
+    this.setItem(STORAGE_KEYS.SUPPLIERS, suppliers);
+    this.logAuditEvent(orgId, 'UPDATE_SUPPLIER', 'SUPPLIER', id, updates);
+    return updated;
+  }
+
   // --- Inventory & Stock Movements ---
   public getStockMovements(orgId: string): StockMovement[] {
     this.initialize();
@@ -922,23 +938,65 @@ class StorageEngine {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
+  public allocateDocumentNumber(orgId: string, docType: 'QUOTATION' | 'SALES_ORDER' | 'INVOICE'): string {
+    const year = new Date().getFullYear();
+    let prefix = 'QT';
+    let existingNumbers: string[] = [];
+
+    if (docType === 'QUOTATION') {
+      prefix = 'QT';
+      const items = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []).filter((q) => q.organizationId === orgId);
+      existingNumbers = items.map((q) => q.quotationNumber);
+    } else if (docType === 'SALES_ORDER') {
+      prefix = 'SO';
+      const items = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []).filter((o) => o.organizationId === orgId);
+      existingNumbers = items.map((o) => o.orderNumber);
+    } else if (docType === 'INVOICE') {
+      prefix = 'INV';
+      const items = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []).filter((i) => i.organizationId === orgId);
+      existingNumbers = items.map((i) => i.invoiceNumber);
+    }
+
+    // Find max sequence number for this organization and year
+    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+    let maxSeq = 0;
+    for (const num of existingNumbers) {
+      const match = num.match(pattern);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxSeq) {
+          maxSeq = val;
+        }
+      }
+    }
+
+    // Advance candidate until guaranteed unique within organization
+    let nextSeq = maxSeq + 1;
+    let candidate = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
+    while (existingNumbers.includes(candidate)) {
+      nextSeq++;
+      candidate = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
+    }
+
+    return candidate;
+  }
+
   public createQuotation(orgId: string, data: { customerId: string; validUntil: string; notes?: string; items: any[] }): Quotation {
     this.initialize();
     const quotations = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []);
-    const num = 'QT-' + new Date().getFullYear() + '-' + String(quotations.length + 1).padStart(4, '0');
+    const num = this.allocateDocumentNumber(orgId, 'QUOTATION');
 
-    let subtotal = 0;
-    let discountAmount = 0;
-    let taxAmount = 0;
-    let totalAmount = 0;
+    const docTotals = calculateDocumentTotals(
+      data.items.map((it) => ({
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discountPercent: it.discountPercent,
+        taxRate: it.taxRate,
+      }))
+    );
 
     const items = data.items.map((it, idx) => {
-      const calc = calculateLineItem(it.quantity, it.unitPrice, it.discountPercent, it.taxRate);
-      subtotal += calc.taxableAmount;
-      discountAmount += calc.discountAmount;
-      taxAmount += calc.taxAmount;
-      totalAmount += calc.totalAmount;
-
+      const calc = docTotals.items[idx];
       return {
         id: 'qt-item-' + Date.now() + '-' + idx,
         quotationId: '',
@@ -949,7 +1007,7 @@ class StorageEngine {
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         discountPercent: it.discountPercent,
-        taxRate: it.taxRate,
+        taxRate: parseTaxRate(it.taxRate, 18),
         lineSubtotal: calc.taxableAmount,
         lineTax: calc.taxAmount,
         lineTotal: calc.totalAmount,
@@ -963,10 +1021,11 @@ class StorageEngine {
       customerId: data.customerId,
       status: 'DRAFT',
       validUntil: data.validUntil,
-      subtotal,
-      discountAmount,
-      taxAmount,
-      totalAmount,
+      subtotal: docTotals.grossSubtotal,
+      discountAmount: docTotals.discountTotal,
+      taxAmount: docTotals.taxAmount,
+      totalAmount: docTotals.totalAmount,
+      totalsVersion: 2,
       notes: data.notes,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -975,7 +1034,7 @@ class StorageEngine {
 
     quotations.push(newQuotation);
     this.setItem(STORAGE_KEYS.QUOTATIONS, quotations);
-    this.logAuditEvent(orgId, 'CREATE_QUOTATION', 'QUOTATION', newQuotation.id, { quotationNumber: num, totalAmount });
+    this.logAuditEvent(orgId, 'CREATE_QUOTATION', 'QUOTATION', newQuotation.id, { quotationNumber: num, totalAmount: newQuotation.totalAmount });
     return newQuotation;
   }
 
@@ -990,7 +1049,7 @@ class StorageEngine {
 
     // Create Sales Order from quotation
     const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
-    const orderNum = 'SO-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(4, '0');
+    const orderNum = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
 
     const newOrder: SalesOrder = {
       id: 'ord-' + Date.now(),
@@ -1004,6 +1063,7 @@ class StorageEngine {
       discountAmount: quotation.discountAmount,
       taxAmount: quotation.taxAmount,
       totalAmount: quotation.totalAmount,
+      totalsVersion: quotation.totalsVersion || 2,
       notes: `Converted from quotation ${quotation.quotationNumber}. ${quotation.notes || ''}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1030,6 +1090,28 @@ class StorageEngine {
     return newOrder;
   }
 
+  public deleteQuotation(orgId: string, quotationId: string): void {
+    this.initialize();
+    const quotations = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []);
+    const index = quotations.findIndex((q) => q.id === quotationId && q.organizationId === orgId);
+    if (index === -1) {
+      throw new Error('Quotation not found in this organization');
+    }
+
+    // ON DELETE RESTRICT: Check if any sales orders reference this quotation
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const hasLinkedOrder = orders.some((o) => o.quotationId === quotationId && o.organizationId === orgId);
+    if (hasLinkedOrder) {
+      throw new Error(
+        'Integrity constraint violation (ON DELETE RESTRICT): Cannot delete quotation referenced by active sales orders.'
+      );
+    }
+
+    quotations.splice(index, 1);
+    this.setItem(STORAGE_KEYS.QUOTATIONS, quotations);
+    this.logAuditEvent(orgId, 'DELETE_QUOTATION', 'QUOTATION', quotationId);
+  }
+
   // --- Sales Orders & Atomic Confirmation ---
   public getSalesOrders(orgId: string): SalesOrder[] {
     this.initialize();
@@ -1048,21 +1130,29 @@ class StorageEngine {
 
   public createSalesOrder(orgId: string, data: { customerId: string; orderDate: string; quotationId?: string; notes?: string; items: any[] }): SalesOrder {
     this.initialize();
-    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
-    const num = 'SO-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(4, '0');
 
-    let subtotal = 0;
-    let discountAmount = 0;
-    let taxAmount = 0;
-    let totalAmount = 0;
+    if (data.quotationId) {
+      const quotations = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []);
+      const quote = quotations.find((q) => q.id === data.quotationId && q.organizationId === orgId);
+      if (!quote) {
+        throw new Error('Referenced quotation not found in this organization');
+      }
+    }
+
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const num = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
+
+    const docTotals = calculateDocumentTotals(
+      data.items.map((it) => ({
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discountPercent: it.discountPercent,
+        taxRate: it.taxRate,
+      }))
+    );
 
     const items = data.items.map((it, idx) => {
-      const calc = calculateLineItem(it.quantity, it.unitPrice, it.discountPercent, it.taxRate);
-      subtotal += calc.taxableAmount;
-      discountAmount += calc.discountAmount;
-      taxAmount += calc.taxAmount;
-      totalAmount += calc.totalAmount;
-
+      const calc = docTotals.items[idx];
       return {
         id: 'so-item-' + Date.now() + '-' + idx,
         salesOrderId: '',
@@ -1073,7 +1163,7 @@ class StorageEngine {
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         discountPercent: it.discountPercent,
-        taxRate: it.taxRate,
+        taxRate: parseTaxRate(it.taxRate, 18),
         lineSubtotal: calc.taxableAmount,
         lineTax: calc.taxAmount,
         lineTotal: calc.totalAmount,
@@ -1088,10 +1178,11 @@ class StorageEngine {
       quotationId: data.quotationId,
       status: 'DRAFT',
       orderDate: data.orderDate,
-      subtotal,
-      discountAmount,
-      taxAmount,
-      totalAmount,
+      subtotal: docTotals.grossSubtotal,
+      discountAmount: docTotals.discountTotal,
+      taxAmount: docTotals.taxAmount,
+      totalAmount: docTotals.totalAmount,
+      totalsVersion: 2,
       notes: data.notes,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1100,7 +1191,7 @@ class StorageEngine {
 
     orders.push(newOrder);
     this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
-    this.logAuditEvent(orgId, 'CREATE_ORDER', 'SALES_ORDER', newOrder.id, { orderNumber: num, totalAmount });
+    this.logAuditEvent(orgId, 'CREATE_ORDER', 'SALES_ORDER', newOrder.id, { orderNumber: num, totalAmount: newOrder.totalAmount });
     return newOrder;
   }
 
@@ -1168,6 +1259,28 @@ class StorageEngine {
     return updated;
   }
 
+  public deleteSalesOrder(orgId: string, orderId: string): void {
+    this.initialize();
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const index = orders.findIndex((o) => o.id === orderId && o.organizationId === orgId);
+    if (index === -1) {
+      throw new Error('Sales order not found in this organization');
+    }
+
+    // ON DELETE RESTRICT: Check if any invoices reference this sales order
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+    const hasLinkedInvoice = invoices.some((i) => i.salesOrderId === orderId && i.organizationId === orgId);
+    if (hasLinkedInvoice) {
+      throw new Error(
+        'Integrity constraint violation (ON DELETE RESTRICT): Cannot delete sales order referenced by active invoices.'
+      );
+    }
+
+    orders.splice(index, 1);
+    this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
+    this.logAuditEvent(orgId, 'DELETE_SALES_ORDER', 'SALES_ORDER', orderId);
+  }
+
   // --- Invoices ---
   public getInvoices(orgId: string): Invoice[] {
     this.initialize();
@@ -1195,7 +1308,7 @@ class StorageEngine {
     }
 
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-    const invNum = 'INV-' + new Date().getFullYear() + '-' + String(invoices.length + 1).padStart(4, '0');
+    const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
 
     // Due date = today + 30 days default
     const due = new Date();
@@ -1215,6 +1328,7 @@ class StorageEngine {
       taxAmount: order.taxAmount,
       totalAmount: order.totalAmount,
       totalPaid: 0,
+      totalsVersion: order.totalsVersion || 2,
       notes: `Issued for confirmed Sales Order ${order.orderNumber}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1241,6 +1355,89 @@ class StorageEngine {
     this.logAuditEvent(orgId, 'ISSUE_INVOICE', 'INVOICE', newInvoice.id, {
       invoiceNumber: invNum,
       orderNumber: order.orderNumber,
+      totalAmount: newInvoice.totalAmount,
+    });
+
+    return newInvoice;
+  }
+
+  public createInvoice(
+    orgId: string,
+    data: {
+      customerId: string;
+      salesOrderId?: string;
+      invoiceDate: string;
+      dueDate: string;
+      notes?: string;
+      items: Array<{
+        productId: string;
+        productName: string;
+        productSku: string;
+        uom: UOM;
+        quantity: number;
+        unitPrice: number;
+        discountPercent: number;
+        taxRate: number;
+      }>;
+    }
+  ): Invoice {
+    this.initialize();
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+    const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
+
+    const docTotals = calculateDocumentTotals(
+      data.items.map((it) => ({
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discountPercent: it.discountPercent,
+        taxRate: it.taxRate,
+      }))
+    );
+
+    const items = data.items.map((it, idx) => {
+      const calc = docTotals.items[idx];
+      return {
+        id: 'inv-item-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        invoiceId: '',
+        productId: it.productId,
+        productName: it.productName,
+        productSku: it.productSku,
+        uom: it.uom,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discountPercent: it.discountPercent,
+        taxRate: parseTaxRate(it.taxRate, 18),
+        lineSubtotal: calc.taxableAmount,
+        lineTax: calc.taxAmount,
+        lineTotal: calc.totalAmount,
+      };
+    });
+
+    const newInvoice: Invoice = {
+      id: 'inv-' + Date.now(),
+      organizationId: orgId,
+      invoiceNumber: invNum,
+      customerId: data.customerId,
+      salesOrderId: data.salesOrderId,
+      status: 'ISSUED',
+      invoiceDate: data.invoiceDate,
+      dueDate: data.dueDate,
+      subtotal: docTotals.grossSubtotal,
+      discountAmount: docTotals.discountTotal,
+      taxAmount: docTotals.taxAmount,
+      totalAmount: docTotals.totalAmount,
+      totalPaid: 0,
+      totalsVersion: 2,
+      notes: data.notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      items,
+    };
+
+    invoices.push(newInvoice);
+    this.setItem(STORAGE_KEYS.INVOICES, invoices);
+    this.logAuditEvent(orgId, 'ISSUE_INVOICE', 'INVOICE', newInvoice.id, {
+      invoiceNumber: invNum,
       totalAmount: newInvoice.totalAmount,
     });
 
@@ -1275,9 +1472,13 @@ class StorageEngine {
       referenceNumber?: string;
       paymentDate: string;
       notes?: string;
-    }
+    },
+    userRole?: Role | null
   ): Payment {
     this.initialize();
+    if (!userRole || !['owner', 'admin', 'accounts'].includes(userRole)) {
+      throw new Error(`Permission denied: Role "${userRole || 'unassigned'}" cannot record payments.`);
+    }
     if (data.amount <= 0) throw new Error('Payment amount must be greater than zero.');
 
     const customers = this.getCustomers(orgId);
@@ -1311,6 +1512,9 @@ class StorageEngine {
       if (invIndex === -1) throw new Error('Target invoice not found in this organization');
 
       const inv = invoices[invIndex];
+      if (inv.status === 'CANCELLED') {
+        throw new Error('Cannot allocate payment to cancelled invoice');
+      }
       if (inv.customerId !== data.customerId) {
         throw new Error(
           `Customer mismatch: Payment customer (${data.customerId}) does not match invoice customer (${inv.customerId})`

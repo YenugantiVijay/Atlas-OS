@@ -64,7 +64,7 @@ export const SettingsPage: React.FC = () => {
     }
   }, [currentOrg]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       showToast('error', 'Validation Error', 'Organization Name is required.');
@@ -74,7 +74,7 @@ export const SettingsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      updateOrganization(currentOrg.id, {
+      await updateOrganization(currentOrg.id, {
         name: name.trim(),
         legalName: legalName.trim() || undefined,
         gstin: gstin.trim().toUpperCase() || undefined,
@@ -90,7 +90,7 @@ export const SettingsPage: React.FC = () => {
       });
 
       showToast('success', 'Settings Saved', 'Organization profile updated.');
-      refreshOrgData();
+      await refreshOrgData();
     } catch (err: any) {
       showToast('error', 'Failed to save settings', err.message);
     } finally {
@@ -105,15 +105,15 @@ export const SettingsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Organization Settings
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               Tenant Profile
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Manage your legal entity, Indian GSTIN registration, billing address, and default currency.
           </p>
         </div>
@@ -221,24 +221,24 @@ export const SettingsPage: React.FC = () => {
                 <CardTitle>Storage & Backend Status</CardTitle>
               </div>
             </CardHeader>
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-surface-panel border border-border">
-                <span className="font-semibold block text-content-primary mb-1">
+            <div className="space-y-3.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="font-semibold block text-content-primary mb-1.5">
                   Active Data Layer
                 </span>
-                <Badge variant={supabaseStatus.configured ? 'success' : 'violet'} size="sm">
+                <Badge variant={supabaseStatus.configured ? 'success' : 'violet'} showDot size="sm">
                   {supabaseStatus.configured ? 'Supabase PostgreSQL' : 'Local Deterministic Ledger'}
                 </Badge>
-                <p className="text-[11px] text-content-secondary mt-2 leading-relaxed">
+                <p className="text-xs text-content-secondary mt-2 leading-relaxed">
                   {supabaseStatus.message}
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-surface-panel border border-border">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="font-semibold block text-content-primary mb-1">
                   Tenant Organization ID
                 </span>
-                <code className="text-[10px] font-mono text-atlas-700 bg-surface-card p-1 rounded border border-border block truncate">
+                <code className="text-xs font-mono text-atlas-700 bg-white p-1.5 rounded border border-slate-200 block truncate">
                   {currentOrg?.id}
                 </code>
               </div>
@@ -256,25 +256,25 @@ export const SettingsPage: React.FC = () => {
                 </Button>
                 {verifyResult && (
                   <div
-                    className={`mt-2 p-2.5 rounded-lg text-[11px] border leading-relaxed ${
+                    className={`mt-2.5 p-3 rounded-lg text-xs border leading-relaxed ${
                       verifyResult.status === 'configured_and_reachable'
                         ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
                         : 'bg-amber-50 text-amber-900 border-amber-200'
                     }`}
                   >
-                    <div className="font-semibold flex items-center justify-between pb-1 border-b border-black/5">
+                    <div className="font-semibold flex items-center justify-between pb-1.5 border-b border-black/5">
                       <span>
                         {verifyResult.status === 'configured_and_reachable'
                           ? '✓ Client Ready & Auth Reachable'
                           : '⚠ Verification Notice'}
                       </span>
                       {verifyResult.latencyMs !== undefined && (
-                        <span className="text-[10px] opacity-75">{verifyResult.latencyMs}ms</span>
+                        <span className="text-xs opacity-75">{verifyResult.latencyMs}ms</span>
                       )}
                     </div>
-                    <p className="mt-1">{verifyResult.message}</p>
+                    <p className="mt-1.5">{verifyResult.message}</p>
                     {verifyResult.projectUrl && (
-                      <p className="mt-1 font-mono text-[10px] text-content-secondary truncate">
+                      <p className="mt-1 font-mono text-xs text-content-secondary truncate">
                         Endpoint: {verifyResult.projectUrl}
                       </p>
                     )}

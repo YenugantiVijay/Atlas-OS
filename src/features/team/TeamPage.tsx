@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Plus,
-  UserCheck,
   Lock,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
@@ -90,15 +89,15 @@ export const TeamPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Team & Permissions
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               RBAC Multi-Tenant
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Manage organization members and role-based operational permissions across sales, inventory, and accounts.
           </p>
         </div>
@@ -136,18 +135,18 @@ export const TeamPage: React.FC = () => {
                       <img
                         src={m.user.avatarUrl}
                         alt={m.user?.fullName || 'User'}
-                        className="w-9 h-9 rounded-full object-cover border border-border shadow-xs shrink-0"
+                        className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-xs shrink-0"
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-atlas-200 text-atlas-800 font-bold text-xs flex items-center justify-center border border-atlas-300 shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-atlas-100 text-atlas-800 font-bold text-xs flex items-center justify-center border border-atlas-200 shrink-0">
                         {getInitials(m.user?.fullName || 'Staff')}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="font-semibold text-content-primary">
+                      <div className="font-semibold text-sm text-content-primary">
                         {m.user?.fullName || 'Distributor Staff'}
                       </div>
-                      <div className="text-xs text-content-secondary font-mono">
+                      <div className="text-xs text-content-secondary font-mono mt-0.5">
                         {m.user?.email || 'user@atlas-os.local'}
                       </div>
                     </div>
@@ -155,7 +154,7 @@ export const TeamPage: React.FC = () => {
                 </TableCell>
 
                 <TableCell>
-                  <Badge variant={getRoleBadgeVariant(m.role)} size="sm">
+                  <Badge variant={getRoleBadgeVariant(m.role)} showDot size="sm">
                     {m.role}
                   </Badge>
                 </TableCell>
@@ -174,10 +173,9 @@ export const TeamPage: React.FC = () => {
                 </TableCell>
 
                 <TableCell>
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Active</span>
-                  </span>
+                  <Badge variant="success" showDot size="sm">
+                    Active
+                  </Badge>
                 </TableCell>
               </TableRow>
             ))}
@@ -193,22 +191,22 @@ export const TeamPage: React.FC = () => {
             <CardTitle>Role Permissions Reference Guide</CardTitle>
           </div>
         </CardHeader>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-3 rounded-xl bg-surface-panel border border-border">
-            <span className="font-bold text-atlas-900 block mb-1">Sales Representative</span>
-            <p className="text-content-secondary leading-relaxed">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="font-bold text-sm text-slate-900 block mb-1">Sales Representative</span>
+            <p className="text-xs text-slate-600 leading-relaxed">
               Allowed to create customers, generate customer quotations, and log sales orders. Cannot adjust inventory without dispatch confirmation.
             </p>
           </div>
-          <div className="p-3 rounded-xl bg-surface-panel border border-border">
-            <span className="font-bold text-atlas-900 block mb-1">Inventory Manager</span>
-            <p className="text-content-secondary leading-relaxed">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="font-bold text-sm text-slate-900 block mb-1">Inventory Manager</span>
+            <p className="text-xs text-slate-600 leading-relaxed">
               Authorized to create SKUs, manage suppliers, and record manual stock adjustments with mandatory audit trail reasons.
             </p>
           </div>
-          <div className="p-3 rounded-xl bg-surface-panel border border-border">
-            <span className="font-bold text-atlas-900 block mb-1">Accounts Officer</span>
-            <p className="text-content-secondary leading-relaxed">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="font-bold text-sm text-slate-900 block mb-1">Accounts Officer</span>
+            <p className="text-xs text-slate-600 leading-relaxed">
               Authorized to issue tax invoices, record customer payments, and manage receivables aging ledgers.
             </p>
           </div>
@@ -220,7 +218,7 @@ export const TeamPage: React.FC = () => {
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         title="Invite Organization Member"
-        description="Add a team member to Sri Lakshmi Electrical Distributors with role-based access."
+        description={`Add a team member to ${currentOrg?.name || 'the organization'} with role-based access.`}
         maxWidth="md"
       >
         <form onSubmit={handleInvite} className="space-y-4">

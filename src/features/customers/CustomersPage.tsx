@@ -10,7 +10,7 @@ import {
   Edit2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { customersService } from '@/services/customers.service';
 import { Customer } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
@@ -30,11 +31,12 @@ function getInitials(name: string): string {
 }
 
 export const CustomersPage: React.FC = () => {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isMockAuth } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -52,9 +54,16 @@ export const CustomersPage: React.FC = () => {
   const [creditDays, setCreditDays] = useState('30');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadCustomers = () => {
-    if (currentOrg) {
-      setCustomers(storage.getCustomers(currentOrg.id));
+  const loadCustomers = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const data = await customersService.getCustomers(currentOrg.id, isMockAuth);
+      setCustomers(data);
+    } catch (err: any) {
+      showToast('error', 'Failed to load customers', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -65,7 +74,7 @@ export const CustomersPage: React.FC = () => {
       searchParams.delete('action');
       setSearchParams(searchParams);
     }
-  }, [currentOrg, searchParams]);
+  }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
     setEditingCustomer(null);
@@ -93,7 +102,7 @@ export const CustomersPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveCustomer = (e: React.FormEvent) => {
+  const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       showToast('error', 'Validation Error', 'Customer Name is required.');
@@ -104,34 +113,43 @@ export const CustomersPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (editingCustomer) {
-        storage.updateCustomer(currentOrg.id, editingCustomer.id, {
-          name: name.trim(),
-          companyName: companyName.trim() || undefined,
-          phone: phone.trim() || undefined,
-          email: email.trim() || undefined,
-          billingAddress: billingAddress.trim() || undefined,
-          gstin: gstin.trim().toUpperCase() || undefined,
-          creditLimit: parseFloat(creditLimit) || 0,
-          creditDays: parseInt(creditDays, 10) || 30,
-        });
+        await customersService.updateCustomer(
+          currentOrg.id,
+          editingCustomer.id,
+          {
+            name: name.trim(),
+            companyName: companyName.trim() || undefined,
+            phone: phone.trim() || undefined,
+            email: email.trim() || undefined,
+            billingAddress: billingAddress.trim() || undefined,
+            gstin: gstin.trim().toUpperCase() || undefined,
+            creditLimit: parseFloat(creditLimit) || 0,
+            creditDays: parseInt(creditDays, 10) || 30,
+          },
+          isMockAuth
+        );
         showToast('success', 'Customer Updated', `Saved details for ${companyName || name}`);
       } else {
-        storage.createCustomer(currentOrg.id, {
-          name: name.trim(),
-          companyName: companyName.trim() || undefined,
-          phone: phone.trim() || undefined,
-          email: email.trim() || undefined,
-          billingAddress: billingAddress.trim() || undefined,
-          gstin: gstin.trim().toUpperCase() || undefined,
-          creditLimit: parseFloat(creditLimit) || 0,
-          creditDays: parseInt(creditDays, 10) || 30,
-          isActive: true,
-        });
+        await customersService.createCustomer(
+          currentOrg.id,
+          {
+            name: name.trim(),
+            companyName: companyName.trim() || undefined,
+            phone: phone.trim() || undefined,
+            email: email.trim() || undefined,
+            billingAddress: billingAddress.trim() || undefined,
+            gstin: gstin.trim().toUpperCase() || undefined,
+            creditLimit: parseFloat(creditLimit) || 0,
+            creditDays: parseInt(creditDays, 10) || 30,
+            isActive: true,
+          },
+          isMockAuth
+        );
         showToast('success', 'Customer Created', `Added ${companyName || name} to customer directory.`);
       }
 
       setIsModalOpen(false);
-      loadCustomers();
+      await loadCustomers();
     } catch (err: any) {
       showToast('error', 'Operation Failed', err.message);
     } finally {
@@ -154,15 +172,15 @@ export const CustomersPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Customers & Contractors
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               {customers.length} Accounts
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Electrical contractors, builders, and retail dealers with credit terms and live balances.
           </p>
         </div>
@@ -183,11 +201,18 @@ export const CustomersPage: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
+          aria-label="Search customers"
         />
       </Card>
 
       {/* Customers Table */}
-      {filteredCustomers.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredCustomers.length === 0 ? (
         <EmptyState
           icon={<Users className="w-7 h-7" />}
           title="No customers found"
@@ -223,7 +248,7 @@ export const CustomersPage: React.FC = () => {
                         <img
                           src={c.avatarUrl}
                           alt={c.companyName || c.name}
-                          className="w-10 h-10 rounded-full object-cover border border-border shadow-xs shrink-0"
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-xs shrink-0"
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-atlas-100 text-atlas-800 font-bold text-xs flex items-center justify-center border border-atlas-200 shrink-0">
@@ -231,7 +256,7 @@ export const CustomersPage: React.FC = () => {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="font-semibold text-content-primary truncate max-w-xs">
+                        <div className="font-semibold text-sm text-content-primary truncate max-w-xs">
                           {c.companyName || c.name}
                         </div>
                         {c.companyName && (
@@ -240,8 +265,8 @@ export const CustomersPage: React.FC = () => {
                           </div>
                         )}
                         {c.billingAddress && (
-                          <div className="text-[11px] text-content-muted mt-1 truncate max-w-xs flex items-center gap-1">
-                            <MapPin className="w-3 h-3 shrink-0" />
+                          <div className="text-xs text-content-muted mt-1 truncate max-w-xs flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                             <span className="truncate">{c.billingAddress}</span>
                           </div>
                         )}
@@ -250,43 +275,43 @@ export const CustomersPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell>
-                    <div className="text-xs font-mono text-content-primary flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-content-muted" />
+                    <div className="text-xs font-mono text-content-primary flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
                       <span>{c.phone || '—'}</span>
                     </div>
                     {c.email && (
-                      <div className="text-[11px] text-content-secondary flex items-center gap-1 mt-0.5">
-                        <Mail className="w-3 h-3 text-content-muted" />
+                      <div className="text-xs text-content-secondary flex items-center gap-1.5 mt-1">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
                         <span>{c.email}</span>
                       </div>
                     )}
                   </TableCell>
 
                   <TableCell>
-                    <div className="font-mono text-xs text-content-primary">
+                    <div className="font-mono text-xs font-medium text-content-primary">
                       {c.gstin || 'Unregistered'}
                     </div>
                   </TableCell>
 
                   <TableCell className="text-right">
-                    <div className="text-xs font-semibold text-content-primary">
+                    <div className="text-sm font-semibold text-content-primary tabular-nums">
                       {formatCurrency(c.creditLimit)}
                     </div>
-                    <div className="text-[10px] text-content-muted">
+                    <div className="text-xs text-content-muted mt-0.5">
                       {c.creditDays} Days Terms
                     </div>
                   </TableCell>
 
                   <TableCell className="text-right">
                     <div
-                      className={`text-xs font-bold ${
+                      className={`text-sm font-bold tabular-nums ${
                         hasBalance ? 'text-amber-700' : 'text-emerald-700'
                       }`}
                     >
                       {formatCurrency(receivable)}
                     </div>
-                    <div className="text-[10px] text-content-muted">
-                      {hasBalance ? 'Outstanding' : 'Cleared'}
+                    <div className="text-xs text-content-muted mt-0.5">
+                      {hasBalance ? 'Outstanding' : 'Settled'}
                     </div>
                   </TableCell>
 

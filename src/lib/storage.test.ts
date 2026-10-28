@@ -203,7 +203,7 @@ describe('Storage Engine Multi-Tenant & Transaction Integrity', () => {
         amount: 5000,
         paymentMethod: 'UPI',
         paymentDate: '2026-03-02',
-      })
+      }, 'accounts')
     ).toThrow(/exceeds outstanding invoice balance/);
 
     // Valid partial payment of 2000 -> MUST SUCCEED
@@ -213,7 +213,7 @@ describe('Storage Engine Multi-Tenant & Transaction Integrity', () => {
       amount: 2000,
       paymentMethod: 'UPI',
       paymentDate: '2026-03-02',
-    });
+    }, 'accounts');
 
     expect(payment.amount).toBe(2000);
 

@@ -9,7 +9,9 @@ import {
   Eye,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { ordersService } from '@/services/orders.service';
+import { customersService } from '@/services/customers.service';
+import { productsService } from '@/services/products.service';
 import { Quotation, Product, Customer } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -19,8 +21,9 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency, calculateLineItem } from '@/lib/money';
+import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 
 interface LineItemDraft {
   productId: string;
@@ -31,13 +34,14 @@ interface LineItemDraft {
 }
 
 export const QuotationsPage: React.FC = () => {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isMockAuth } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
@@ -51,11 +55,22 @@ export const QuotationsPage: React.FC = () => {
   const [items, setItems] = useState<LineItemDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadData = () => {
-    if (currentOrg) {
-      setQuotations(storage.getQuotations(currentOrg.id));
-      setCustomers(storage.getCustomers(currentOrg.id));
-      setProducts(storage.getProducts(currentOrg.id));
+  const loadData = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const [quotList, custList, prodList] = await Promise.all([
+        ordersService.getQuotations(currentOrg.id, isMockAuth),
+        customersService.getCustomers(currentOrg.id, isMockAuth),
+        productsService.getProducts(currentOrg.id, isMockAuth),
+      ]);
+      setQuotations(quotList);
+      setCustomers(custList);
+      setProducts(prodList);
+    } catch (err: any) {
+      showToast('error', 'Failed to load quotations', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -66,27 +81,24 @@ export const QuotationsPage: React.FC = () => {
       searchParams.delete('action');
       setSearchParams(searchParams);
     }
-  }, [currentOrg, searchParams]);
+  }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
-    const custs = storage.getCustomers(currentOrg?.id || '');
-    const prods = storage.getProducts(currentOrg?.id || '');
-
-    setCustomerId(custs[0]?.id || '');
+    setCustomerId(customers[0]?.id || '');
     // Default valid until 15 days from now
     const d = new Date();
     d.setDate(d.getDate() + 15);
     setValidUntil(d.toISOString().split('T')[0]);
     setNotes('');
 
-    if (prods.length > 0) {
+    if (products.length > 0) {
       setItems([
         {
-          productId: prods[0].id,
+          productId: products[0].id,
           quantity: 1,
-          unitPrice: prods[0].sellingPrice,
+          unitPrice: products[0].sellingPrice,
           discountPercent: 0,
-          taxRate: prods[0].taxRate,
+          taxRate: products[0].taxRate,
         },
       ]);
     } else {
@@ -132,21 +144,10 @@ export const QuotationsPage: React.FC = () => {
   };
 
   const calculateTotals = () => {
-    let subtotal = 0;
-    let tax = 0;
-    let total = 0;
-
-    items.forEach((it) => {
-      const c = calculateLineItem(it.quantity, it.unitPrice, it.discountPercent, it.taxRate);
-      subtotal += c.taxableAmount;
-      tax += c.taxAmount;
-      total += c.totalAmount;
-    });
-
-    return { subtotal, tax, total };
+    return calculateDocumentTotals(items);
   };
 
-  const handleSaveQuotation = (e: React.FormEvent) => {
+  const handleSaveQuotation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer for the quotation.');
@@ -175,16 +176,20 @@ export const QuotationsPage: React.FC = () => {
         };
       });
 
-      const q = storage.createQuotation(currentOrg.id, {
-        customerId,
-        validUntil,
-        notes: notes.trim() || undefined,
-        items: formattedItems,
-      });
+      const q = await ordersService.createQuotation(
+        currentOrg.id,
+        {
+          customerId,
+          validUntil,
+          notes: notes.trim() || undefined,
+          items: formattedItems,
+        },
+        isMockAuth
+      );
 
       showToast('success', 'Quotation Created', `Quotation ${q.quotationNumber} has been generated.`);
       setIsCreateModalOpen(false);
-      loadData();
+      await loadData();
     } catch (err: any) {
       showToast('error', 'Failed to Create', err.message);
     } finally {
@@ -192,12 +197,12 @@ export const QuotationsPage: React.FC = () => {
     }
   };
 
-  const handleConvertToOrder = (q: Quotation) => {
+  const handleConvertToOrder = async (q: Quotation) => {
     if (!currentOrg) return;
     try {
-      const order = storage.convertQuotationToOrder(currentOrg.id, q.id);
+      const order = await ordersService.convertQuotationToOrder(currentOrg.id, q.id, isMockAuth);
       showToast('success', 'Converted to Sales Order', `Sales Order ${order.orderNumber} created from quotation.`);
-      loadData();
+      await loadData();
     } catch (err: any) {
       showToast('error', 'Conversion Failed', err.message);
     }
@@ -219,15 +224,15 @@ export const QuotationsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Quotations & Estimates
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               {quotations.length} Quotations
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Prepare commercial pricing proposals with line-item discounts, GST computation, and 1-click order conversion.
           </p>
         </div>
@@ -248,11 +253,18 @@ export const QuotationsPage: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
+          aria-label="Search quotations"
         />
       </Card>
 
       {/* Table */}
-      {filteredQuotations.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredQuotations.length === 0 ? (
         <EmptyState
           icon={<ClipboardList className="w-7 h-7" />}
           title="No quotations found"
@@ -276,20 +288,20 @@ export const QuotationsPage: React.FC = () => {
             {filteredQuotations.map((q) => (
               <TableRow key={q.id}>
                 <TableCell>
-                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200">
+                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                     {q.quotationNumber}
                   </span>
-                  <div className="text-[11px] text-content-muted mt-0.5">
+                  <div className="text-xs text-content-muted mt-1">
                     {new Date(q.createdAt).toLocaleDateString('en-IN')}
                   </div>
                 </TableCell>
 
                 <TableCell>
-                  <div className="font-semibold text-content-primary">
+                  <div className="font-semibold text-sm text-content-primary">
                     {q.customer?.companyName || q.customer?.name}
                   </div>
                   {q.customer?.companyName && (
-                    <div className="text-xs text-content-secondary">{q.customer.name}</div>
+                    <div className="text-xs text-content-secondary mt-0.5">{q.customer.name}</div>
                   )}
                 </TableCell>
 
@@ -306,13 +318,14 @@ export const QuotationsPage: React.FC = () => {
                         ? 'info'
                         : 'warning'
                     }
+                    showDot
                     size="sm"
                   >
                     {q.status}
                   </Badge>
                 </TableCell>
 
-                <TableCell className="text-right font-bold text-content-primary">
+                <TableCell className="text-right font-bold text-sm text-content-primary tabular-nums">
                   {formatCurrency(q.totalAmount)}
                 </TableCell>
 
@@ -483,16 +496,26 @@ export const QuotationsPage: React.FC = () => {
           {/* Totals Summary */}
           <div className="flex flex-col items-end gap-1 pt-2 text-xs">
             <div className="flex justify-between w-64 text-content-secondary">
-              <span>Taxable Subtotal:</span>
-              <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+              <span>Gross Subtotal:</span>
+              <span className="font-mono">{formatCurrency(totals.grossSubtotal)}</span>
+            </div>
+            {totals.discountTotal > 0 && (
+              <div className="flex justify-between w-64 text-emerald-600">
+                <span>Discount:</span>
+                <span className="font-mono">-{formatCurrency(totals.discountTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between w-64 text-content-secondary">
+              <span>Taxable Amount:</span>
+              <span className="font-mono">{formatCurrency(totals.taxableAmount)}</span>
             </div>
             <div className="flex justify-between w-64 text-content-secondary">
               <span>GST Tax Amount:</span>
-              <span className="font-mono">{formatCurrency(totals.tax)}</span>
+              <span className="font-mono">{formatCurrency(totals.taxAmount)}</span>
             </div>
             <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
               <span>Total Payable:</span>
-              <span className="font-mono text-atlas-700">{formatCurrency(totals.total)}</span>
+              <span className="font-mono text-atlas-700">{formatCurrency(totals.totalAmount)}</span>
             </div>
           </div>
 
@@ -583,6 +606,52 @@ export const QuotationsPage: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+
+            {/* Totals Summary */}
+            {(() => {
+              const presentation = resolveDocumentPresentation(viewingQuotation);
+              return (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  {presentation.statusNotice && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-900 text-xs leading-relaxed">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <span>Notice:</span>
+                        <span>{presentation.format === 'UNRESOLVED_HISTORICAL' ? 'Historical Calculation Discrepancy' : 'Historical Document Format'}</span>
+                      </div>
+                      <p className="mt-0.5 text-amber-800">{presentation.statusNotice}</p>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-end gap-1 text-xs">
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.subtotalLabel}:</span>
+                      <span className="font-mono">{formatCurrency(presentation.subtotalAmount)}</span>
+                    </div>
+                    {presentation.showDiscount && (
+                      <div className="flex justify-between w-64 text-emerald-600">
+                        <span>{presentation.discountLabel || 'Discount'}:</span>
+                        <span className="font-mono">-{formatCurrency(presentation.discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.taxableLabel}:</span>
+                      <span className="font-mono">
+                        {formatCurrency(presentation.taxableAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.taxLabel}:</span>
+                      <span className="font-mono">{formatCurrency(presentation.taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
+                      <span>{presentation.totalLabel}:</span>
+                      <span className="font-mono text-atlas-700">
+                        {formatCurrency(presentation.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <Button variant="outline" onClick={() => setViewingQuotation(null)}>

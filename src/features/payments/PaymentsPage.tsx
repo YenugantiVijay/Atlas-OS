@@ -6,7 +6,9 @@ import {
   Search,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { paymentsService } from '@/services/payments.service';
+import { customersService } from '@/services/customers.service';
+import { invoicesService } from '@/services/invoices.service';
 import { Payment, Customer, Invoice, PaymentMethod } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -16,6 +18,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 
@@ -29,13 +32,14 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 export const PaymentsPage: React.FC = () => {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isMockAuth, currentRole } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -49,11 +53,22 @@ export const PaymentsPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadData = () => {
-    if (currentOrg) {
-      setPayments(storage.getPayments(currentOrg.id));
-      setCustomers(storage.getCustomers(currentOrg.id));
-      setInvoices(storage.getInvoices(currentOrg.id));
+  const loadData = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const [payList, custList, invList] = await Promise.all([
+        paymentsService.getPayments(currentOrg.id, isMockAuth),
+        customersService.getCustomers(currentOrg.id, isMockAuth),
+        invoicesService.getInvoices(currentOrg.id, isMockAuth),
+      ]);
+      setPayments(payList);
+      setCustomers(custList);
+      setInvoices(invList);
+    } catch (err: any) {
+      showToast('error', 'Failed to load payments', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -64,18 +79,16 @@ export const PaymentsPage: React.FC = () => {
       searchParams.delete('action');
       setSearchParams(searchParams);
     }
-  }, [currentOrg, searchParams]);
+  }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenRecord = (preselectedInvoice?: Invoice) => {
-    const custs = storage.getCustomers(currentOrg?.id || '');
-
     if (preselectedInvoice) {
       setCustomerId(preselectedInvoice.customerId);
       setInvoiceId(preselectedInvoice.id);
       const rem = calculateInvoiceBalance(preselectedInvoice.totalAmount, preselectedInvoice.totalPaid);
       setAmount(String(rem));
     } else {
-      setCustomerId(custs[0]?.id || '');
+      setCustomerId(customers[0]?.id || '');
       setInvoiceId('');
       setAmount('');
     }
@@ -87,7 +100,7 @@ export const PaymentsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     const payAmount = parseFloat(amount);
     if (!customerId) {
@@ -103,15 +116,20 @@ export const PaymentsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const p = storage.recordPayment(currentOrg.id, {
-        customerId,
-        invoiceId: invoiceId || undefined,
-        amount: payAmount,
-        paymentMethod,
-        referenceNumber: referenceNumber.trim() || undefined,
-        paymentDate,
-        notes: notes.trim() || undefined,
-      });
+      const p = await paymentsService.recordPayment(
+        currentOrg.id,
+        {
+          customerId,
+          invoiceId: invoiceId || undefined,
+          amount: payAmount,
+          paymentMethod,
+          referenceNumber: referenceNumber.trim() || undefined,
+          paymentDate,
+          notes: notes.trim() || undefined,
+        },
+        isMockAuth,
+        currentRole
+      );
 
       showToast(
         'success',
@@ -119,7 +137,7 @@ export const PaymentsPage: React.FC = () => {
         `Recorded receipt ${p.paymentNumber} for ${formatCurrency(payAmount)}.`
       );
       setIsModalOpen(false);
-      loadData();
+      await loadData();
     } catch (err: any) {
       showToast('error', 'Payment Failed', err.message);
     } finally {
@@ -153,15 +171,15 @@ export const PaymentsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Payments & Receivables Ledger
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               Collections
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Record customer receipts via UPI, NEFT, Cheque, and allocate balances to open invoices.
           </p>
         </div>
@@ -176,39 +194,39 @@ export const PaymentsPage: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
         <Card hover>
-          <div className="text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1">
+          <div className="text-xs font-medium text-content-secondary mb-1.5">
             Total Receivables Outstanding
           </div>
-          <div className="text-2xl font-bold text-amber-800">
+          <div className="text-2xl font-bold text-amber-800 tabular-nums">
             {formatCurrency(totalReceivables)}
           </div>
-          <div className="text-[11px] text-content-muted mt-0.5">
+          <div className="text-xs text-content-muted mt-1">
             Across {customers.filter((c) => (c.currentReceivable || 0) > 0).length} customer accounts
           </div>
         </Card>
 
         <Card hover>
-          <div className="text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1">
+          <div className="text-xs font-medium text-content-secondary mb-1.5">
             Total Collections Logged
           </div>
-          <div className="text-2xl font-bold text-emerald-700">
+          <div className="text-2xl font-bold text-emerald-700 tabular-nums">
             {formatCurrency(totalCollected)}
           </div>
-          <div className="text-[11px] text-content-muted mt-0.5">
+          <div className="text-xs text-content-muted mt-1">
             {payments.length} verified payment receipts
           </div>
         </Card>
 
         <Card hover>
-          <div className="text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1">
+          <div className="text-xs font-medium text-content-secondary mb-1.5">
             Open Invoices
           </div>
-          <div className="text-2xl font-bold text-content-primary">
+          <div className="text-2xl font-bold text-content-primary tabular-nums">
             {invoices.filter((i) => i.status !== 'PAID' && i.status !== 'CANCELLED').length}
           </div>
-          <div className="text-[11px] text-content-muted mt-0.5">
+          <div className="text-xs text-content-muted mt-1">
             Awaiting payment settlement
           </div>
         </Card>
@@ -221,11 +239,18 @@ export const PaymentsPage: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
+          aria-label="Search payment records"
         />
       </Card>
 
       {/* Payments Table */}
-      {filteredPayments.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredPayments.length === 0 ? (
         <EmptyState
           icon={<CreditCard className="w-7 h-7" />}
           title="No payments recorded"
@@ -249,18 +274,20 @@ export const PaymentsPage: React.FC = () => {
             {filteredPayments.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200">
+                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                     {p.paymentNumber}
                   </span>
                 </TableCell>
 
                 <TableCell>
-                  <div className="font-semibold text-content-primary">
+                  <div className="font-semibold text-sm text-content-primary">
                     {p.customer?.companyName || p.customer?.name}
                   </div>
-                  <div className="text-[11px] text-content-secondary">
-                    {p.customer?.phone}
-                  </div>
+                  {p.customer?.phone && (
+                    <div className="text-xs text-content-secondary mt-0.5">
+                      {p.customer.phone}
+                    </div>
+                  )}
                 </TableCell>
 
                 <TableCell>
@@ -270,7 +297,7 @@ export const PaymentsPage: React.FC = () => {
                     </Badge>
                   </div>
                   {p.referenceNumber && (
-                    <div className="text-[11px] font-mono text-content-secondary mt-0.5">
+                    <div className="text-xs font-mono text-content-secondary mt-1">
                       Ref: {p.referenceNumber}
                     </div>
                   )}
@@ -280,7 +307,7 @@ export const PaymentsPage: React.FC = () => {
                   {p.paymentDate}
                 </TableCell>
 
-                <TableCell className="text-right font-bold font-mono text-emerald-700">
+                <TableCell className="text-right font-bold font-mono text-sm text-emerald-700 tabular-nums">
                   {formatCurrency(p.amount)}
                 </TableCell>
 

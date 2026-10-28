@@ -6,7 +6,7 @@ export const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => {
   return (
     <div
-      className={`animate-pulse rounded-md bg-atlas-100/70 ${className}`}
+      className={`animate-pulse rounded-md bg-slate-200/80 ${className}`}
       {...props}
     />
   );

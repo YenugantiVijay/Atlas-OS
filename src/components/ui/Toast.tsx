@@ -48,18 +48,21 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return (
             <div
               key={toast.id}
-              className="pointer-events-auto flex items-start gap-3 rounded-xl border border-border bg-surface-card p-4 shadow-modal transition-all animate-in fade-in slide-in-from-bottom-2"
+              role="alert"
+              aria-live="polite"
+              className="pointer-events-auto flex items-start gap-3 rounded-xl border border-border bg-white p-4 shadow-modal transition-all animate-in fade-in slide-in-from-bottom-2"
             >
               {icons[toast.type]}
               <div className="flex-1 text-left">
-                <h5 className="text-xs font-semibold text-content-primary">{toast.title}</h5>
+                <h5 className="text-sm font-semibold text-content-primary">{toast.title}</h5>
                 {toast.description && (
-                  <p className="text-xs text-content-secondary mt-0.5 leading-snug">{toast.description}</p>
+                  <p className="text-xs text-content-secondary mt-1 leading-relaxed">{toast.description}</p>
                 )}
               </div>
               <button
+                type="button"
                 onClick={() => removeToast(toast.id)}
-                className="text-content-muted hover:text-content-primary transition-colors"
+                className="text-content-muted hover:text-content-primary transition-colors p-1 rounded-md hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-atlas-500"
                 aria-label="Dismiss toast"
               >
                 <X className="w-4 h-4" />

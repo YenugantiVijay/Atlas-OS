@@ -34,3 +34,6 @@ dist-ssr
 coverage
 test-results
 playwright-report
+
+# Supabase CLI local metadata
+supabase/.temp/
