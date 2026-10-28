@@ -9,7 +9,7 @@ import {
   Edit2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { productsService } from '@/services/products.service';
 import { Product, UOM } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -20,6 +20,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
@@ -37,11 +38,12 @@ const CATEGORIES = [
 const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isMockAuth } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
@@ -65,9 +67,16 @@ export const ProductsPage: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadProducts = () => {
-    if (currentOrg) {
-      setProducts(storage.getProducts(currentOrg.id));
+  const loadProducts = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const data = await productsService.getProducts(currentOrg.id, isMockAuth);
+      setProducts(data);
+    } catch (err: any) {
+      showToast('error', 'Failed to load products', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,7 +87,7 @@ export const ProductsPage: React.FC = () => {
       searchParams.delete('action');
       setSearchParams(searchParams);
     }
-  }, [currentOrg, searchParams]);
+  }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
     setSku('');
@@ -113,7 +122,7 @@ export const ProductsPage: React.FC = () => {
     setIsCreateModalOpen(true);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sku.trim() || !name.trim()) {
       showToast('error', 'Validation Error', 'SKU and Product Name are required.');
@@ -125,22 +134,27 @@ export const ProductsPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (editingProduct) {
-        storage.updateProduct(currentOrg.id, editingProduct.id, {
-          sku: sku.trim().toUpperCase(),
-          name: name.trim(),
-          brand: brand.trim() || undefined,
-          category,
-          uom,
-          purchaseCost: parseFloat(purchaseCost) || 0,
-          sellingPrice: parseFloat(sellingPrice) || 0,
-          taxRate: parseFloat(taxRate) || 0,
-          hsnCode: hsnCode.trim() || undefined,
-          reorderThreshold: parseInt(reorderThreshold, 10) || 0,
-          imageUrl: imageUrl || undefined,
-        });
+        await productsService.updateProduct(
+          currentOrg.id,
+          editingProduct.id,
+          {
+            sku: sku.trim().toUpperCase(),
+            name: name.trim(),
+            brand: brand.trim() || undefined,
+            category,
+            uom,
+            purchaseCost: parseFloat(purchaseCost) || 0,
+            sellingPrice: parseFloat(sellingPrice) || 0,
+            taxRate: parseFloat(taxRate) || 0,
+            hsnCode: hsnCode.trim() || undefined,
+            reorderThreshold: parseInt(reorderThreshold, 10) || 0,
+            imageUrl: imageUrl || undefined,
+          },
+          isMockAuth
+        );
         showToast('success', 'Product Updated', `Successfully updated product ${sku}`);
       } else {
-        storage.createProduct(
+        await productsService.createProduct(
           currentOrg.id,
           {
             sku: sku.trim().toUpperCase(),
@@ -156,13 +170,14 @@ export const ProductsPage: React.FC = () => {
             imageUrl: imageUrl || undefined,
             isActive: true,
           },
+          isMockAuth,
           parseInt(openingStock, 10) || 0
         );
         showToast('success', 'Product Created', `Added ${name} to organization catalog.`);
       }
 
       setIsCreateModalOpen(false);
-      loadProducts();
+      await loadProducts();
     } catch (err: any) {
       showToast('error', 'Action Failed', err.message);
     } finally {
@@ -193,15 +208,15 @@ export const ProductsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Products & Catalog
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               {products.length} SKUs
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Electrical components catalog with HSN codes, GST classification, and real-time inventory balances.
           </p>
         </div>
@@ -217,21 +232,23 @@ export const ProductsPage: React.FC = () => {
 
       {/* Filters & Search */}
       <Card>
-        <div className="flex flex-col md:flex-row items-center gap-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           <div className="flex-1 w-full">
             <Input
               placeholder="Search by product name, SKU, or manufacturer brand..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftIcon={<Search className="w-4 h-4" />}
+              aria-label="Search products"
             />
           </div>
 
-          <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
             <select
+              aria-label="Filter by category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="rounded-lg border border-border bg-surface-card px-3 py-2 text-xs font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-100"
+              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -241,9 +258,10 @@ export const ProductsPage: React.FC = () => {
             </select>
 
             <select
+              aria-label="Filter by stock status"
               value={stockFilter}
               onChange={(e) => setStockFilter(e.target.value as any)}
-              className="rounded-lg border border-border bg-surface-card px-3 py-2 text-xs font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-100"
+              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
             >
               <option value="all">All Stock Statuses</option>
               <option value="low">Low Stock (At/Below Threshold)</option>
@@ -254,7 +272,13 @@ export const ProductsPage: React.FC = () => {
       </Card>
 
       {/* Products Table */}
-      {filteredProducts.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredProducts.length === 0 ? (
         <EmptyState
           icon={<Boxes className="w-7 h-7" />}
           title="No products found"
@@ -292,64 +316,64 @@ export const ProductsPage: React.FC = () => {
                         <img
                           src={p.imageUrl}
                           alt={p.name}
-                          className="w-10 h-10 rounded-lg object-cover border border-border shadow-xs shrink-0"
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-xs shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-surface-panel border border-border flex items-center justify-center text-content-muted shrink-0">
-                          <Boxes className="w-5 h-5 text-atlas-400" />
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                          <Boxes className="w-5 h-5 text-atlas-500" />
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="font-semibold text-content-primary truncate max-w-sm">{p.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="font-mono text-xs text-atlas-700 bg-atlas-50 px-1.5 py-0.5 rounded border border-atlas-200/60">
+                        <div className="font-semibold text-sm text-content-primary truncate max-w-sm">{p.name}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-mono text-xs font-semibold text-atlas-700 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                             {p.sku}
                           </span>
-                          <span className="text-[11px] text-content-muted">UOM: {p.uom}</span>
+                          <span className="text-xs text-content-muted">UOM: {p.uom}</span>
                         </div>
                       </div>
                     </div>
                   </TableCell>
 
                   <TableCell>
-                    <div className="text-xs font-medium text-content-primary">{p.category}</div>
-                    <div className="text-[11px] text-content-secondary">{p.brand || 'Generic'}</div>
+                    <div className="text-sm font-medium text-content-primary">{p.category}</div>
+                    <div className="text-xs text-content-secondary mt-0.5">{p.brand || 'Generic'}</div>
                   </TableCell>
 
                   <TableCell>
-                    <div className="font-mono text-xs text-content-primary">
+                    <div className="font-mono text-xs text-content-primary font-medium">
                       {p.hsnCode || '—'}
                     </div>
-                    <div className="text-[11px] text-content-secondary">{p.taxRate}% GST</div>
+                    <div className="text-xs text-content-secondary mt-0.5">{p.taxRate}% GST</div>
                   </TableCell>
 
-                  <TableCell className="text-right font-medium text-content-secondary">
+                  <TableCell className="text-right font-medium text-sm text-content-secondary tabular-nums">
                     {formatCurrency(p.purchaseCost)}
                   </TableCell>
 
-                  <TableCell className="text-right font-bold text-content-primary">
+                  <TableCell className="text-right font-bold text-sm text-content-primary tabular-nums">
                     {formatCurrency(p.sellingPrice)}
                   </TableCell>
 
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <span
-                        className={`font-bold text-sm ${
-                          isLowStock ? 'text-red-600' : 'text-emerald-700'
+                        className={`font-bold text-sm tabular-nums ${
+                          isLowStock ? 'text-rose-700' : 'text-emerald-700'
                         }`}
                       >
-                        {stock} {p.uom}
+                        {stock.toLocaleString()} {p.uom}
                       </span>
                       {isLowStock ? (
-                        <span title={`Below reorder threshold (${p.reorderThreshold})`}>
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        <span title={`Below reorder threshold (${p.reorderThreshold})`} className="inline-flex">
+                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" aria-label="Low stock warning" />
                         </span>
                       ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" aria-label="Healthy stock level" />
                       )}
                     </div>
-                    <div className="text-[10px] text-content-muted">
-                      Threshold: {p.reorderThreshold}
+                    <div className="text-xs text-content-muted mt-0.5">
+                      Min reorder: {p.reorderThreshold}
                     </div>
                   </TableCell>
 

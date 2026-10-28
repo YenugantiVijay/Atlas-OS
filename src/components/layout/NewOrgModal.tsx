@@ -131,19 +131,19 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
             label="City"
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            placeholder="Bengaluru"
+            placeholder="Enter city"
           />
           <Input
             label="State"
             value={state}
             onChange={(e) => setState(e.target.value)}
-            placeholder="Karnataka"
+            placeholder="Enter state"
           />
           <Input
             label="Pincode"
             value={pincode}
             onChange={(e) => setPincode(e.target.value)}
-            placeholder="560002"
+            placeholder="Enter pincode"
           />
         </div>
 

@@ -6,7 +6,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { invoicesService } from '@/services/invoices.service';
 import { Invoice } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -15,23 +15,32 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { formatCurrency, calculateInvoiceBalance, resolveDocumentPresentation } from '@/lib/money';
 
 export const InvoicesPage: React.FC = () => {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isMockAuth } = useOrg();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  const loadInvoices = () => {
-    if (currentOrg) {
-      setInvoices(storage.getInvoices(currentOrg.id));
+  const loadInvoices = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const data = await invoicesService.getInvoices(currentOrg.id, isMockAuth);
+      setInvoices(data);
+    } catch (err: any) {
+      console.error('Failed to load invoices:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadInvoices();
-  }, [currentOrg]);
+  }, [currentOrg, isMockAuth]);
 
   const filteredInvoices = invoices.filter((i) => {
     const s = searchQuery.toLowerCase();
@@ -45,15 +54,15 @@ export const InvoicesPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PAID':
-        return <Badge variant="success" size="sm">Fully Paid</Badge>;
+        return <Badge variant="success" showDot size="sm">Fully Paid</Badge>;
       case 'PARTIALLY_PAID':
-        return <Badge variant="warning" size="sm">Partially Paid</Badge>;
+        return <Badge variant="warning" showDot size="sm">Partially Paid</Badge>;
       case 'ISSUED':
-        return <Badge variant="info" size="sm">Issued</Badge>;
+        return <Badge variant="info" showDot size="sm">Issued</Badge>;
       case 'DRAFT':
-        return <Badge variant="default" size="sm">Draft</Badge>;
+        return <Badge variant="default" showDot size="sm">Draft</Badge>;
       default:
-        return <Badge size="sm">{status}</Badge>;
+        return <Badge showDot size="sm">{status}</Badge>;
     }
   };
 
@@ -62,15 +71,15 @@ export const InvoicesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Tax Invoices
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               {invoices.length} Invoices
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Indian GST-compliant tax invoices with commercial snapshots, HSN codes, and balance tracking.
           </p>
         </div>
@@ -83,11 +92,18 @@ export const InvoicesPage: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
+          aria-label="Search tax invoices"
         />
       </Card>
 
       {/* Invoices Table */}
-      {filteredInvoices.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredInvoices.length === 0 ? (
         <EmptyState
           icon={<Receipt className="w-7 h-7" />}
           title="No invoices issued yet"
@@ -112,17 +128,17 @@ export const InvoicesPage: React.FC = () => {
               return (
                 <TableRow key={inv.id}>
                   <TableCell>
-                    <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200">
+                    <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                       {inv.invoiceNumber}
                     </span>
                   </TableCell>
 
                   <TableCell>
-                    <div className="font-semibold text-content-primary">
+                    <div className="font-semibold text-sm text-content-primary">
                       {inv.customer?.companyName || inv.customer?.name}
                     </div>
                     {inv.customer?.gstin && (
-                      <div className="text-[11px] font-mono text-content-muted">
+                      <div className="text-xs font-mono text-content-muted mt-0.5">
                         GST: {inv.customer.gstin}
                       </div>
                     )}
@@ -130,26 +146,26 @@ export const InvoicesPage: React.FC = () => {
 
                   <TableCell>
                     <div className="text-xs font-mono text-content-primary">{inv.invoiceDate}</div>
-                    <div className="text-[10px] text-content-secondary mt-0.5">
+                    <div className="text-xs text-content-secondary mt-0.5">
                       Due: {inv.dueDate}
                     </div>
                   </TableCell>
 
                   <TableCell>{getStatusBadge(inv.status)}</TableCell>
 
-                  <TableCell className="text-right font-bold text-content-primary">
+                  <TableCell className="text-right font-bold text-sm text-content-primary tabular-nums">
                     {formatCurrency(inv.totalAmount)}
                   </TableCell>
 
                   <TableCell className="text-right">
                     <span
-                      className={`font-bold font-mono text-xs ${
+                      className={`font-bold font-mono text-sm tabular-nums ${
                         balance > 0 ? 'text-amber-700' : 'text-emerald-700'
                       }`}
                     >
                       {formatCurrency(balance)}
                     </span>
-                    <div className="text-[10px] text-content-muted">
+                    <div className="text-xs text-content-muted mt-0.5 tabular-nums">
                       Paid: {formatCurrency(inv.totalPaid)}
                     </div>
                   </TableCell>
@@ -187,10 +203,10 @@ export const InvoicesPage: React.FC = () => {
                 <h3 className="text-base font-bold text-content-primary">
                   {currentOrg?.legalName || currentOrg?.name}
                 </h3>
-                <div className="text-content-secondary text-[11px] mt-0.5">
+                <div className="text-content-secondary text-xs mt-0.5">
                   {currentOrg?.addressLine1}, {currentOrg?.city}, {currentOrg?.state} - {currentOrg?.pincode}
                 </div>
-                <div className="text-content-secondary text-[11px] font-mono mt-0.5">
+                <div className="text-content-secondary text-xs font-mono mt-0.5">
                   GSTIN: {currentOrg?.gstin || '29ABCDE1234F1Z5'} • Phone: {currentOrg?.phone}
                 </div>
               </div>
@@ -199,27 +215,27 @@ export const InvoicesPage: React.FC = () => {
                 <span className="text-base font-bold font-mono text-atlas-800">
                   {selectedInvoice.invoiceNumber}
                 </span>
-                <div className="text-content-secondary text-[11px] mt-0.5">
+                <div className="text-content-secondary text-xs mt-0.5">
                   Date: <span className="font-mono">{selectedInvoice.invoiceDate}</span>
                 </div>
-                <div className="text-content-secondary text-[11px]">
+                <div className="text-content-secondary text-xs">
                   Payment Due: <span className="font-mono">{selectedInvoice.dueDate}</span>
                 </div>
               </div>
             </div>
 
             {/* Bill To */}
-            <div className="p-3 rounded-lg bg-surface-panel border border-border">
-              <span className="text-[10px] uppercase font-bold text-content-muted block mb-1">
+            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-xs uppercase font-bold text-content-muted block mb-1 tracking-wider">
                 Billed To Customer
               </span>
               <div className="font-bold text-content-primary text-sm">
                 {selectedInvoice.customer?.companyName || selectedInvoice.customer?.name}
               </div>
-              <div className="text-content-secondary text-[11px]">
+              <div className="text-content-secondary text-xs mt-0.5">
                 {selectedInvoice.customer?.billingAddress}
               </div>
-              <div className="text-content-secondary text-[11px] font-mono mt-0.5">
+              <div className="text-content-secondary text-xs font-mono mt-1">
                 GSTIN: {selectedInvoice.customer?.gstin || 'Unregistered'} • Phone: {selectedInvoice.customer?.phone}
               </div>
             </div>
@@ -241,20 +257,20 @@ export const InvoicesPage: React.FC = () => {
                 {selectedInvoice.items?.map((it, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <div className="font-semibold">{it.productName}</div>
-                      <div className="text-[10px] font-mono text-atlas-700">{it.productSku}</div>
+                      <div className="font-semibold text-content-primary text-xs">{it.productName}</div>
+                      <div className="text-xs font-mono text-atlas-700 mt-0.5">{it.productSku}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{it.hsnCode || '8544'}</TableCell>
-                    <TableCell className="text-center font-mono">
+                    <TableCell className="text-center font-mono text-xs">
                       {it.quantity} {it.uom}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono text-xs">
                       {formatCurrency(it.unitPrice)}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono text-xs">
                       {formatCurrency(it.lineSubtotal)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-[11px]">
+                    <TableCell className="text-right font-mono text-xs">
                       {it.taxRate}%
                     </TableCell>
                     <TableCell className="text-right font-mono font-bold">
@@ -265,33 +281,61 @@ export const InvoicesPage: React.FC = () => {
               </TableBody>
             </Table>
 
-            {/* Totals & Balances */}
-            <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border">
-              <div className="flex justify-between w-64 text-content-secondary">
-                <span>Taxable Value:</span>
-                <span className="font-mono">{formatCurrency(selectedInvoice.subtotal)}</span>
-              </div>
-              <div className="flex justify-between w-64 text-content-secondary">
-                <span>Total GST Amount:</span>
-                <span className="font-mono">{formatCurrency(selectedInvoice.taxAmount)}</span>
-              </div>
-              <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
-                <span>Invoice Total:</span>
-                <span className="font-mono text-atlas-800">
-                  {formatCurrency(selectedInvoice.totalAmount)}
-                </span>
-              </div>
-              <div className="flex justify-between w-64 text-emerald-700 font-medium">
-                <span>Amount Paid:</span>
-                <span className="font-mono">{formatCurrency(selectedInvoice.totalPaid)}</span>
-              </div>
-              <div className="flex justify-between w-64 font-bold text-sm text-amber-800 border-t border-border/80 pt-1">
-                <span>Balance Due:</span>
-                <span className="font-mono">
-                  {formatCurrency(calculateInvoiceBalance(selectedInvoice.totalAmount, selectedInvoice.totalPaid))}
-                </span>
-              </div>
-            </div>
+              {/* Totals & Balances */}
+              {(() => {
+                const presentation = resolveDocumentPresentation(selectedInvoice);
+                return (
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    {presentation.statusNotice && (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-900 text-xs leading-relaxed">
+                        <div className="font-semibold flex items-center gap-1.5">
+                          <span>Notice:</span>
+                          <span>{presentation.format === 'UNRESOLVED_HISTORICAL' ? 'Historical Calculation Discrepancy' : 'Historical Document Format'}</span>
+                        </div>
+                        <p className="mt-0.5 text-amber-800">{presentation.statusNotice}</p>
+                      </div>
+                    )}
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div className="flex justify-between w-64 text-content-secondary">
+                        <span>{presentation.subtotalLabel}:</span>
+                        <span className="font-mono">{formatCurrency(presentation.subtotalAmount)}</span>
+                      </div>
+                      {presentation.showDiscount && (
+                        <div className="flex justify-between w-64 text-emerald-600">
+                          <span>{presentation.discountLabel || 'Discount Total'}:</span>
+                          <span className="font-mono">-{formatCurrency(presentation.discountAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between w-64 text-content-secondary">
+                        <span>{presentation.taxableLabel}:</span>
+                        <span className="font-mono">
+                          {formatCurrency(presentation.taxableAmount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between w-64 text-content-secondary">
+                        <span>{presentation.taxLabel}:</span>
+                        <span className="font-mono">{formatCurrency(presentation.taxAmount)}</span>
+                      </div>
+                      <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
+                        <span>{presentation.totalLabel}:</span>
+                        <span className="font-mono text-atlas-800">
+                          {formatCurrency(presentation.totalAmount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between w-64 text-emerald-700 font-medium">
+                        <span>Amount Paid:</span>
+                        <span className="font-mono">{formatCurrency(selectedInvoice.totalPaid)}</span>
+                      </div>
+                      <div className="flex justify-between w-64 font-bold text-sm text-amber-800 border-t border-border/80 pt-1">
+                        <span>Balance Due:</span>
+                        <span className="font-mono">
+                          {formatCurrency(calculateInvoiceBalance(presentation.totalAmount, selectedInvoice.totalPaid))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
             {/* Print & Close */}
             <div className="flex justify-end gap-2.5 pt-4 border-t border-border">

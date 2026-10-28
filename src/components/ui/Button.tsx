@@ -26,25 +26,25 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.99] whitespace-nowrap shrink-0';
+      'inline-flex items-center justify-center font-medium tracking-tight rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.99] whitespace-nowrap shrink-0';
 
     const variants = {
       primary:
-        'bg-atlas-600 hover:bg-atlas-700 text-white shadow-sm focus:ring-atlas-500 border border-transparent',
+        'bg-atlas-600 hover:bg-atlas-700 active:bg-atlas-800 text-white shadow-xs focus:ring-atlas-500 border border-transparent',
       secondary:
-        'bg-atlas-100 hover:bg-atlas-200 text-atlas-800 focus:ring-atlas-400 border border-atlas-200/60',
+        'bg-atlas-100 hover:bg-atlas-200/80 active:bg-atlas-200 text-atlas-900 focus:ring-atlas-400 border border-atlas-200/80 shadow-2xs',
       outline:
-        'bg-white hover:bg-surface-canvas text-content-primary border border-border hover:border-atlas-300 focus:ring-atlas-400 shadow-sm',
+        'bg-white hover:bg-slate-50 text-content-primary border border-border hover:border-slate-300 focus:ring-atlas-400 shadow-2xs',
       ghost:
-        'bg-transparent hover:bg-atlas-50 text-content-secondary hover:text-content-primary focus:ring-atlas-400',
+        'bg-transparent hover:bg-slate-100 text-content-secondary hover:text-content-primary focus:ring-atlas-400',
       danger:
-        'bg-red-600 hover:bg-red-700 text-white shadow-sm focus:ring-red-500 border border-transparent',
+        'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs focus:ring-rose-500 border border-transparent',
     };
 
     const sizes = {
-      sm: 'text-xs px-3 py-1.5 gap-1.5',
-      md: 'text-sm px-4 py-2 gap-2',
-      lg: 'text-base px-5 py-2.5 gap-2.5',
+      sm: 'h-9 px-3 text-xs gap-1.5',
+      md: 'h-10 px-4 text-sm gap-2',
+      lg: 'h-11 px-5 text-base gap-2.5',
     };
 
     return (

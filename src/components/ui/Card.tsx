@@ -7,8 +7,8 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card: React.FC<CardProps> = ({ children, hover = false, className = '', ...props }) => {
   return (
     <div
-      className={`rounded-xl border border-border bg-surface-card p-5 shadow-card transition-all duration-200 ${
-        hover ? 'hover:shadow-card-hover hover:border-atlas-200' : ''
+      className={`rounded-xl border border-border bg-surface-card p-5 sm:p-6 shadow-card transition-all duration-150 ${
+        hover ? 'hover:shadow-card-hover hover:border-slate-300' : ''
       } ${className}`}
       {...props}
     >
@@ -23,7 +23,7 @@ export const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   ...props
 }) => {
   return (
-    <div className={`flex items-center justify-between pb-4 border-b border-border/70 mb-4 ${className}`} {...props}>
+    <div className={`flex items-center justify-between pb-3.5 border-b border-border mb-4 gap-2 ${className}`} {...props}>
       {children}
     </div>
   );

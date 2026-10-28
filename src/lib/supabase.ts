@@ -21,22 +21,84 @@ export interface SupabaseVerificationResult {
 }
 
 /**
- * Validates the Supabase URL and Publishable/Anon key from environment variables.
- * Ensures the URL is a valid HTTPS endpoint and neither variable contains placeholder text.
+ * Detects whether a key is a privileged Supabase secret or service-role key.
+ * Checks both prefix conventions and JWT payload claims without third-party dependencies.
+ * Complete keys and credentials are never logged or exposed.
  */
-export function validateSupabaseConfig(): {
+export function isSecretOrServiceRoleKey(rawKey: string): boolean {
+  if (!rawKey || typeof rawKey !== 'string') return false;
+  const key = rawKey.trim();
+
+  // Check prefix or explicit service-role indicators
+  if (
+    key.startsWith('sb_secret_') ||
+    key.toLowerCase().includes('service_role') ||
+    key.toLowerCase().includes('supabase_admin')
+  ) {
+    return true;
+  }
+
+  // Check JWT format (header.payload.signature)
+  const parts = key.split('.');
+  if (parts.length === 3) {
+    try {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const padLength = (4 - (base64.length % 4)) % 4;
+      const padded = base64 + '='.repeat(padLength);
+
+      let jsonStr = '';
+      if (typeof atob === 'function') {
+        jsonStr = atob(padded);
+      } else if (typeof Buffer !== 'undefined') {
+        jsonStr = Buffer.from(padded, 'base64').toString('utf-8');
+      }
+
+      if (jsonStr) {
+        const payload = JSON.parse(jsonStr);
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          (payload.role === 'service_role' ||
+            payload.role === 'supabase_admin' ||
+            payload.iss === 'supabase-admin')
+        ) {
+          return true;
+        }
+      }
+    } catch {
+      // If decoding fails, it's not a standard parseable JWT payload with these claims
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Validates the Supabase URL and Publishable/Anon key from environment variables.
+ * Ensures the URL is a valid HTTPS endpoint, rejects placeholder text, and explicitly
+ * rejects dangerous service-role or secret keys.
+ */
+export function validateSupabaseConfig(overrideUrl?: string, overrideKey?: string): {
   valid: boolean;
   url?: string;
   key?: string;
   keyType?: 'publishable' | 'anon';
   error?: string;
 } {
-  const url = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-  const key = (
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    import.meta.env.VITE_SUPABASE_ANON_KEY ||
-    ''
-  ).trim();
+  const envUrl =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+    (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+    '';
+  const envKey =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env?.VITE_SUPABASE_ANON_KEY)) ||
+    (typeof process !== 'undefined' &&
+      (process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.VITE_SUPABASE_ANON_KEY)) ||
+    '';
+
+  const url = (overrideUrl !== undefined ? overrideUrl : envUrl).trim();
+  const key = (overrideKey !== undefined ? overrideKey : envKey).trim();
 
   if (!url && !key) {
     return {
@@ -72,7 +134,7 @@ export function validateSupabaseConfig(): {
   } catch {
     return {
       valid: false,
-      error: `Invalid URL format for VITE_SUPABASE_URL: "${url}". Expected a valid URL (e.g., https://<project-ref>.supabase.co).`,
+      error: 'Invalid URL format for VITE_SUPABASE_URL. Expected a valid HTTPS URL (e.g., https://<project-ref>.supabase.co).',
     };
   }
 
@@ -80,6 +142,15 @@ export function validateSupabaseConfig(): {
     return {
       valid: false,
       error: 'Supabase key is missing. Set VITE_SUPABASE_PUBLISHABLE_KEY in .env.local.',
+    };
+  }
+
+  // CRITICAL SECURITY CHECK: Explicitly reject service-role or secret keys
+  if (isSecretOrServiceRoleKey(key)) {
+    return {
+      valid: false,
+      error:
+        'CRITICAL SECURITY ERROR: A Supabase service-role or secret key was detected in browser-exposed environment variables. Service-role keys bypass all Row Level Security and MUST NEVER be exposed in client-side code. Please replace this with your client-safe publishable key (starting with "sb_publishable_") or public anon key in .env.local.',
     };
   }
 

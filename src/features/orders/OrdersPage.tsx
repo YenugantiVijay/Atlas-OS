@@ -10,7 +10,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { ordersService } from '@/services/orders.service';
+import { customersService } from '@/services/customers.service';
+import { productsService } from '@/services/products.service';
+import { invoicesService } from '@/services/invoices.service';
 import { SalesOrder, Customer, Product, OrderStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -20,8 +23,9 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency, calculateLineItem } from '@/lib/money';
+import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 
 interface LineItemDraft {
   productId: string;
@@ -32,7 +36,7 @@ interface LineItemDraft {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { currentOrg, currentRole } = useOrg();
+  const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,12 +44,14 @@ export const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewingOrder, setViewingOrder] = useState<SalesOrder | null>(null);
+  const [orderToConfirm, setOrderToConfirm] = useState<SalesOrder | null>(null);
 
   // Form State
   const [customerId, setCustomerId] = useState('');
@@ -54,11 +60,22 @@ export const OrdersPage: React.FC = () => {
   const [items, setItems] = useState<LineItemDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadData = () => {
-    if (currentOrg) {
-      setOrders(storage.getSalesOrders(currentOrg.id));
-      setCustomers(storage.getCustomers(currentOrg.id));
-      setProducts(storage.getProducts(currentOrg.id));
+  const loadData = async () => {
+    if (!currentOrg) return;
+    setIsLoading(true);
+    try {
+      const [ordList, custList, prodList] = await Promise.all([
+        ordersService.getSalesOrders(currentOrg.id, isMockAuth),
+        customersService.getCustomers(currentOrg.id, isMockAuth),
+        productsService.getProducts(currentOrg.id, isMockAuth),
+      ]);
+      setOrders(ordList);
+      setCustomers(custList);
+      setProducts(prodList);
+    } catch (err: any) {
+      showToast('error', 'Failed to load orders', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -69,24 +86,21 @@ export const OrdersPage: React.FC = () => {
       searchParams.delete('action');
       setSearchParams(searchParams);
     }
-  }, [currentOrg, searchParams]);
+  }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
-    const custs = storage.getCustomers(currentOrg?.id || '');
-    const prods = storage.getProducts(currentOrg?.id || '');
-
-    setCustomerId(custs[0]?.id || '');
+    setCustomerId(customers[0]?.id || '');
     setOrderDate(new Date().toISOString().split('T')[0]);
     setNotes('');
 
-    if (prods.length > 0) {
+    if (products.length > 0) {
       setItems([
         {
-          productId: prods[0].id,
+          productId: products[0].id,
           quantity: 1,
-          unitPrice: prods[0].sellingPrice,
+          unitPrice: products[0].sellingPrice,
           discountPercent: 0,
-          taxRate: prods[0].taxRate,
+          taxRate: products[0].taxRate,
         },
       ]);
     } else {
@@ -132,21 +146,10 @@ export const OrdersPage: React.FC = () => {
   };
 
   const calculateTotals = () => {
-    let subtotal = 0;
-    let tax = 0;
-    let total = 0;
-
-    items.forEach((it) => {
-      const c = calculateLineItem(it.quantity, it.unitPrice, it.discountPercent, it.taxRate);
-      subtotal += c.taxableAmount;
-      tax += c.taxAmount;
-      total += c.totalAmount;
-    });
-
-    return { subtotal, tax, total };
+    return calculateDocumentTotals(items);
   };
 
-  const handleSaveOrder = (e: React.FormEvent) => {
+  const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer for the order.');
@@ -175,16 +178,20 @@ export const OrdersPage: React.FC = () => {
         };
       });
 
-      const order = storage.createSalesOrder(currentOrg.id, {
-        customerId,
-        orderDate,
-        notes: notes.trim() || undefined,
-        items: formattedItems,
-      });
+      const order = await ordersService.createSalesOrder(
+        currentOrg.id,
+        {
+          customerId,
+          orderDate,
+          notes: notes.trim() || undefined,
+          items: formattedItems,
+        },
+        isMockAuth
+      );
 
       showToast('success', 'Order Created', `Order ${order.orderNumber} saved as Draft.`);
       setIsCreateModalOpen(false);
-      loadData();
+      await loadData();
     } catch (err: any) {
       showToast('error', 'Failed to Create', err.message);
     } finally {
@@ -196,16 +203,16 @@ export const OrdersPage: React.FC = () => {
    * ATOMIC ORDER CONFIRMATION
    * Validates available stock, prevents overselling, writes movements, updates status.
    */
-  const handleConfirmOrder = (order: SalesOrder) => {
+  const handleConfirmOrder = async (order: SalesOrder) => {
     if (!currentOrg) return;
     try {
-      storage.confirmSalesOrder(currentOrg.id, order.id, currentRole);
+      await ordersService.confirmSalesOrder(currentOrg.id, order.id, currentRole, isMockAuth);
       showToast(
         'success',
         'Order Confirmed & Stock Deducted',
         `Sales Order ${order.orderNumber} confirmed. Stock movements created in ledger.`
       );
-      loadData();
+      await loadData();
       if (viewingOrder?.id === order.id) {
         setViewingOrder(null);
       }
@@ -214,10 +221,10 @@ export const OrdersPage: React.FC = () => {
     }
   };
 
-  const handleCreateInvoice = (order: SalesOrder) => {
+  const handleCreateInvoice = async (order: SalesOrder) => {
     if (!currentOrg) return;
     try {
-      const inv = storage.createInvoiceFromOrder(currentOrg.id, order.id);
+      const inv = await invoicesService.createInvoiceFromOrder(currentOrg.id, order.id, isMockAuth);
       showToast('success', 'Invoice Generated', `Generated Tax Invoice ${inv.invoiceNumber} for ${order.orderNumber}.`);
       navigate('/invoices');
     } catch (err: any) {
@@ -243,15 +250,15 @@ export const OrdersPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Sales Orders
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="indigo" size="sm">
               {orders.length} Orders
             </Badge>
           </div>
-          <p className="text-xs text-content-secondary mt-0.5">
+          <p className="text-sm text-content-secondary mt-1">
             Atomic lifecycle management: Draft → Confirmed (stock verification & deduction) → Invoiced.
           </p>
         </div>
@@ -267,34 +274,56 @@ export const OrdersPage: React.FC = () => {
 
       {/* Search & Status Filters */}
       <Card>
-        <div className="flex flex-col md:flex-row items-center gap-3">
-          <div className="flex-1 w-full">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex-1 max-w-md w-full">
             <Input
               placeholder="Search orders by SO number or customer firm..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftIcon={<Search className="w-4 h-4" />}
+              aria-label="Search sales orders"
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="rounded-lg border border-border bg-surface-card px-3 py-2 text-xs font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-100"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="FULFILLED">Fulfilled</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+          {/* Content-driven status filter pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+            {(
+              [
+                { id: 'ALL', label: 'All Orders' },
+                { id: 'DRAFT', label: 'Draft' },
+                { id: 'CONFIRMED', label: 'Confirmed' },
+                { id: 'FULFILLED', label: 'Fulfilled' },
+                { id: 'CANCELLED', label: 'Cancelled' },
+              ] as const
+            ).map((tab) => {
+              const active = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id as any)}
+                  className={`h-9 px-3.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all duration-150 select-none ${
+                    active
+                      ? 'bg-atlas-50 text-atlas-900 border border-atlas-300 font-semibold shadow-2xs'
+                      : 'bg-white text-content-secondary border border-border hover:bg-slate-50 hover:text-content-primary'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </Card>
 
       {/* Orders Table */}
-      {filteredOrders.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <EmptyState
           icon={<FileText className="w-7 h-7" />}
           title="No sales orders found"
@@ -318,22 +347,22 @@ export const OrdersPage: React.FC = () => {
             {filteredOrders.map((o) => (
               <TableRow key={o.id}>
                 <TableCell>
-                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200">
+                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                     {o.orderNumber}
                   </span>
                   {o.quotationId && (
-                    <div className="text-[10px] text-content-muted mt-0.5">
+                    <div className="text-xs text-content-muted mt-1">
                       From Quote
                     </div>
                   )}
                 </TableCell>
 
                 <TableCell>
-                  <div className="font-semibold text-content-primary">
+                  <div className="font-semibold text-sm text-content-primary">
                     {o.customer?.companyName || o.customer?.name}
                   </div>
                   {o.customer?.companyName && (
-                    <div className="text-xs text-content-secondary">{o.customer.name}</div>
+                    <div className="text-xs text-content-secondary mt-0.5">{o.customer.name}</div>
                   )}
                 </TableCell>
 
@@ -352,13 +381,14 @@ export const OrdersPage: React.FC = () => {
                         ? 'info'
                         : 'danger'
                     }
+                    showDot
                     size="sm"
                   >
                     {o.status}
                   </Badge>
                 </TableCell>
 
-                <TableCell className="text-right font-bold text-content-primary">
+                <TableCell className="text-right font-bold text-sm text-content-primary tabular-nums">
                   {formatCurrency(o.totalAmount)}
                 </TableCell>
 
@@ -377,7 +407,7 @@ export const OrdersPage: React.FC = () => {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => handleConfirmOrder(o)}
+                        onClick={() => setOrderToConfirm(o)}
                         leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
                       >
                         Confirm
@@ -550,16 +580,26 @@ export const OrdersPage: React.FC = () => {
           {/* Totals Summary */}
           <div className="flex flex-col items-end gap-1 pt-2 text-xs">
             <div className="flex justify-between w-64 text-content-secondary">
-              <span>Subtotal:</span>
-              <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+              <span>Gross Subtotal:</span>
+              <span className="font-mono">{formatCurrency(totals.grossSubtotal)}</span>
+            </div>
+            {totals.discountTotal > 0 && (
+              <div className="flex justify-between w-64 text-emerald-600">
+                <span>Discount:</span>
+                <span className="font-mono">-{formatCurrency(totals.discountTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between w-64 text-content-secondary">
+              <span>Taxable Amount:</span>
+              <span className="font-mono">{formatCurrency(totals.taxableAmount)}</span>
             </div>
             <div className="flex justify-between w-64 text-content-secondary">
               <span>GST Tax Amount:</span>
-              <span className="font-mono">{formatCurrency(totals.tax)}</span>
+              <span className="font-mono">{formatCurrency(totals.taxAmount)}</span>
             </div>
             <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
               <span>Total Order Value:</span>
-              <span className="font-mono text-atlas-700">{formatCurrency(totals.total)}</span>
+              <span className="font-mono text-atlas-700">{formatCurrency(totals.totalAmount)}</span>
             </div>
           </div>
 
@@ -656,6 +696,52 @@ export const OrdersPage: React.FC = () => {
               </TableBody>
             </Table>
 
+            {/* Totals Summary */}
+            {(() => {
+              const presentation = resolveDocumentPresentation(viewingOrder);
+              return (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  {presentation.statusNotice && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-900 text-xs leading-relaxed">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <span>Notice:</span>
+                        <span>{presentation.format === 'UNRESOLVED_HISTORICAL' ? 'Historical Calculation Discrepancy' : 'Historical Document Format'}</span>
+                      </div>
+                      <p className="mt-0.5 text-amber-800">{presentation.statusNotice}</p>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-end gap-1 text-xs">
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.subtotalLabel}:</span>
+                      <span className="font-mono">{formatCurrency(presentation.subtotalAmount)}</span>
+                    </div>
+                    {presentation.showDiscount && (
+                      <div className="flex justify-between w-64 text-emerald-600">
+                        <span>{presentation.discountLabel || 'Discount'}:</span>
+                        <span className="font-mono">-{formatCurrency(presentation.discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.taxableLabel}:</span>
+                      <span className="font-mono">
+                        {formatCurrency(presentation.taxableAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between w-64 text-content-secondary">
+                      <span>{presentation.taxLabel}:</span>
+                      <span className="font-mono">{formatCurrency(presentation.taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between w-64 font-bold text-sm text-content-primary border-t border-border pt-1">
+                      <span>{presentation.totalLabel}:</span>
+                      <span className="font-mono text-atlas-700">
+                        {formatCurrency(presentation.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <Button variant="outline" onClick={() => setViewingOrder(null)}>
                 Close
@@ -664,7 +750,7 @@ export const OrdersPage: React.FC = () => {
               {viewingOrder.status === 'DRAFT' && (
                 <Button
                   variant="primary"
-                  onClick={() => handleConfirmOrder(viewingOrder)}
+                  onClick={() => setOrderToConfirm(viewingOrder)}
                   leftIcon={<CheckCircle2 className="w-4 h-4" />}
                 >
                   Confirm Order & Deduct Stock
@@ -680,6 +766,64 @@ export const OrdersPage: React.FC = () => {
                   Generate Tax Invoice
                 </Button>
               )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirmation Dialog for Irreversible Stock Deduction */}
+      {orderToConfirm && (
+        <Modal
+          isOpen={Boolean(orderToConfirm)}
+          onClose={() => setOrderToConfirm(null)}
+          title="Confirm Order & Deduct Inventory"
+          description={`Order #${orderToConfirm.orderNumber}`}
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-sm">
+              <p className="font-semibold">Verify inventory allocation</p>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Confirming order <strong>{orderToConfirm.orderNumber}</strong> will immediately deduct stock from your warehouse inventory ledger. This action cannot be reversed without an authorized return inward or stock adjustment.
+              </p>
+            </div>
+
+            <div className="text-sm text-content-secondary space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div className="flex justify-between">
+                <span>Customer:</span>
+                <span className="font-semibold text-content-primary">
+                  {orderToConfirm.customer?.companyName || orderToConfirm.customer?.name}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Items:</span>
+                <span className="font-semibold text-content-primary">
+                  {orderToConfirm.items?.length || 0} line items
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                <span>Total Order Value:</span>
+                <span className="font-bold text-content-primary tabular-nums">
+                  {formatCurrency(orderToConfirm.totalAmount)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+              <Button variant="outline" onClick={() => setOrderToConfirm(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const target = orderToConfirm;
+                  setOrderToConfirm(null);
+                  handleConfirmOrder(target);
+                }}
+                leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-300" />}
+              >
+                Confirm & Allocate Stock
+              </Button>
             </div>
           </div>
         </Modal>

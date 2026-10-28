@@ -15,12 +15,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full space-y-1.5 text-left">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-semibold text-content-primary">
+          <label htmlFor={inputId} className="block text-sm font-medium text-content-primary">
             {label}
-            {props.required && <span className="text-red-500 ml-0.5">*</span>}
+            {props.required && (
+              <span className="text-rose-500 ml-1" aria-hidden="true">
+                *
+              </span>
+            )}
           </label>
         )}
-        <div className="relative rounded-lg shadow-sm">
+        <div className="relative rounded-lg shadow-xs">
           {leftIcon && (
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-content-muted">
               {leftIcon}
@@ -29,14 +33,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`block w-full rounded-lg border bg-surface-card text-sm text-content-primary placeholder-content-muted transition-colors
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-desc` : undefined}
+            className={`block w-full h-10 rounded-lg border bg-surface-card text-sm text-content-primary placeholder-content-muted transition-colors
               ${leftIcon ? 'pl-9' : 'pl-3.5'}
               ${rightIcon ? 'pr-9' : 'pr-3.5'}
               py-2 focus:outline-none focus:ring-2 focus:ring-offset-0
               ${
                 error
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                  : 'border-border focus:border-atlas-500 focus:ring-atlas-100'
+                  ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'
+                  : 'border-border focus:border-atlas-600 focus:ring-atlas-500/20'
               }
               disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-content-muted ${className}`}
             {...props}
@@ -47,8 +53,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
-        {helperText && !error && <p className="text-xs text-content-muted">{helperText}</p>}
+        {error && (
+          <p id={`${inputId}-error`} className="text-xs text-rose-600 font-medium">
+            {error}
+          </p>
+        )}
+        {helperText && !error && (
+          <p id={`${inputId}-desc`} className="text-xs text-content-secondary">
+            {helperText}
+          </p>
+        )}
       </div>
     );
   }
