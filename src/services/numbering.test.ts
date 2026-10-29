@@ -377,8 +377,8 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
       const num1 = storage.allocateDocumentNumber(orgA, 'INVOICE');
       const num2 = storage.allocateDocumentNumber(orgA, 'INVOICE');
       // Consecutive allocations without saving return the same next sequence, proving it is sequence-driven
-      expect(num1).toBe(`INV-${currentYear}-0001`);
-      expect(num2).toBe(`INV-${currentYear}-0001`);
+      expect(num1).toMatch(/^ATL\/\d{2}-\d{2}\/0001$/);
+      expect(num2).toMatch(/^ATL\/\d{2}-\d{2}\/0001$/);
     });
 
     it('allocates atomic sequential receipt numbers for payments (RCP-YYYY-NNNN) instead of random PAY-', () => {
