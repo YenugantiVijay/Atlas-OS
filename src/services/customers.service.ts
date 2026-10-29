@@ -27,8 +27,12 @@ export function mapDbCustomer(row: any, currentReceivable: number = 0): Customer
 
 export const customersService = {
   async getCustomers(orgId: string, isMockAuth: boolean = false): Promise<Customer[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getCustomers(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbCustomers, error } = await supabase
@@ -72,8 +76,12 @@ export const customersService = {
     input: Omit<Customer, 'id' | 'createdAt' | 'updatedAt' | 'organizationId' | 'currentReceivable'>,
     isMockAuth: boolean = false
   ): Promise<Customer> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createCustomer(orgId, input);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload = {
@@ -110,8 +118,12 @@ export const customersService = {
     updates: Partial<Customer>,
     isMockAuth: boolean = false
   ): Promise<Customer> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.updateCustomer(orgId, customerId, updates);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload: any = { updated_at: new Date().toISOString() };

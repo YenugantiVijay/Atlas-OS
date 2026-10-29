@@ -49,8 +49,12 @@ export function mapDbInvoice(row: any, items: InvoiceItem[] = []): Invoice {
 
 export const invoicesService = {
   async getInvoices(orgId: string, isMockAuth: boolean = false): Promise<Invoice[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getInvoices(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbInvoices, error } = await supabase
@@ -90,8 +94,12 @@ export const invoicesService = {
     },
     isMockAuth: boolean = false
   ): Promise<Invoice> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createInvoice(orgId, input);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const docTotals = calculateDocumentTotals(
@@ -147,7 +155,9 @@ export const invoicesService = {
           })
           .select()
           .single();
-      }
+      },
+      5,
+      input.invoiceDate
     );
 
     const lineItemPayload = formattedItems.map((it) => ({
@@ -173,8 +183,12 @@ export const invoicesService = {
     orderId: string,
     isMockAuth: boolean = false
   ): Promise<Invoice> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createInvoiceFromOrder(orgId, orderId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // 1. Fetch order details

@@ -80,7 +80,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem(AUTH_MODE_STORAGE_KEY) === 'demo';
   });
 
-  const isMockAuth = !session || isDemoMode;
+  const isMockAuth = isDemoMode;
   const isAuthenticated = Boolean(session && !isDemoMode);
 
   // Load organizations and active membership from remote Supabase
@@ -186,6 +186,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     async function initAuth() {
       setIsLoadingAuth(true);
+      const isExplicitDemo = localStorage.getItem(AUTH_MODE_STORAGE_KEY) === 'demo';
 
       if (supabase && isSupabaseConfigured()) {
         try {
@@ -200,24 +201,44 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setIsDemoMode(false);
               localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
               await loadRemoteData(initialSession);
-            } else {
+            } else if (isExplicitDemo) {
               setSession(null);
-              // If previously set to demo mode, load demo data; otherwise start with demo fallback
               setIsDemoMode(true);
               loadDemoData();
+            } else {
+              // Live Cloud Mode is the explicit production default!
+              // Unauthenticated users will see the Cloud Gate with clear choices.
+              setSession(null);
+              setIsDemoMode(false);
+              setCurrentOrg(null);
+              setCurrentRole(null);
+              setOrganizations([]);
+              setMemberships([]);
+              setCurrentUser(null);
             }
           }
         } catch (err: unknown) {
           if (isMounted) {
-            setIsDemoMode(true);
-            loadDemoData();
+            setAuthError(err instanceof Error ? err.message : String(err));
+            if (isExplicitDemo) {
+              setIsDemoMode(true);
+              loadDemoData();
+            } else {
+              setSession(null);
+              setIsDemoMode(false);
+            }
           }
         }
       } else {
-        // Supabase not configured in environment: run demo mode
+        // Supabase client unconfigured in this environment
         if (isMounted) {
-          setIsDemoMode(true);
-          loadDemoData();
+          if (isExplicitDemo) {
+            setIsDemoMode(true);
+            loadDemoData();
+          } else {
+            setIsDemoMode(false);
+            setSession(null);
+          }
         }
       }
 
@@ -251,11 +272,11 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setMemberships([]);
           setCurrentUser(null);
           localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+          localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
           // Purge all cached queries immediately upon logout
           queryClient.clear();
-          // Fall back gracefully to demo mode
-          setIsDemoMode(true);
-          loadDemoData();
+          // Never silently force demo mode; user lands on the Cloud Gate
+          setIsDemoMode(false);
         }
       });
       subscription = data.subscription;
@@ -274,23 +295,28 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Purge cached query data immediately to prevent cross-tenant data bleed
     queryClient.clear();
 
-    if (!isMockAuth && supabase) {
-      const targetOrg = organizations.find((o) => o.id === orgId);
-      if (!targetOrg) {
-        throw new Error('Access Denied: You do not belong to the requested organization.');
-      }
-
-      setCurrentOrg(targetOrg);
-      localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, targetOrg.id);
-
-      // Re-derive server-verified role for this specific organization
-      const matchMem = memberships.find((m) => m.organizationId === targetOrg.id);
-      setCurrentRole(matchMem ? matchMem.role : null);
-    } else {
+    if (isMockAuth) {
       // Demo mode switching
       storage.setCurrentOrgId(orgId);
       loadDemoData();
+      return;
     }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    const targetOrg = organizations.find((o) => o.id === orgId);
+    if (!targetOrg) {
+      throw new Error('Access Denied: You do not belong to the requested organization.');
+    }
+
+    setCurrentOrg(targetOrg);
+    localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, targetOrg.id);
+
+    // Re-derive server-verified role for this specific organization
+    const matchMem = memberships.find((m) => m.organizationId === targetOrg.id);
+    setCurrentRole(matchMem ? matchMem.role : null);
   };
 
   const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
@@ -372,9 +398,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMemberships([]);
     setCurrentUser(null);
     localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+    localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
     queryClient.clear();
-    setIsDemoMode(true);
-    loadDemoData();
+    setIsDemoMode(false);
   };
 
   const enterDemoMode = () => {
@@ -390,16 +416,26 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     queryClient.clear();
     if (session) {
       loadRemoteData(session);
+    } else {
+      setCurrentOrg(null);
+      setCurrentRole(null);
+      setOrganizations([]);
+      setMemberships([]);
+      setCurrentUser(null);
     }
   };
 
   const createOrganization = async (
     data: Omit<Organization, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<Organization> => {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       const newOrg = storage.createOrganization(data);
       loadDemoData();
       return newOrg;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // In remote mode, call create_organization RPC if available or insert
@@ -429,10 +465,14 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     orgId: string,
     updates: Partial<Organization>
   ): Promise<Organization> => {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       const updated = storage.updateOrganization(orgId, updates);
       loadDemoData();
       return updated;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const dbPayload: any = {};
@@ -470,11 +510,15 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCurrentUser = async (updates: Partial<User>): Promise<User> => {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       const updated = storage.updateCurrentUser(updates);
       setCurrentUser(updated);
       loadDemoData();
       return updated;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // In Supabase Auth, update user metadata

@@ -31,8 +31,12 @@ export function mapDbPayment(row: any, allocations: PaymentAllocation[] = []): P
 
 export const paymentsService = {
   async getPayments(orgId: string, isMockAuth: boolean = false): Promise<Payment[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getPayments(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbPayments, error } = await supabase
@@ -70,8 +74,12 @@ export const paymentsService = {
     isMockAuth: boolean = false,
     userRole?: Role | null
   ): Promise<Payment> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.recordPayment(orgId, input, userRole);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // Call remote transactional RPC
@@ -107,18 +115,10 @@ export const paymentsService = {
       .single();
 
     if (fetchErr || !payRow) {
-      return {
-        id: paymentId,
-        organizationId: orgId,
-        paymentNumber: rpcRes.payment_number || 'PAY-NEW',
-        customerId: input.customerId,
-        amount: input.amount,
-        paymentMethod: input.paymentMethod,
-        referenceNumber: input.referenceNumber,
-        paymentDate: input.paymentDate,
-        notes: input.notes,
-        createdAt: new Date().toISOString(),
-      };
+      const receiptRef = rpcRes?.payment_number ? `Receipt ${rpcRes.payment_number}` : `ID ${paymentId}`;
+      throw new Error(
+        `Payment was committed to the ledger (${receiptRef}), but loading confirmation details failed: ${fetchErr?.message || 'Record not returned'}. Do NOT resubmit this payment; please refresh the payments ledger to verify.`
+      );
     }
 
     const allocations = (payRow.allocations || []).map(mapDbPaymentAllocation);

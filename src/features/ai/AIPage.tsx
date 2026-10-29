@@ -5,18 +5,28 @@ import {
   CheckCircle2,
   ShieldCheck,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
 import { ordersService } from '@/services/orders.service';
+import { invoicesService } from '@/services/invoices.service';
 import { dashboardService } from '@/services/dashboard.service';
 import { auditService } from '@/services/audit.service';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency } from '@/lib/money';
+import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
+
+interface ReplenishmentItem {
+  productId: string;
+  sku: string;
+  name: string;
+  qty: number;
+  uom: string;
+}
 
 interface Message {
   id: string;
@@ -24,10 +34,15 @@ interface Message {
   content: string;
   timestamp: string;
   proposedAction?: {
-    type: string;
+    type: 'REPLENISHMENT_PROPOSAL' | 'ADVISORY_SUGGESTION';
     title: string;
     description: string;
-    payload: Record<string, unknown>;
+    payload: {
+      items?: ReplenishmentItem[];
+      [key: string]: unknown;
+    };
+    status: 'proposed' | 'executing' | 'executed' | 'acknowledged';
+    resultSummary?: string;
   };
 }
 
@@ -41,7 +56,7 @@ export const AIPage: React.FC = () => {
       id: 'msg-1',
       sender: 'assistant',
       content:
-        `Hello! I am ATLAS AI, your operational distribution copilot for ${currentOrg?.name || 'your business'}. All my responses and recommendations are deterministically computed directly from your authorized live ledger—I cannot invent metrics or bypass transaction rules.\n\nHow can I help you today?`,
+        `Hello! I am ATLAS Operational Assistant for ${currentOrg?.name || 'your business'}. All my responses, summaries, and stock recommendations are computed deterministically from your active database records using verified business rules.\n\nHow can I assist your operations today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -72,7 +87,7 @@ export const AIPage: React.FC = () => {
       const response = await processQueryGrounded(text, currentOrg.id);
       setMessages((prev) => [...prev, response]);
     } catch (err: any) {
-      showToast('error', 'AI Query Failed', err.message);
+      showToast('error', 'Query Failed', err.message);
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +95,7 @@ export const AIPage: React.FC = () => {
 
   /**
    * Deterministic grounded assistant engine.
-   * Pulls real records from the tenant database/services and computes verifiable business summaries.
+   * Queries real records from tenant services and computes verifiable business summaries.
    */
   const processQueryGrounded = async (query: string, orgId: string): Promise<Message> => {
     const q = query.toLowerCase();
@@ -99,43 +114,102 @@ export const AIPage: React.FC = () => {
         };
       }
 
+      const replenishmentItems: ReplenishmentItem[] = lowStock.map((p) => ({
+        productId: p.id,
+        sku: p.sku,
+        name: p.name,
+        qty: Math.max(20, Math.ceil(p.reorderThreshold * 2)),
+        uom: p.uom,
+      }));
+
       const listStr = lowStock
-        .map(
-          (p) =>
-            `• **${p.name}** (SKU: \`${p.sku}\`): Current stock is **${p.currentStock || 0} ${p.uom}**, which is at or below threshold (${p.reorderThreshold} ${p.uom}). Recommended batch order: ~${Math.max(20, p.reorderThreshold * 2)} ${p.uom}.`
-        )
+        .map((p, idx) => {
+          const item = replenishmentItems[idx];
+          return `• **${p.name}** (SKU: \`${p.sku}\`): Current stock is **${p.currentStock || 0} ${p.uom}**, at or below threshold (${p.reorderThreshold} ${p.uom}). *Estimated batch restock recommendation: ~${item.qty} ${p.uom}* (heuristic estimate: 2× threshold).`;
+        })
         .join('\n');
 
       return {
         id: 'ai-' + Date.now(),
         sender: 'assistant',
-        content: `I analyzed your live stock movement ledger. You have **${lowStock.length} SKU(s)** requiring replenishment:\n\n${listStr}\n\nWould you like me to prepare a stock adjustment or purchase note for these items?`,
+        content: `I analyzed your live stock movement ledger. You have **${lowStock.length} SKU(s)** requiring replenishment:\n\n${listStr}\n\nWould you like to generate and log an approved purchasing replenishment requisition proposal for these items? *(Note: Physical inventory on-hand will not change until goods are officially received via verified intake).*`,
         timestamp,
         proposedAction: {
-          type: 'REORDER_ACTION',
-          title: 'Prepare Stock Replenishment Adjustment',
-          description: `Add opening or received inventory for ${lowStock.length} depleted electrical SKU(s).`,
-          payload: { lowStockIds: lowStock.map((p) => p.id) },
+          type: 'REPLENISHMENT_PROPOSAL',
+          title: 'Generate Purchase Requisition Proposal',
+          description: `Create an approved procurement requisition proposal for ${lowStock.length} SKU(s) to restore healthy threshold levels. Physical stock remains unchanged until goods receipt.`,
+          payload: { items: replenishmentItems },
+          status: 'proposed',
         },
       };
     }
 
     if (q.includes('receivable') || q.includes('overdue') || q.includes('customer') || q.includes('balance')) {
-      const customers = await customersService.getCustomers(orgId, isMockAuth);
-      const withBalances = customers.filter((c) => (c.currentReceivable || 0) > 0);
-      const totalRec = withBalances.reduce((sum, c) => sum + (c.currentReceivable || 0), 0);
+      const [invoices, customers] = await Promise.all([
+        invoicesService.getInvoices(orgId, isMockAuth),
+        customersService.getCustomers(orgId, isMockAuth),
+      ]);
 
-      const listStr = withBalances
+      const now = new Date();
+      // True overdue: invoice due date is strictly in the past and unpaid balance remains
+      const overdueInvoices = invoices.filter((inv) => {
+        if (!inv.dueDate) return false;
+        const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
+        if (balance <= 0) return false;
+        const due = new Date(inv.dueDate);
+        return due < now && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+      });
+
+      if (overdueInvoices.length === 0) {
+        const totalOpenBalance = invoices.reduce(
+          (sum, inv) => sum + calculateInvoiceBalance(inv.totalAmount, inv.totalPaid),
+          0
+        );
+        return {
+          id: 'ai-' + Date.now(),
+          sender: 'assistant',
+          content: `All customer accounts are currently in good standing with zero overdue invoices against credit terms.\n\n• **Total Open Receivables (Within Terms):** ${formatCurrency(totalOpenBalance)}\n• **Overdue Invoices:** 0\n\nAll invoices are preserved with real-time payment allocation audit trails.`,
+          timestamp,
+        };
+      }
+
+      // Group overdue invoices by customer
+      const customerMap = new Map<string, { customerName: string; overdueAmount: number; count: number; oldestDays: number }>();
+      let totalOverdue = 0;
+
+      for (const inv of overdueInvoices) {
+        const custName =
+          inv.customer?.name ||
+          inv.customer?.companyName ||
+          customers.find((c) => c.id === inv.customerId)?.name ||
+          'Customer Account';
+        const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
+        const daysPastDue = Math.max(1, Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+        totalOverdue += balance;
+
+        const existing = customerMap.get(inv.customerId) || {
+          customerName: custName,
+          overdueAmount: 0,
+          count: 0,
+          oldestDays: 0,
+        };
+        existing.overdueAmount += balance;
+        existing.count += 1;
+        existing.oldestDays = Math.max(existing.oldestDays, daysPastDue);
+        customerMap.set(inv.customerId, existing);
+      }
+
+      const listStr = Array.from(customerMap.values())
         .map(
           (c) =>
-            `• **${c.companyName || c.name}**: Outstanding **${formatCurrency(c.currentReceivable || 0)}** (Credit limit: ${formatCurrency(c.creditLimit)} | Terms: ${c.creditDays} days). Phone: ${c.phone || 'N/A'}.`
+            `• **${c.customerName}**: Overdue **${formatCurrency(c.overdueAmount)}** across ${c.count} invoice(s) (Oldest is **${c.oldestDays} days overdue**).`
         )
         .join('\n');
 
       return {
         id: 'ai-' + Date.now(),
         sender: 'assistant',
-        content: `According to the accounts ledger, total outstanding customer receivables stand at **${formatCurrency(totalRec)}** across **${withBalances.length} account(s)**:\n\n${listStr}\n\nAll invoices are preserved in the tax invoice ledger with payment allocation audit trails.`,
+        content: `I analyzed all recorded tax invoices and payment allocations. Total overdue receivables stand at **${formatCurrency(totalOverdue)}** across **${customerMap.size} customer account(s)**:\n\n${listStr}\n\nOverdue amounts are calculated based on actual invoice due dates net of reconciled payment allocations.`,
         timestamp,
       };
     }
@@ -145,7 +219,7 @@ export const AIPage: React.FC = () => {
       return {
         id: 'ai-' + Date.now(),
         sender: 'assistant',
-        content: `**Operational Sales Summary for ${currentOrg?.name}:**\n\n• **Today's Confirmed Sales:** ${formatCurrency(metrics.todaySales)}\n• **Total Logged Sales Orders:** ${metrics.ordersCount} orders\n• **Open Receivables Outstanding:** ${formatCurrency(metrics.totalReceivables)}\n• **Active Inventory Valuation:** ${formatCurrency(metrics.totalStockValue)}\n\nOrder confirmations have verified available stock in Chickpet/regional warehouses without overselling.`,
+        content: `**Operational Sales Summary for ${currentOrg?.name}:**\n\n• **Today's Confirmed Sales:** ${formatCurrency(metrics.todaySales)}\n• **Total Logged Sales Orders:** ${metrics.ordersCount} orders\n• **Open Receivables Outstanding:** ${formatCurrency(metrics.totalReceivables)}\n• **Active Inventory Valuation:** ${formatCurrency(metrics.totalStockValue)}\n\nOrder confirmations verify available stock against active inventory balances before reservation.`,
         timestamp,
       };
     }
@@ -160,28 +234,107 @@ export const AIPage: React.FC = () => {
     return {
       id: 'ai-' + Date.now(),
       sender: 'assistant',
-      content: `I have verified your active tenant records:\n\n• **Organization:** ${currentOrg?.name} (${currentOrg?.gstin || 'Registered'})\n• **Product Catalog:** ${products.length} SKUs\n• **Active Contractors & Customers:** ${customers.length} accounts\n• **Total Sales Orders:** ${orders.length} orders\n\nYou can ask me to evaluate stock thresholds, summarize receivables, or suggest quotation terms.`,
+      content: `I have verified your active tenant records:\n\n• **Organization:** ${currentOrg?.name} (${currentOrg?.gstin || 'Registered'})\n• **Product Catalog:** ${products.length} SKUs\n• **Active Contractors & Customers:** ${customers.length} accounts\n• **Total Sales Orders:** ${orders.length} orders\n\nYou can ask me to evaluate stock thresholds, summarize receivables, or inspect sales performance.`,
       timestamp,
     };
   };
 
-  const handleApproveAction = async (action: NonNullable<Message['proposedAction']>) => {
+  const handleApproveAction = async (messageId: string, action: NonNullable<Message['proposedAction']>) => {
     if (!currentOrg) return;
+
+    // Transition state: executing
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && m.proposedAction
+          ? { ...m, proposedAction: { ...m.proposedAction, status: 'executing' } }
+          : m
+      )
+    );
+
     try {
-      await auditService.logEvent(
-        currentOrg.id,
-        'AI_PROPOSED_ACTION_APPROVED',
-        'SYSTEM',
-        currentOrg.id,
-        {
-          actionType: action.type,
-          actionTitle: action.title,
-        },
-        isMockAuth
-      );
-      showToast('success', 'Action Approved & Audited', `Executed: ${action.title}`);
+      if (action.type === 'REPLENISHMENT_PROPOSAL' && action.payload?.items) {
+        const items = action.payload.items as ReplenishmentItem[];
+
+        // CRITICAL INVENTORY INTEGRITY GATE:
+        // A replenishment recommendation must NOT increase available physical stock merely because
+        // a user approves an AI suggestion! Stock increases only upon verified goods receipt (GRN).
+        // Therefore, we record an approved purchasing requisition proposal in the audit ledger without
+        // falsely mutating physical on-hand stock.
+        await auditService.logEvent(
+          currentOrg.id,
+          'AI_REPLENISHMENT_PROPOSAL_APPROVED',
+          'PURCHASING_PROPOSAL',
+          currentOrg.id,
+          {
+            actionType: action.type,
+            actionTitle: action.title,
+            itemsCount: items.length,
+            items: items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, uom: i.uom })),
+            note: 'Physical stock remains unchanged. Requisition proposal logged for procurement intake.',
+          },
+          isMockAuth
+        );
+
+        showToast(
+          'success',
+          'Requisition Proposal Approved',
+          `Procurement requisition recorded for ${items.length} SKU(s). Physical stock will update only upon verified goods receipt.`
+        );
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId && m.proposedAction
+              ? {
+                  ...m,
+                  proposedAction: {
+                    ...m.proposedAction,
+                    status: 'executed',
+                    resultSummary: `Requisition proposal approved for ${items.length} SKU(s) and recorded in audit log. Physical inventory remains unchanged until goods are received.`,
+                  },
+                }
+              : m
+          )
+        );
+      } else {
+        // Pure recommendation acknowledgment
+        await auditService.logEvent(
+          currentOrg.id,
+          'AI_SUGGESTION_ACKNOWLEDGED',
+          'SYSTEM',
+          currentOrg.id,
+          {
+            actionType: action.type,
+            actionTitle: action.title,
+          },
+          isMockAuth
+        );
+
+        showToast('info', 'Suggestion Acknowledged', `Acknowledged: ${action.title}`);
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId && m.proposedAction
+              ? {
+                  ...m,
+                  proposedAction: {
+                    ...m.proposedAction,
+                    status: 'acknowledged',
+                    resultSummary: 'Recommendation acknowledged by operator.',
+                  },
+                }
+              : m
+          )
+        );
+      }
     } catch (err: any) {
       showToast('error', 'Execution Failed', err.message);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId && m.proposedAction
+            ? { ...m, proposedAction: { ...m.proposedAction, status: 'proposed' } }
+            : m
+        )
+      );
     }
   };
 
@@ -194,18 +347,18 @@ export const AIPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               ATLAS AI Assistant
             </h1>
-            <Badge variant="indigo" size="sm">
-              Grounded Distribution Copilot
+            <Badge variant="violet" size="sm">
+              Rule-Based Operational Assistant
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
-            Operational intelligence strictly grounded in authorized database records with human-confirmed actions.
+            Operational intelligence deterministically computed from authorized tenant ledger records with explicit human authorization.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-medium text-content-secondary bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2 text-xs font-medium text-content-secondary bg-surface-card px-3 py-1.5 rounded-xl border border-border shadow-2xs">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Human-in-the-Loop Safe</span>
+          <span>Verified Ledger Rules</span>
         </div>
       </div>
 
@@ -216,7 +369,7 @@ export const AIPage: React.FC = () => {
             key={idx}
             type="button"
             onClick={() => handleSend(item.query)}
-            className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-atlas-300 transition-all text-left shadow-2xs group focus:outline-none focus:ring-2 focus:ring-atlas-500/20"
+            className="flex items-center justify-between p-3 rounded-xl border border-border bg-surface-card hover:bg-atlas-50 hover:border-atlas-300 transition-all text-left shadow-2xs group focus:outline-none focus:ring-2 focus:ring-atlas-500/20"
           >
             <span className="text-xs font-medium text-content-primary group-hover:text-atlas-800">
               {item.label}
@@ -232,6 +385,8 @@ export const AIPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {messages.map((msg) => {
             const isUser = msg.sender === 'user';
+            const action = msg.proposedAction;
+
             return (
               <div
                 key={msg.id}
@@ -248,30 +403,61 @@ export const AIPage: React.FC = () => {
                     className={`rounded-2xl p-4 text-sm leading-relaxed ${
                       isUser
                         ? 'bg-atlas-600 text-white rounded-tr-xs'
-                        : 'bg-slate-50 border border-slate-200 text-content-primary rounded-tl-xs shadow-2xs'
+                        : 'bg-surface-panel/40 border border-border text-content-primary rounded-tl-xs shadow-2xs'
                     }`}
                   >
                     <div className="whitespace-pre-line">{msg.content}</div>
                   </div>
 
                   {/* Proposed Action Card if present */}
-                  {msg.proposedAction && (
-                    <div className="p-3.5 rounded-xl border border-atlas-200 bg-atlas-50/70 space-y-2 text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-atlas-900">
-                        <Sparkles className="w-4 h-4 text-atlas-600" />
-                        <span>Proposed Workflow Action</span>
+                  {action && (
+                    <div className="p-3.5 rounded-xl border border-atlas-200 bg-atlas-50/70 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 font-bold text-atlas-900">
+                          <Sparkles className="w-4 h-4 text-atlas-600" />
+                          <span>{action.title}</span>
+                        </div>
+                        {action.status === 'executed' && (
+                          <Badge variant="success" size="sm" showDot>
+                            Executed
+                          </Badge>
+                        )}
+                        {action.status === 'acknowledged' && (
+                          <Badge variant="default" size="sm">
+                            Acknowledged
+                          </Badge>
+                        )}
                       </div>
-                      <p className="text-xs text-atlas-800">{msg.proposedAction.description}</p>
-                      <div className="pt-1 flex items-center gap-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleApproveAction(msg.proposedAction!)}
-                          leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                        >
-                          Confirm & Approve
-                        </Button>
-                      </div>
+
+                      <p className="text-xs text-atlas-800">{action.description}</p>
+
+                      {action.resultSummary && (
+                        <p className="text-xs font-semibold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                          ✓ {action.resultSummary}
+                        </p>
+                      )}
+
+                      {action.status === 'proposed' && (
+                        <div className="pt-1 flex items-center gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleApproveAction(msg.id, action)}
+                            leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                          >
+                            {action.type === 'REPLENISHMENT_PROPOSAL'
+                              ? 'Approve Requisition Proposal'
+                              : 'Acknowledge Suggestion'}
+                          </Button>
+                        </div>
+                      )}
+
+                      {action.status === 'executing' && (
+                        <div className="pt-1 flex items-center gap-2 text-atlas-700">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="font-medium">Recording approved procurement proposal...</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -285,7 +471,7 @@ export const AIPage: React.FC = () => {
                 </div>
 
                 {isUser && (
-                  <div className="w-8 h-8 rounded-xl bg-slate-200 text-content-secondary flex items-center justify-center shrink-0 border border-slate-300 font-bold text-xs">
+                  <div className="w-8 h-8 rounded-xl bg-surface-muted text-content-secondary flex items-center justify-center shrink-0 border border-border font-bold text-xs">
                     VK
                   </div>
                 )}

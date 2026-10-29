@@ -8,8 +8,12 @@ import { paymentsService } from './payments.service';
 
 export const dashboardService = {
   async getDashboardMetrics(orgId: string, isMockAuth: boolean = false): Promise<DashboardMetrics> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getDashboardMetrics(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const todayStr = new Date().toISOString().split('T')[0];

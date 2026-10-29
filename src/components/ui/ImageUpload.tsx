@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Upload, X, Camera } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Upload, X, Camera, AlertCircle } from 'lucide-react';
 
 export interface ImageUploadProps {
   label?: string;
@@ -9,33 +9,83 @@ export interface ImageUploadProps {
   shape?: 'circle' | 'square' | 'wide';
 }
 
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
 export const ImageUpload: React.FC<ImageUploadProps> = ({
   label = 'Photo (Optional)',
   value,
   onChange,
-  helperText = 'PNG, JPG, or WEBP up to 5MB',
+  helperText = 'PNG, JPG, or WEBP up to 2MB',
   shape = 'square',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const processAndResizeImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const src = event.target?.result as string;
+      if (!src) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const maxDimension = shape === 'wide' ? 800 : 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          setError(null);
+          onChange(compressed);
+        } else {
+          setError(null);
+          onChange(src);
+        }
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds 5MB limit.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) onChange(result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setError('Invalid file format. Please upload PNG, JPG, or WEBP.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size exceeds the 2MB limit.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    processAndResizeImage(file);
   };
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setError(null);
     onChange('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -60,9 +110,16 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="image/png, image/jpeg, image/webp, image/svg+xml"
+        accept="image/png, image/jpeg, image/webp"
         className="hidden"
       />
+
+      {error && (
+        <div className="flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg animate-in fade-in">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {value ? (
         <div className="flex items-center gap-3.5">

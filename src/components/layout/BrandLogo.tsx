@@ -13,14 +13,14 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
         <svg viewBox="0 0 48 48" className="w-5 h-5" fill="none">
           <path
             d="M24 8L38 16V32L24 40L10 32V16L24 8Z"
-            stroke="#4338CA"
+            stroke="#6D28D9"
             strokeWidth="3.5"
             strokeLinejoin="round"
           />
-          <path d="M24 8V24L38 32" stroke="#4F46E5" strokeWidth="2.5" strokeLinejoin="round" />
-          <path d="M24 24L10 32" stroke="#4F46E5" strokeWidth="2.5" strokeLinejoin="round" />
-          <circle cx="24" cy="24" r="4.5" fill="#4F46E5" />
-          <circle cx="24" cy="24" r="2" fill="#E0E7FF" />
+          <path d="M24 8V24L38 32" stroke="#8B5CF6" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M24 24L10 32" stroke="#8B5CF6" strokeWidth="2.5" strokeLinejoin="round" />
+          <circle cx="24" cy="24" r="4.5" fill="#8B5CF6" />
+          <circle cx="24" cy="24" r="2" fill="#EDE9FE" />
         </svg>
       </div>
 

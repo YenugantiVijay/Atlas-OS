@@ -100,8 +100,12 @@ export const ordersService = {
   // SALES ORDERS
   // --------------------------------------------------------------------------
   async getSalesOrders(orgId: string, isMockAuth: boolean = false): Promise<SalesOrder[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getSalesOrders(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbOrders, error: ordersErr } = await supabase
@@ -140,8 +144,12 @@ export const ordersService = {
     },
     isMockAuth: boolean = false
   ): Promise<SalesOrder> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createSalesOrder(orgId, input);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // 1. Calculate financials using audited money calculations
@@ -229,9 +237,13 @@ export const ordersService = {
     userRole: string | null = null,
     isMockAuth: boolean = false
   ): Promise<{ success: boolean; status: string }> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       storage.confirmSalesOrder(orgId, orderId, userRole as any);
       return { success: true, status: 'CONFIRMED' };
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data, error } = await supabase.rpc('confirm_sales_order', {
@@ -253,8 +265,12 @@ export const ordersService = {
   // QUOTATIONS
   // --------------------------------------------------------------------------
   async getQuotations(orgId: string, isMockAuth: boolean = false): Promise<Quotation[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getQuotations(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbQuotations, error } = await supabase
@@ -292,8 +308,12 @@ export const ordersService = {
     },
     isMockAuth: boolean = false
   ): Promise<Quotation> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createQuotation(orgId, input);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const docTotals = calculateDocumentTotals(
@@ -372,8 +392,12 @@ export const ordersService = {
     quotationId: string,
     isMockAuth: boolean = false
   ): Promise<SalesOrder> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.convertQuotationToOrder(orgId, quotationId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: quot, error: quotErr } = await supabase

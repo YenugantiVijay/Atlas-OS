@@ -3,6 +3,9 @@ import {
   allocateDocumentNumber,
   withDocumentNumberRetry,
   isUniqueViolation,
+  formatSequentialNumber,
+  formatInvoiceNumber,
+  getIndianFinancialYear,
 } from './numbering.service';
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -43,6 +46,62 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
     });
   });
 
+  describe('formatSequentialNumber (Truncation Prevention)', () => {
+    it('formats sequential numbers below 10000 with 4-digit zero padding', () => {
+      expect(formatSequentialNumber('RCP', 2026, 1)).toBe('RCP-2026-0001');
+      expect(formatSequentialNumber('INV', 2026, 42)).toBe('INV-2026-0042');
+      expect(formatSequentialNumber('SO', 2026, 999)).toBe('SO-2026-0999');
+      expect(formatSequentialNumber('RCP', 2026, 9999)).toBe('RCP-2026-9999');
+    });
+
+    it('does NOT truncate or wrap numbers >= 10000 (prevents Postgres LPAD 4-character truncation)', () => {
+      // Postgres LPAD('10000', 4, '0') returns '1000' which is catastrophic truncation.
+      // formatSequentialNumber must preserve 10000 and higher as full integer strings.
+      expect(formatSequentialNumber('RCP', 2026, 10000)).toBe('RCP-2026-10000');
+      expect(formatSequentialNumber('RCP', 2026, 10005)).toBe('RCP-2026-10005');
+      expect(formatSequentialNumber('INV', 2026, 99999)).toBe('INV-2026-99999');
+      expect(formatSequentialNumber('SO', 2026, 100000)).toBe('SO-2026-100000');
+    });
+  });
+
+  describe('formatInvoiceNumber (Indian GST Rule 46 Format)', () => {
+    it('formats canonical GST fiscal year invoice numbers with 4-digit zero padding', () => {
+      expect(formatInvoiceNumber('25-26', 1)).toBe('ATL/25-26/0001');
+      expect(formatInvoiceNumber('25-26', 42)).toBe('ATL/25-26/0042');
+      expect(formatInvoiceNumber('26-27', 9999)).toBe('ATL/26-27/9999');
+    });
+
+    it('preserves invoice numbers >= 10000 without truncation (compliant with 16-char GST limit)', () => {
+      const inv10k = formatInvoiceNumber('25-26', 10000);
+      expect(inv10k).toBe('ATL/25-26/10000');
+      expect(inv10k.length).toBeLessThanOrEqual(16);
+
+      const inv100k = formatInvoiceNumber('25-26', 99999);
+      expect(inv100k).toBe('ATL/25-26/99999');
+      expect(inv100k.length).toBeLessThanOrEqual(16);
+    });
+  });
+
+  describe('getIndianFinancialYear (Indian FY Calculation)', () => {
+    it('derives correct FY string from Date objects across fiscal boundary', () => {
+      // Q4: Jan, Feb, Mar belong to previous calendar year's FY
+      expect(getIndianFinancialYear(new Date('2026-02-16'))).toBe('25-26');
+      expect(getIndianFinancialYear(new Date('2026-03-31'))).toBe('25-26');
+
+      // Q1-Q3: Apr to Dec belong to current calendar year's FY
+      expect(getIndianFinancialYear(new Date('2026-04-01'))).toBe('26-27');
+      expect(getIndianFinancialYear(new Date('2026-10-29'))).toBe('26-27');
+      expect(getIndianFinancialYear(new Date('2026-12-31'))).toBe('26-27');
+    });
+
+    it('handles ISO date strings and existing FY patterns', () => {
+      expect(getIndianFinancialYear('2026-02-16')).toBe('25-26');
+      expect(getIndianFinancialYear('2026-04-01')).toBe('26-27');
+      expect(getIndianFinancialYear('25-26')).toBe('25-26');
+      expect(getIndianFinancialYear('26-27')).toBe('26-27');
+    });
+  });
+
   describe('Primary RPC Allocation Strategy', () => {
     it('allocates document number from database sequence RPC', async () => {
       (supabase!.rpc as any).mockResolvedValueOnce({
@@ -73,6 +132,32 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
       });
       const invNum = await allocateDocumentNumber(orgA, 'INVOICE', currentYear);
       expect(invNum).toBe(`INV-${currentYear}-0105`);
+    });
+
+    it('strictly denies direct receipt-number allocation attempts in cloud mode', async () => {
+      // Direct authenticated calls to allocate RECEIPT numbers must be blocked.
+      // Receipts can only be allocated atomically via record_payment_and_allocate().
+      await expect(
+        allocateDocumentNumber(orgA, 'RECEIPT', currentYear, false)
+      ).rejects.toThrow(/Access denied: RECEIPT numbers cannot be allocated directly/);
+    });
+
+    it('rejects null and invalid inputs on document allocation', async () => {
+      await expect(
+        allocateDocumentNumber('', 'QUOTATION', currentYear)
+      ).rejects.toThrow(/organization_id cannot be null or empty/);
+
+      await expect(
+        allocateDocumentNumber(orgA, '' as any, currentYear)
+      ).rejects.toThrow(/document_type cannot be null or empty/);
+
+      await expect(
+        allocateDocumentNumber(orgA, 'QUOTATION', 1995)
+      ).rejects.toThrow(/Invalid year: 1995/);
+
+      await expect(
+        allocateDocumentNumber(orgA, 'QUOTATION', 2150)
+      ).rejects.toThrow(/Invalid year: 2150/);
     });
   });
 
@@ -292,8 +377,70 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
       const num1 = storage.allocateDocumentNumber(orgA, 'INVOICE');
       const num2 = storage.allocateDocumentNumber(orgA, 'INVOICE');
       // Consecutive allocations without saving return the same next sequence, proving it is sequence-driven
-      expect(num1).toBe(`INV-${currentYear}-0001`);
-      expect(num2).toBe(`INV-${currentYear}-0001`);
+      expect(num1).toMatch(/^ATL\/\d{2}-\d{2}\/0001$/);
+      expect(num2).toMatch(/^ATL\/\d{2}-\d{2}\/0001$/);
+    });
+
+    it('allocates atomic sequential receipt numbers for payments (RCP-YYYY-NNNN) instead of random PAY-', () => {
+      const rcp1 = storage.allocateDocumentNumber(orgA, 'RECEIPT');
+      expect(rcp1).toBe(`RCP-${currentYear}-0001`);
+
+      // Seed a customer and invoice to record payment
+      const cust = storage.createCustomer(orgA, {
+        name: 'Test Customer',
+        phone: '9876543210',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const inv = storage.createInvoice(orgA, {
+        customerId: cust.id,
+        invoiceDate: '2026-03-01',
+        dueDate: '2026-03-31',
+        items: [
+          {
+            productId: 'p-wire-1',
+            productSku: 'SKU-WIRE-1',
+            productName: 'Wire',
+            uom: 'Coils',
+            quantity: 2,
+            unitPrice: 1000,
+            discountPercent: 0,
+            taxRate: 18,
+          },
+        ],
+      });
+
+      // Record first payment
+      const payment1 = storage.recordPayment(
+        orgA,
+        {
+          invoiceId: inv.id,
+          customerId: cust.id,
+          paymentDate: '2026-03-02',
+          amount: 500,
+          paymentMethod: 'BANK_TRANSFER',
+        },
+        'owner'
+      );
+
+      expect(payment1.paymentNumber).toBe(`RCP-${currentYear}-0001`);
+
+      // Record second payment on same or another invoice
+      const payment2 = storage.recordPayment(
+        orgA,
+        {
+          invoiceId: inv.id,
+          customerId: cust.id,
+          paymentDate: '2026-03-03',
+          amount: 500,
+          paymentMethod: 'CASH',
+        },
+        'owner'
+      );
+
+      expect(payment2.paymentNumber).toBe(`RCP-${currentYear}-0002`);
     });
   });
 });
