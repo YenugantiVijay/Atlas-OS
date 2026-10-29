@@ -23,8 +23,12 @@ export function mapDbSupplier(row: any): Supplier {
 
 export const suppliersService = {
   async getSuppliers(orgId: string, isMockAuth: boolean = false): Promise<Supplier[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getSuppliers(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data: dbSuppliers, error } = await supabase
@@ -45,8 +49,12 @@ export const suppliersService = {
     input: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt' | 'organizationId'>,
     isMockAuth: boolean = false
   ): Promise<Supplier> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createSupplier(orgId, input);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload = {
@@ -82,8 +90,12 @@ export const suppliersService = {
     updates: Partial<Supplier>,
     isMockAuth: boolean = false
   ): Promise<Supplier> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.updateSupplier(orgId, supplierId, updates);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload: any = { updated_at: new Date().toISOString() };

@@ -61,8 +61,12 @@ export function sanitizeErrorMessage(message: string): string {
 
 export const auditService = {
   async getAuditEvents(orgId: string, isMockAuth: boolean = false): Promise<AuditEvent[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getAuditEvents(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data, error } = await supabase
@@ -93,7 +97,7 @@ export const auditService = {
     const shouldThrow = isCritical || (options.throwOnError ?? false);
     const sanitized = sanitizeAuditDetails(details);
 
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       try {
         storage.logAuditEvent(orgId, action, entityType, entityId, sanitized);
         return { success: true };
@@ -105,6 +109,14 @@ export const auditService = {
         console.warn('Non-critical storage audit log failed:', safeErr);
         return { success: false, error: safeErr };
       }
+    }
+
+    if (!supabase) {
+      const errMsg = 'Cloud backend is not configured: Supabase client is uninitialized.';
+      if (shouldThrow) {
+        throw new Error(`Critical audit failure: ${errMsg}`);
+      }
+      return { success: false, error: errMsg };
     }
 
     try {

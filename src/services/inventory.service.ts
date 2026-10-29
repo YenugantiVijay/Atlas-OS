@@ -25,8 +25,12 @@ export const inventoryService = {
     productId?: string,
     isMockAuth: boolean = false
   ): Promise<StockMovement[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getStockMovements(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     let query = supabase
@@ -54,8 +58,12 @@ export const inventoryService = {
     notes: string,
     isMockAuth: boolean = false
   ): Promise<StockMovement> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.adjustStock(orgId, productId, quantityChange, notes);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload = {
@@ -85,11 +93,15 @@ export const inventoryService = {
     productId: string,
     isMockAuth: boolean = false
   ): Promise<number> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       const movements = storage.getStockMovements(orgId);
       return movements
         .filter((m) => m.productId === productId)
         .reduce((sum, m) => sum + m.quantityChange, 0);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const { data, error } = await supabase.rpc('get_product_stock', {

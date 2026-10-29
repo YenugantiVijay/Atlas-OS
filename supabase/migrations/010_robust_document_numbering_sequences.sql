@@ -58,6 +58,7 @@ DECLARE
     v_candidate VARCHAR;
     v_exists BOOLEAN;
     v_has_access BOOLEAN;
+    v_fy VARCHAR;
 BEGIN
     -- 1. Authorization check: caller must belong to target organization or be service_role
     IF auth.role() = 'authenticated' THEN
@@ -77,7 +78,7 @@ BEGIN
     ELSIF p_doc_type = 'SALES_ORDER' THEN
         v_prefix := 'SO';
     ELSIF p_doc_type = 'INVOICE' THEN
-        v_prefix := 'INV';
+        v_prefix := 'ATL';
     ELSE
         RAISE EXCEPTION 'Invalid document type: %. Must be QUOTATION, SALES_ORDER, or INVOICE.', p_doc_type;
     END IF;
@@ -106,7 +107,18 @@ BEGIN
             updated_at = NOW()
         RETURNING current_value INTO v_next_val;
 
-        v_candidate := v_prefix || '-' || p_year::TEXT || '-' || LPAD(v_next_val::TEXT, 4, '0');
+        IF p_doc_type = 'INVOICE' THEN
+            -- Indian GST Financial Year format: ATL/YY-YY/NNNN (GST Rule 46 compliant)
+            -- Indian FY runs April 1 to March 31.
+            IF EXTRACT(MONTH FROM CURRENT_DATE) < 4 THEN
+                v_fy := TO_CHAR((p_year - 1) % 100, 'FM00') || '-' || TO_CHAR(p_year % 100, 'FM00');
+            ELSE
+                v_fy := TO_CHAR(p_year % 100, 'FM00') || '-' || TO_CHAR((p_year + 1) % 100, 'FM00');
+            END IF;
+            v_candidate := 'ATL/' || v_fy || '/' || LPAD(v_next_val::TEXT, 4, '0');
+        ELSE
+            v_candidate := v_prefix || '-' || p_year::TEXT || '-' || LPAD(v_next_val::TEXT, 4, '0');
+        END IF;
 
         -- 4. Verify candidate does not collide with existing historical records
         IF p_doc_type = 'QUOTATION' THEN

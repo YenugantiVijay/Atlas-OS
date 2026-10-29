@@ -383,7 +383,7 @@ describe('Data-Access Layer Services (Phase C & D)', () => {
       const header = {
         id: 'inv-001',
         organization_id: testOrgId,
-        invoice_number: 'INV-2026-0001',
+        invoice_number: 'ATL/25-26/0001',
         customer_id: 'cust-001',
         status: 'ISSUED',
         invoice_date: '2026-02-16',
@@ -398,7 +398,7 @@ describe('Data-Access Layer Services (Phase C & D)', () => {
       };
 
       const inv = mapDbInvoice(header, []);
-      expect(inv.invoiceNumber).toBe('INV-2026-0001');
+      expect(inv.invoiceNumber).toBe('ATL/25-26/0001');
       expect(inv.totalAmount).toBe(29500);
       expect(inv.totalPaid).toBe(10000);
     });

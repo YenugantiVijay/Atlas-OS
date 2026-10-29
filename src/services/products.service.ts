@@ -29,8 +29,12 @@ export function mapDbProduct(row: any, stock: number = 0): Product {
 
 export const productsService = {
   async getProducts(orgId: string, isMockAuth: boolean = false): Promise<Product[]> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.getProducts(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     // 1. Fetch products scoped strictly to tenant
@@ -72,8 +76,12 @@ export const productsService = {
     isMockAuth: boolean = false,
     openingStock: number = 0
   ): Promise<Product> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.createProduct(orgId, input, openingStock);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload = {
@@ -126,8 +134,12 @@ export const productsService = {
     updates: Partial<Product>,
     isMockAuth: boolean = false
   ): Promise<Product> {
-    if (isMockAuth || !supabase) {
+    if (isMockAuth) {
       return storage.updateProduct(orgId, productId, updates);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
     const payload: any = { updated_at: new Date().toISOString() };

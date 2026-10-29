@@ -18,6 +18,42 @@ import {
 } from '@/types';
 import { calculateInvoiceBalance, calculateDocumentTotals, parseTaxRate } from './money';
 
+/**
+ * Calculates Indian Financial Year string (e.g. '25-26', '26-27') from date or year.
+ * Under Indian GST Rule 46, FY runs April 1 to March 31.
+ */
+export function getIndianFinancialYear(dateOrYear?: Date | string | number): string {
+  if (dateOrYear instanceof Date) {
+    const month = dateOrYear.getMonth(); // 0 to 11
+    const year = dateOrYear.getFullYear();
+    const startYear = month < 3 ? year - 1 : year;
+    const endYear = startYear + 1;
+    return `${String(startYear % 100).padStart(2, '0')}-${String(endYear % 100).padStart(2, '0')}`;
+  }
+
+  if (typeof dateOrYear === 'string') {
+    if (/^\d{2}-\d{2}$/.test(dateOrYear)) {
+      return dateOrYear;
+    }
+    const parsed = new Date(dateOrYear);
+    if (!isNaN(parsed.getTime())) {
+      return getIndianFinancialYear(parsed);
+    }
+  }
+
+  if (typeof dateOrYear === 'number') {
+    const now = new Date();
+    if (dateOrYear === now.getFullYear()) {
+      return getIndianFinancialYear(now);
+    }
+    const startYear = dateOrYear;
+    const endYear = startYear + 1;
+    return `${String(startYear % 100).padStart(2, '0')}-${String(endYear % 100).padStart(2, '0')}`;
+  }
+
+  return getIndianFinancialYear(new Date());
+}
+
 // Storage keys
 const STORAGE_KEYS = {
   ORGS: 'atlas_organizations_v1',
@@ -550,7 +586,7 @@ class StorageEngine {
     return {
       id: 'inv-001',
       organizationId: orgId,
-      invoiceNumber: 'INV-2026-0001',
+      invoiceNumber: 'ATL/25-26/0001',
       customerId: order.customerId,
       salesOrderId: order.id,
       status: 'PARTIALLY_PAID',
@@ -690,6 +726,23 @@ class StorageEngine {
     return this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []).filter(
       (m) => m.organizationId === orgId
     );
+  }
+
+  public addMembership(membership: Membership): void {
+    this.initialize();
+    const mems = this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []);
+    mems.push(membership);
+    this.setItem(STORAGE_KEYS.MEMBERSHIPS, mems);
+  }
+
+  public updateMembership(id: string, updates: Partial<Membership>): void {
+    this.initialize();
+    const mems = this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []);
+    const idx = mems.findIndex((m) => m.id === id);
+    if (idx !== -1) {
+      mems[idx] = { ...mems[idx], ...updates };
+      this.setItem(STORAGE_KEYS.MEMBERSHIPS, mems);
+    }
   }
 
   // --- Products ---
@@ -938,10 +991,26 @@ class StorageEngine {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  public allocateDocumentNumber(orgId: string, docType: 'QUOTATION' | 'SALES_ORDER' | 'INVOICE'): string {
-    const year = new Date().getFullYear();
+  public allocateDocumentNumber(
+    orgId: string,
+    docType: 'QUOTATION' | 'SALES_ORDER' | 'INVOICE' | 'RECEIPT',
+    yearOrDate: number | string | Date = new Date()
+  ): string {
     let prefix = 'QT';
     let existingNumbers: string[] = [];
+
+    const fy = getIndianFinancialYear(yearOrDate);
+    let calendarYear: number;
+    if (typeof yearOrDate === 'number') {
+      calendarYear = yearOrDate;
+    } else if (yearOrDate instanceof Date) {
+      calendarYear = yearOrDate.getFullYear();
+    } else if (typeof yearOrDate === 'string') {
+      const parsed = new Date(yearOrDate);
+      calendarYear = !isNaN(parsed.getTime()) ? parsed.getFullYear() : new Date().getFullYear();
+    } else {
+      calendarYear = new Date().getFullYear();
+    }
 
     if (docType === 'QUOTATION') {
       prefix = 'QT';
@@ -952,16 +1021,47 @@ class StorageEngine {
       const items = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []).filter((o) => o.organizationId === orgId);
       existingNumbers = items.map((o) => o.orderNumber);
     } else if (docType === 'INVOICE') {
-      prefix = 'INV';
+      prefix = 'ATL';
       const items = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []).filter((i) => i.organizationId === orgId);
       existingNumbers = items.map((i) => i.invoiceNumber);
+    } else if (docType === 'RECEIPT') {
+      prefix = 'RCP';
+      const items = this.getItem<Payment[]>(STORAGE_KEYS.PAYMENTS, []).filter((p) => p.organizationId === orgId);
+      existingNumbers = items.map((p) => p.paymentNumber);
     }
 
-    // Find max sequence number for this organization and year
-    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+    // Specific Indian GST Financial Year logic for INVOICE (Rule 46 compliant)
+    if (docType === 'INVOICE') {
+      const pattern = new RegExp(`^ATL[/\\\\]${fy}[/\\\\](\\d+)$`);
+      let maxSeq = 0;
+      for (const num of existingNumbers) {
+        const match = num ? num.match(pattern) : null;
+        if (match) {
+          const val = parseInt(match[1], 10);
+          if (!isNaN(val) && val > maxSeq) {
+            maxSeq = val;
+          }
+        }
+      }
+
+      let nextSeq = maxSeq + 1;
+      const formatCandidate = (seq: number) =>
+        `ATL/${fy}/${seq < 10000 ? String(seq).padStart(4, '0') : String(seq)}`;
+
+      let candidate = formatCandidate(nextSeq);
+      while (existingNumbers.includes(candidate)) {
+        nextSeq++;
+        candidate = formatCandidate(nextSeq);
+      }
+
+      return candidate;
+    }
+
+    // Default sequential format for QUOTATION, SALES_ORDER, RECEIPT
+    const pattern = new RegExp(`^${prefix}-${calendarYear}-(\\d+)$`);
     let maxSeq = 0;
     for (const num of existingNumbers) {
-      const match = num.match(pattern);
+      const match = num ? num.match(pattern) : null;
       if (match) {
         const val = parseInt(match[1], 10);
         if (!isNaN(val) && val > maxSeq) {
@@ -970,12 +1070,15 @@ class StorageEngine {
       }
     }
 
-    // Advance candidate until guaranteed unique within organization
+    // Advance candidate until guaranteed unique within organization (no truncation >9999)
     let nextSeq = maxSeq + 1;
-    let candidate = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
+    const formatCandidate = (seq: number) =>
+      `${prefix}-${calendarYear}-${seq < 10000 ? String(seq).padStart(4, '0') : String(seq)}`;
+
+    let candidate = formatCandidate(nextSeq);
     while (existingNumbers.includes(candidate)) {
       nextSeq++;
-      candidate = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
+      candidate = formatCandidate(nextSeq);
     }
 
     return candidate;
@@ -1383,7 +1486,7 @@ class StorageEngine {
   ): Invoice {
     this.initialize();
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-    const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
+    const invNum = this.allocateDocumentNumber(orgId, 'INVOICE', data.invoiceDate);
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -1491,7 +1594,7 @@ class StorageEngine {
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const allocations = this.getItem<PaymentAllocation[]>(STORAGE_KEYS.PAYMENT_ALLOCATIONS, []);
 
-    const payNum = 'PAY-' + new Date().getFullYear() + '-' + String(payments.length + 1).padStart(4, '0');
+    const payNum = this.allocateDocumentNumber(orgId, 'RECEIPT');
 
     const newPayment: Payment = {
       id: 'pay-' + Date.now(),
