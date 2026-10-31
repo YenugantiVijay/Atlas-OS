@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Mail,
   Lock,
@@ -29,6 +30,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const { signIn, signUp, enterDemoMode } = useOrg();
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
@@ -76,6 +78,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         } else if (res.sessionPresent) {
           showToast('success', 'Account Created', `Welcome to Atlas OS, ${fullName.trim()}`);
           onClose();
+          navigate('/onboarding');
         } else {
           setSuccessMessage(
             'Confirmation link sent to your email. Please verify your email to log in.'
