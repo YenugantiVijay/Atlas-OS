@@ -115,7 +115,7 @@ export const productsService = {
         organization_id: orgId,
         product_id: data.id,
         quantity_change: openingStock,
-        movement_type: 'OPENING_BALANCE',
+        movement_type: 'OPENING_STOCK',
         reference_type: 'INITIAL_STOCK',
         notes: 'Initial opening stock',
       });

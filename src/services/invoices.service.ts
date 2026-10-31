@@ -157,7 +157,8 @@ export const invoicesService = {
   async createInvoiceFromOrder(
     orgId: string,
     orderId: string,
-    isMockAuth: boolean = false
+    isMockAuth: boolean = false,
+    idempotencyKey?: string
   ): Promise<Invoice> {
     if (isMockAuth) {
       return storage.createInvoiceFromOrder(orgId, orderId);
@@ -177,6 +178,32 @@ export const invoicesService = {
 
     if (orderErr || !order) {
       throw new Error(`Sales order not found: ${orderErr?.message || 'Invalid ID'}`);
+    }
+
+    // 2. Validate order status (defense-in-depth pre-check before calling RPC)
+    if (order.status !== 'CONFIRMED') {
+      throw new Error(
+        `Cannot invoice sales order in status "${order.status}". Only CONFIRMED orders can be invoiced.`
+      );
+    }
+
+    // 3. User-friendly pre-check for existing non-cancelled invoice (non-blocking)
+    const { data: existingInvoices, error: invErr } = await supabase
+      .from('invoices')
+      .select('id, invoice_number')
+      .eq('organization_id', orgId)
+      .eq('sales_order_id', orderId)
+      .neq('status', 'CANCELLED')
+      .limit(1);
+
+    if (!invErr && existingInvoices && existingInvoices.length > 0) {
+      throw new Error(
+        `Sales order ${order.order_number} has already been invoiced under invoice ${existingInvoices[0].invoice_number}.`
+      );
+    }
+
+    if (invErr) {
+      console.warn('Non-blocking existing invoice pre-check query failed:', invErr.message);
     }
 
     const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -201,6 +228,7 @@ export const invoicesService = {
         salesOrderId: order.id,
         invoiceDate: new Date().toISOString().split('T')[0],
         dueDate,
+        idempotencyKey,
         notes: `Generated from Sales Order ${order.order_number}`,
         items: orderItems,
       },

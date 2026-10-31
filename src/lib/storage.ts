@@ -588,7 +588,6 @@ class StorageEngine {
       organizationId: orgId,
       invoiceNumber: 'ATL/25-26/0001',
       customerId: order.customerId,
-      salesOrderId: order.id,
       status: 'PARTIALLY_PAID',
       invoiceDate: '2026-02-16',
       dueDate: '2026-03-18',
@@ -598,7 +597,7 @@ class StorageEngine {
       totalAmount: order.totalAmount,
       totalPaid: 25000,
       totalsVersion: 2,
-      notes: 'Generated from Sales Order SO-2026-0001',
+      notes: 'Direct Tax Invoice ATL/25-26/0001',
       createdAt: '2026-02-16T10:00:00Z',
       updatedAt: '2026-02-20T14:30:00Z',
       items: order.items?.map((item) => ({
@@ -1403,14 +1402,22 @@ class StorageEngine {
   public createInvoiceFromOrder(orgId: string, orderId: string): Invoice {
     this.initialize();
     const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
-    const order = orders.find((o) => o.id === orderId && o.organizationId === orgId);
-    if (!order) throw new Error('Sales order not found');
+    const orderIndex = orders.findIndex((o) => o.id === orderId && o.organizationId === orgId);
+    if (orderIndex === -1) throw new Error('Sales order not found');
+    const order = orders[orderIndex];
 
-    if (order.status !== 'CONFIRMED' && order.status !== 'FULFILLED') {
+    if (order.status !== 'CONFIRMED') {
       throw new Error(`Cannot invoice order in status "${order.status}". Order must be CONFIRMED.`);
     }
 
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+    const existing = invoices.find(
+      (inv) => inv.organizationId === orgId && inv.salesOrderId === order.id && inv.status !== 'CANCELLED'
+    );
+    if (existing) {
+      throw new Error(`Sales order ${order.orderNumber} has already been invoiced under invoice ${existing.invoiceNumber}.`);
+    }
+
     const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
 
     // Due date = today + 30 days default
@@ -1452,8 +1459,25 @@ class StorageEngine {
       })),
     };
 
-    invoices.push(newInvoice);
-    this.setItem(STORAGE_KEYS.INVOICES, invoices);
+    // Atomic storage mutation with rollback protection
+    const originalOrders = [...orders];
+    const originalInvoices = [...invoices];
+
+    try {
+      orders[orderIndex] = {
+        ...order,
+        status: 'FULFILLED',
+        updatedAt: new Date().toISOString(),
+      };
+      invoices.push(newInvoice);
+
+      this.setItem(STORAGE_KEYS.INVOICES, invoices);
+      this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
+    } catch (err) {
+      this.setItem(STORAGE_KEYS.INVOICES, originalInvoices);
+      this.setItem(STORAGE_KEYS.SALES_ORDERS, originalOrders);
+      throw err;
+    }
 
     this.logAuditEvent(orgId, 'ISSUE_INVOICE', 'INVOICE', newInvoice.id, {
       invoiceNumber: invNum,

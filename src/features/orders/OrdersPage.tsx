@@ -59,6 +59,7 @@ export const OrdersPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [invoicingOrderId, setInvoicingOrderId] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!currentOrg) return;
@@ -222,13 +223,16 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleCreateInvoice = async (order: SalesOrder) => {
-    if (!currentOrg) return;
+    if (!currentOrg || invoicingOrderId) return;
+    setInvoicingOrderId(order.id);
     try {
       const inv = await invoicesService.createInvoiceFromOrder(currentOrg.id, order.id, isMockAuth);
       showToast('success', 'Invoice Generated', `Generated Tax Invoice ${inv.invoiceNumber} for ${order.orderNumber}.`);
       navigate('/invoices');
     } catch (err: any) {
       showToast('error', 'Invoicing Failed', err.message);
+    } finally {
+      setInvoicingOrderId(null);
     }
   };
 
@@ -420,6 +424,8 @@ export const OrdersPage: React.FC = () => {
                         size="sm"
                         onClick={() => handleCreateInvoice(o)}
                         leftIcon={<Receipt className="w-3.5 h-3.5" />}
+                        isLoading={invoicingOrderId === o.id}
+                        disabled={!!invoicingOrderId}
                       >
                         Invoice
                       </Button>
@@ -762,6 +768,8 @@ export const OrdersPage: React.FC = () => {
                   variant="primary"
                   onClick={() => handleCreateInvoice(viewingOrder)}
                   leftIcon={<Receipt className="w-4 h-4" />}
+                  isLoading={invoicingOrderId === viewingOrder.id}
+                  disabled={!!invoicingOrderId}
                 >
                   Generate Tax Invoice
                 </Button>
