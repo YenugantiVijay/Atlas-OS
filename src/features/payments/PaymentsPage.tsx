@@ -32,7 +32,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 export const PaymentsPage: React.FC = () => {
-  const { currentOrg, isMockAuth, currentRole } = useOrg();
+  const { currentOrg, isMockAuth, currentRole, canWriteOperations } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -82,6 +82,10 @@ export const PaymentsPage: React.FC = () => {
   }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenRecord = (preselectedInvoice?: Invoice) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (preselectedInvoice) {
       setCustomerId(preselectedInvoice.customerId);
       setInvoiceId(preselectedInvoice.id);
@@ -102,6 +106,10 @@ export const PaymentsPage: React.FC = () => {
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     const payAmount = parseFloat(amount);
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer.');
@@ -188,6 +196,8 @@ export const PaymentsPage: React.FC = () => {
           variant="primary"
           onClick={() => handleOpenRecord()}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Record Payment
         </Button>
@@ -255,7 +265,7 @@ export const PaymentsPage: React.FC = () => {
           icon={<CreditCard className="w-7 h-7" />}
           title="No payments recorded"
           description="Log customer payments against outstanding tax invoices."
-          actionLabel="Record Payment"
+          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Record Payment"}
           onAction={() => handleOpenRecord()}
         />
       ) : (
@@ -416,7 +426,12 @@ export const PaymentsPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               Record Payment Receipt
             </Button>
           </div>

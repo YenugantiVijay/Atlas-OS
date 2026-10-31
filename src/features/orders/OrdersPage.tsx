@@ -36,7 +36,7 @@ interface LineItemDraft {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { currentOrg, currentRole, isMockAuth } = useOrg();
+  const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -90,6 +90,10 @@ export const OrdersPage: React.FC = () => {
   }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setCustomerId(customers[0]?.id || '');
     setOrderDate(new Date().toISOString().split('T')[0]);
     setNotes('');
@@ -152,6 +156,10 @@ export const OrdersPage: React.FC = () => {
 
   const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer for the order.');
       return;
@@ -205,6 +213,10 @@ export const OrdersPage: React.FC = () => {
    * Validates available stock, prevents overselling, writes movements, updates status.
    */
   const handleConfirmOrder = async (order: SalesOrder) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!currentOrg) return;
     try {
       await ordersService.confirmSalesOrder(currentOrg.id, order.id, currentRole, isMockAuth);
@@ -223,6 +235,10 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleCreateInvoice = async (order: SalesOrder) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!currentOrg || invoicingOrderId) return;
     setInvoicingOrderId(order.id);
     try {
@@ -271,6 +287,8 @@ export const OrdersPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenCreate}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           New Sales Order
         </Button>
@@ -332,7 +350,7 @@ export const OrdersPage: React.FC = () => {
           icon={<FileText className="w-7 h-7" />}
           title="No sales orders found"
           description="Create sales orders directly or convert accepted contractor quotations."
-          actionLabel="New Sales Order"
+          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "New Sales Order"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -413,6 +431,8 @@ export const OrdersPage: React.FC = () => {
                         size="sm"
                         onClick={() => setOrderToConfirm(o)}
                         leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                        disabled={!canWriteOperations && !isMockAuth}
+                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                       >
                         Confirm
                       </Button>
@@ -425,7 +445,8 @@ export const OrdersPage: React.FC = () => {
                         onClick={() => handleCreateInvoice(o)}
                         leftIcon={<Receipt className="w-3.5 h-3.5" />}
                         isLoading={invoicingOrderId === o.id}
-                        disabled={!!invoicingOrderId}
+                        disabled={!!invoicingOrderId || (!canWriteOperations && !isMockAuth)}
+                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                       >
                         Invoice
                       </Button>
@@ -625,7 +646,12 @@ export const OrdersPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               Save Sales Order
             </Button>
           </div>
@@ -758,6 +784,8 @@ export const OrdersPage: React.FC = () => {
                   variant="primary"
                   onClick={() => setOrderToConfirm(viewingOrder)}
                   leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                  disabled={!canWriteOperations && !isMockAuth}
+                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                 >
                   Confirm Order & Deduct Stock
                 </Button>
@@ -769,7 +797,8 @@ export const OrdersPage: React.FC = () => {
                   onClick={() => handleCreateInvoice(viewingOrder)}
                   leftIcon={<Receipt className="w-4 h-4" />}
                   isLoading={invoicingOrderId === viewingOrder.id}
-                  disabled={!!invoicingOrderId}
+                  disabled={!!invoicingOrderId || (!canWriteOperations && !isMockAuth)}
+                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                 >
                   Generate Tax Invoice
                 </Button>
@@ -829,6 +858,8 @@ export const OrdersPage: React.FC = () => {
                   handleConfirmOrder(target);
                 }}
                 leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-300" />}
+                disabled={!canWriteOperations && !isMockAuth}
+                title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
               >
                 Confirm & Allocate Stock
               </Button>

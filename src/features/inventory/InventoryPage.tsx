@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 
 export const InventoryPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -57,6 +57,10 @@ export const InventoryPage: React.FC = () => {
   }, [currentOrg, isMockAuth]);
 
   const handleOpenAdjustment = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (products.length > 0) {
       setAdjustProductId(products[0].id);
     }
@@ -67,6 +71,10 @@ export const InventoryPage: React.FC = () => {
 
   const handleSaveAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     const qty = parseInt(adjustQuantity, 10);
     if (!adjustProductId) {
       showToast('error', 'Product Required', 'Please select a product.');
@@ -153,6 +161,8 @@ export const InventoryPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenAdjustment}
           leftIcon={<Sliders className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Adjust Stock
         </Button>
@@ -329,7 +339,12 @@ export const InventoryPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               Record Adjustment
             </Button>
           </div>

@@ -83,7 +83,11 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       isMockAuth: false,
       isDemoMode: false,
       isLoadingAuth: false,
+      isLoadingOrgData: false,
       authError: null,
+      eligibility: null,
+      subscription: null,
+      canWriteOperations: true,
       switchOrganization: mockSwitchOrganization,
       createOrganization: mockCreateOrganization,
       updateOrganization: vi.fn(),
@@ -506,6 +510,235 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       const retryBtn = screen.getByRole('button', { name: /Retry Connection/i });
       fireEvent.click(retryBtn);
       expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Part A: Auth Race Condition & isLoadingOrgData Gating', () => {
+    it('13. isLoadingOrgData shows full-screen initialization loader and prevents premature onboarding redirect while queries are in-flight', () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        isLoadingAuth: false,
+        isLoadingOrgData: true, // Data still querying from Supabase
+        currentOrg: null,
+        organizations: [], // Empty array during load must NOT trigger redirect!
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/onboarding" element={<div data-testid="onboarding-page">Onboarding Screen</div>} />
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<div data-testid="dashboard-content">Dashboard Content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      );
+
+      // Full screen loader is shown
+      expect(screen.getByText(/Initializing Atlas OS\.\.\./i)).toBeInTheDocument();
+      // MUST NOT be redirected to /onboarding while isLoadingOrgData is true
+      expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('dashboard-content')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Part B & C: Business Eligibility Integration in Onboarding', () => {
+    it('14. Onboarding form captures business category, sells electrical products declaration, and product lines', async () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: null,
+        organizations: [],
+      });
+
+      mockCreateOrganization.mockResolvedValueOnce({
+        id: 'org-created-002',
+        name: 'Venkata Power Distributors',
+        currency: 'INR',
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/onboarding']}>
+          <Routes>
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/" element={<div data-testid="dashboard-destination">Main Dashboard</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      // Business name
+      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+        target: { value: 'Venkata Power Distributors' },
+      });
+
+      // Select Business Category: Electrical Retail Shop
+      const retailBtn = screen.getByRole('button', { name: /Electrical Retail Shop/i });
+      fireEvent.click(retailBtn);
+
+      // Add a custom product line
+      const customInput = screen.getByPlaceholderText(/Add another product line/i);
+      fireEvent.change(customInput, { target: { value: 'Industrial Control Panels' } });
+      const addBtn = screen.getByRole('button', { name: /^Add$/i });
+      fireEvent.click(addBtn);
+
+      // Submit form
+      const submitBtn = screen.getByRole('button', { name: /Create My Organization/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(mockCreateOrganization).toHaveBeenCalledTimes(1);
+        const payload = mockCreateOrganization.mock.calls[0][0];
+        expect(payload.name).toBe('Venkata Power Distributors');
+        expect(payload.businessCategory).toBe('electrical_retail');
+        expect(payload.sellsElectricalProducts).toBe(true);
+        expect(payload.productLines).toContain('Industrial Control Panels');
+      });
+    });
+  });
+
+  describe('Part D: Operational Access Model & Banners in AppLayout', () => {
+    it('15. AppLayout displays Eligibility Rejected banner when eligibility.status is rejected', () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: sampleOrg1,
+        organizations: [sampleOrg1],
+        currentRole: 'owner',
+        canWriteOperations: false,
+        eligibility: {
+          organizationId: sampleOrg1.id,
+          businessCategory: 'other_unsupported',
+          sellsElectricalProducts: false,
+          productLines: [],
+          status: 'rejected',
+          rejectionReason: 'Business model outside authorized electrical trade scope.',
+          declaredAt: '2026-10-31T10:00:00Z',
+          declaredBy: mockUser.id,
+        },
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<div data-testid="dashboard-content">Dashboard Content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('eligibility-rejected-banner')).toBeInTheDocument();
+      expect(screen.getByText(/Business Eligibility Rejected/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Business model outside authorized electrical trade scope\./i)
+      ).toBeInTheDocument();
+    });
+
+    it('16. AppLayout displays Review Required banner when eligibility.status is review_required', () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: sampleOrg1,
+        organizations: [sampleOrg1],
+        currentRole: 'owner',
+        canWriteOperations: false,
+        eligibility: {
+          organizationId: sampleOrg1.id,
+          businessCategory: 'hardware_electrical',
+          sellsElectricalProducts: true,
+          productLines: [],
+          status: 'review_required',
+          declaredAt: '2026-10-31T10:00:00Z',
+          declaredBy: mockUser.id,
+        },
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<div data-testid="dashboard-content">Dashboard Content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('eligibility-review-banner')).toBeInTheDocument();
+      expect(
+        screen.getByText(/Eligibility Declaration Pending Manual Review/i)
+      ).toBeInTheDocument();
+    });
+
+    it('17. AppLayout displays Trial Expired banner when 7-day trial has elapsed and writes are denied', () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: sampleOrg1,
+        organizations: [sampleOrg1],
+        currentRole: 'owner',
+        canWriteOperations: false,
+        eligibility: {
+          organizationId: sampleOrg1.id,
+          businessCategory: 'electrical_retail',
+          sellsElectricalProducts: true,
+          productLines: ['Wires & Cables'],
+          status: 'approved',
+          declaredAt: '2026-10-20T10:00:00Z',
+          declaredBy: mockUser.id,
+        },
+        subscription: {
+          organizationId: sampleOrg1.id,
+          status: 'trialing',
+          planTier: 'trial',
+          trialStartedAt: '2026-10-20T10:00:00Z',
+          trialEndsAt: '2026-10-27T10:00:00Z', // Expired
+          paymentMethodEntered: false,
+        },
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<div data-testid="dashboard-content">Dashboard Content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('subscription-expired-banner')).toBeInTheDocument();
+      expect(screen.getByText(/7-Day Trial Expired/i)).toBeInTheDocument();
+    });
+
+    it('18. Quick Create displays warning toast and restricts navigation when canWriteOperations is false', () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: sampleOrg1,
+        organizations: [sampleOrg1],
+        currentRole: 'owner',
+        canWriteOperations: false,
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<div data-testid="dashboard-content">Dashboard Content</div>} />
+            </Route>
+            <Route path="/orders" element={<div data-testid="orders-page">Orders Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      // Open Quick Create menu from Header and click Sales Order
+      const quickCreateTrigger = screen.getByRole('button', { name: /Quick Create/i });
+      fireEvent.click(quickCreateTrigger);
+
+      const salesOrderOption = screen.getByRole('button', { name: /New Sales Order/i });
+      fireEvent.click(salesOrderOption);
+
+      expect(mockShowToast).toHaveBeenCalledWith(
+        'warning',
+        'Action Restricted',
+        expect.stringContaining('Operational write access is disabled')
+      );
+      expect(screen.queryByTestId('orders-page')).not.toBeInTheDocument();
     });
   });
 });

@@ -1,11 +1,24 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Organization, Role, Membership, User } from '@/types';
+import {
+  Organization,
+  Role,
+  Membership,
+  User,
+  BusinessCategory,
+  EligibilityStatus,
+  SubscriptionStatus,
+  OrganizationEligibility,
+  OrganizationSubscription,
+} from '@/types';
 import { storage } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { queryClient } from '@/app/query-client';
 
 export type CreateOrganizationInput = Omit<Organization, 'id' | 'createdAt' | 'updatedAt'> & {
+  businessCategory?: BusinessCategory;
+  sellsElectricalProducts?: boolean;
+  productLines?: string[];
   idempotencyKey?: string;
 };
 
@@ -19,7 +32,11 @@ export interface OrgContextType {
   isMockAuth: boolean;
   isDemoMode: boolean;
   isLoadingAuth: boolean;
+  isLoadingOrgData: boolean;
   authError: string | null;
+  eligibility: OrganizationEligibility | null;
+  subscription: OrganizationSubscription | null;
+  canWriteOperations: boolean;
   switchOrganization: (orgId: string) => Promise<void>;
   createOrganization: (data: CreateOrganizationInput) => Promise<Organization>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<Organization>;
@@ -50,6 +67,9 @@ export interface CreateOrganizationRpcParams {
   p_city: string | null;
   p_state: string | null;
   p_pincode: string | null;
+  p_business_category: BusinessCategory | null;
+  p_sells_electrical_products: boolean;
+  p_product_lines: string[];
   p_idempotency_key: string | null;
 }
 
@@ -66,6 +86,13 @@ export interface CreateOrganizationRpcResponse {
   state?: string | null;
   pincode?: string | null;
   currency?: string | null;
+  eligibility_status?: EligibilityStatus | null;
+  business_category?: BusinessCategory | null;
+  sells_electrical_products?: boolean | null;
+  product_lines?: string[] | null;
+  rejection_reason?: string | null;
+  reviewer_notes?: string | null;
+  trial_initialized?: boolean | null;
   created_at: string;
   updated_at: string;
   idempotent_replay?: boolean;
@@ -147,6 +174,98 @@ export function mapDbMembership(row: DbMembershipRow): Membership {
   };
 }
 
+export interface DbEligibilityRow {
+  organization_id: string;
+  business_category: string;
+  sells_electrical_products: boolean;
+  product_lines: string[];
+  status: string;
+  rejection_reason?: string | null;
+  reviewer_notes?: string | null;
+  declared_at: string;
+  declared_by: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export function mapDbEligibility(row: DbEligibilityRow): OrganizationEligibility {
+  return {
+    organizationId: row.organization_id,
+    businessCategory: row.business_category as BusinessCategory,
+    sellsElectricalProducts: row.sells_electrical_products,
+    productLines: row.product_lines || [],
+    status: row.status as EligibilityStatus,
+    rejectionReason: row.rejection_reason,
+    reviewerNotes: row.reviewer_notes,
+    declaredAt: row.declared_at,
+    declaredBy: row.declared_by,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export interface DbSubscriptionRow {
+  organization_id: string;
+  status: string;
+  plan_tier: string;
+  trial_started_at: string;
+  trial_ends_at: string;
+  current_period_starts_at?: string | null;
+  current_period_ends_at?: string | null;
+  grace_period_ends_at?: string | null;
+  payment_method_entered: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export function mapDbSubscription(row: DbSubscriptionRow): OrganizationSubscription {
+  return {
+    organizationId: row.organization_id,
+    status: row.status as SubscriptionStatus,
+    planTier: row.plan_tier,
+    trialStartedAt: row.trial_started_at,
+    trialEndsAt: row.trial_ends_at,
+    currentPeriodStartsAt: row.current_period_starts_at,
+    currentPeriodEndsAt: row.current_period_ends_at,
+    gracePeriodEndsAt: row.grace_period_ends_at,
+    paymentMethodEntered: row.payment_method_entered,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function evaluateOperationalWriteAccess(
+  role: Role | null,
+  eligibility: OrganizationEligibility | null,
+  subscription: OrganizationSubscription | null,
+  isDemoMode: boolean
+): boolean {
+  if (isDemoMode) return true;
+  if (!role) return false;
+  if (!eligibility || eligibility.status !== 'approved') return false;
+  if (!subscription) return false;
+
+  const now = Date.now();
+  if (subscription.status === 'trialing') {
+    if (!subscription.trialEndsAt) return false;
+    const endsAt = new Date(subscription.trialEndsAt).getTime();
+    return now <= endsAt;
+  }
+
+  if (subscription.status === 'active') {
+    const endTimestamp = subscription.gracePeriodEndsAt || subscription.currentPeriodEndsAt;
+    if (!endTimestamp) return false;
+    const endsAt = new Date(endTimestamp).getTime();
+    return now <= endsAt;
+  }
+
+  return false;
+}
+
 export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -155,81 +274,172 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingOrgData, setIsLoadingOrgData] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [eligibility, setEligibility] = useState<OrganizationEligibility | null>(null);
+  const [subscription, setSubscription] = useState<OrganizationSubscription | null>(null);
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
     return localStorage.getItem(AUTH_MODE_STORAGE_KEY) === 'demo';
   });
 
+  // Concurrency and race condition guards
+  const loadGenerationRef = useRef(0);
+  const activeUserIdRef = useRef<string | null>(null);
+  const inFlightLoadPromiseRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
+
   const isMockAuth = isDemoMode;
   const isAuthenticated = Boolean(session && !isDemoMode);
 
-  // Load organizations and active membership from remote Supabase
-  const loadRemoteData = useCallback(async (activeSession: Session) => {
+  // Derive operational write permission matching Migration 014 SQL
+  const canWriteOperations = evaluateOperationalWriteAccess(
+    currentRole,
+    eligibility,
+    subscription,
+    isDemoMode
+  );
+
+  // Load organizations, active membership, eligibility, and subscription from remote Supabase
+  const loadRemoteData = useCallback(async (activeSession: Session): Promise<void> => {
     if (!supabase) return;
 
-    try {
-      setAuthError(null);
-      const authUser = activeSession.user;
+    const authUser = activeSession.user;
+    if (!authUser) return;
 
-      // 1. Set current user profile
-      const userProfile: User = {
-        id: authUser.id,
-        email: authUser.email || '',
-        fullName:
-          authUser.user_metadata?.full_name ||
-          authUser.user_metadata?.name ||
-          authUser.email?.split('@')[0] ||
-          'User',
-        avatarUrl: authUser.user_metadata?.avatar_url || '',
-      };
-      setCurrentUser(userProfile);
+    // Concurrency Guard: Deduplicate in-flight loads for the same authenticated user
+    if (inFlightLoadPromiseRef.current && inFlightLoadPromiseRef.current.userId === authUser.id) {
+      return inFlightLoadPromiseRef.current.promise;
+    }
 
-      // 2. Query organizations authorized via RLS
-      const { data: dbOrgs, error: orgsErr } = await supabase
-        .from('organizations')
-        .select('*');
+    // Increment request generation counter to invalidate stale overlapping requests
+    const currentGen = ++loadGenerationRef.current;
 
-      if (orgsErr) {
-        throw new Error('Failed to load organizations: ' + orgsErr.message);
-      }
-
-      const orgList: Organization[] = (dbOrgs || []).map(mapDbOrg);
-      setOrganizations(orgList);
-
-      // 3. Query memberships for the current user
-      const { data: dbMems, error: memsErr } = await supabase
-        .from('memberships')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .eq('is_active', true);
-
-      if (memsErr) {
-        throw new Error('Failed to load memberships: ' + memsErr.message);
-      }
-
-      const memList: Membership[] = (dbMems || []).map(mapDbMembership);
-      setMemberships(memList);
-
-      // 4. Derive active organization and server-verified role
-      const savedOrgId = localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
-      const active =
-        orgList.find((o) => o.id === savedOrgId) || orgList[0] || null;
-
-      setCurrentOrg(active);
-
-      if (active) {
-        localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, active.id);
-        const matchMem = memList.find((m) => m.organizationId === active.id);
-        // Server-enforced role: strictly deny-by-default if no active membership in this org
-        setCurrentRole(matchMem ? matchMem.role : null);
-      } else {
-        localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
-        setCurrentRole(null);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setAuthError(msg);
+    // Immediate account purge on user switch to prevent temporary cross-account data bleed
+    if (activeUserIdRef.current && activeUserIdRef.current !== authUser.id) {
+      setOrganizations([]);
+      setCurrentOrg(null);
       setCurrentRole(null);
+      setMemberships([]);
+      setEligibility(null);
+      setSubscription(null);
+    }
+    activeUserIdRef.current = authUser.id;
+
+    setIsLoadingOrgData(true);
+    setAuthError(null);
+
+    const loadPromise = (async () => {
+      try {
+        // 1. Set current user profile
+        const userProfile: User = {
+          id: authUser.id,
+          email: authUser.email || '',
+          fullName:
+            authUser.user_metadata?.full_name ||
+            authUser.user_metadata?.name ||
+            authUser.email?.split('@')[0] ||
+            'User',
+          avatarUrl: authUser.user_metadata?.avatar_url || '',
+        };
+        setCurrentUser(userProfile);
+
+        // 2. Query organizations authorized via RLS
+        const { data: dbOrgs, error: orgsErr } = await supabase
+          .from('organizations')
+          .select('*');
+
+        if (orgsErr) {
+          throw new Error('Failed to load organizations: ' + orgsErr.message);
+        }
+
+        const orgList: Organization[] = (dbOrgs || []).map(mapDbOrg);
+
+        // 3. Query memberships for current user
+        const { data: dbMems, error: memsErr } = await supabase
+          .from('memberships')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .eq('is_active', true);
+
+        if (memsErr) {
+          throw new Error('Failed to load memberships: ' + memsErr.message);
+        }
+
+        const memList: Membership[] = (dbMems || []).map(mapDbMembership);
+
+        // 4. Derive active organization
+        const savedOrgId = localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+        const active = orgList.find((o) => o.id === savedOrgId) || orgList[0] || null;
+
+        // 5. Hydrate business eligibility & subscription for active org
+        let fetchedEligibility: OrganizationEligibility | null = null;
+        let fetchedSubscription: OrganizationSubscription | null = null;
+
+        if (active) {
+          const [eligibilityRes, subscriptionRes] = await Promise.all([
+            supabase
+              .from('organization_eligibility')
+              .select('*')
+              .eq('organization_id', active.id)
+              .maybeSingle(),
+            supabase
+              .from('organization_subscriptions')
+              .select('*')
+              .eq('organization_id', active.id)
+              .maybeSingle(),
+          ]);
+
+          if (eligibilityRes.data) {
+            fetchedEligibility = mapDbEligibility(eligibilityRes.data as DbEligibilityRow);
+          }
+          if (subscriptionRes.data) {
+            fetchedSubscription = mapDbSubscription(subscriptionRes.data as DbSubscriptionRow);
+          }
+        }
+
+        // Stale Response Check: Check whether this generation is still the latest active generation
+        if (loadGenerationRef.current !== currentGen) {
+          return;
+        }
+
+        setOrganizations(orgList);
+        setMemberships(memList);
+        setCurrentOrg(active);
+
+        if (active) {
+          localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, active.id);
+          const matchMem = memList.find((m) => m.organizationId === active.id);
+          setCurrentRole(matchMem ? matchMem.role : null);
+          setEligibility(fetchedEligibility);
+          setSubscription(fetchedSubscription);
+        } else {
+          localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+          setCurrentRole(null);
+          setEligibility(null);
+          setSubscription(null);
+        }
+      } catch (err: unknown) {
+        if (loadGenerationRef.current === currentGen) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setAuthError(msg);
+          setCurrentRole(null);
+          setEligibility(null);
+          setSubscription(null);
+        }
+      } finally {
+        if (loadGenerationRef.current === currentGen) {
+          setIsLoadingOrgData(false);
+        }
+      }
+    })();
+
+    inFlightLoadPromiseRef.current = { userId: authUser.id, promise: loadPromise };
+
+    try {
+      await loadPromise;
+    } finally {
+      if (inFlightLoadPromiseRef.current?.promise === loadPromise) {
+        inFlightLoadPromiseRef.current = null;
+      }
     }
   }, []);
 
@@ -254,10 +464,32 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (m) => m.userId === user.id && m.isActive
       );
       setCurrentRole(activeMem ? activeMem.role : null);
+
+      setEligibility({
+        organizationId: found.id,
+        businessCategory: 'electrical_retail',
+        sellsElectricalProducts: true,
+        productLines: ['Wires & Cables', 'Switches & Sockets', 'LED Lighting'],
+        status: 'approved',
+        declaredAt: found.createdAt,
+        declaredBy: user.id,
+      });
+
+      setSubscription({
+        organizationId: found.id,
+        status: 'trialing',
+        planTier: 'trial',
+        trialStartedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+        trialEndsAt: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
+        paymentMethodEntered: false,
+      });
     } else {
       setMemberships([]);
       setCurrentRole(null);
+      setEligibility(null);
+      setSubscription(null);
     }
+    setIsLoadingOrgData(false);
   }, []);
 
   // Initialize session and listen for auth state transitions
@@ -295,6 +527,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setOrganizations([]);
               setMemberships([]);
               setCurrentUser(null);
+              setEligibility(null);
+              setSubscription(null);
             }
           }
         } catch (err: unknown) {
@@ -306,6 +540,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } else {
               setSession(null);
               setIsDemoMode(false);
+              setEligibility(null);
+              setSubscription(null);
             }
           }
         }
@@ -318,6 +554,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } else {
             setIsDemoMode(false);
             setSession(null);
+            setEligibility(null);
+            setSubscription(null);
           }
         }
       }
@@ -330,7 +568,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     initAuth();
 
     // Listen to real Supabase Auth events
-    let subscription: { unsubscribe: () => void } | null = null;
+    let authSub: { unsubscribe: () => void } | null = null;
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
         if (!isMounted) return;
@@ -345,12 +583,18 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await loadRemoteData(newSession);
           }
         } else if (event === 'SIGNED_OUT') {
+          activeUserIdRef.current = null;
+          loadGenerationRef.current++;
+          inFlightLoadPromiseRef.current = null;
           setSession(null);
           setCurrentOrg(null);
           setCurrentRole(null);
           setOrganizations([]);
           setMemberships([]);
           setCurrentUser(null);
+          setEligibility(null);
+          setSubscription(null);
+          setIsLoadingOrgData(false);
           localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
           localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
           // Purge all cached queries immediately upon logout
@@ -359,13 +603,13 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsDemoMode(false);
         }
       });
-      subscription = data.subscription;
+      authSub = data.subscription;
     }
 
     return () => {
       isMounted = false;
-      if (subscription) {
-        subscription.unsubscribe();
+      if (authSub) {
+        authSub.unsubscribe();
       }
     };
   }, [loadRemoteData, loadDemoData]);
@@ -397,6 +641,32 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Re-derive server-verified role for this specific organization
     const matchMem = memberships.find((m) => m.organizationId === targetOrg.id);
     setCurrentRole(matchMem ? matchMem.role : null);
+
+    // Hydrate eligibility and subscription for target organization
+    try {
+      const [eligibilityRes, subscriptionRes] = await Promise.all([
+        supabase
+          .from('organization_eligibility')
+          .select('*')
+          .eq('organization_id', targetOrg.id)
+          .maybeSingle(),
+        supabase
+          .from('organization_subscriptions')
+          .select('*')
+          .eq('organization_id', targetOrg.id)
+          .maybeSingle(),
+      ]);
+
+      setEligibility(
+        eligibilityRes.data ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow) : null
+      );
+      setSubscription(
+        subscriptionRes.data ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow) : null
+      );
+    } catch {
+      setEligibility(null);
+      setSubscription(null);
+    }
   };
 
   const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
@@ -468,19 +738,30 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const signOut = async () => {
-    if (supabase && session) {
-      await supabase.auth.signOut();
-    }
+    activeUserIdRef.current = null;
+    loadGenerationRef.current++;
+    inFlightLoadPromiseRef.current = null;
     setSession(null);
     setCurrentOrg(null);
     setCurrentRole(null);
     setOrganizations([]);
     setMemberships([]);
     setCurrentUser(null);
+    setEligibility(null);
+    setSubscription(null);
+    setIsLoadingOrgData(false);
     localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
     localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
     queryClient.clear();
     setIsDemoMode(false);
+
+    if (supabase && session) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('SignOut notice:', err);
+      }
+    }
   };
 
   const enterDemoMode = () => {
@@ -502,6 +783,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOrganizations([]);
       setMemberships([]);
       setCurrentUser(null);
+      setEligibility(null);
+      setSubscription(null);
+      setIsLoadingOrgData(false);
     }
   };
 
@@ -525,7 +809,11 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? crypto.randomUUID()
         : null);
 
-    // 1. Send all 12 supported entity and audit parameters to the atomic create_organization RPC (Migration 018)
+    const businessCategory = data.businessCategory || 'electrical_retail';
+    const sellsElectricalProducts = data.sellsElectricalProducts ?? true;
+    const productLines = data.productLines || [];
+
+    // Send all 15 supported entity, eligibility, and control parameters to atomic create_organization RPC (Migration 019)
     const rpcPayload: CreateOrganizationRpcParams = {
       p_name: data.name.trim(),
       p_legal_name: data.legalName?.trim() || null,
@@ -538,6 +826,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       p_city: data.city?.trim() || null,
       p_state: data.state?.trim() || null,
       p_pincode: data.pincode?.trim() || null,
+      p_business_category: businessCategory,
+      p_sells_electrical_products: sellsElectricalProducts,
+      p_product_lines: productLines,
       p_idempotency_key: idempotencyKey,
     };
 
@@ -557,8 +848,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const createdOrg = mapDbOrg(rawRpcData);
 
-    // 2. Authenticated ownership and membership verification
-    // Never assume owner role or fabricate membership records; query DB using authenticated client.
+    // Authenticated ownership and membership verification
     let verifiedMembership: Membership | null = null;
     const authUserId = session?.user?.id;
 
@@ -589,10 +879,33 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    // 4. Update active organization and verified role only after confirmation
+    // Hydrate eligibility and subscription from database
+    const [eligibilityRes, subscriptionRes] = await Promise.all([
+      supabase
+        .from('organization_eligibility')
+        .select('*')
+        .eq('organization_id', createdOrg.id)
+        .maybeSingle(),
+      supabase
+        .from('organization_subscriptions')
+        .select('*')
+        .eq('organization_id', createdOrg.id)
+        .maybeSingle(),
+    ]);
+
+    const verifiedEligibility = eligibilityRes.data
+      ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow)
+      : null;
+    const verifiedSubscription = subscriptionRes.data
+      ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow)
+      : null;
+
+    // Update active organization and verified role only after confirmation
     localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, createdOrg.id);
     setCurrentOrg(createdOrg);
     setCurrentRole(verifiedMembership.role);
+    setEligibility(verifiedEligibility);
+    setSubscription(verifiedSubscription);
     // Purge cached query data immediately to prevent cross-tenant data bleed
     queryClient.clear();
 
@@ -716,7 +1029,11 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isMockAuth,
         isDemoMode,
         isLoadingAuth,
+        isLoadingOrgData,
         authError,
+        eligibility,
+        subscription,
+        canWriteOperations,
         switchOrganization,
         createOrganization,
         updateOrganization,

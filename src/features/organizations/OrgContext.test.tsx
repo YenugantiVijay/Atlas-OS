@@ -7,6 +7,9 @@ import {
   mapDbOrg,
   isCreateOrgRpcResponse,
   CreateOrganizationRpcResponse,
+  evaluateOperationalWriteAccess,
+  mapDbEligibility,
+  mapDbSubscription,
 } from './OrgContext';
 import { storage } from '@/lib/storage';
 
@@ -42,6 +45,8 @@ function createQueryMock(data: unknown = [], error: unknown = null): QueryMockIn
 // Controlled Supabase mock
 let mockRpcFn = vi.fn();
 let mockFromFn = vi.fn();
+let authStateCallback: ((event: string, session: any) => Promise<void> | void) | null = null;
+let mockSignOutFn = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock('@/lib/supabase', () => ({
   get supabase() {
@@ -61,9 +66,13 @@ vi.mock('@/lib/supabase', () => ({
           },
           error: null,
         }),
-        onAuthStateChange: vi.fn().mockReturnValue({
-          data: { subscription: { unsubscribe: vi.fn() } },
+        onAuthStateChange: vi.fn().mockImplementation((cb) => {
+          authStateCallback = cb;
+          return {
+            data: { subscription: { unsubscribe: vi.fn() } },
+          };
         }),
+        signOut: mockSignOutFn,
       },
     };
   },
@@ -169,6 +178,50 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(mapped.pincode).toBe('560001');
       expect(mapped.createdAt).toBe(rpcPayload.created_at);
       expect(mapped.updatedAt).toBe(rpcPayload.updated_at);
+    });
+
+    it('3b. mapDbEligibility maps database row to OrganizationEligibility model', () => {
+      const dbRow = {
+        organization_id: 'org-test-uuid',
+        business_category: 'electrical_retail',
+        sells_electrical_products: true,
+        product_lines: ['Wires & Cables'],
+        status: 'approved',
+        rejection_reason: null,
+        reviewer_notes: null,
+        declared_at: '2026-10-31T10:00:00Z',
+        declared_by: 'user-test-uuid',
+        created_at: '2026-10-31T10:00:00Z',
+        updated_at: '2026-10-31T10:00:00Z',
+      };
+
+      const mapped = mapDbEligibility(dbRow);
+      expect(mapped.organizationId).toBe('org-test-uuid');
+      expect(mapped.businessCategory).toBe('electrical_retail');
+      expect(mapped.sellsElectricalProducts).toBe(true);
+      expect(mapped.productLines).toEqual(['Wires & Cables']);
+      expect(mapped.status).toBe('approved');
+    });
+
+    it('3c. mapDbSubscription maps database row to OrganizationSubscription model', () => {
+      const dbRow = {
+        organization_id: 'org-test-uuid',
+        status: 'trialing',
+        plan_tier: 'trial',
+        trial_started_at: '2026-10-31T10:00:00Z',
+        trial_ends_at: '2026-11-07T10:00:00Z',
+        payment_method_entered: false,
+        created_at: '2026-10-31T10:00:00Z',
+        updated_at: '2026-10-31T10:00:00Z',
+      };
+
+      const mapped = mapDbSubscription(dbRow);
+      expect(mapped.organizationId).toBe('org-test-uuid');
+      expect(mapped.status).toBe('trialing');
+      expect(mapped.planTier).toBe('trial');
+      expect(mapped.trialStartedAt).toBe('2026-10-31T10:00:00Z');
+      expect(mapped.trialEndsAt).toBe('2026-11-07T10:00:00Z');
+      expect(mapped.paymentMethodEntered).toBe(false);
     });
   });
 
@@ -329,7 +382,7 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(result.current.currentRole).toBeNull();
     });
 
-    it('9. Idempotency Key: Passes all 12 parameters to create_organization RPC and reuses attempt-scoped key', async () => {
+    it('9. Idempotency Key: Passes all 15 parameters to create_organization RPC and reuses attempt-scoped key', async () => {
       mockRpcFn.mockResolvedValueOnce({
         data: mockOrgRpc,
         error: null,
@@ -370,6 +423,9 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         p_city: null,
         p_state: null,
         p_pincode: null,
+        p_business_category: 'electrical_retail',
+        p_sells_electrical_products: true,
+        p_product_lines: [],
         p_idempotency_key: attemptKey,
       });
     });
@@ -552,6 +608,484 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
 
       expect(result.current.currentRole).toBeNull();
       expect(mockFromFn).not.toHaveBeenCalledWith('organizations');
+    });
+  });
+
+  describe('Part D: Operational Write Access & Eligibility Evaluation', () => {
+    it('13. evaluateOperationalWriteAccess allows writes in demo mode regardless of role or eligibility', () => {
+      expect(evaluateOperationalWriteAccess(null, null, null, true)).toBe(true);
+      expect(
+        evaluateOperationalWriteAccess(
+          'viewer',
+          {
+            organizationId: 'org-1',
+            businessCategory: 'other_unsupported',
+            sellsElectricalProducts: false,
+            productLines: [],
+            status: 'rejected',
+            declaredAt: '',
+            declaredBy: '',
+          },
+          null,
+          true
+        )
+      ).toBe(true);
+    });
+
+    it('14. Denies write access if user has no active role in the organization', () => {
+      expect(
+        evaluateOperationalWriteAccess(
+          null,
+          {
+            organizationId: 'org-1',
+            businessCategory: 'electrical_retail',
+            sellsElectricalProducts: true,
+            productLines: ['Wires & Cables'],
+            status: 'approved',
+            declaredAt: '',
+            declaredBy: '',
+          },
+          {
+            organizationId: 'org-1',
+            status: 'trialing',
+            planTier: 'trial',
+            trialStartedAt: '',
+            trialEndsAt: new Date(Date.now() + 86400000).toISOString(),
+            paymentMethodEntered: false,
+          },
+          false
+        )
+      ).toBe(false);
+    });
+
+    it('15. Denies write access if eligibility status is review_required or rejected', () => {
+      const activeSubscription = {
+        organizationId: 'org-1',
+        status: 'trialing' as const,
+        planTier: 'trial',
+        trialStartedAt: '',
+        trialEndsAt: new Date(Date.now() + 86400000).toISOString(),
+        paymentMethodEntered: false,
+      };
+
+      // review_required
+      expect(
+        evaluateOperationalWriteAccess(
+          'owner',
+          {
+            organizationId: 'org-1',
+            businessCategory: 'electrical_wholesale_distributor',
+            sellsElectricalProducts: true,
+            productLines: [],
+            status: 'review_required',
+            declaredAt: '',
+            declaredBy: '',
+          },
+          activeSubscription,
+          false
+        )
+      ).toBe(false);
+
+      // rejected
+      expect(
+        evaluateOperationalWriteAccess(
+          'owner',
+          {
+            organizationId: 'org-1',
+            businessCategory: 'other_unsupported',
+            sellsElectricalProducts: false,
+            productLines: [],
+            status: 'rejected',
+            rejectionReason: 'Unsupported category',
+            declaredAt: '',
+            declaredBy: '',
+          },
+          activeSubscription,
+          false
+        )
+      ).toBe(false);
+    });
+
+    it('16. Denies write access if 7-day trial has expired and no paid subscription exists', () => {
+      const approvedEligibility = {
+        organizationId: 'org-1',
+        businessCategory: 'electrical_retail' as const,
+        sellsElectricalProducts: true,
+        productLines: ['Wires & Cables'],
+        status: 'approved' as const,
+        declaredAt: '',
+        declaredBy: '',
+      };
+
+      const expiredTrial = {
+        organizationId: 'org-1',
+        status: 'trialing' as const,
+        planTier: 'trial',
+        trialStartedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+        trialEndsAt: new Date(Date.now() - 3 * 86400000).toISOString(), // expired 3 days ago
+        paymentMethodEntered: false,
+      };
+
+      expect(
+        evaluateOperationalWriteAccess('owner', approvedEligibility, expiredTrial, false)
+      ).toBe(false);
+    });
+
+    it('17. Grants write access for active approved trial within 7-day window', () => {
+      const approvedEligibility = {
+        organizationId: 'org-1',
+        businessCategory: 'electrical_wholesale_distributor' as const,
+        sellsElectricalProducts: true,
+        productLines: ['Wires & Cables', 'Switches & Sockets'],
+        status: 'approved' as const,
+        declaredAt: '',
+        declaredBy: '',
+      };
+
+      const validTrial = {
+        organizationId: 'org-1',
+        status: 'trialing' as const,
+        planTier: 'trial',
+        trialStartedAt: new Date(Date.now() - 86400000).toISOString(),
+        trialEndsAt: new Date(Date.now() + 6 * 86400000).toISOString(), // 6 days remaining
+        paymentMethodEntered: false,
+      };
+
+      expect(
+        evaluateOperationalWriteAccess('owner', approvedEligibility, validTrial, false)
+      ).toBe(true);
+      expect(
+        evaluateOperationalWriteAccess('admin', approvedEligibility, validTrial, false)
+      ).toBe(true);
+      expect(
+        evaluateOperationalWriteAccess('sales', approvedEligibility, validTrial, false)
+      ).toBe(true);
+    });
+
+    it('18. Grants write access for active paid subscription with period dates', () => {
+      const approvedEligibility = {
+        organizationId: 'org-1',
+        businessCategory: 'electrical_retail' as const,
+        sellsElectricalProducts: true,
+        productLines: ['LED Lighting'],
+        status: 'approved' as const,
+        declaredAt: '',
+        declaredBy: '',
+      };
+
+      const activePaid = {
+        organizationId: 'org-1',
+        status: 'active' as const,
+        planTier: 'pro',
+        trialStartedAt: '',
+        trialEndsAt: '',
+        currentPeriodStartsAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+        currentPeriodEndsAt: new Date(Date.now() + 20 * 86400000).toISOString(),
+        paymentMethodEntered: true,
+      };
+
+      expect(
+        evaluateOperationalWriteAccess('owner', approvedEligibility, activePaid, false)
+      ).toBe(true);
+    });
+  });
+
+  describe('Part A & B: Auth Race Conditions, Concurrency Guards & Data Bleed Prevention', () => {
+    it('19. Immediately resets organization state when switching user accounts to prevent data bleed', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Simulate sign in with User 2
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') {
+          return createQueryMock([]);
+        }
+        if (table === 'organizations') {
+          return createQueryMock([]);
+        }
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        await result.current.refreshOrgData();
+      });
+
+      expect(result.current.organizations).toEqual([]);
+      expect(result.current.currentOrg).toBeNull();
+      expect(result.current.currentRole).toBeNull();
+    });
+
+    it('20. Deduplication: Second load event for same user reuses active in-flight promise without extra queries', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      let resolveOrgsQuery!: (val: unknown) => void;
+      const orgsPromise = new Promise((res) => {
+        resolveOrgsQuery = res;
+      });
+
+      let queryCallCount = 0;
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          queryCallCount++;
+          const query = createQueryMock([]);
+          query.then = (res, rej) => orgsPromise.then(res, rej);
+          return query;
+        }
+        if (table === 'memberships') {
+          return createQueryMock([mockDbMembership]);
+        }
+        return createQueryMock([]);
+      });
+
+      // Launch first refresh
+      let firstRefresh!: Promise<void>;
+      let secondRefresh!: Promise<void>;
+      act(() => {
+        firstRefresh = result.current.refreshOrgData();
+        secondRefresh = result.current.refreshOrgData();
+      });
+
+      // Resolve the delayed query
+      resolveOrgsQuery({
+        data: [{ id: mockOrgRpc.id, name: 'Sri Krishna Electrical Stores', created_at: '2026-10-30T12:00:00Z', updated_at: '2026-10-30T12:00:00Z' }],
+        error: null,
+      });
+
+      await act(async () => {
+        await Promise.all([firstRefresh, secondRefresh]);
+      });
+
+      // Confirm organizations table was only queried once despite 2 concurrent refresh requests
+      expect(queryCallCount).toBe(1);
+      expect(result.current.organizations.length).toBe(1);
+    });
+
+    it('21. User switch: Immediately purges prior account data and discards late responses from previous user', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // User 1 has loaded orgs
+      expect(result.current.organizations.length).toBeGreaterThan(0);
+
+      let resolveSlowUser1Query!: (val: unknown) => void;
+      const slowUser1Promise = new Promise((res) => {
+        resolveSlowUser1Query = res;
+      });
+
+      // Trigger refresh for User 1 with the slow promise
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          const query = createQueryMock([]);
+          query.then = (res, rej) => slowUser1Promise.then(res, rej);
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      // Start slow refresh for User 1
+      let user1RefreshPromise!: Promise<void>;
+      act(() => {
+        user1RefreshPromise = result.current.refreshOrgData();
+      });
+
+      // User 2 signs in via auth state transition while User 1 is still in flight
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          return createQueryMock([
+            {
+              id: 'org-user-2-uuid',
+              name: 'User 2 New Org',
+              created_at: '2026-10-31T00:00:00Z',
+              updated_at: '2026-10-31T00:00:00Z',
+            },
+          ]);
+        }
+        if (table === 'memberships') {
+          return createQueryMock([
+            {
+              id: 'mem-user-2-uuid',
+              organization_id: 'org-user-2-uuid',
+              user_id: 'user-2-uuid',
+              role: 'owner',
+              is_active: true,
+              created_at: '2026-10-31T00:00:00Z',
+            },
+          ]);
+        }
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        if (authStateCallback) {
+          await authStateCallback('SIGNED_IN', {
+            user: { id: 'user-2-uuid', email: 'user2@atlas.in' },
+          });
+        }
+      });
+
+      // User 2 state is now active
+      expect(result.current.currentOrg?.id).toBe('org-user-2-uuid');
+
+      // Now User 1's delayed response finally resolves with User 1's stale data
+      resolveSlowUser1Query({
+        data: [
+          {
+            id: 'stale-user-1-org',
+            name: 'Stale User 1 Org',
+            created_at: '2026-10-30T00:00:00Z',
+            updated_at: '2026-10-30T00:00:00Z',
+          },
+        ],
+        error: null,
+      });
+
+      await act(async () => {
+        await user1RefreshPromise;
+      });
+
+      // Ensure User 1's stale response was discarded and User 2's data was NOT overwritten
+      expect(result.current.currentOrg?.id).toBe('org-user-2-uuid');
+      expect(result.current.organizations.map((o) => o.id)).toContain('org-user-2-uuid');
+      expect(result.current.organizations.map((o) => o.id)).not.toContain('stale-user-1-org');
+    });
+
+    it('22. Logout: Immediately invalidates in-flight loads and prevents stale responses from setting state', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      let resolveSlowQuery!: (val: unknown) => void;
+      const slowPromise = new Promise((res) => {
+        resolveSlowQuery = res;
+      });
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          const query = createQueryMock([]);
+          query.then = (res, rej) => slowPromise.then(res, rej);
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      // Start refresh while user is still logged in
+      let inFlightRefresh!: Promise<void>;
+      act(() => {
+        inFlightRefresh = result.current.refreshOrgData();
+      });
+      expect(result.current.isLoadingOrgData).toBe(true);
+
+      // User signs out while refresh is in flight
+      await act(async () => {
+        await result.current.signOut();
+      });
+
+      // State is immediately purged and loading indicator is cleared
+      expect(result.current.organizations).toEqual([]);
+      expect(result.current.currentOrg).toBeNull();
+      expect(result.current.currentUser).toBeNull();
+      expect(result.current.isLoadingOrgData).toBe(false);
+
+      // Now delayed query finishes
+      resolveSlowQuery({
+        data: [
+          {
+            id: 'stale-org-post-logout',
+            name: 'Stale Org Post Logout',
+            created_at: '2026-10-30T00:00:00Z',
+            updated_at: '2026-10-30T00:00:00Z',
+          },
+        ],
+        error: null,
+      });
+
+      await act(async () => {
+        await inFlightRefresh;
+      });
+
+      // Stale data was NOT written to state
+      expect(result.current.organizations).toEqual([]);
+      expect(result.current.currentOrg).toBeNull();
+      expect(result.current.isLoadingOrgData).toBe(false);
+    });
+
+    it('23. Failure & Retry: Failed request clears in-flight ref and allows fresh retry to succeed', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Make query fail with database error
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          return createQueryMock(null, { message: 'connection timeout to db' });
+        }
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        await result.current.refreshOrgData();
+      });
+
+      // Error captured, loading finished
+      expect(result.current.authError).toContain('connection timeout to db');
+      expect(result.current.isLoadingOrgData).toBe(false);
+
+      // Now backend recovers
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          return createQueryMock([
+            {
+              id: 'recovered-org-1',
+              name: 'Recovered Electricals',
+              created_at: '2026-10-31T00:00:00Z',
+              updated_at: '2026-10-31T00:00:00Z',
+            },
+          ]);
+        }
+        if (table === 'memberships') {
+          return createQueryMock([
+            {
+              id: 'mem-recovered-1',
+              organization_id: 'recovered-org-1',
+              user_id: 'user-test-uuid',
+              role: 'owner',
+              is_active: true,
+              created_at: '2026-10-31T00:00:00Z',
+            },
+          ]);
+        }
+        return createQueryMock([]);
+      });
+
+      // Retry starts genuinely new request
+      await act(async () => {
+        await result.current.refreshOrgData();
+      });
+
+      // Verify retry succeeded
+      expect(result.current.authError).toBeNull();
+      expect(result.current.organizations.length).toBe(1);
+      expect(result.current.organizations[0].name).toBe('Recovered Electricals');
+      expect(result.current.currentOrg?.id).toBe('recovered-org-1');
     });
   });
 });

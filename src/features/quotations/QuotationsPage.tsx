@@ -34,7 +34,7 @@ interface LineItemDraft {
 }
 
 export const QuotationsPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -84,6 +84,10 @@ export const QuotationsPage: React.FC = () => {
   }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setCustomerId(customers[0]?.id || '');
     // Default valid until 15 days from now
     const d = new Date();
@@ -149,6 +153,10 @@ export const QuotationsPage: React.FC = () => {
 
   const handleSaveQuotation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer for the quotation.');
       return;
@@ -198,6 +206,10 @@ export const QuotationsPage: React.FC = () => {
   };
 
   const handleConvertToOrder = async (q: Quotation) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!currentOrg) return;
     try {
       const order = await ordersService.convertQuotationToOrder(currentOrg.id, q.id, isMockAuth);
@@ -241,6 +253,8 @@ export const QuotationsPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenCreate}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Create Quotation
         </Button>
@@ -269,7 +283,7 @@ export const QuotationsPage: React.FC = () => {
           icon={<ClipboardList className="w-7 h-7" />}
           title="No quotations found"
           description="Prepare quotation estimates for electrical contractors and institutional buyers."
-          actionLabel="Create Quotation"
+          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Create Quotation"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -345,6 +359,8 @@ export const QuotationsPage: React.FC = () => {
                         size="sm"
                         onClick={() => handleConvertToOrder(q)}
                         rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                        disabled={!canWriteOperations && !isMockAuth}
+                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                       >
                         To Order
                       </Button>
@@ -535,7 +551,12 @@ export const QuotationsPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               Generate Quotation
             </Button>
           </div>
@@ -665,6 +686,8 @@ export const QuotationsPage: React.FC = () => {
                     setViewingQuotation(null);
                   }}
                   rightIcon={<ArrowRight className="w-4 h-4" />}
+                  disabled={!canWriteOperations && !isMockAuth}
+                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                 >
                   Convert to Sales Order
                 </Button>

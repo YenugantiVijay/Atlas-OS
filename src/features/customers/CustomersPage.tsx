@@ -31,7 +31,7 @@ function getInitials(name: string): string {
 }
 
 export const CustomersPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -77,6 +77,10 @@ export const CustomersPage: React.FC = () => {
   }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setEditingCustomer(null);
     setName('');
     setCompanyName('');
@@ -90,6 +94,10 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleOpenEdit = (c: Customer) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setEditingCustomer(c);
     setName(c.name);
     setCompanyName(c.companyName || '');
@@ -104,6 +112,10 @@ export const CustomersPage: React.FC = () => {
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!name.trim()) {
       showToast('error', 'Validation Error', 'Customer Name is required.');
       return;
@@ -189,6 +201,8 @@ export const CustomersPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenCreate}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Add Customer
         </Button>
@@ -221,7 +235,7 @@ export const CustomersPage: React.FC = () => {
               ? 'No customer records match your search query.'
               : 'Add your first electrical contractor or dealer to start preparing quotations and sales orders.'
           }
-          actionLabel="Add Customer"
+          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Add Customer"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -321,6 +335,8 @@ export const CustomersPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleOpenEdit(c)}
                       leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                      disabled={!canWriteOperations && !isMockAuth}
+                      title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                     >
                       Edit
                     </Button>
@@ -413,7 +429,12 @@ export const CustomersPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               {editingCustomer ? 'Update Customer' : 'Save Customer'}
             </Button>
           </div>
