@@ -562,17 +562,38 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
         error: null,
       });
 
-      const mockFrom = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: mockOrderRow,
-                error: null,
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'sales_orders') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: mockOrderRow,
+                    error: null,
+                  }),
+                }),
               }),
             }),
-          }),
-        }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  neq: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: [],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
       });
 
       mockSupabaseInstance = {
@@ -614,6 +635,387 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
       await expect(
         invoicesService.createInvoiceFromOrder(orgId, 'missing-order', false)
       ).rejects.toThrow(/Sales order not found: Row not found/);
+    });
+
+    it('rejects invoice creation if sales order status is DRAFT', async () => {
+      const mockRpc = vi.fn();
+      mockSupabaseInstance = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'draft-so-id',
+                    organization_id: orgId,
+                    order_number: 'SO-DRAFT-001',
+                    customer_id: customerId,
+                    status: 'DRAFT',
+                    items: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+        rpc: mockRpc,
+      };
+
+      await expect(
+        invoicesService.createInvoiceFromOrder(orgId, 'draft-so-id', false)
+      ).rejects.toThrow(/Cannot invoice sales order in status "DRAFT". Only CONFIRMED orders can be invoiced./);
+
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('rejects invoice creation if sales order status is CANCELLED', async () => {
+      const mockRpc = vi.fn();
+      mockSupabaseInstance = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'cancelled-so-id',
+                    organization_id: orgId,
+                    order_number: 'SO-CAN-001',
+                    customer_id: customerId,
+                    status: 'CANCELLED',
+                    items: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+        rpc: mockRpc,
+      };
+
+      await expect(
+        invoicesService.createInvoiceFromOrder(orgId, 'cancelled-so-id', false)
+      ).rejects.toThrow(/Cannot invoice sales order in status "CANCELLED". Only CONFIRMED orders can be invoiced./);
+
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('rejects invoice creation if sales order status is FULFILLED', async () => {
+      const mockRpc = vi.fn();
+      mockSupabaseInstance = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'fulfilled-so-id',
+                    organization_id: orgId,
+                    order_number: 'SO-FUL-001',
+                    customer_id: customerId,
+                    status: 'FULFILLED',
+                    items: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+        rpc: mockRpc,
+      };
+
+      await expect(
+        invoicesService.createInvoiceFromOrder(orgId, 'fulfilled-so-id', false)
+      ).rejects.toThrow(/Cannot invoice sales order in status "FULFILLED". Only CONFIRMED orders can be invoiced./);
+
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('rejects invoice creation if active non-cancelled invoice already exists in pre-check', async () => {
+      const mockRpc = vi.fn();
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'sales_orders') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: 'so-already-invoiced',
+                      organization_id: orgId,
+                      order_number: 'SO-2026-0099',
+                      customer_id: customerId,
+                      status: 'CONFIRMED',
+                      items: [],
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  neq: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: [{ id: 'inv-existing-1', invoice_number: 'ATL/26-27/0099' }],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      mockSupabaseInstance = {
+        from: mockFrom,
+        rpc: mockRpc,
+      };
+
+      await expect(
+        invoicesService.createInvoiceFromOrder(orgId, 'so-already-invoiced', false)
+      ).rejects.toThrow(/Sales order SO-2026-0099 has already been invoiced under invoice ATL\/26-27\/0099./);
+
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('tolerates non-blocking pre-check query error and proceeds to authoritative RPC', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const mockRpc = vi.fn().mockResolvedValue({
+        data: {
+          id: 'inv-fallback-success',
+          organization_id: orgId,
+          invoice_number: 'ATL/26-27/0100',
+          customer_id: customerId,
+          sales_order_id: 'so-err-precheck',
+          status: 'ISSUED',
+          invoice_date: '2026-10-31',
+          due_date: '2026-11-30',
+          subtotal: 1000.0,
+          discount_amount: 0,
+          tax_amount: 180.0,
+          total_amount: 1180.0,
+          total_paid: 0,
+          totals_version: 2,
+          notes: 'Generated from Sales Order SO-2026-0100',
+          created_at: '2026-10-31T12:00:00Z',
+          updated_at: '2026-10-31T12:00:00Z',
+          items: [],
+        },
+        error: null,
+      });
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'sales_orders') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: 'so-err-precheck',
+                      organization_id: orgId,
+                      order_number: 'SO-2026-0100',
+                      customer_id: customerId,
+                      status: 'CONFIRMED',
+                      items: [
+                        {
+                          product_id: productId1,
+                          product_name: 'Polycab 1.5 sq mm Wire',
+                          product_sku: 'CBL-FR-1.5',
+                          uom: 'Coils',
+                          quantity: 1,
+                          unit_price: 1000,
+                          discount_percent: 0,
+                          tax_rate: 18,
+                        },
+                      ],
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  neq: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: null,
+                      error: { message: 'Network timeout during pre-check query' },
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      mockSupabaseInstance = {
+        from: mockFrom,
+        rpc: mockRpc,
+      };
+
+      const result = await invoicesService.createInvoiceFromOrder(orgId, 'so-err-precheck', false);
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Non-blocking existing invoice pre-check query failed:',
+        'Network timeout during pre-check query'
+      );
+      expect(mockRpc).toHaveBeenCalledWith('create_invoice_atomic', expect.anything());
+      expect(result.id).toBe('inv-fallback-success');
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('propagates RPC error when database RPC rejects invalid order state or duplicate', async () => {
+      const mockRpc = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Sales order so-rpc-fail has already been invoiced' },
+      });
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'sales_orders') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: 'so-rpc-fail',
+                      organization_id: orgId,
+                      order_number: 'SO-2026-FAIL',
+                      customer_id: customerId,
+                      status: 'CONFIRMED',
+                      items: [],
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  neq: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: [],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      mockSupabaseInstance = {
+        from: mockFrom,
+        rpc: mockRpc,
+      };
+
+      await expect(
+        invoicesService.createInvoiceFromOrder(orgId, 'so-rpc-fail', false)
+      ).rejects.toThrow(/Failed to create invoice: Sales order so-rpc-fail has already been invoiced/);
+    });
+
+    it('delegates custom idempotency key to create_invoice_atomic when provided', async () => {
+      const mockRpc = vi.fn().mockResolvedValue({
+        data: {
+          id: 'inv-custom-key-01',
+          organization_id: orgId,
+          invoice_number: 'ATL/26-27/0101',
+          customer_id: customerId,
+          sales_order_id: 'so-custom-key',
+          status: 'ISSUED',
+          invoice_date: '2026-10-31',
+          due_date: '2026-11-30',
+          subtotal: 1000.0,
+          discount_amount: 0,
+          tax_amount: 180.0,
+          total_amount: 1180.0,
+          total_paid: 0,
+          totals_version: 2,
+          notes: 'Generated from Sales Order SO-2026-0101',
+          created_at: '2026-10-31T12:00:00Z',
+          updated_at: '2026-10-31T12:00:00Z',
+          items: [],
+        },
+        error: null,
+      });
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'sales_orders') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: 'so-custom-key',
+                      organization_id: orgId,
+                      order_number: 'SO-2026-0101',
+                      customer_id: customerId,
+                      status: 'CONFIRMED',
+                      items: [],
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  neq: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({
+                      data: [],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      mockSupabaseInstance = {
+        from: mockFrom,
+        rpc: mockRpc,
+      };
+
+      const customKey = 'e4b3e8c0-82a1-4321-9988-776655443322';
+      await invoicesService.createInvoiceFromOrder(orgId, 'so-custom-key', false, customKey);
+
+      expect(mockRpc).toHaveBeenCalledWith('create_invoice_atomic', expect.objectContaining({
+        p_idempotency_key: customKey,
+      }));
     });
   });
 

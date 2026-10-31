@@ -222,4 +222,193 @@ describe('Storage Engine Multi-Tenant & Transaction Integrity', () => {
     expect(updatedInvoice?.status).toBe('PARTIALLY_PAID');
     expect(updatedInvoice?.totalPaid).toBe(2000);
   });
+
+  describe('DEF-003: Sales Order Invoicing Lifecycle & Storage Parity', () => {
+    it('rejects invoicing an unconfirmed DRAFT sales order', () => {
+      const customer = storage.createCustomer(orgA, {
+        name: 'Draft Lifecycle Customer',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const draftOrder = storage.createSalesOrder(orgA, {
+        customerId: customer.id,
+        orderDate: '2026-03-01',
+        items: [],
+      });
+
+      expect(draftOrder.status).toBe('DRAFT');
+      expect(() => storage.createInvoiceFromOrder(orgA, draftOrder.id)).toThrow(
+        /Cannot invoice order in status "DRAFT"\. Order must be CONFIRMED\./
+      );
+    });
+
+    it('rejects invoicing a CANCELLED sales order', () => {
+      const customer = storage.createCustomer(orgA, {
+        name: 'Cancel Lifecycle Customer',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const order = storage.createSalesOrder(orgA, {
+        customerId: customer.id,
+        orderDate: '2026-03-01',
+        items: [],
+      });
+
+      // Directly mark CANCELLED in storage
+      const orders = (storage as any).getItem('atlas_sales_orders_v1', []);
+      const idx = orders.findIndex((o: any) => o.id === order.id);
+      orders[idx].status = 'CANCELLED';
+      (storage as any).setItem('atlas_sales_orders_v1', orders);
+
+      expect(() => storage.createInvoiceFromOrder(orgA, order.id)).toThrow(
+        /Cannot invoice order in status "CANCELLED"\. Order must be CONFIRMED\./
+      );
+    });
+
+    it('transitions sales order status to FULFILLED upon successful invoice creation', () => {
+      const customer = storage.createCustomer(orgA, {
+        name: 'Fulfillment Customer',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const product = storage.createProduct(
+        orgA,
+        {
+          sku: 'FULFILL-01',
+          name: 'Fulfillment Product',
+          category: 'Wires',
+          uom: 'Coils',
+          purchaseCost: 100,
+          sellingPrice: 200,
+          taxRate: 18,
+          reorderThreshold: 1,
+          isActive: true,
+        },
+        10
+      );
+
+      const order = storage.createSalesOrder(orgA, {
+        customerId: customer.id,
+        orderDate: '2026-03-01',
+        items: [
+          {
+            productId: product.id,
+            productName: product.name,
+            productSku: product.sku,
+            quantity: 2,
+            unitPrice: 200,
+            discountPercent: 0,
+            taxRate: 18,
+          },
+        ],
+      });
+
+      storage.confirmSalesOrder(orgA, order.id, 'owner');
+      expect(storage.getSalesOrders(orgA).find((o) => o.id === order.id)?.status).toBe('CONFIRMED');
+
+      const invoice = storage.createInvoiceFromOrder(orgA, order.id);
+      expect(invoice.id).toBeDefined();
+      expect(invoice.salesOrderId).toBe(order.id);
+
+      const updatedOrder = storage.getSalesOrders(orgA).find((o) => o.id === order.id);
+      expect(updatedOrder?.status).toBe('FULFILLED');
+    });
+
+    it('rejects duplicate invoicing attempts for a FULFILLED sales order', () => {
+      const customer = storage.createCustomer(orgA, {
+        name: 'Duplicate Guard Customer',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const product = storage.createProduct(
+        orgA,
+        {
+          sku: 'DUP-GUARD-01',
+          name: 'Duplicate Guard Product',
+          category: 'Wires',
+          uom: 'Coils',
+          purchaseCost: 100,
+          sellingPrice: 200,
+          taxRate: 18,
+          reorderThreshold: 1,
+          isActive: true,
+        },
+        10
+      );
+
+      const order = storage.createSalesOrder(orgA, {
+        customerId: customer.id,
+        orderDate: '2026-03-01',
+        items: [
+          {
+            productId: product.id,
+            productName: product.name,
+            productSku: product.sku,
+            quantity: 1,
+            unitPrice: 200,
+            discountPercent: 0,
+            taxRate: 18,
+          },
+        ],
+      });
+
+      storage.confirmSalesOrder(orgA, order.id, 'owner');
+      const invoice = storage.createInvoiceFromOrder(orgA, order.id);
+      expect(invoice.id).toBeDefined();
+
+      // Second attempt must fail because order is now FULFILLED and already has an active invoice
+      expect(() => storage.createInvoiceFromOrder(orgA, order.id)).toThrow(
+        /Cannot invoice order in status "FULFILLED"\. Order must be CONFIRMED\./
+      );
+    });
+
+    it('prevents partial state mutation if storage write fails during invoice creation', () => {
+      const customer = storage.createCustomer(orgA, {
+        name: 'Rollback Customer',
+        creditLimit: 50000,
+        creditDays: 30,
+        isActive: true,
+      });
+
+      const order = storage.createSalesOrder(orgA, {
+        customerId: customer.id,
+        orderDate: '2026-03-01',
+        items: [],
+      });
+
+      storage.confirmSalesOrder(orgA, order.id, 'owner');
+
+      // Mock setItem to fail on writing orders after writing invoices
+      const originalSetItem = (storage as any).setItem.bind(storage);
+      let callCount = 0;
+      (storage as any).setItem = (key: string, val: any) => {
+        callCount++;
+        if (key === 'atlas_sales_orders_v1') {
+          throw new Error('Disk quota exceeded during order status transition');
+        }
+        return originalSetItem(key, val);
+      };
+
+      expect(() => storage.createInvoiceFromOrder(orgA, order.id)).toThrow(
+        /Disk quota exceeded during order status transition/
+      );
+
+      (storage as any).setItem = originalSetItem;
+
+      // Ensure order remains CONFIRMED and no orphaned invoice was permanently persisted
+      const currentOrder = storage.getSalesOrders(orgA).find((o) => o.id === order.id);
+      expect(currentOrder?.status).toBe('CONFIRMED');
+
+      const linkedInvoices = storage.getInvoices(orgA).filter((i) => i.salesOrderId === order.id);
+      expect(linkedInvoices.length).toBe(0);
+    });
+  });
 });
