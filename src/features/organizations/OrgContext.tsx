@@ -5,6 +5,10 @@ import { storage } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { queryClient } from '@/app/query-client';
 
+export type CreateOrganizationInput = Omit<Organization, 'id' | 'createdAt' | 'updatedAt'> & {
+  idempotencyKey?: string;
+};
+
 export interface OrgContextType {
   currentOrg: Organization | null;
   organizations: Organization[];
@@ -17,7 +21,7 @@ export interface OrgContextType {
   isLoadingAuth: boolean;
   authError: string | null;
   switchOrganization: (orgId: string) => Promise<void>;
-  createOrganization: (data: Omit<Organization, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Organization>;
+  createOrganization: (data: CreateOrganizationInput) => Promise<Organization>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<Organization>;
   updateCurrentUser: (updates: Partial<User>) => Promise<User>;
   refreshOrgData: () => Promise<void>;
@@ -34,29 +38,93 @@ const OrgContext = createContext<OrgContextType | undefined>(undefined);
 const ACTIVE_ORG_STORAGE_KEY = 'atlas_active_org_id_v2';
 const AUTH_MODE_STORAGE_KEY = 'atlas_auth_mode_v2';
 
-// Helper to map snake_case Postgres row to Organization interface
-function mapDbOrg(row: any): Organization {
+export interface CreateOrganizationRpcParams {
+  p_name: string;
+  p_legal_name: string | null;
+  p_gstin: string | null;
+  p_pan: string | null;
+  p_currency: string;
+  p_idempotency_key: string | null;
+}
+
+export interface CreateOrganizationRpcResponse {
+  id: string;
+  name: string;
+  legal_name?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  currency?: string | null;
+  created_at: string;
+  updated_at: string;
+  idempotent_replay?: boolean;
+}
+
+export interface DbOrganizationRow {
+  id: string;
+  name: string;
+  legal_name?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  currency?: string | null;
+  logo_url?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function isCreateOrgRpcResponse(data: unknown): data is CreateOrganizationRpcResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const candidate = data as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    candidate.id.length > 0 &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    typeof candidate.created_at === 'string' &&
+    typeof candidate.updated_at === 'string'
+  );
+}
+
+// Helper to map snake_case Postgres row or RPC JSONB to Organization interface
+export function mapDbOrg(row: DbOrganizationRow | CreateOrganizationRpcResponse): Organization {
   return {
     id: row.id,
     name: row.name,
     legalName: row.legal_name || undefined,
     gstin: row.gstin || undefined,
     pan: row.pan || undefined,
-    phone: row.phone || undefined,
-    email: row.email || undefined,
-    addressLine1: row.address_line1 || undefined,
-    city: row.city || undefined,
-    state: row.state || undefined,
-    pincode: row.pincode || undefined,
+    phone: ('phone' in row && row.phone) ? row.phone : undefined,
+    email: ('email' in row && row.email) ? row.email : undefined,
+    addressLine1: ('address_line1' in row && row.address_line1) ? row.address_line1 : undefined,
+    city: ('city' in row && row.city) ? row.city : undefined,
+    state: ('state' in row && row.state) ? row.state : undefined,
+    pincode: ('pincode' in row && row.pincode) ? row.pincode : undefined,
     currency: row.currency || 'INR',
-    logoUrl: row.logo_url || undefined,
+    logoUrl: ('logo_url' in row && row.logo_url) ? row.logo_url : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
+export interface DbMembershipRow {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 // Helper to map snake_case Postgres row to Membership interface
-function mapDbMembership(row: any): Membership {
+export function mapDbMembership(row: DbMembershipRow): Membership {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -426,7 +494,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createOrganization = async (
-    data: Omit<Organization, 'id' | 'createdAt' | 'updatedAt'>
+    data: CreateOrganizationInput
   ): Promise<Organization> => {
     if (isMockAuth) {
       const newOrg = storage.createOrganization(data);
@@ -438,27 +506,142 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    // In remote mode, call create_organization RPC if available or insert
-    const { data: createdOrgId, error: rpcErr } = await supabase.rpc('create_organization', {
-      p_name: data.name,
-      p_legal_name: data.legalName || null,
-      p_gstin: data.gstin || null,
-      p_currency: data.currency || 'INR',
-    });
+    // Reuse provided attempt-scoped idempotency key or generate fallback
+    const idempotencyKey =
+      data.idempotencyKey ||
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : null);
+
+    // 1. Send strictly the 6 parameters supported by Migration 012's create_organization RPC
+    const rpcPayload: CreateOrganizationRpcParams = {
+      p_name: data.name.trim(),
+      p_legal_name: data.legalName?.trim() || null,
+      p_gstin: data.gstin?.trim().toUpperCase() || null,
+      p_pan: data.pan?.trim().toUpperCase() || null,
+      p_currency: data.currency ? data.currency.trim().toUpperCase() : 'INR',
+      p_idempotency_key: idempotencyKey,
+    };
+
+    const { data: rawRpcData, error: rpcErr } = await supabase.rpc(
+      'create_organization',
+      rpcPayload
+    );
 
     if (rpcErr) {
       throw new Error('Failed to create organization remotely: ' + rpcErr.message);
     }
 
-    if (session) {
-      await loadRemoteData(session);
+    // Validate that the returned JSONB object conforms to expected structure
+    if (!isCreateOrgRpcResponse(rawRpcData)) {
+      throw new Error('Failed to create organization: Server returned an invalid or malformed response.');
     }
 
-    const created = organizations.find((o) => o.id === createdOrgId);
-    if (!created) {
-      throw new Error('Organization created but failed to retrieve record.');
+    const createdOrg = mapDbOrg(rawRpcData);
+
+    // 2. Persist auxiliary contact and location fields if provided (supported by DB schema & RLS)
+    const hasAuxiliaryFields = Boolean(
+      data.phone ||
+      data.email ||
+      data.addressLine1 ||
+      data.city ||
+      data.state ||
+      data.pincode
+    );
+
+    if (hasAuxiliaryFields) {
+      const updatePayload: Record<string, string | null> = {};
+      if (data.phone !== undefined) updatePayload.phone = data.phone.trim() || null;
+      if (data.email !== undefined) updatePayload.email = data.email.trim() || null;
+      if (data.addressLine1 !== undefined) updatePayload.address_line1 = data.addressLine1.trim() || null;
+      if (data.city !== undefined) updatePayload.city = data.city.trim() || null;
+      if (data.state !== undefined) updatePayload.state = data.state.trim() || null;
+      if (data.pincode !== undefined) updatePayload.pincode = data.pincode.trim() || null;
+
+      const { data: updatedRows, error: updateErr } = await supabase
+        .from('organizations')
+        .update(updatePayload)
+        .eq('id', createdOrg.id)
+        .select('id');
+
+      if (updateErr) {
+        throw new Error(
+          `Organization created (${createdOrg.id}) but failed to save contact details: ${updateErr.message}`
+        );
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          `Organization created (${createdOrg.id}) but failed to save contact details: No rows updated. Access denied by security policy or organization not found.`
+        );
+      }
+
+      if (updatedRows.length > 1) {
+        throw new Error(
+          `Organization created (${createdOrg.id}) but unexpected multiple rows (${updatedRows.length}) were updated.`
+        );
+      }
+
+      if (updatePayload.phone !== undefined) createdOrg.phone = updatePayload.phone || undefined;
+      if (updatePayload.email !== undefined) createdOrg.email = updatePayload.email || undefined;
+      if (updatePayload.address_line1 !== undefined) createdOrg.addressLine1 = updatePayload.address_line1 || undefined;
+      if (updatePayload.city !== undefined) createdOrg.city = updatePayload.city || undefined;
+      if (updatePayload.state !== undefined) createdOrg.state = updatePayload.state || undefined;
+      if (updatePayload.pincode !== undefined) createdOrg.pincode = updatePayload.pincode || undefined;
     }
-    return created;
+
+    // 3. Authenticated ownership and membership verification
+    // Never assume owner role or fabricate membership records; query DB using authenticated client.
+    let verifiedMembership: Membership | null = null;
+    const authUserId = session?.user?.id;
+
+    if (authUserId) {
+      const { data: memberRows, error: memberErr } = await supabase
+        .from('memberships')
+        .select('*')
+        .eq('organization_id', createdOrg.id)
+        .eq('user_id', authUserId)
+        .eq('is_active', true);
+
+      if (memberErr) {
+        throw new Error(
+          `Organization created (${createdOrg.id}) but failed to verify server membership: ${memberErr.message}`
+        );
+      }
+
+      if (!memberRows || memberRows.length === 0) {
+        throw new Error(
+          `Organization created (${createdOrg.id}) but server membership could not be confirmed. Access denied.`
+        );
+      }
+
+      verifiedMembership = mapDbMembership(memberRows[0] as DbMembershipRow);
+    } else {
+      throw new Error(
+        `Organization created (${createdOrg.id}) but caller has no active session to verify membership.`
+      );
+    }
+
+    // 4. Update active organization and verified role only after confirmation
+    localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, createdOrg.id);
+    setCurrentOrg(createdOrg);
+    setCurrentRole(verifiedMembership.role);
+
+    setOrganizations((prev) => {
+      const exists = prev.some((o) => o.id === createdOrg.id);
+      return exists
+        ? prev.map((o) => (o.id === createdOrg.id ? createdOrg : o))
+        : [...prev, createdOrg];
+    });
+
+    setMemberships((prev) => {
+      const exists = prev.some((m) => m.id === verifiedMembership!.id);
+      return exists
+        ? prev.map((m) => (m.id === verifiedMembership!.id ? verifiedMembership! : m))
+        : [...prev, verifiedMembership!];
+    });
+
+    return createdOrg;
   };
 
   const updateOrganization = async (

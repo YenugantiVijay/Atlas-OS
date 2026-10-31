@@ -157,7 +157,7 @@ export const TeamPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Team & Permissions
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="teal" size="sm">
               RBAC Multi-Tenant
             </Badge>
           </div>

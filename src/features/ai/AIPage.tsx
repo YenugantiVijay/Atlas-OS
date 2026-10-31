@@ -347,7 +347,7 @@ export const AIPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               ATLAS AI Assistant
             </h1>
-            <Badge variant="violet" size="sm">
+            <Badge variant="teal" size="sm">
               Rule-Based Operational Assistant
             </Badge>
           </div>

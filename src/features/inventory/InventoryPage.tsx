@@ -169,7 +169,7 @@ export const InventoryPage: React.FC = () => {
               aria-label="Filter by product"
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
-              className="w-full h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
+              className="w-full h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
               <option value="ALL">All Products ({products.length} SKUs)</option>
               {products.map((p) => (
@@ -188,7 +188,7 @@ export const InventoryPage: React.FC = () => {
               aria-label="Filter by movement type"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
+              className="w-full h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
               <option value="ALL">All Movement Types</option>
               <option value="OPENING_STOCK">Opening Stock</option>

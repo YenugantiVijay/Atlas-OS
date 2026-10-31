@@ -254,7 +254,7 @@ export const OrdersPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Sales Orders
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {orders.length} Orders
             </Badge>
           </div>

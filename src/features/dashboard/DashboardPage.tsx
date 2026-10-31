@@ -15,35 +15,53 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { dashboardService } from '@/services/dashboard.service';
+import { ordersService } from '@/services/orders.service';
+import { invoicesService } from '@/services/invoices.service';
+import { productsService } from '@/services/products.service';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/money';
-import { DashboardMetrics } from '@/types';
+import { DashboardMetrics, SalesOrder, Invoice, Product } from '@/types';
+import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
 
 export const DashboardPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchMetrics = async () => {
+    const fetchDashboardData = async () => {
       if (currentOrg) {
         setIsLoading(true);
         try {
-          const data = await dashboardService.getDashboardMetrics(currentOrg.id, isMockAuth);
-          if (isMounted) setMetrics(data);
+          const [metricsData, ordersData, invoicesData, productsData] = await Promise.all([
+            dashboardService.getDashboardMetrics(currentOrg.id, isMockAuth),
+            ordersService.getSalesOrders(currentOrg.id, isMockAuth).catch(() => []),
+            invoicesService.getInvoices(currentOrg.id, isMockAuth).catch(() => []),
+            productsService.getProducts(currentOrg.id, isMockAuth).catch(() => []),
+          ]);
+
+          if (isMounted) {
+            setMetrics(metricsData);
+            setOrders(ordersData);
+            setInvoices(invoicesData);
+            setProducts(productsData);
+          }
         } catch (err) {
-          console.error('Failed to load dashboard metrics:', err);
+          console.error('Failed to load dashboard data:', err);
         } finally {
           if (isMounted) setIsLoading(false);
         }
       }
     };
-    fetchMetrics();
+    fetchDashboardData();
     return () => {
       isMounted = false;
     };
@@ -52,12 +70,16 @@ export const DashboardPage: React.FC = () => {
   if (isLoading || !metrics) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-36 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Skeleton className="h-32 rounded-xl" />
           <Skeleton className="h-32 rounded-xl" />
           <Skeleton className="h-32 rounded-xl" />
           <Skeleton className="h-32 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+          <Skeleton className="h-80 rounded-xl" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Skeleton className="h-72 rounded-xl" />
@@ -70,20 +92,20 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* Executive Operations Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 p-6 sm:p-7 text-white shadow-card">
-        {/* Subtle decorative radial accent */}
+      <div className="relative overflow-hidden rounded-2xl bg-navy-700 border border-navy-800 p-6 sm:p-7 text-white shadow-card">
+        {/* Subtle decorative radial teal accent */}
         <div
-          className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-atlas-600/20 blur-3xl"
+          className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-teal-500/20 blur-3xl"
           aria-hidden="true"
         />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold tracking-wide uppercase px-2.5 py-0.5 rounded-full bg-atlas-500/20 text-atlas-300 border border-atlas-400/30">
+              <span className="text-xs font-semibold tracking-wide uppercase px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Operations Center
               </span>
-              <span className="text-xs text-slate-400 flex items-center gap-1.5">
+              <span className="text-xs text-slate-300 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
                 Verified Local Engine
               </span>
@@ -102,7 +124,7 @@ export const DashboardPage: React.FC = () => {
               size="md"
               onClick={() => navigate('/orders?action=create')}
               leftIcon={<Plus className="w-4 h-4" />}
-              className="bg-white text-slate-950 hover:bg-slate-100 shadow-sm font-semibold"
+              className="bg-teal-500 hover:bg-teal-600 text-white shadow-sm font-semibold"
             >
               New Sales Order
             </Button>
@@ -110,7 +132,7 @@ export const DashboardPage: React.FC = () => {
               variant="outline"
               size="md"
               onClick={() => navigate('/ai')}
-              leftIcon={<Sparkles className="w-4 h-4 text-atlas-300" />}
+              leftIcon={<Sparkles className="w-4 h-4 text-teal-300" />}
               className="border-slate-700 bg-slate-800/80 text-white hover:bg-slate-800 hover:border-slate-600"
             >
               ATLAS AI
@@ -152,14 +174,14 @@ export const DashboardPage: React.FC = () => {
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
-              <span className="text-xs font-medium text-content-secondary">
+              <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">
                 Today's Sales
               </span>
               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
                 <TrendingUp className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-bold text-content-primary tabular-nums tracking-tight">
+            <div className="text-2xl sm:text-3xl font-extrabold text-navy-700 tabular-nums tracking-tight">
               {formatCurrency(metrics.todaySales)}
             </div>
           </div>
@@ -173,14 +195,14 @@ export const DashboardPage: React.FC = () => {
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
-              <span className="text-xs font-medium text-content-secondary">
+              <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">
                 Outstanding Receivables
               </span>
-              <div className="p-2 rounded-lg bg-atlas-50 text-atlas-700">
+              <div className="p-2 rounded-lg bg-teal-50 text-teal-700">
                 <CreditCard className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-bold text-content-primary tabular-nums tracking-tight">
+            <div className="text-2xl sm:text-3xl font-extrabold text-navy-700 tabular-nums tracking-tight">
               {formatCurrency(metrics.totalReceivables)}
             </div>
           </div>
@@ -203,14 +225,14 @@ export const DashboardPage: React.FC = () => {
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
-              <span className="text-xs font-medium text-content-secondary">
+              <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">
                 Total Orders
               </span>
-              <div className="p-2 rounded-lg bg-sky-50 text-sky-700">
+              <div className="p-2 rounded-lg bg-blue-50 text-blue-700">
                 <FileText className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-bold text-content-primary tabular-nums tracking-tight">
+            <div className="text-2xl sm:text-3xl font-extrabold text-navy-700 tabular-nums tracking-tight">
               {metrics.ordersCount}
             </div>
           </div>
@@ -224,14 +246,14 @@ export const DashboardPage: React.FC = () => {
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
-              <span className="text-xs font-medium text-content-secondary">
+              <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">
                 Inventory Valuation
               </span>
               <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
                 <Boxes className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-bold text-content-primary tabular-nums tracking-tight">
+            <div className="text-2xl sm:text-3xl font-extrabold text-navy-700 tabular-nums tracking-tight">
               {formatCurrency(metrics.totalStockValue)}
             </div>
           </div>
@@ -241,13 +263,31 @@ export const DashboardPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Two Column Layout: Recent Sales Orders & Replenishment Watchlist */}
+      {/* Primary Analytics Section: Sales Trend Area Chart & Receivables Donut */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Sales Performance Area Chart (2 Cols) */}
+        <Card className="lg:col-span-2">
+          <SalesTrendChart orders={orders} />
+        </Card>
+
+        {/* Receivables & Collections Donut (1 Col) */}
+        <Card>
+          <ReceivablesDonutChart invoices={invoices} />
+        </Card>
+      </div>
+
+      {/* Secondary Analytics Section: Inventory Breakdown & Recent Transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Column 1: Recent Sales Orders */}
+        {/* Brand Stock Valuation Breakdown */}
+        <Card>
+          <InventoryValuationBarChart products={products} />
+        </Card>
+
+        {/* Recent Sales Orders Feed */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2 min-w-0">
-              <FileText className="w-4 h-4 text-atlas-600 shrink-0" />
+              <FileText className="w-4 h-4 text-teal-600 shrink-0" />
               <CardTitle>Recent Sales Orders</CardTitle>
             </div>
             <Button
@@ -255,7 +295,7 @@ export const DashboardPage: React.FC = () => {
               size="sm"
               onClick={() => navigate('/orders')}
               rightIcon={<ChevronRight className="w-4 h-4" />}
-              className="text-xs text-atlas-700 hover:text-atlas-900"
+              className="text-xs text-teal-700 hover:text-teal-900"
             >
               View All
             </Button>
@@ -298,7 +338,7 @@ export const DashboardPage: React.FC = () => {
                   </div>
 
                   <div className="text-right">
-                    <div className="text-sm font-bold text-content-primary tabular-nums">
+                    <div className="text-sm font-bold text-navy-700 tabular-nums">
                       {formatCurrency(order.totalAmount)}
                     </div>
                     <div className="text-xs text-content-muted">
@@ -310,62 +350,62 @@ export const DashboardPage: React.FC = () => {
             </div>
           )}
         </Card>
-
-        {/* Column 2: Inventory Watchlist */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2 min-w-0">
-              <Boxes className="w-4 h-4 text-amber-600 shrink-0" />
-              <CardTitle>Inventory Replenishment Watchlist</CardTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/inventory')}
-              rightIcon={<ChevronRight className="w-4 h-4" />}
-              className="text-xs text-atlas-700 hover:text-atlas-900"
-            >
-              Stock Ledger
-            </Button>
-          </CardHeader>
-
-          {metrics.lowStockProducts.length === 0 ? (
-            <div className="text-center py-10 text-sm text-content-secondary flex flex-col items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-              <span>All electrical catalog SKUs are above reorder thresholds.</span>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {metrics.lowStockProducts.map((p) => (
-                <div
-                  key={p.id}
-                  className="py-3.5 flex items-center justify-between hover:bg-slate-50/80 rounded-lg px-2.5 -mx-2.5 transition-colors"
-                >
-                  <div className="max-w-[70%] space-y-0.5">
-                    <div className="text-sm font-semibold text-content-primary truncate">
-                      {p.name}
-                    </div>
-                    <div className="text-xs text-content-secondary">
-                      SKU: <span className="font-mono text-content-primary font-medium">{p.sku}</span> • {p.brand}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-rose-700 tabular-nums">
-                      {p.currentStock || 0} {p.uom}
-                    </div>
-                    <div className="text-xs text-content-muted">
-                      Min: {p.reorderThreshold} {p.uom}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
       </div>
 
-      {/* Quick Launchpad: Standard Operations */}
+      {/* Inventory Watchlist & Reorder Alert */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2 min-w-0">
+            <Boxes className="w-4 h-4 text-amber-600 shrink-0" />
+            <CardTitle>Inventory Replenishment Watchlist</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/inventory')}
+            rightIcon={<ChevronRight className="w-4 h-4" />}
+            className="text-xs text-teal-700 hover:text-teal-900"
+          >
+            Stock Ledger
+          </Button>
+        </CardHeader>
+
+        {metrics.lowStockProducts.length === 0 ? (
+          <div className="text-center py-10 text-sm text-content-secondary flex flex-col items-center gap-2">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            <span>All electrical catalog SKUs are above reorder thresholds.</span>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {metrics.lowStockProducts.map((p) => (
+              <div
+                key={p.id}
+                className="py-3.5 flex items-center justify-between hover:bg-slate-50/80 rounded-lg px-2.5 -mx-2.5 transition-colors"
+              >
+                <div className="max-w-[70%] space-y-0.5">
+                  <div className="text-sm font-semibold text-content-primary truncate">
+                    {p.name}
+                  </div>
+                  <div className="text-xs text-content-secondary">
+                    SKU: <span className="font-mono text-content-primary font-medium">{p.sku}</span> • {p.brand}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-sm font-bold text-rose-700 tabular-nums">
+                    {p.currentStock || 0} {p.uom}
+                  </div>
+                  <div className="text-xs text-content-muted">
+                    Min: {p.reorderThreshold} {p.uom}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Quick Launchpad: Standard Distribution Workflows */}
       <Card>
         <CardHeader>
           <CardTitle>Distribution Workflows</CardTitle>
@@ -374,9 +414,9 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/quotations?action=create')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-atlas-50/70 hover:border-atlas-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-atlas-500"
+            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
           >
-            <div className="w-9 h-9 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
               <FileText className="w-4 h-4" />
             </div>
             <span className="text-sm font-semibold text-content-primary">Create Quotation</span>
@@ -386,9 +426,9 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/products?action=create')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-atlas-50/70 hover:border-atlas-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-atlas-500"
+            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
           >
-            <div className="w-9 h-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
               <Boxes className="w-4 h-4" />
             </div>
             <span className="text-sm font-semibold text-content-primary">Add Product SKU</span>
@@ -398,7 +438,7 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/payments?action=record')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-atlas-50/70 hover:border-atlas-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-atlas-500"
+            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
           >
             <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
               <IndianRupee className="w-4 h-4" />
@@ -410,9 +450,9 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/ai')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-atlas-50/70 hover:border-atlas-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-atlas-500"
+            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
           >
-            <div className="w-9 h-9 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
               <Sparkles className="w-4 h-4" />
             </div>
             <span className="text-sm font-semibold text-content-primary">AI Copilot</span>

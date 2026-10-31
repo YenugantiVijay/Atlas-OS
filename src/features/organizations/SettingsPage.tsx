@@ -109,7 +109,7 @@ export const SettingsPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Organization Settings
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               Tenant Profile
             </Badge>
           </div>

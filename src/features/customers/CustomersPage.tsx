@@ -176,7 +176,7 @@ export const CustomersPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Customers & Contractors
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {customers.length} Accounts
             </Badge>
           </div>
