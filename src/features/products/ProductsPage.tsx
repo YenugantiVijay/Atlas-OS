@@ -212,7 +212,7 @@ export const ProductsPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Products & Catalog
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {products.length} SKUs
             </Badge>
           </div>
@@ -248,7 +248,7 @@ export const ProductsPage: React.FC = () => {
               aria-label="Filter by category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
+              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -261,7 +261,7 @@ export const ProductsPage: React.FC = () => {
               aria-label="Filter by stock status"
               value={stockFilter}
               onChange={(e) => setStockFilter(e.target.value as any)}
-              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-atlas-500/20 focus:border-atlas-600 shadow-2xs"
+              className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
               <option value="all">All Stock Statuses</option>
               <option value="low">Low Stock (At/Below Threshold)</option>

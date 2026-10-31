@@ -30,15 +30,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary:
-        'bg-atlas-600 hover:bg-atlas-700 active:bg-atlas-800 text-white shadow-xs focus:ring-atlas-500 border border-transparent',
+        'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white shadow-xs focus:ring-teal-500 border border-transparent font-semibold',
       secondary:
-        'bg-atlas-100 hover:bg-atlas-200/80 active:bg-atlas-200 text-atlas-900 focus:ring-atlas-400 border border-atlas-200/80 shadow-2xs',
+        'bg-teal-50 hover:bg-teal-100/90 active:bg-teal-200 text-teal-800 focus:ring-teal-400 border border-teal-200 shadow-2xs font-semibold',
       outline:
-        'bg-white hover:bg-slate-50 text-content-primary border border-border hover:border-slate-300 focus:ring-atlas-400 shadow-2xs',
+        'bg-white hover:bg-slate-50 text-content-primary border border-border hover:border-slate-300 focus:ring-teal-500 shadow-2xs font-medium',
       ghost:
-        'bg-transparent hover:bg-slate-100 text-content-secondary hover:text-content-primary focus:ring-atlas-400',
+        'bg-transparent hover:bg-slate-100 text-content-secondary hover:text-content-primary focus:ring-teal-500 font-medium',
       danger:
-        'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs focus:ring-rose-500 border border-transparent',
+        'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs focus:ring-rose-500 border border-transparent font-semibold',
     };
 
     const sizes = {

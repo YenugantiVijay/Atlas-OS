@@ -42,7 +42,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               ${
                 error
                   ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'
-                  : 'border-border focus:border-atlas-600 focus:ring-atlas-500/20'
+                  : 'border-border focus:border-teal-600 focus:ring-teal-500/20'
               }
               disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-content-muted ${className}`}
             {...props}

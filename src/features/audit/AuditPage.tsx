@@ -56,7 +56,7 @@ export const AuditPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Audit Trail
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               Immutable Log
             </Badge>
           </div>

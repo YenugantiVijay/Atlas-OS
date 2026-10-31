@@ -4,19 +4,20 @@
 
 @layer base {
   :root {
-    --primary-violet: 139 92 246; /* #8B5CF6 */
-    --deep-violet: 109 40 217;   /* #6D28D9 */
-    --light-lavender: 237 233 254; /* #EDE9FE */
-    --canvas: 247 245 255;       /* #F7F5FF */
-    --main-surface: 255 255 255;  /* #FFFFFF */
-    --main-text: 33 27 53;        /* #211B35 */
-    --secondary-text: 116 109 133; /* #746D85 */
-    --border-color: 232 227 240;  /* #E8E3F0 */
+    --primary-teal: 13 148 136;    /* #0D9488 */
+    --deep-teal: 15 118 110;       /* #0F766E */
+    --light-teal: 204 251 241;     /* #CCFBF1 */
+    --deep-navy: 20 43 77;         /* #142B4D */
+    --canvas: 245 247 250;         /* #F5F7FA */
+    --main-surface: 255 255 255;   /* #FFFFFF */
+    --main-text: 23 43 77;         /* #172B4D */
+    --secondary-text: 100 116 139; /* #64748B */
+    --border-color: 226 232 240;   /* #E2E8F0 */
   }
 
   body {
-    background-color: #F7F5FF;
-    color: #211B35;
+    background-color: #F5F7FA;
+    color: #172B4D;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -26,9 +27,9 @@
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   }
 
-  /* Accessible focus ring defaults */
+  /* Accessible focus ring defaults with brand teal */
   :focus-visible {
-    outline: 2px solid #8B5CF6;
+    outline: 2px solid #0D9488;
     outline-offset: 2px;
   }
 
@@ -41,16 +42,16 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #D1C9DE;
+    background: #CBD5E1;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #A78BFA;
+    background: #94A3B8;
   }
 }
 
 @layer utilities {
   .subtle-border {
-    border: 1px solid #E8E3F0;
+    border: 1px solid #E2E8F0;
   }
 }

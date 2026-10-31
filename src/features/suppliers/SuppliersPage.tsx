@@ -124,7 +124,7 @@ export const SuppliersPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Suppliers & Vendors
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {suppliers.length} Vendors
             </Badge>
           </div>

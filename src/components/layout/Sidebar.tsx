@@ -121,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Main Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col border-r border-border bg-surface-card transition-all duration-200 select-none ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col border-r border-[#0F1E36] bg-[#142B4D] transition-all duration-200 select-none ${
           // Mobile: drawer that translates in/out
           isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'
         } ${
@@ -130,13 +130,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-border shrink-0">
-          <BrandLogo collapsed={collapsed} />
+        <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 shrink-0">
+          <BrandLogo collapsed={collapsed} variant="dark" />
 
           {/* Desktop Collapse Toggle */}
           <button
             onClick={onToggle}
-            className="rounded-lg p-1.5 text-content-muted hover:bg-slate-100 hover:text-content-primary transition-colors hidden lg:flex"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors hidden lg:flex"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -146,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="rounded-lg p-1.5 text-content-muted hover:bg-slate-100 hover:text-content-primary transition-colors lg:hidden"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors lg:hidden"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -156,16 +156,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Tenant Indicator */}
         {(!collapsed || isMobileOpen) && currentOrg && (
-          <div className="mx-3.5 mt-3 p-3 rounded-xl bg-slate-50 border border-border shadow-xs shrink-0">
+          <div className="mx-3.5 mt-3 p-3 rounded-xl bg-white/5 border border-white/10 shadow-xs shrink-0">
             <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-xs font-bold text-content-primary truncate">
+              <span className="text-xs font-bold text-white truncate">
                 {currentOrg.name}
               </span>
               <Badge variant={getRoleBadgeVariant(currentRole)} size="sm" className="shrink-0">
                 {currentRole || 'No Role'}
               </Badge>
             </div>
-            <div className="text-xs text-content-secondary truncate">
+            <div className="text-xs text-slate-300 truncate">
               {[currentOrg.city, currentOrg.state].filter(Boolean).join(', ') || 'Location not set'}
             </div>
           </div>
@@ -176,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {navGroups.map((group) => (
             <div key={group.title}>
               {(!collapsed || isMobileOpen) && (
-                <h5 className="px-2.5 mb-1.5 text-2xs font-semibold uppercase tracking-wider text-content-muted select-none">
+                <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
                   {group.title}
                 </h5>
               )}
@@ -195,8 +195,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={({ isActive }) =>
                         `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
                           isActive
-                            ? 'bg-atlas-50 text-atlas-900 font-medium border border-atlas-200/80 shadow-2xs'
-                            : 'font-normal text-content-secondary hover:bg-slate-100/80 hover:text-content-primary'
+                            ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
+                            : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
                         } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
                       }
                     >
@@ -204,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <>
                           <span
                             className={`shrink-0 transition-colors ${
-                              isActive ? 'text-atlas-700' : 'text-content-muted'
+                              isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
                             }`}
                           >
                             {item.icon}
@@ -223,23 +223,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Bottom status */}
-        <div className="p-3.5 border-t border-border bg-slate-50/70 shrink-0">
+        <div className="p-3.5 border-t border-white/10 bg-black/20 shrink-0">
           <div className={`flex items-center ${collapsed && !isMobileOpen ? 'justify-center' : 'justify-between'}`}>
             <div className="flex items-center gap-2">
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  supabaseStatus.configured ? 'bg-emerald-500' : 'bg-slate-400'
+                  supabaseStatus.configured ? 'bg-emerald-400' : 'bg-slate-400'
                 }`}
                 aria-hidden="true"
               />
               {(!collapsed || isMobileOpen) && (
-                <span className="text-xs font-medium text-content-secondary truncate max-w-[140px]">
+                <span className="text-xs font-medium text-slate-300 truncate max-w-[140px]">
                   {supabaseStatus.configured ? 'Supabase Connected' : 'Local Deterministic'}
                 </span>
               )}
             </div>
             {(!collapsed || isMobileOpen) && (
-              <span className="text-xs text-content-muted font-mono font-medium">v0.1.0</span>
+              <span className="text-xs text-slate-400 font-mono font-medium">v0.1.0</span>
             )}
           </div>
         </div>

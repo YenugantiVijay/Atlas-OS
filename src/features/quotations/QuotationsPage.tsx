@@ -228,7 +228,7 @@ export const QuotationsPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Quotations & Estimates
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {quotations.length} Quotations
             </Badge>
           </div>

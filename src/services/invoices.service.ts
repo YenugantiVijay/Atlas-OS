@@ -1,8 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM } from '@/types';
-import { calculateDocumentTotals, parseTaxRate } from '@/lib/money';
-import { withDocumentNumberRetry } from '@/services/numbering.service';
+import { parseTaxRate } from '@/lib/money';
 
 export function mapDbInvoiceItem(row: any): InvoiceItem {
   return {
@@ -47,6 +46,28 @@ export function mapDbInvoice(row: any, items: InvoiceItem[] = []): Invoice {
   };
 }
 
+export interface CreateInvoiceItemInput {
+  productId: string;
+  productName: string;
+  productSku: string;
+  uom: UOM;
+  quantity: number;
+  unitPrice: number;
+  discountPercent?: number;
+  taxRate?: number;
+}
+
+export interface CreateInvoiceInput {
+  customerId: string;
+  salesOrderId?: string;
+  invoiceDate: string;
+  dueDate: string;
+  status?: InvoiceStatus;
+  idempotencyKey?: string;
+  notes?: string;
+  items: CreateInvoiceItemInput[];
+}
+
 export const invoicesService = {
   async getInvoices(orgId: string, isMockAuth: boolean = false): Promise<Invoice[]> {
     if (isMockAuth) {
@@ -73,109 +94,64 @@ export const invoicesService = {
     });
   },
 
+  /**
+   * ATOMIC INVOICE CREATION
+   * Replaces non-atomic, 3-step PostgREST insertion with single ACID RPC:
+   * `public.create_invoice_atomic(...)`.
+   * Enforces server-side authentication, role authorization, tenant isolation,
+   * deterministic product locking, sequence numbering, and idempotency in one transaction.
+   */
   async createInvoice(
     orgId: string,
-    input: {
-      customerId: string;
-      salesOrderId?: string;
-      invoiceDate: string;
-      dueDate: string;
-      notes?: string;
-      items: Array<{
-        productId: string;
-        productName: string;
-        productSku: string;
-        uom: UOM;
-        quantity: number;
-        unitPrice: number;
-        discountPercent: number;
-        taxRate: number;
-      }>;
-    },
+    input: CreateInvoiceInput,
     isMockAuth: boolean = false
   ): Promise<Invoice> {
     if (isMockAuth) {
-      return storage.createInvoice(orgId, input);
+      return storage.createInvoice(orgId, input as any);
     }
 
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const docTotals = calculateDocumentTotals(
-      input.items.map((it) => ({
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        discountPercent: it.discountPercent,
-        taxRate: it.taxRate,
-      }))
+    const idempotencyKey =
+      input.idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
+
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc(
+      'create_invoice_atomic',
+      {
+        p_org_id: orgId,
+        p_customer_id: input.customerId,
+        p_items: input.items.map((it) => ({
+          product_id: it.productId,
+          product_name: it.productName,
+          product_sku: it.productSku,
+          uom: it.uom,
+          quantity: it.quantity,
+          unit_price: it.unitPrice,
+          discount_percent: it.discountPercent ?? 0,
+          tax_rate: parseTaxRate(it.taxRate, 18),
+        })),
+        p_invoice_date: input.invoiceDate,
+        p_due_date: input.dueDate || null,
+        p_status: input.status || 'ISSUED',
+        p_notes: input.notes?.trim() || null,
+        p_sales_order_id: input.salesOrderId || null,
+        p_idempotency_key: idempotencyKey,
+      }
     );
 
-    const formattedItems = input.items.map((it, idx) => {
-      const line = docTotals.items[idx];
-      return {
-        product_id: it.productId,
-        product_name: it.productName,
-        product_sku: it.productSku,
-        uom: it.uom,
-        quantity: it.quantity,
-        unit_price: it.unitPrice,
-        discount_percent: it.discountPercent,
-        tax_rate: parseTaxRate(it.taxRate, 18),
-        line_subtotal: line.taxableAmount,
-        line_tax: line.taxAmount,
-        line_total: line.totalAmount,
-        document_discount_share: line.documentDiscountShare ?? 0,
-      };
-    });
-
-    const client = supabase!;
-    // 2. Insert invoice header with atomic sequential numbering and collision retry
-    const invHeader = await withDocumentNumberRetry<{ id: string } & Record<string, any>>(
-      orgId,
-      'INVOICE',
-      async (allocatedInvoiceNumber) => {
-        return client
-          .from('invoices')
-          .insert({
-            organization_id: orgId,
-            invoice_number: allocatedInvoiceNumber,
-            customer_id: input.customerId,
-            sales_order_id: input.salesOrderId || null,
-            status: 'ISSUED',
-            invoice_date: input.invoiceDate,
-            due_date: input.dueDate,
-            subtotal: docTotals.grossSubtotal,
-            discount_amount: docTotals.discountTotal,
-            tax_amount: docTotals.taxAmount,
-            total_amount: docTotals.totalAmount,
-            total_paid: 0,
-            totals_version: 2,
-            notes: input.notes || null,
-          })
-          .select()
-          .single();
-      },
-      5,
-      input.invoiceDate
-    );
-
-    const lineItemPayload = formattedItems.map((it) => ({
-      ...it,
-      invoice_id: invHeader.id,
-    }));
-
-    const { data: insertedItems, error: itemsErr } = await supabase
-      .from('invoice_items')
-      .insert(lineItemPayload)
-      .select();
-
-    if (itemsErr) {
-      throw new Error(`Failed to insert invoice items: ${itemsErr.message}`);
+    if (rpcErr) {
+      throw new Error(`Failed to create invoice: ${rpcErr.message}`);
     }
 
-    const items = (insertedItems || []).map(mapDbInvoiceItem);
-    return mapDbInvoice(invHeader, items);
+    if (!rpcRes) {
+      throw new Error('Invoice creation succeeded but no invoice payload was returned from server.');
+    }
+
+    const items = (rpcRes.items || []).map(mapDbInvoiceItem);
+    return mapDbInvoice(rpcRes, items);
   },
 
   async createInvoiceFromOrder(

@@ -75,7 +75,7 @@ export const InvoicesPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Tax Invoices
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               {invoices.length} Invoices
             </Badge>
           </div>

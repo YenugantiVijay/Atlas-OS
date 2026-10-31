@@ -175,7 +175,7 @@ export const PaymentsPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Payments & Receivables Ledger
             </h1>
-            <Badge variant="indigo" size="sm">
+            <Badge variant="teal" size="sm">
               Collections
             </Badge>
           </div>

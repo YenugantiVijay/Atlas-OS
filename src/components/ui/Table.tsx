@@ -21,7 +21,7 @@ export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>
 }) => {
   return (
     <thead
-      className={`border-b border-border bg-surface-panel/60 text-xs font-semibold text-content-secondary tracking-normal select-none ${className}`}
+      className={`border-b border-border bg-slate-50/90 text-xs font-semibold text-content-secondary tracking-normal select-none ${className}`}
       {...props}
     >
       {children}
@@ -48,7 +48,7 @@ export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
 }) => {
   return (
     <tr
-      className={`hover:bg-atlas-50/50 transition-colors duration-100 ${className}`}
+      className={`hover:bg-slate-50/80 transition-colors duration-100 ${className}`}
       {...props}
     >
       {children}
