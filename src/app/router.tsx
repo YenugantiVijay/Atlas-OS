@@ -1,10 +1,13 @@
 import React from 'react';
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { AppLayout, RouteLoadingFallback } from '@/components/layout/AppLayout';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { hasPermission, Action } from '@/lib/permissions';
 
 // Code-split feature modules for production bundle optimization and fast initial shell render
+const OnboardingPage = React.lazy(() =>
+  import('@/features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage }))
+);
 const DashboardPage = React.lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage }))
 );
@@ -62,6 +65,14 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
 };
 
 export const router = createHashRouter([
+  {
+    path: '/onboarding',
+    element: (
+      <React.Suspense fallback={<RouteLoadingFallback />}>
+        <OnboardingPage />
+      </React.Suspense>
+    ),
+  },
   {
     path: '/',
     element: <AppLayout />,

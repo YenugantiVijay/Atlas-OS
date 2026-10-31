@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, Loader2 } from 'lucide-react';
+import { Outlet, useNavigate, Navigate } from 'react-router-dom';
+import { Sparkles, Lock, Loader2, AlertCircle, RotateCcw, LogOut } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { CommandPalette } from './CommandPalette';
@@ -9,7 +9,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Button } from '@/components/ui/Button';
 import { AuthModal } from '@/features/auth/AuthModal';
 
-const RouteLoadingFallback: React.FC = () => (
+export const RouteLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[380px] gap-3.5 text-atlas-600 animate-in fade-in duration-200">
     <div className="w-11 h-11 rounded-2xl bg-atlas-100 flex items-center justify-center border border-atlas-200 shadow-xs">
       <Loader2 className="w-5 h-5 animate-spin text-atlas-600" />
@@ -28,7 +28,18 @@ export const AppLayout: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const navigate = useNavigate();
 
-  const { isDemoMode, isAuthenticated, isLoadingAuth, enterDemoMode, exitDemoMode } = useOrg();
+  const {
+    isDemoMode,
+    isAuthenticated,
+    isLoadingAuth,
+    authError,
+    currentOrg,
+    organizations,
+    enterDemoMode,
+    exitDemoMode,
+    refreshOrgData,
+    signOut,
+  } = useOrg();
 
   // Global keyboard shortcut: Ctrl+K / Cmd+K to toggle Command Palette
   useEffect(() => {
@@ -63,6 +74,64 @@ export const AppLayout: React.FC = () => {
         navigate('/orders?action=create');
     }
   };
+
+  // State 1: Loading gate — full-screen fallback while authentication and organization state resolve
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen bg-surface-canvas flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3.5 text-atlas-600 animate-in fade-in duration-200">
+          <div className="w-12 h-12 rounded-2xl bg-atlas-100 flex items-center justify-center border border-atlas-200 shadow-xs">
+            <Loader2 className="w-6 h-6 animate-spin text-atlas-600" />
+          </div>
+          <span className="text-xs font-semibold tracking-wide text-content-secondary">
+            Initializing Atlas OS...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // State 4: Organization or membership loading failed — show recoverable error state with retry
+  if (isAuthenticated && !isDemoMode && authError) {
+    return (
+      <div className="min-h-screen bg-surface-canvas flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface-card rounded-2xl border border-border shadow-xl p-6 sm:p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-content-primary mb-2">
+            Failed to Load Organizations
+          </h2>
+          <p className="text-xs text-content-secondary mb-6 leading-relaxed">
+            {authError}
+          </p>
+          <div className="flex flex-col gap-2.5">
+            <Button
+              variant="primary"
+              onClick={() => refreshOrgData()}
+              className="w-full justify-center"
+              leftIcon={<RotateCcw className="w-4 h-4" />}
+            >
+              Retry Connection
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => signOut()}
+              className="w-full justify-center"
+              leftIcon={<LogOut className="w-4 h-4" />}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // State 3: Confirmed zero organizations — redirect authenticated cloud user to mandatory onboarding
+  if (isAuthenticated && !isDemoMode && !authError && (!currentOrg || organizations.length === 0)) {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">

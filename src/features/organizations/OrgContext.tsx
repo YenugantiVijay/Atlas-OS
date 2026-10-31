@@ -44,6 +44,12 @@ export interface CreateOrganizationRpcParams {
   p_gstin: string | null;
   p_pan: string | null;
   p_currency: string;
+  p_phone: string | null;
+  p_email: string | null;
+  p_address_line1: string | null;
+  p_city: string | null;
+  p_state: string | null;
+  p_pincode: string | null;
   p_idempotency_key: string | null;
 }
 
@@ -53,6 +59,12 @@ export interface CreateOrganizationRpcResponse {
   legal_name?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
   currency?: string | null;
   created_at: string;
   updated_at: string;
@@ -513,13 +525,19 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? crypto.randomUUID()
         : null);
 
-    // 1. Send strictly the 6 parameters supported by Migration 012's create_organization RPC
+    // 1. Send all 12 supported entity and audit parameters to the atomic create_organization RPC (Migration 018)
     const rpcPayload: CreateOrganizationRpcParams = {
       p_name: data.name.trim(),
       p_legal_name: data.legalName?.trim() || null,
       p_gstin: data.gstin?.trim().toUpperCase() || null,
       p_pan: data.pan?.trim().toUpperCase() || null,
       p_currency: data.currency ? data.currency.trim().toUpperCase() : 'INR',
+      p_phone: data.phone?.trim() || null,
+      p_email: data.email?.trim() || null,
+      p_address_line1: data.addressLine1?.trim() || null,
+      p_city: data.city?.trim() || null,
+      p_state: data.state?.trim() || null,
+      p_pincode: data.pincode?.trim() || null,
       p_idempotency_key: idempotencyKey,
     };
 
@@ -539,58 +557,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const createdOrg = mapDbOrg(rawRpcData);
 
-    // 2. Persist auxiliary contact and location fields if provided (supported by DB schema & RLS)
-    const hasAuxiliaryFields = Boolean(
-      data.phone ||
-      data.email ||
-      data.addressLine1 ||
-      data.city ||
-      data.state ||
-      data.pincode
-    );
-
-    if (hasAuxiliaryFields) {
-      const updatePayload: Record<string, string | null> = {};
-      if (data.phone !== undefined) updatePayload.phone = data.phone.trim() || null;
-      if (data.email !== undefined) updatePayload.email = data.email.trim() || null;
-      if (data.addressLine1 !== undefined) updatePayload.address_line1 = data.addressLine1.trim() || null;
-      if (data.city !== undefined) updatePayload.city = data.city.trim() || null;
-      if (data.state !== undefined) updatePayload.state = data.state.trim() || null;
-      if (data.pincode !== undefined) updatePayload.pincode = data.pincode.trim() || null;
-
-      const { data: updatedRows, error: updateErr } = await supabase
-        .from('organizations')
-        .update(updatePayload)
-        .eq('id', createdOrg.id)
-        .select('id');
-
-      if (updateErr) {
-        throw new Error(
-          `Organization created (${createdOrg.id}) but failed to save contact details: ${updateErr.message}`
-        );
-      }
-
-      if (!updatedRows || updatedRows.length === 0) {
-        throw new Error(
-          `Organization created (${createdOrg.id}) but failed to save contact details: No rows updated. Access denied by security policy or organization not found.`
-        );
-      }
-
-      if (updatedRows.length > 1) {
-        throw new Error(
-          `Organization created (${createdOrg.id}) but unexpected multiple rows (${updatedRows.length}) were updated.`
-        );
-      }
-
-      if (updatePayload.phone !== undefined) createdOrg.phone = updatePayload.phone || undefined;
-      if (updatePayload.email !== undefined) createdOrg.email = updatePayload.email || undefined;
-      if (updatePayload.address_line1 !== undefined) createdOrg.addressLine1 = updatePayload.address_line1 || undefined;
-      if (updatePayload.city !== undefined) createdOrg.city = updatePayload.city || undefined;
-      if (updatePayload.state !== undefined) createdOrg.state = updatePayload.state || undefined;
-      if (updatePayload.pincode !== undefined) createdOrg.pincode = updatePayload.pincode || undefined;
-    }
-
-    // 3. Authenticated ownership and membership verification
+    // 2. Authenticated ownership and membership verification
     // Never assume owner role or fabricate membership records; query DB using authenticated client.
     let verifiedMembership: Membership | null = null;
     const authUserId = session?.user?.id;
@@ -626,6 +593,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, createdOrg.id);
     setCurrentOrg(createdOrg);
     setCurrentRole(verifiedMembership.role);
+    // Purge cached query data immediately to prevent cross-tenant data bleed
+    queryClient.clear();
 
     setOrganizations((prev) => {
       const exists = prev.some((o) => o.id === createdOrg.id);

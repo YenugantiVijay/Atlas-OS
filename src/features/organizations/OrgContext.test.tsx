@@ -143,6 +143,12 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         gstin: '29ABCDE1234F1Z5',
         pan: 'ABCDE1234F',
         currency: 'INR',
+        phone: '+91 91234 56789',
+        email: 'billing@balaji.in',
+        address_line1: 'Industrial Area Phase 2',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560001',
         created_at: '2026-10-30T10:00:00Z',
         updated_at: '2026-10-30T10:00:00Z',
       };
@@ -155,10 +161,14 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(mapped.gstin).toBe(rpcPayload.gstin);
       expect(mapped.pan).toBe(rpcPayload.pan);
       expect(mapped.currency).toBe('INR');
+      expect(mapped.phone).toBe('+91 91234 56789');
+      expect(mapped.email).toBe('billing@balaji.in');
+      expect(mapped.addressLine1).toBe('Industrial Area Phase 2');
+      expect(mapped.city).toBe('Bengaluru');
+      expect(mapped.state).toBe('Karnataka');
+      expect(mapped.pincode).toBe('560001');
       expect(mapped.createdAt).toBe(rpcPayload.created_at);
       expect(mapped.updatedAt).toBe(rpcPayload.updated_at);
-      expect(mapped.phone).toBeUndefined();
-      expect(mapped.email).toBeUndefined();
     });
   });
 
@@ -319,7 +329,7 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(result.current.currentRole).toBeNull();
     });
 
-    it('9. Idempotency Key: Reuses attempt-scoped key on retry and passes exact 6 RPC parameters', async () => {
+    it('9. Idempotency Key: Passes all 12 parameters to create_organization RPC and reuses attempt-scoped key', async () => {
       mockRpcFn.mockResolvedValueOnce({
         data: mockOrgRpc,
         error: null,
@@ -354,34 +364,35 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         p_gstin: '33ABCDE1234F1Z5',
         p_pan: 'ABCDE1234F',
         p_currency: 'INR',
+        p_phone: null,
+        p_email: null,
+        p_address_line1: null,
+        p_city: null,
+        p_state: null,
+        p_pincode: null,
         p_idempotency_key: attemptKey,
       });
     });
 
-    it('10. Auxiliary Field Persistence: UPDATE requests affected row representation via .select("id") and verifies exactly one row', async () => {
+    it('10. Atomic Execution: Makes exactly one RPC call and executes zero client-side organizations UPDATE queries', async () => {
+      const mockOrgWithAux: CreateOrganizationRpcResponse = {
+        ...mockOrgRpc,
+        phone: '+91 98765 43210',
+        email: 'contact@krishna.in',
+        address_line1: 'Market Road 14',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        pincode: '500001',
+      };
+
       mockRpcFn.mockResolvedValueOnce({
-        data: mockOrgRpc,
+        data: mockOrgWithAux,
         error: null,
       });
-
-      let updatePayloadPassed: unknown = null;
-      let selectCalled = false;
 
       mockFromFn.mockImplementation((table: string) => {
         if (table === 'memberships') {
           return createQueryMock([mockDbMembership]);
-        }
-        if (table === 'organizations') {
-          const q = createQueryMock([{ id: mockOrgRpc.id }]);
-          q.update = vi.fn().mockImplementation((payload) => {
-            updatePayloadPassed = payload;
-            return q;
-          });
-          q.select = vi.fn().mockImplementation((cols) => {
-            if (cols === 'id') selectCalled = true;
-            return q;
-          });
-          return q;
         }
         return createQueryMock([]);
       });
@@ -393,10 +404,17 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       const { result } = renderHook(() => useOrg(), { wrapper });
       await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
 
+      // Clear calls made during initial mount/loadRemoteData to isolate createOrganization verification
+      mockFromFn.mockClear();
+      mockRpcFn.mockClear();
+
       let created: any;
       await act(async () => {
         created = await result.current.createOrganization({
           name: 'Sri Krishna Electrical Stores',
+          legalName: 'Sri Krishna Stores Pvt Ltd',
+          gstin: '36ABCDE1234F1Z5',
+          pan: 'ABCDE1234F',
           phone: '+91 98765 43210',
           email: 'contact@krishna.in',
           addressLine1: 'Market Road 14',
@@ -407,138 +425,33 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         });
       });
 
-      expect(selectCalled).toBe(true);
-      expect(updatePayloadPassed).toEqual({
-        phone: '+91 98765 43210',
-        email: 'contact@krishna.in',
-        address_line1: 'Market Road 14',
-        city: 'Hyderabad',
-        state: 'Telangana',
-        pincode: '500001',
-      });
+      // Exactly ONE RPC call made with all 12 parameters
+      expect(mockRpcFn).toHaveBeenCalledTimes(1);
+      const [rpcName, rpcPayload] = mockRpcFn.mock.calls[0];
+      expect(rpcName).toBe('create_organization');
+      expect(rpcPayload.p_phone).toBe('+91 98765 43210');
+      expect(rpcPayload.p_email).toBe('contact@krishna.in');
+      expect(rpcPayload.p_address_line1).toBe('Market Road 14');
+      expect(rpcPayload.p_city).toBe('Hyderabad');
+      expect(rpcPayload.p_state).toBe('Telangana');
+      expect(rpcPayload.p_pincode).toBe('500001');
 
+      // CRITICAL: Zero client-side organizations UPDATE queries executed
+      expect(mockFromFn).not.toHaveBeenCalledWith('organizations');
+      // Membership verification query executed
+      expect(mockFromFn).toHaveBeenCalledWith('memberships');
+
+      // All attributes directly mapped from single authoritative RPC response
       expect(created.phone).toBe('+91 98765 43210');
       expect(created.email).toBe('contact@krishna.in');
+      expect(created.addressLine1).toBe('Market Road 14');
       expect(created.city).toBe('Hyderabad');
+      expect(created.state).toBe('Telangana');
+      expect(created.pincode).toBe('500001');
       expect(result.current.currentRole).toBe('owner');
     });
 
-    it('11. Zero Affected Rows Detection: Throws explicit error and denies role if UPDATE returns zero rows without error', async () => {
-      mockRpcFn.mockResolvedValueOnce({
-        data: mockOrgRpc,
-        error: null,
-      });
-
-      // PostgREST returns 204 No Content with 0 affected rows (RLS-blocked update)
-      mockFromFn.mockImplementation((table: string) => {
-        if (table === 'organizations') {
-          const q = createQueryMock([]); // Empty array = 0 rows updated
-          return q;
-        }
-        if (table === 'memberships') {
-          return createQueryMock([mockDbMembership]);
-        }
-        return createQueryMock([]);
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <OrgProvider>{children}</OrgProvider>
-      );
-
-      const { result } = renderHook(() => useOrg(), { wrapper });
-      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
-
-      await expect(
-        act(async () => {
-          await result.current.createOrganization({
-            name: 'Sri Krishna Electrical Stores',
-            phone: '+91 98765 43210',
-            currency: 'INR',
-          });
-        })
-      ).rejects.toThrow(
-        /Organization created \(.+\) but failed to save contact details: No rows updated\. Access denied by security policy/
-      );
-
-      // Must NOT grant owner role or select active org on zero-row update
-      expect(result.current.currentRole).toBeNull();
-      expect(result.current.currentOrg).toBeNull();
-    });
-
-    it('12. Unexpected Multiple Rows Detection: Throws error if UPDATE returns more than 1 row', async () => {
-      mockRpcFn.mockResolvedValueOnce({
-        data: mockOrgRpc,
-        error: null,
-      });
-
-      // Simulates unexpected multiple rows affected
-      mockFromFn.mockImplementation((table: string) => {
-        if (table === 'organizations') {
-          return createQueryMock([{ id: 'org-row-1' }, { id: 'org-row-2' }]);
-        }
-        if (table === 'memberships') {
-          return createQueryMock([mockDbMembership]);
-        }
-        return createQueryMock([]);
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <OrgProvider>{children}</OrgProvider>
-      );
-
-      const { result } = renderHook(() => useOrg(), { wrapper });
-      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
-
-      await expect(
-        act(async () => {
-          await result.current.createOrganization({
-            name: 'Sri Krishna Electrical Stores',
-            phone: '+91 98765 43210',
-            currency: 'INR',
-          });
-        })
-      ).rejects.toThrow(
-        /Organization created \(.+\) but unexpected multiple rows \(2\) were updated\./
-      );
-
-      expect(result.current.currentRole).toBeNull();
-    });
-
-    it('13. Auxiliary Field Failure: Aborts and throws if contact update returns an explicit error', async () => {
-      mockRpcFn.mockResolvedValueOnce({
-        data: mockOrgRpc,
-        error: null,
-      });
-
-      mockFromFn.mockImplementation((table: string) => {
-        if (table === 'organizations') {
-          const q = createQueryMock([], { message: 'permission denied for table organizations' });
-          return q;
-        }
-        return createQueryMock([]);
-      });
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <OrgProvider>{children}</OrgProvider>
-      );
-
-      const { result } = renderHook(() => useOrg(), { wrapper });
-      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
-
-      await expect(
-        act(async () => {
-          await result.current.createOrganization({
-            name: 'Sri Krishna Electrical Stores',
-            phone: '+91 98765 43210',
-            currency: 'INR',
-          });
-        })
-      ).rejects.toThrow(/failed to save contact details: permission denied/);
-
-      expect(result.current.currentRole).toBeNull();
-    });
-
-    it('14. Retrying after an ambiguous UPDATE failure reuses the same organization and key', async () => {
+    it('11. Idempotent Replay: Identical retry returns existing organization without duplicate memberships or extra queries', async () => {
       const replayOrgRpc: CreateOrganizationRpcResponse = {
         id: '44444444-4444-4444-4444-444444444444',
         name: 'Apex Electrical Wholesale',
@@ -546,6 +459,12 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         gstin: null,
         pan: null,
         currency: 'INR',
+        phone: '+91 99999 00000',
+        email: null,
+        address_line1: null,
+        city: null,
+        state: null,
+        pincode: null,
         created_at: '2026-10-30T14:00:00Z',
         updated_at: '2026-10-30T14:00:00Z',
         idempotent_replay: true,
@@ -560,28 +479,11 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         created_at: '2026-10-30T14:00:00Z',
       };
 
-      // Call 1: RPC succeeds, but UPDATE fails (e.g. 0 rows)
-      mockRpcFn.mockResolvedValueOnce({ data: replayOrgRpc, error: null });
-      // Call 2: RPC returns replay, and UPDATE succeeds with 1 row
       mockRpcFn.mockResolvedValueOnce({ data: replayOrgRpc, error: null });
 
-      let updateAttempt = 0;
       mockFromFn.mockImplementation((table: string) => {
         if (table === 'memberships') {
           return createQueryMock([replayMembership]);
-        }
-        if (table === 'organizations') {
-          const q = createQueryMock([]);
-          q.update = vi.fn().mockImplementation(() => {
-            updateAttempt++;
-            if (updateAttempt === 1) {
-              // First attempt: 0 rows returned
-              return createQueryMock([]);
-            }
-            // Retry: 1 row returned
-            return createQueryMock([{ id: replayOrgRpc.id }]);
-          });
-          return q;
         }
         return createQueryMock([]);
       });
@@ -593,27 +495,12 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       const { result } = renderHook(() => useOrg(), { wrapper });
       await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
 
+      // Clear calls made during initial mount/loadRemoteData to isolate createOrganization verification
+      mockFromFn.mockClear();
+      mockRpcFn.mockClear();
+
       const retryKey = 'retry-attempt-key-999';
 
-      // First attempt fails at update
-      let firstAttemptError: Error | null = null;
-      try {
-        await result.current.createOrganization({
-          name: 'Apex Electrical Wholesale',
-          phone: '+91 99999 00000',
-          currency: 'INR',
-          idempotencyKey: retryKey,
-        });
-      } catch (err: unknown) {
-        firstAttemptError = err as Error;
-      }
-
-      expect(firstAttemptError).not.toBeNull();
-      expect(firstAttemptError!.message).toMatch(/No rows updated/);
-
-      expect(result.current.currentRole).toBeNull();
-
-      // Second attempt (retry with same key & org)
       let retryCreated: any;
       await act(async () => {
         retryCreated = await result.current.createOrganization({
@@ -624,10 +511,47 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         });
       });
 
+      expect(mockRpcFn).toHaveBeenCalledTimes(1);
+      expect(mockFromFn).not.toHaveBeenCalledWith('organizations');
       expect(retryCreated.id).toBe(replayOrgRpc.id);
       expect(result.current.currentOrg?.id).toBe(replayOrgRpc.id);
       expect(result.current.currentRole).toBe('owner');
       expect(result.current.organizations.filter((o) => o.id === replayOrgRpc.id).length).toBe(1);
+    });
+
+    it('12. Idempotency Conflict: Changed persisted details with same idempotency key are rejected with error', async () => {
+      mockRpcFn.mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: 'ERR_IDEMPOTENCY_CONFLICT: Idempotency key "conflicting-key" reused with different request payload',
+        },
+      });
+
+      mockFromFn.mockImplementation(() => createQueryMock([]));
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Clear calls made during initial mount/loadRemoteData to isolate createOrganization verification
+      mockFromFn.mockClear();
+      mockRpcFn.mockClear();
+
+      await expect(
+        act(async () => {
+          await result.current.createOrganization({
+            name: 'Altered Payload Org',
+            currency: 'INR',
+            idempotencyKey: 'conflicting-key',
+          });
+        })
+      ).rejects.toThrow(/ERR_IDEMPOTENCY_CONFLICT/);
+
+      expect(result.current.currentRole).toBeNull();
+      expect(mockFromFn).not.toHaveBeenCalledWith('organizations');
     });
   });
 });
