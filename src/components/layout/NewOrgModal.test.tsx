@@ -422,4 +422,36 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     );
     expect(defaultOnClose).not.toHaveBeenCalled();
   });
+
+  it('Submits business eligibility parameters with default and custom values', async () => {
+    mockCreateOrg.mockResolvedValueOnce({
+      id: 'org-eligibility-modal-uuid',
+      name: 'Pioneer Wholesale Cables',
+      currency: 'INR',
+      createdAt: '2026-10-31T10:00:00Z',
+      updatedAt: '2026-10-31T10:00:00Z',
+    });
+
+    render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
+
+    fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      target: { value: 'Pioneer Wholesale Cables' },
+    });
+
+    // Select Hardware & Electrical Store
+    const categorySelect = screen.getByLabelText(/Business Category/i);
+    fireEvent.change(categorySelect, { target: { value: 'hardware_electrical' } });
+
+    const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockCreateOrg).toHaveBeenCalledTimes(1);
+      const payload = mockCreateOrg.mock.calls[0][0];
+      expect(payload.name).toBe('Pioneer Wholesale Cables');
+      expect(payload.businessCategory).toBe('hardware_electrical');
+      expect(payload.sellsElectricalProducts).toBe(true);
+      expect(payload.productLines).toEqual(['Wires & Cables', 'Switches & Sockets']);
+    });
+  });
 });

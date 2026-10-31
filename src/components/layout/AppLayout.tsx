@@ -8,6 +8,7 @@ import { NewOrgModal } from './NewOrgModal';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { Button } from '@/components/ui/Button';
 import { AuthModal } from '@/features/auth/AuthModal';
+import { useToast } from '@/components/ui/Toast';
 
 export const RouteLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[380px] gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -27,12 +28,17 @@ export const AppLayout: React.FC = () => {
   const [isNewOrgModalOpen, setIsNewOrgModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const {
     isDemoMode,
     isAuthenticated,
     isLoadingAuth,
+    isLoadingOrgData,
     authError,
+    eligibility,
+    subscription,
+    canWriteOperations,
     currentOrg,
     organizations,
     enterDemoMode,
@@ -54,6 +60,15 @@ export const AppLayout: React.FC = () => {
   }, []);
 
   const handleOpenQuickCreate = (type?: string) => {
+    if (!canWriteOperations && !isDemoMode) {
+      showToast(
+        'warning',
+        'Action Restricted',
+        'Operational write access is disabled. Please verify your business eligibility and subscription status.'
+      );
+      return;
+    }
+
     switch (type) {
       case 'product':
         navigate('/products?action=create');
@@ -75,8 +90,8 @@ export const AppLayout: React.FC = () => {
     }
   };
 
-  // State 1: Loading gate — full-screen fallback while authentication and organization state resolve
-  if (isLoadingAuth) {
+  // State 1 & 2: Loading gate — full-screen fallback while authentication or organization state resolve
+  if (isLoadingAuth || isLoadingOrgData) {
     return (
       <div className="min-h-screen bg-surface-canvas flex items-center justify-center">
         <div className="flex flex-col items-center gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -91,7 +106,7 @@ export const AppLayout: React.FC = () => {
     );
   }
 
-  // State 4: Organization or membership loading failed — show recoverable error state with retry
+  // State 5: Organization or membership loading failed — show recoverable error state with retry
   if (isAuthenticated && !isDemoMode && authError) {
     return (
       <div className="min-h-screen bg-surface-canvas flex items-center justify-center p-4">
@@ -128,8 +143,15 @@ export const AppLayout: React.FC = () => {
     );
   }
 
-  // State 3: Confirmed zero organizations — redirect authenticated cloud user to mandatory onboarding
-  if (isAuthenticated && !isDemoMode && !authError && (!currentOrg || organizations.length === 0)) {
+  // State 4: Confirmed zero organizations — redirect authenticated cloud user to mandatory onboarding
+  if (
+    isAuthenticated &&
+    !isDemoMode &&
+    !isLoadingAuth &&
+    !isLoadingOrgData &&
+    !authError &&
+    (!currentOrg || organizations.length === 0)
+  ) {
     return <Navigate to="/onboarding" replace />;
   }
 
@@ -187,6 +209,81 @@ export const AppLayout: React.FC = () => {
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* Business Eligibility and Subscription Status Banners (Live Cloud Mode) */}
+          {isAuthenticated && !isDemoMode && currentOrg && (
+            <>
+              {eligibility?.status === 'rejected' && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  data-testid="eligibility-rejected-banner"
+                >
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold text-rose-900">
+                      Business Eligibility Rejected
+                    </div>
+                    <p className="text-rose-800 leading-relaxed">
+                      {eligibility.rejectionReason ||
+                        'This organization does not meet the ATLAS OS business model eligibility requirements for electrical distribution.'}{' '}
+                      Operational write features are disabled.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {eligibility?.status === 'review_required' && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  data-testid="eligibility-review-banner"
+                >
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold text-amber-900">
+                      Eligibility Declaration Pending Manual Review
+                    </div>
+                    <p className="text-amber-800 leading-relaxed">
+                      Your business category or product lines declaration requires manual compliance review. Operational write access will remain paused until verified.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {eligibility?.status === 'approved' && !canWriteOperations && subscription?.status === 'trialing' && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  data-testid="subscription-expired-banner"
+                >
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold text-amber-900">
+                      7-Day Trial Expired
+                    </div>
+                    <p className="text-amber-800 leading-relaxed">
+                      Your complimentary 7-day trial period has ended. Operational writes are disabled. Existing records remain accessible for statutory reporting and export.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!eligibility && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  data-testid="eligibility-missing-banner"
+                >
+                  <AlertCircle className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold text-slate-900">
+                      Business Eligibility Undeclared
+                    </div>
+                    <p className="text-slate-800 leading-relaxed">
+                      This organization has not completed mandatory business model declaration.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Unauthenticated Cloud Gate State */}

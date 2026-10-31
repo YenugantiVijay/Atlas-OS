@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Plus, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useToast } from '@/components/ui/Toast';
+import { BusinessCategory } from '@/types';
 
 export interface NewOrgModalProps {
   isOpen: boolean;
@@ -25,6 +26,14 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
   const [state, setState] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [pincode, setPincode] = useState('');
+  const [businessCategory, setBusinessCategory] =
+    useState<BusinessCategory>('electrical_wholesale_distributor');
+  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(true);
+  const [productLines, setProductLines] = useState<string[]>([
+    'Wires & Cables',
+    'Switches & Sockets',
+  ]);
+  const [customTagInput, setCustomTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [idempotencyConflict, setIdempotencyConflict] = useState(false);
 
@@ -34,6 +43,24 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
       ? crypto.randomUUID()
       : 'atlas-client-' + Date.now()
   );
+
+  const toggleProductLine = (item: string) => {
+    setProductLines((prev) =>
+      prev.includes(item) ? prev.filter((p) => p !== item) : [...prev, item]
+    );
+  };
+
+  const addCustomTag = () => {
+    const trimmed = customTagInput.trim();
+    if (trimmed && !productLines.includes(trimmed)) {
+      setProductLines((prev) => [...prev, trimmed]);
+      setCustomTagInput('');
+    }
+  };
+
+  const removeProductLine = (item: string) => {
+    setProductLines((prev) => prev.filter((p) => p !== item));
+  };
 
   const resetForm = () => {
     setName('');
@@ -46,6 +73,10 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
     setState('');
     setAddressLine1('');
     setPincode('');
+    setBusinessCategory('electrical_wholesale_distributor');
+    setSellsElectricalProducts(true);
+    setProductLines(['Wires & Cables', 'Switches & Sockets']);
+    setCustomTagInput('');
     setIdempotencyConflict(false);
     // Generate fresh idempotency key for the next attempt
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -91,6 +122,9 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
         addressLine1: addressLine1.trim() || undefined,
         pincode: pincode.trim() || undefined,
         currency: 'INR',
+        businessCategory,
+        sellsElectricalProducts,
+        productLines,
         idempotencyKey: idempotencyKeyRef.current,
       });
 
@@ -125,6 +159,141 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
           placeholder="e.g. Balaji Electrical & Hardware Agencies"
           disabled={isSubmitting}
         />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="business-category" className="block text-xs font-semibold text-content-primary mb-1">
+              Business Category
+            </label>
+            <select
+              id="business-category"
+              value={businessCategory}
+              onChange={(e) => {
+                const cat = e.target.value as BusinessCategory;
+                setBusinessCategory(cat);
+                if (cat === 'hardware_electrical') {
+                  setSellsElectricalProducts(true);
+                }
+              }}
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-border bg-surface-card px-3 py-2 text-xs text-content-primary focus:border-atlas-500 focus:outline-hidden focus:ring-1 focus:ring-atlas-500"
+            >
+              <option value="electrical_wholesale_distributor">
+                Electrical Wholesaler / Distributor
+              </option>
+              <option value="electrical_retail">Electrical Retailer</option>
+              <option value="hardware_electrical">Hardware & Electrical Store</option>
+              <option value="other_unsupported">Other Line of Business</option>
+            </select>
+          </div>
+
+          <div className="flex items-center pt-5">
+            <label className="flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={sellsElectricalProducts}
+                onChange={(e) => setSellsElectricalProducts(e.target.checked)}
+                disabled={isSubmitting || businessCategory === 'hardware_electrical'}
+                className="h-4 w-4 rounded border-border text-atlas-600 focus:ring-atlas-500"
+              />
+              <span className="text-content-secondary font-medium">
+                Sells electrical products
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Product Lines Selector */}
+        <div className="space-y-2 pt-1 border-t border-border/60">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-content-primary">
+              Declared Product Lines
+            </label>
+            <span className="text-2xs text-content-muted">
+              {productLines.length} selected
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              'Wires & Cables',
+              'Switches & Sockets',
+              'Switchgear & Protection',
+              'LED Lighting',
+              'Fans & Ventilation',
+              'Conduits & PVC Fittings',
+            ].map((item) => {
+              const isSelected = productLines.includes(item);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggleProductLine(item)}
+                  className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors border ${
+                    isSelected
+                      ? 'bg-atlas-100 text-atlas-800 border-atlas-300 font-semibold'
+                      : 'bg-surface-card text-content-secondary border-border hover:bg-surface-panel'
+                  }`}
+                >
+                  {isSelected ? '✓ ' : '+ '}
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <Input
+              value={customTagInput}
+              onChange={(e) => setCustomTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addCustomTag();
+                }
+              }}
+              placeholder="Add product line (e.g. Inverters)"
+              disabled={isSubmitting}
+              className="text-xs flex-1"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={addCustomTag}
+              disabled={!customTagInput.trim()}
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Add
+            </Button>
+          </div>
+
+          {productLines.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {productLines.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-atlas-50 border border-atlas-200 text-atlas-700 text-[11px]"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeProductLine(tag)}
+                    className="text-atlas-400 hover:text-atlas-700"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {sellsElectricalProducts && productLines.length === 0 && (
+            <p className="text-2xs text-amber-700 bg-amber-50 p-2 rounded-md border border-amber-200">
+              Notice: Submitting with zero product lines will place eligibility under manual review.
+            </p>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Input

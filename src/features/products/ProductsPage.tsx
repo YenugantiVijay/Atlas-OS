@@ -38,7 +38,7 @@ const CATEGORIES = [
 const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -90,6 +90,10 @@ export const ProductsPage: React.FC = () => {
   }, [currentOrg, searchParams, isMockAuth]);
 
   const handleOpenCreate = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setSku('');
     setName('');
     setBrand('');
@@ -107,6 +111,10 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleOpenEdit = (p: Product) => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     setEditingProduct(p);
     setSku(p.sku);
     setName(p.name);
@@ -124,6 +132,10 @@ export const ProductsPage: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+      return;
+    }
     if (!sku.trim() || !name.trim()) {
       showToast('error', 'Validation Error', 'SKU and Product Name are required.');
       return;
@@ -225,6 +237,8 @@ export const ProductsPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenCreate}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Add Product
         </Button>
@@ -383,6 +397,8 @@ export const ProductsPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleOpenEdit(p)}
                       leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                      disabled={!canWriteOperations && !isMockAuth}
+                      title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
                     >
                       Edit
                     </Button>
@@ -513,7 +529,12 @@ export const ProductsPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               {editingProduct ? 'Save Changes' : 'Create Product'}
             </Button>
           </div>

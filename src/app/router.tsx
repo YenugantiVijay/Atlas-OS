@@ -54,8 +54,8 @@ export interface RequirePermissionProps {
 }
 
 export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, children }) => {
-  const { currentRole, isLoadingAuth } = useOrg();
-  if (isLoadingAuth) {
+  const { currentRole, isLoadingAuth, isLoadingOrgData } = useOrg();
+  if (isLoadingAuth || isLoadingOrgData) {
     return null;
   }
   if (!hasPermission(currentRole, action)) {

@@ -300,3 +300,52 @@ export interface ProposedAction {
   payload: Record<string, unknown>;
   requiresApproval: boolean;
 }
+
+export type BusinessCategory =
+  | 'electrical_retail'
+  | 'electrical_wholesale_distributor'
+  | 'hardware_electrical'
+  | 'other_unsupported';
+
+export type EligibilityStatus =
+  | 'pending'
+  | 'approved'
+  | 'review_required'
+  | 'rejected';
+
+export type SubscriptionStatus =
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'expired';
+
+export interface OrganizationEligibility {
+  organizationId: string;
+  businessCategory: BusinessCategory;
+  sellsElectricalProducts: boolean;
+  productLines: string[];
+  status: EligibilityStatus;
+  rejectionReason?: string | null;
+  reviewerNotes?: string | null;
+  declaredAt: string;
+  declaredBy: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OrganizationSubscription {
+  organizationId: string;
+  status: SubscriptionStatus;
+  planTier: string;
+  trialStartedAt: string;
+  trialEndsAt: string;
+  currentPeriodStartsAt?: string | null;
+  currentPeriodEndsAt?: string | null;
+  gracePeriodEndsAt?: string | null;
+  paymentMethodEntered: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
