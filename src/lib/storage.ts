@@ -68,6 +68,7 @@ const STORAGE_KEYS = {
   PAYMENTS: 'atlas_payments_v1',
   PAYMENT_ALLOCATIONS: 'atlas_payment_allocations_v1',
   AUDIT_EVENTS: 'atlas_audit_events_v1',
+  INVENTORY_ADJ_IDEMPOTENCY: 'atlas_inventory_adj_idempotency_v1',
   CURRENT_ORG_ID: 'atlas_current_org_id_v1',
   CURRENT_USER: 'atlas_current_user_v1',
 };
@@ -769,6 +770,9 @@ class StorageEngine {
 
   public createProduct(orgId: string, data: Omit<Product, 'id' | 'organizationId' | 'createdAt' | 'updatedAt'>, openingStock?: number): Product {
     this.initialize();
+    if (openingStock !== undefined && openingStock < 0) {
+      throw new Error(`Opening stock cannot be negative (got ${openingStock})`);
+    }
     const products = this.getItem<Product[]>(STORAGE_KEYS.PRODUCTS, []);
 
     // Check SKU uniqueness within organization
@@ -779,7 +783,7 @@ class StorageEngine {
 
     const newProduct: Product = {
       ...data,
-      id: 'prod-' + Date.now(),
+      id: 'prod-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -946,14 +950,55 @@ class StorageEngine {
     return newMovement;
   }
 
-  public adjustStock(orgId: string, productId: string, quantityChange: number, notes: string): StockMovement {
+  public adjustStock(
+    orgId: string,
+    productId: string,
+    quantityChange: number,
+    notes: string,
+    idempotencyKey: string
+  ): StockMovement {
     this.initialize();
+    if (!idempotencyKey || typeof idempotencyKey !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idempotencyKey.trim())) {
+      throw new Error(`A valid UUID idempotency key is required for inventory adjustments (got: "${idempotencyKey}")`);
+    }
+    const trimmedKey = idempotencyKey.trim();
+
+    if (quantityChange === 0) {
+      throw new Error('Adjustment quantity cannot be 0.');
+    }
+    if (!notes || !notes.trim()) {
+      throw new Error('An audit note is required for all manual inventory adjustments.');
+    }
+
+    // Idempotency replay check
+    const idempotencyMap = this.getItem<Record<string, { movementId: string; requestHash: string }>>(
+      STORAGE_KEYS.INVENTORY_ADJ_IDEMPOTENCY,
+      {}
+    );
+    const compositeKey = `${orgId}:${trimmedKey}`;
+    const requestHash = `${orgId}|${productId}|${quantityChange}|${notes.trim()}`;
+    if (idempotencyMap[compositeKey]) {
+      const existing = idempotencyMap[compositeKey];
+      if (existing.requestHash === requestHash) {
+        const movements = this.getStockMovements(orgId);
+        const found = movements.find((m) => m.id === existing.movementId);
+        if (found) return found;
+      } else {
+        throw new Error(
+          `Idempotency conflict: Key ${trimmedKey} was already used with a different request payload in organization ${orgId}`
+        );
+      }
+    }
+
     const product = this.getProductById(orgId, productId);
     if (!product) throw new Error('Product not found in this organization');
 
     const currentStock = product.currentStock || 0;
-    if (quantityChange < 0 && Math.abs(quantityChange) > currentStock) {
-      throw new Error(`Negative stock adjustment (${quantityChange}) exceeds available balance (${currentStock}).`);
+    const resultingStock = currentStock + quantityChange;
+    if (resultingStock < 0) {
+      throw new Error(
+        `Insufficient stock for product "${product.name}" (SKU: ${product.sku}). Available: ${currentStock}, Requested change: ${quantityChange}, Resulting balance: ${resultingStock} (Negative stock is not permitted).`
+      );
     }
 
     const movement = this.recordStockMovement({
@@ -961,14 +1006,23 @@ class StorageEngine {
       productId,
       quantityChange,
       movementType: 'ADJUSTMENT',
-      notes,
+      referenceType: 'MANUAL_ADJUSTMENT',
+      notes: notes.trim(),
     });
 
+    const idempotencyMapAfter = this.getItem<Record<string, { movementId: string; requestHash: string }>>(
+      STORAGE_KEYS.INVENTORY_ADJ_IDEMPOTENCY,
+      {}
+    );
+    idempotencyMapAfter[compositeKey] = { movementId: movement.id, requestHash };
+    this.setItem(STORAGE_KEYS.INVENTORY_ADJ_IDEMPOTENCY, idempotencyMapAfter);
+
     this.logAuditEvent(orgId, 'ADJUST_INVENTORY', 'PRODUCT', productId, {
+      movementId: movement.id,
       quantityChange,
       previousStock: currentStock,
-      newStock: currentStock + quantityChange,
-      notes,
+      newStock: resultingStock,
+      notes: notes.trim(),
     });
 
     return movement;
@@ -1314,6 +1368,9 @@ class StorageEngine {
     if (index === -1) throw new Error('Sales order not found');
 
     const order = orders[index];
+    if (order.status === 'CONFIRMED') {
+      return order;
+    }
     if (order.status !== 'DRAFT') {
       throw new Error(`Order ${order.orderNumber} cannot be confirmed because status is ${order.status}`);
     }

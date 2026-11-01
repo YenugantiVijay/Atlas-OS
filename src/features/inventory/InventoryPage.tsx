@@ -33,6 +33,7 @@ export const InventoryPage: React.FC = () => {
   const [adjustProductId, setAdjustProductId] = useState('');
   const [adjustQuantity, setAdjustQuantity] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
+  const [adjustmentIdempotencyKey, setAdjustmentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -66,11 +67,16 @@ export const InventoryPage: React.FC = () => {
     }
     setAdjustQuantity('');
     setAdjustReason('');
+    // Generate one UUID per logical adjustment submission
+    setAdjustmentIdempotencyKey(crypto.randomUUID());
     setIsAdjustmentModalOpen(true);
   };
 
   const handleSaveAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Disable repeated submission while the request is pending
+    if (isSubmitting) return;
+
     if (!canWriteOperations && !isMockAuth) {
       showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
       return;
@@ -91,6 +97,13 @@ export const InventoryPage: React.FC = () => {
 
     if (!currentOrg) return;
 
+    // Reuse the same UUID during retries of this submission.
+    // Do not generate a new key merely because an existing request is retried.
+    const keyToUse = adjustmentIdempotencyKey || crypto.randomUUID();
+    if (!adjustmentIdempotencyKey) {
+      setAdjustmentIdempotencyKey(keyToUse);
+    }
+
     setIsSubmitting(true);
     try {
       await inventoryService.adjustStock(
@@ -98,6 +111,7 @@ export const InventoryPage: React.FC = () => {
         adjustProductId,
         qty,
         adjustReason.trim(),
+        keyToUse,
         isMockAuth
       );
       showToast(
@@ -106,9 +120,11 @@ export const InventoryPage: React.FC = () => {
         `Recorded inventory adjustment of ${qty > 0 ? '+' : ''}${qty} units.`
       );
       setIsAdjustmentModalOpen(false);
+      setAdjustmentIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Adjustment Failed', err.message);
+      // Retain adjustmentIdempotencyKey on failure/timeout so retrying uses the original key
     } finally {
       setIsSubmitting(false);
     }
@@ -334,7 +350,10 @@ export const InventoryPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsAdjustmentModalOpen(false)}
+              onClick={() => {
+                setIsAdjustmentModalOpen(false);
+                setAdjustmentIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel

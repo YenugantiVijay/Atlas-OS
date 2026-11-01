@@ -19,6 +19,8 @@ export function mapDbStockMovement(row: any): StockMovement {
   };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const inventoryService = {
   async getStockMovements(
     orgId: string,
@@ -56,36 +58,70 @@ export const inventoryService = {
     productId: string,
     quantityChange: number,
     notes: string,
+    idempotencyKey: string,
     isMockAuth: boolean = false
   ): Promise<StockMovement> {
+    if (!idempotencyKey || typeof idempotencyKey !== 'string' || !UUID_REGEX.test(idempotencyKey.trim())) {
+      throw new Error(
+        `A valid UUID idempotency key is required for inventory adjustments (got: "${idempotencyKey}")`
+      );
+    }
+
+    const trimmedKey = idempotencyKey.trim();
+
     if (isMockAuth) {
-      return storage.adjustStock(orgId, productId, quantityChange, notes);
+      return storage.adjustStock(orgId, productId, quantityChange, notes, trimmedKey);
     }
 
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const payload = {
-      organization_id: orgId,
-      product_id: productId,
-      quantity_change: quantityChange,
-      movement_type: 'ADJUSTMENT',
-      reference_type: 'MANUAL_ADJUSTMENT',
-      notes: notes.trim(),
-    };
+    if (!notes || !notes.trim()) {
+      throw new Error('An audit note is required for all manual inventory adjustments');
+    }
 
-    const { data, error } = await supabase
-      .from('stock_movements')
-      .insert(payload)
-      .select('*, products(*)')
-      .single();
+    if (quantityChange === 0) {
+      throw new Error('Adjustment quantity cannot be 0.');
+    }
+
+    // Authoritative atomic RPC invocation: executes serialized product row lock,
+    // resulting non-negative stock validation, audit logging, and mandatory idempotency tracking.
+    const { data, error } = await supabase.rpc('record_stock_adjustment', {
+      p_org_id: orgId,
+      p_product_id: productId,
+      p_quantity_change: quantityChange,
+      p_notes: notes.trim(),
+      p_idempotency_key: trimmedKey,
+    });
 
     if (error) {
       throw new Error(`Failed to adjust stock: ${error.message}`);
     }
 
-    return mapDbStockMovement(data);
+    const movementId = data?.movement_id;
+    if (movementId) {
+      const { data: movementRow, error: fetchErr } = await supabase
+        .from('stock_movements')
+        .select('*, products(*)')
+        .eq('id', movementId)
+        .single();
+
+      if (!fetchErr && movementRow) {
+        return mapDbStockMovement(movementRow);
+      }
+    }
+
+    return {
+      id: movementId || 'mov-' + Date.now(),
+      organizationId: orgId,
+      productId,
+      quantityChange,
+      movementType: 'ADJUSTMENT',
+      referenceType: 'MANUAL_ADJUSTMENT',
+      notes: notes.trim(),
+      createdAt: new Date().toISOString(),
+    };
   },
 
   async getProductStock(

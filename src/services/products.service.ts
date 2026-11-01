@@ -84,45 +84,27 @@ export const productsService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const payload = {
-      organization_id: orgId,
-      sku: input.sku.trim(),
-      name: input.name.trim(),
-      brand: input.brand?.trim() || null,
-      category: input.category,
-      description: input.description?.trim() || null,
-      uom: input.uom || 'Nos',
-      purchase_cost: input.purchaseCost,
-      selling_price: input.sellingPrice,
-      tax_rate: input.taxRate,
-      hsn_code: input.hsnCode?.trim() || null,
-      reorder_threshold: input.reorderThreshold,
-      is_active: input.isActive ?? true,
-    };
-
-    const { data, error } = await supabase
-      .from('products')
-      .insert(payload)
-      .select()
-      .single();
+    // Atomic product creation + opening stock initialization via authoritative RPC
+    const { data, error } = await supabase.rpc('create_product_atomic', {
+      p_org_id: orgId,
+      p_sku: input.sku.trim(),
+      p_name: input.name.trim(),
+      p_brand: input.brand?.trim() || null,
+      p_category: input.category,
+      p_description: input.description?.trim() || null,
+      p_uom: input.uom || 'Nos',
+      p_purchase_cost: input.purchaseCost,
+      p_selling_price: input.sellingPrice,
+      p_tax_rate: input.taxRate,
+      p_hsn_code: input.hsnCode?.trim() || null,
+      p_reorder_threshold: input.reorderThreshold,
+      p_is_active: input.isActive ?? true,
+      p_opening_stock: openingStock || 0,
+      p_notes: 'Initial opening stock',
+    });
 
     if (error) {
       throw new Error(`Failed to create product: ${error.message}`);
-    }
-
-    if (openingStock > 0) {
-      const { error: stockErr } = await supabase.from('stock_movements').insert({
-        organization_id: orgId,
-        product_id: data.id,
-        quantity_change: openingStock,
-        movement_type: 'OPENING_STOCK',
-        reference_type: 'INITIAL_STOCK',
-        notes: 'Initial opening stock',
-      });
-
-      if (stockErr) {
-        throw new Error(`Product created, but failed to record initial stock movement: ${stockErr.message}`);
-      }
     }
 
     return mapDbProduct(data, openingStock);
