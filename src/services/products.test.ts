@@ -59,32 +59,24 @@ describe('Products Service — DEF-002 Opening Stock Movement Type Regression Te
   });
 
   // Test 1 — Positive opening stock
-  it('records opening stock with canonical OPENING_STOCK movement type in cloud mode', async () => {
-    let capturedStockPayload: any = null;
-    const stockMovementInsertSpy = vi.fn().mockImplementation((payload) => {
-      capturedStockPayload = payload;
-      return Promise.resolve({ error: null });
-    });
-
-    const productInsertSpy = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({
-          data: sampleDbProductRow,
+  it('creates product and records opening stock atomically via create_product_atomic RPC in cloud mode', async () => {
+    let capturedRpcParams: any = null;
+    const rpcSpy = vi.fn().mockImplementation((fn: string, params: any) => {
+      if (fn === 'create_product_atomic') {
+        capturedRpcParams = params;
+        return Promise.resolve({
+          data: {
+            ...sampleDbProductRow,
+            current_stock: params.p_opening_stock,
+          },
           error: null,
-        }),
-      }),
+        });
+      }
+      throw new Error(`Unexpected RPC: ${fn}`);
     });
 
     mockSupabaseInstance = {
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'products') {
-          return { insert: productInsertSpy };
-        }
-        if (table === 'stock_movements') {
-          return { insert: stockMovementInsertSpy };
-        }
-        throw new Error(`Unexpected table: ${table}`);
-      }),
+      rpc: rpcSpy,
     };
 
     const result = await productsService.createProduct(
@@ -94,50 +86,51 @@ describe('Products Service — DEF-002 Opening Stock Movement Type Regression Te
       50     // openingStock = 50
     );
 
-    // 1. Verify product insertion was called with correct payload
-    expect(productInsertSpy).toHaveBeenCalledTimes(1);
-
-    // 2. Verify stock movement was called
-    expect(stockMovementInsertSpy).toHaveBeenCalledTimes(1);
-
-    // 3. DEF-002 Core Assertion: movement_type MUST be 'OPENING_STOCK', never 'OPENING_BALANCE'
-    expect(capturedStockPayload).toEqual({
-      organization_id: orgId,
-      product_id: 'prod-uuid-001',
-      quantity_change: 50,
-      movement_type: 'OPENING_STOCK',
-      reference_type: 'INITIAL_STOCK',
-      notes: 'Initial opening stock',
+    // 1. Verify create_product_atomic RPC was called with correct atomic payload
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    expect(capturedRpcParams).toEqual({
+      p_org_id: orgId,
+      p_sku: 'CBL-FR-1.5',
+      p_name: 'Polycab 1.5 sq mm Flame Retardant Wire',
+      p_brand: 'Polycab',
+      p_category: 'Wires & Cables',
+      p_description: 'Single core copper wire, Red 90m coil',
+      p_uom: 'Coils',
+      p_purchase_cost: 950,
+      p_selling_price: 1200,
+      p_tax_rate: 18,
+      p_hsn_code: '8544',
+      p_reorder_threshold: 10,
+      p_is_active: true,
+      p_opening_stock: 50,
+      p_notes: 'Initial opening stock',
     });
 
-    // 4. Verify returned Product model has currentStock matching openingStock
+    // 2. Verify returned Product model has currentStock matching openingStock
     expect(result.currentStock).toBe(50);
     expect(result.id).toBe('prod-uuid-001');
     expect(result.sku).toBe('CBL-FR-1.5');
   });
 
   // Test 2 — Zero opening stock
-  it('creates product without recording any stock movement when opening stock is zero', async () => {
-    const stockMovementInsertSpy = vi.fn();
-    const productInsertSpy = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({
-          data: sampleDbProductRow,
+  it('creates product via create_product_atomic with zero opening stock', async () => {
+    let capturedRpcParams: any = null;
+    const rpcSpy = vi.fn().mockImplementation((fn: string, params: any) => {
+      if (fn === 'create_product_atomic') {
+        capturedRpcParams = params;
+        return Promise.resolve({
+          data: {
+            ...sampleDbProductRow,
+            current_stock: 0,
+          },
           error: null,
-        }),
-      }),
+        });
+      }
+      throw new Error(`Unexpected RPC: ${fn}`);
     });
 
     mockSupabaseInstance = {
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'products') {
-          return { insert: productInsertSpy };
-        }
-        if (table === 'stock_movements') {
-          return { insert: stockMovementInsertSpy };
-        }
-        throw new Error(`Unexpected table: ${table}`);
-      }),
+      rpc: rpcSpy,
     };
 
     const result = await productsService.createProduct(
@@ -147,50 +140,32 @@ describe('Products Service — DEF-002 Opening Stock Movement Type Regression Te
       0      // openingStock = 0
     );
 
-    expect(productInsertSpy).toHaveBeenCalledTimes(1);
-    expect(stockMovementInsertSpy).not.toHaveBeenCalled();
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    expect(capturedRpcParams.p_opening_stock).toBe(0);
     expect(result.currentStock).toBe(0);
     expect(result.id).toBe('prod-uuid-001');
   });
 
-  // Test 3 — Stock movement insertion failure
-  it('propagates descriptive error when stock movement insertion fails after product creation', async () => {
-    const stockMovementInsertSpy = vi.fn().mockResolvedValue({
+  // Test 3 — Atomic failure propagation
+  it('propagates descriptive error when create_product_atomic RPC fails, preventing partial product creation', async () => {
+    const rpcSpy = vi.fn().mockResolvedValue({
+      data: null,
       error: {
-        message: 'new row for relation "stock_movements" violates check constraint "stock_movements_movement_type_check"',
+        message: 'Product with SKU "CBL-FR-1.5" already exists in organization ' + orgId,
       },
     });
 
-    const productInsertSpy = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({
-          data: sampleDbProductRow,
-          error: null,
-        }),
-      }),
-    });
-
     mockSupabaseInstance = {
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'products') {
-          return { insert: productInsertSpy };
-        }
-        if (table === 'stock_movements') {
-          return { insert: stockMovementInsertSpy };
-        }
-        throw new Error(`Unexpected table: ${table}`);
-      }),
+      rpc: rpcSpy,
     };
 
     await expect(
       productsService.createProduct(orgId, sampleProductInput, false, 50)
     ).rejects.toThrow(
-      'Product created, but failed to record initial stock movement: new row for relation "stock_movements" violates check constraint "stock_movements_movement_type_check"'
+      'Failed to create product: Product with SKU "CBL-FR-1.5" already exists in organization ' + orgId
     );
 
-    // Confirms that product was inserted first before stock movement failed
-    expect(productInsertSpy).toHaveBeenCalledTimes(1);
-    expect(stockMovementInsertSpy).toHaveBeenCalledTimes(1);
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
   });
 
   // Test 4 — Mock mode compatibility

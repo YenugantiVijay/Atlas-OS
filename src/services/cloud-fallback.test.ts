@@ -140,7 +140,7 @@ describe('Phase 1 Cloud Safety: Elimination of Silent LocalStorage Fallback', ()
         'Cloud backend is not configured: Supabase client is uninitialized.'
       );
       await expect(
-        inventoryService.adjustStock(orgId, 'p-1', 5, 'Audit count', false)
+        inventoryService.adjustStock(orgId, 'p-1', 5, 'Audit count', '00000000-0000-0000-0000-000000000001', false)
       ).rejects.toThrow('Cloud backend is not configured: Supabase client is uninitialized.');
       await expect(inventoryService.getProductStock(orgId, 'p-1', false)).rejects.toThrow(
         'Cloud backend is not configured: Supabase client is uninitialized.'
