@@ -84,6 +84,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       isDemoMode: false,
       isLoadingAuth: false,
       isLoadingOrgData: false,
+      isSwitchingOrg: false,
       authError: null,
       eligibility: null,
       subscription: null,

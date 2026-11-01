@@ -89,6 +89,7 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
     isDemoMode: true,
     isLoadingAuth: false,
     isLoadingOrgData: false,
+    isSwitchingOrg: false,
     authError: null,
     eligibility: null,
     subscription: null,
