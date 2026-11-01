@@ -1088,4 +1088,523 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(result.current.currentOrg?.id).toBe('recovered-org-1');
     });
   });
+
+  describe('Phase 4.9: Organization Switching Hardening & Hydration Error Recovery Suite', () => {
+    const orgA = {
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Org A Bangalore Electricals',
+      currency: 'INR',
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+    const orgB = {
+      id: '22222222-2222-2222-2222-222222222222',
+      name: 'Org B Hyderabad Switchgear',
+      currency: 'INR',
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+    const orgC = {
+      id: '33333333-3333-3333-3333-333333333333',
+      name: 'Org C Chennai Cables',
+      currency: 'INR',
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+
+    const memA = {
+      id: 'mem-a',
+      organization_id: orgA.id,
+      user_id: 'user-test-uuid',
+      role: 'owner',
+      is_active: true,
+      created_at: '2026-10-30T10:00:00Z',
+    };
+    const memB = {
+      id: 'mem-b',
+      organization_id: orgB.id,
+      user_id: 'user-test-uuid',
+      role: 'admin',
+      is_active: true,
+      created_at: '2026-10-30T10:00:00Z',
+    };
+    const memC = {
+      id: 'mem-c',
+      organization_id: orgC.id,
+      user_id: 'user-test-uuid',
+      role: 'member',
+      is_active: true,
+      created_at: '2026-10-30T10:00:00Z',
+    };
+
+    const eligA = {
+      organization_id: orgA.id,
+      status: 'approved',
+      category: 'electrical_distributor',
+      sells_electrical: true,
+      product_lines: ['Wires', 'Cables'],
+      declared_at: '2026-10-30T10:00:00Z',
+      reviewed_at: null,
+      rejection_reason: null,
+    };
+    const eligB = {
+      organization_id: orgB.id,
+      status: 'approved',
+      category: 'electrical_retailer',
+      sells_electrical: true,
+      product_lines: ['Switchgear'],
+      declared_at: '2026-10-30T10:00:00Z',
+      reviewed_at: null,
+      rejection_reason: null,
+    };
+    const eligC = {
+      organization_id: orgC.id,
+      status: 'approved',
+      category: 'electrical_panel_builder',
+      sells_electrical: true,
+      product_lines: ['Panels'],
+      declared_at: '2026-10-30T10:00:00Z',
+      reviewed_at: null,
+      rejection_reason: null,
+    };
+
+    const subA = {
+      organization_id: orgA.id,
+      plan_tier: 'pro',
+      status: 'active',
+      trial_started_at: '2026-10-30T10:00:00Z',
+      trial_ends_at: '2026-11-06T10:00:00Z',
+      current_period_starts_at: '2026-10-30T10:00:00Z',
+      current_period_ends_at: '2027-01-01T00:00:00Z',
+      payment_method_entered: true,
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+    const subB = {
+      organization_id: orgB.id,
+      plan_tier: 'pro',
+      status: 'active',
+      trial_started_at: '2026-10-30T10:00:00Z',
+      trial_ends_at: '2026-11-06T10:00:00Z',
+      current_period_starts_at: '2026-10-30T10:00:00Z',
+      current_period_ends_at: '2027-01-01T00:00:00Z',
+      payment_method_entered: true,
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+    const subC = {
+      organization_id: orgC.id,
+      plan_tier: 'pro',
+      status: 'active',
+      trial_started_at: '2026-10-30T10:00:00Z',
+      trial_ends_at: '2026-11-06T10:00:00Z',
+      current_period_starts_at: '2026-10-30T10:00:00Z',
+      current_period_ends_at: '2027-01-01T00:00:00Z',
+      payment_method_entered: true,
+      created_at: '2026-10-30T10:00:00Z',
+      updated_at: '2026-10-30T10:00:00Z',
+    };
+
+    const makeFilterableMock = (rows: any[], error: any = null) => {
+      let filtered = [...rows];
+      const query: any = {
+        select: vi.fn().mockImplementation(() => query),
+        order: vi.fn().mockImplementation(() => query),
+        eq: vi.fn().mockImplementation((col: string, val: any) => {
+          filtered = filtered.filter((r) => r[col] === val);
+          return query;
+        }),
+        maybeSingle: vi.fn().mockImplementation(() => {
+          return Promise.resolve({ data: filtered[0] || null, error });
+        }),
+        single: vi.fn().mockImplementation(() => {
+          return Promise.resolve({ data: filtered[0] || null, error });
+        }),
+        then(resolve: any, reject: any) {
+          return Promise.resolve({ data: filtered, error }).then(resolve, reject);
+        },
+      };
+      return query;
+    };
+
+    it('24. Rapid A -> B -> C switching: Out-of-order responses from earlier switch (B) are discarded, newest selection (C) wins', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB, memC]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB, orgC]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligA, eligB, eligC]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subA, subB, subC]);
+        return createQueryMock([]);
+      });
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Initial state is Org A
+      expect(result.current.currentOrg?.id).toBe(orgA.id);
+      expect(result.current.eligibility?.organizationId).toBe(orgA.id);
+
+      // Setup deferred slow promise for Org B queries
+      let resolveSlowBQuery!: (val: unknown) => void;
+      const slowBPromise = new Promise((res) => {
+        resolveSlowBQuery = res;
+      });
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB, memC]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB, orgC]);
+        if (table === 'organization_eligibility') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation((_col: string, val: any) => {
+              if (val === orgB.id) {
+                return {
+                  maybeSingle: () => slowBPromise.then(() => ({ data: eligB, error: null })),
+                };
+              }
+              if (val === orgC.id) {
+                return {
+                  maybeSingle: () => Promise.resolve({ data: eligC, error: null }),
+                };
+              }
+              return { maybeSingle: () => Promise.resolve({ data: eligA, error: null }) };
+            }),
+          };
+          return query;
+        }
+        if (table === 'organization_subscriptions') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation((_col: string, val: any) => {
+              if (val === orgB.id) {
+                return {
+                  maybeSingle: () => slowBPromise.then(() => ({ data: subB, error: null })),
+                };
+              }
+              if (val === orgC.id) {
+                return {
+                  maybeSingle: () => Promise.resolve({ data: subC, error: null }),
+                };
+              }
+              return { maybeSingle: () => Promise.resolve({ data: subA, error: null }) };
+            }),
+          };
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      // 1. Initiate switch to B (slow)
+      let switchBPromise!: Promise<void>;
+      act(() => {
+        switchBPromise = result.current.switchOrganization(orgB.id);
+      });
+      expect(result.current.isSwitchingOrg).toBe(true);
+
+      // 2. Immediately initiate switch to C (fast) before B resolves
+      let switchCPromise!: Promise<void>;
+      act(() => {
+        switchCPromise = result.current.switchOrganization(orgC.id);
+      });
+
+      // C resolves immediately
+      await act(async () => {
+        await switchCPromise;
+      });
+
+      expect(result.current.currentOrg?.id).toBe(orgC.id);
+      expect(result.current.eligibility?.organizationId).toBe(orgC.id);
+      expect(result.current.subscription?.organizationId).toBe(orgC.id);
+      expect(result.current.isSwitchingOrg).toBe(false);
+
+      // 3. Now slow query for B resolves late
+      resolveSlowBQuery(true);
+      await act(async () => {
+        await switchBPromise;
+      });
+
+      // Verify B's stale data was DISCARDED and C remains active!
+      expect(result.current.currentOrg?.id).toBe(orgC.id);
+      expect(result.current.eligibility?.organizationId).toBe(orgC.id);
+      expect(result.current.subscription?.organizationId).toBe(orgC.id);
+      expect(result.current.isSwitchingOrg).toBe(false);
+    });
+
+    it('25. Immediate clearing: Eligibility and subscription are purged synchronously upon switch initiation to prevent privilege bleed', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligA, eligB]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subA, subB]);
+        return createQueryMock([]);
+      });
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Org A is active with write operations allowed
+      expect(result.current.currentOrg?.id).toBe(orgA.id);
+      expect(result.current.eligibility?.organizationId).toBe(orgA.id);
+      expect(result.current.canWriteOperations).toBe(true);
+
+      // Set up deferred query for Org B
+      let resolveBQuery!: (val: unknown) => void;
+      const bPromise = new Promise((res) => {
+        resolveBQuery = res;
+      });
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation((_col: string, _val: any) => ({
+              maybeSingle: () => bPromise.then(() => ({ data: eligB, error: null })),
+            })),
+          };
+          return query;
+        }
+        if (table === 'organization_subscriptions') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation((_col: string, _val: any) => ({
+              maybeSingle: () => bPromise.then(() => ({ data: subB, error: null })),
+            })),
+          };
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      // Initiate switch to B without awaiting
+      let inFlightSwitch!: Promise<void>;
+      act(() => {
+        inFlightSwitch = result.current.switchOrganization(orgB.id);
+      });
+
+      // Synchronously, prior eligibility & subscription are cleared immediately
+      expect(result.current.isSwitchingOrg).toBe(true);
+      expect(result.current.eligibility).toBeNull();
+      expect(result.current.subscription).toBeNull();
+      // Operational writes are guaranteed disabled during switch
+      expect(result.current.canWriteOperations).toBe(false);
+
+      // Resolve Org B queries
+      resolveBQuery(true);
+      await act(async () => {
+        await inFlightSwitch;
+      });
+
+      // Once resolved, Org B's data is populated and writes re-evaluated
+      expect(result.current.isSwitchingOrg).toBe(false);
+      expect(result.current.eligibility?.organizationId).toBe(orgB.id);
+      expect(result.current.subscription?.organizationId).toBe(orgB.id);
+      expect(result.current.canWriteOperations).toBe(true);
+    });
+
+    it('26. Eligibility query error: Retains selected org with write operations disabled, captures authError, and allows recovery via refreshOrgData', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligA, eligB]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subA, subB]);
+        return createQueryMock([]);
+      });
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Make organization_eligibility fail on switch
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => Promise.resolve({ data: null, error: { message: 'eligibility table locked' } }),
+            })),
+          };
+          return query;
+        }
+        if (table === 'organization_subscriptions') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => Promise.resolve({ data: subB, error: null }),
+            })),
+          };
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        await result.current.switchOrganization(orgB.id);
+      });
+
+      // Error captured, currentOrg retained, write access strictly disabled
+      expect(result.current.currentOrg?.id).toBe(orgB.id);
+      expect(result.current.authError).toContain('eligibility table locked');
+      expect(result.current.eligibility).toBeNull();
+      expect(result.current.subscription).toBeNull();
+      expect(result.current.canWriteOperations).toBe(false);
+      expect(result.current.isSwitchingOrg).toBe(false);
+
+      // Now database recovers
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligB]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subB]);
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        await result.current.refreshOrgData();
+      });
+
+      // Verification succeeded on retry
+      expect(result.current.authError).toBeNull();
+      expect(result.current.currentOrg?.id).toBe(orgB.id);
+      expect(result.current.eligibility?.organizationId).toBe(orgB.id);
+      expect(result.current.subscription?.organizationId).toBe(orgB.id);
+      expect(result.current.canWriteOperations).toBe(true);
+    });
+
+    it('27. Subscription query error: Retains selected org with write operations disabled and captures error', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligA, eligB]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subA, subB]);
+        return createQueryMock([]);
+      });
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      // Make organization_subscriptions fail on switch
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => Promise.resolve({ data: eligB, error: null }),
+            })),
+          };
+          return query;
+        }
+        if (table === 'organization_subscriptions') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => Promise.resolve({ data: null, error: { message: 'subscription service unreachable' } }),
+            })),
+          };
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      await act(async () => {
+        await result.current.switchOrganization(orgB.id);
+      });
+
+      expect(result.current.currentOrg?.id).toBe(orgB.id);
+      expect(result.current.authError).toContain('subscription service unreachable');
+      expect(result.current.subscription).toBeNull();
+      expect(result.current.canWriteOperations).toBe(false);
+      expect(result.current.isSwitchingOrg).toBe(false);
+    });
+
+    it('28. Logout during active organization switch: Purges state and drops pending switch response', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'memberships') return makeFilterableMock([memA, memB]);
+        if (table === 'organizations') return makeFilterableMock([orgA, orgB]);
+        if (table === 'organization_eligibility') return makeFilterableMock([eligA, eligB]);
+        if (table === 'organization_subscriptions') return makeFilterableMock([subA, subB]);
+        return createQueryMock([]);
+      });
+
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+
+      let resolveSlowSwitchQuery!: (val: unknown) => void;
+      const slowSwitchPromise = new Promise((res) => {
+        resolveSlowSwitchQuery = res;
+      });
+
+      mockFromFn.mockImplementation((table: string) => {
+        if (table === 'organization_eligibility') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => slowSwitchPromise.then(() => ({ data: eligB, error: null })),
+            })),
+          };
+          return query;
+        }
+        if (table === 'organization_subscriptions') {
+          const query: any = {
+            select: vi.fn().mockImplementation(() => query),
+            eq: vi.fn().mockImplementation(() => ({
+              maybeSingle: () => slowSwitchPromise.then(() => ({ data: subB, error: null })),
+            })),
+          };
+          return query;
+        }
+        return createQueryMock([]);
+      });
+
+      // Initiate switch
+      let switchPromise!: Promise<void>;
+      act(() => {
+        switchPromise = result.current.switchOrganization(orgB.id);
+      });
+      expect(result.current.isSwitchingOrg).toBe(true);
+
+      // Sign out while switch is in flight
+      await act(async () => {
+        await result.current.signOut();
+      });
+
+      expect(result.current.currentOrg).toBeNull();
+      expect(result.current.organizations).toEqual([]);
+      expect(result.current.isSwitchingOrg).toBe(false);
+
+      // Delayed query finishes
+      resolveSlowSwitchQuery(true);
+      await act(async () => {
+        await switchPromise;
+      });
+
+      // Stale switch response did NOT restore org
+      expect(result.current.currentOrg).toBeNull();
+      expect(result.current.organizations).toEqual([]);
+      expect(result.current.isSwitchingOrg).toBe(false);
+    });
+  });
 });

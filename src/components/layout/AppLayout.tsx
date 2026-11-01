@@ -35,6 +35,7 @@ export const AppLayout: React.FC = () => {
     isAuthenticated,
     isLoadingAuth,
     isLoadingOrgData,
+    isSwitchingOrg,
     authError,
     eligibility,
     subscription,
@@ -90,8 +91,8 @@ export const AppLayout: React.FC = () => {
     }
   };
 
-  // State 1 & 2: Loading gate — full-screen fallback while authentication or organization state resolve
-  if (isLoadingAuth || isLoadingOrgData) {
+  // State 1 & 2: Loading gate — full-screen fallback while authentication or initial organization state resolve
+  if (isLoadingAuth || (isLoadingOrgData && !currentOrg)) {
     return (
       <div className="min-h-screen bg-surface-canvas flex items-center justify-center">
         <div className="flex flex-col items-center gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -107,7 +108,7 @@ export const AppLayout: React.FC = () => {
   }
 
   // State 5: Organization or membership loading failed — show recoverable error state with retry
-  if (isAuthenticated && !isDemoMode && authError) {
+  if (isAuthenticated && !isDemoMode && authError && !currentOrg) {
     return (
       <div className="min-h-screen bg-surface-canvas flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-surface-card rounded-2xl border border-border shadow-xl p-6 sm:p-8 text-center animate-in fade-in zoom-in-95 duration-200">
@@ -214,6 +215,34 @@ export const AppLayout: React.FC = () => {
           {/* Business Eligibility and Subscription Status Banners (Live Cloud Mode) */}
           {isAuthenticated && !isDemoMode && currentOrg && (
             <>
+              {authError && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-start justify-between gap-3 animate-in fade-in"
+                  data-testid="status-verification-error-banner"
+                >
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-amber-900">
+                        Organization Status Verification Error
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        {authError}. Operational writes are temporarily paused to ensure data integrity.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 bg-white/90 hover:bg-white text-xs border-amber-300/70"
+                    onClick={() => refreshOrgData()}
+                    data-testid="retry-status-verification-btn"
+                  >
+                    Retry Verification
+                  </Button>
+                </div>
+              )}
+
               {eligibility?.status === 'rejected' && (
                 <div
                   className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-950 text-xs flex items-start gap-3 animate-in fade-in"
@@ -267,7 +296,7 @@ export const AppLayout: React.FC = () => {
                 </div>
               )}
 
-              {!eligibility && (
+              {!eligibility && !authError && !isSwitchingOrg && (
                 <div
                   className="mb-5 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-950 text-xs flex items-start gap-3 animate-in fade-in"
                   data-testid="eligibility-missing-banner"

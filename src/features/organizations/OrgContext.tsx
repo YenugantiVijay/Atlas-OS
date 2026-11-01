@@ -33,6 +33,7 @@ export interface OrgContextType {
   isDemoMode: boolean;
   isLoadingAuth: boolean;
   isLoadingOrgData: boolean;
+  isSwitchingOrg: boolean;
   authError: string | null;
   eligibility: OrganizationEligibility | null;
   subscription: OrganizationSubscription | null;
@@ -275,6 +276,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingOrgData, setIsLoadingOrgData] = useState(false);
+  const [isSwitchingOrg, setIsSwitchingOrg] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [eligibility, setEligibility] = useState<OrganizationEligibility | null>(null);
   const [subscription, setSubscription] = useState<OrganizationSubscription | null>(null);
@@ -284,6 +286,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Concurrency and race condition guards
   const loadGenerationRef = useRef(0);
+  const switchGenerationRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(null);
   const inFlightLoadPromiseRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
 
@@ -388,11 +391,25 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .maybeSingle(),
           ]);
 
+          if (eligibilityRes.error) {
+            throw new Error(`Failed to load organization eligibility: ${eligibilityRes.error.message}`);
+          }
+          if (subscriptionRes.error) {
+            throw new Error(`Failed to load organization subscription: ${subscriptionRes.error.message}`);
+          }
+
           if (eligibilityRes.data) {
             fetchedEligibility = mapDbEligibility(eligibilityRes.data as DbEligibilityRow);
           }
           if (subscriptionRes.data) {
             fetchedSubscription = mapDbSubscription(subscriptionRes.data as DbSubscriptionRow);
+          }
+
+          if (fetchedEligibility && fetchedEligibility.organizationId !== active.id) {
+            throw new Error('Integrity violation: fetched eligibility does not match active organization.');
+          }
+          if (fetchedSubscription && fetchedSubscription.organizationId !== active.id) {
+            throw new Error('Integrity violation: fetched subscription does not match active organization.');
           }
         }
 
@@ -585,6 +602,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (event === 'SIGNED_OUT') {
           activeUserIdRef.current = null;
           loadGenerationRef.current++;
+          switchGenerationRef.current++;
           inFlightLoadPromiseRef.current = null;
           setSession(null);
           setCurrentOrg(null);
@@ -594,7 +612,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentUser(null);
           setEligibility(null);
           setSubscription(null);
+          setIsSwitchingOrg(false);
           setIsLoadingOrgData(false);
+          setAuthError(null);
           localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
           localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
           // Purge all cached queries immediately upon logout
@@ -614,7 +634,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [loadRemoteData, loadDemoData]);
 
-  // Organization Switching: Flushes query cache and derives new server-enforced role
+  // Organization Switching: Flushes query cache and derives new server-enforced role with race-condition protection
   const switchOrganization = async (orgId: string) => {
     // Purge cached query data immediately to prevent cross-tenant data bleed
     queryClient.clear();
@@ -634,6 +654,20 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!targetOrg) {
       throw new Error('Access Denied: You do not belong to the requested organization.');
     }
+
+    // Monotonically increasing switch request generation counter
+    const currentGen = ++switchGenerationRef.current;
+    // Invalidate any overlapping loadRemoteData executions
+    loadGenerationRef.current++;
+
+    // Track organization-switch loading state
+    setIsSwitchingOrg(true);
+    setIsLoadingOrgData(true);
+    setAuthError(null);
+
+    // CRITICAL: Clear previously selected organization's eligibility and subscription IMMEDIATELY
+    setEligibility(null);
+    setSubscription(null);
 
     setCurrentOrg(targetOrg);
     localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, targetOrg.id);
@@ -657,15 +691,51 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .maybeSingle(),
       ]);
 
-      setEligibility(
-        eligibilityRes.data ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow) : null
-      );
-      setSubscription(
-        subscriptionRes.data ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow) : null
-      );
-    } catch {
-      setEligibility(null);
-      setSubscription(null);
+      // Stale Response Check: Discard this response if a newer switch or logout occurred
+      if (switchGenerationRef.current !== currentGen) {
+        return;
+      }
+
+      // Check both query results for database/network errors
+      if (eligibilityRes.error) {
+        throw new Error(`Failed to load eligibility for ${targetOrg.name}: ${eligibilityRes.error.message}`);
+      }
+      if (subscriptionRes.error) {
+        throw new Error(`Failed to load subscription for ${targetOrg.name}: ${subscriptionRes.error.message}`);
+      }
+
+      const fetchedEligibility = eligibilityRes.data
+        ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow)
+        : null;
+      const fetchedSubscription = subscriptionRes.data
+        ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow)
+        : null;
+
+      // Consistency Verification: Confirm that the final organization, role, eligibility and subscription
+      // all belong to the same selected organization
+      if (fetchedEligibility && fetchedEligibility.organizationId !== targetOrg.id) {
+        throw new Error('Data integrity violation: fetched eligibility does not match selected organization.');
+      }
+      if (fetchedSubscription && fetchedSubscription.organizationId !== targetOrg.id) {
+        throw new Error('Data integrity violation: fetched subscription does not match selected organization.');
+      }
+
+      setEligibility(fetchedEligibility);
+      setSubscription(fetchedSubscription);
+      setAuthError(null);
+    } catch (err: unknown) {
+      if (switchGenerationRef.current === currentGen) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setAuthError(msg);
+        // Retain selected organization for lawful read-only access, but never grant write access on failed verification
+        setEligibility(null);
+        setSubscription(null);
+      }
+    } finally {
+      if (switchGenerationRef.current === currentGen) {
+        setIsSwitchingOrg(false);
+        setIsLoadingOrgData(false);
+      }
     }
   };
 
@@ -740,6 +810,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signOut = async () => {
     activeUserIdRef.current = null;
     loadGenerationRef.current++;
+    switchGenerationRef.current++;
     inFlightLoadPromiseRef.current = null;
     setSession(null);
     setCurrentOrg(null);
@@ -749,7 +820,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
     setEligibility(null);
     setSubscription(null);
+    setIsSwitchingOrg(false);
     setIsLoadingOrgData(false);
+    setAuthError(null);
     localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
     localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
     queryClient.clear();
@@ -893,12 +966,26 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .maybeSingle(),
     ]);
 
+    if (eligibilityRes.error) {
+      throw new Error(`Organization created (${createdOrg.id}) but failed to hydrate eligibility: ${eligibilityRes.error.message}`);
+    }
+    if (subscriptionRes.error) {
+      throw new Error(`Organization created (${createdOrg.id}) but failed to hydrate subscription: ${subscriptionRes.error.message}`);
+    }
+
     const verifiedEligibility = eligibilityRes.data
       ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow)
       : null;
     const verifiedSubscription = subscriptionRes.data
       ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow)
       : null;
+
+    if (verifiedEligibility && verifiedEligibility.organizationId !== createdOrg.id) {
+      throw new Error('Data integrity violation: verified eligibility does not match created organization.');
+    }
+    if (verifiedSubscription && verifiedSubscription.organizationId !== createdOrg.id) {
+      throw new Error('Data integrity violation: verified subscription does not match created organization.');
+    }
 
     // Update active organization and verified role only after confirmation
     localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, createdOrg.id);
@@ -1030,6 +1117,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isDemoMode,
         isLoadingAuth,
         isLoadingOrgData,
+        isSwitchingOrg,
         authError,
         eligibility,
         subscription,

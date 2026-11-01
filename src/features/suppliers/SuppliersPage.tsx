@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 
 export const SuppliersPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { showToast } = useToast();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -58,6 +58,14 @@ export const SuppliersPage: React.FC = () => {
   }, [currentOrg, isMockAuth]);
 
   const handleOpenCreate = () => {
+    if (!canWriteOperations && !isMockAuth) {
+      showToast(
+        'error',
+        'Operation Restricted',
+        'Write operations are disabled for your current subscription or eligibility status.'
+      );
+      return;
+    }
     setName('');
     setCompanyName('');
     setContactPerson('');
@@ -71,6 +79,14 @@ export const SuppliersPage: React.FC = () => {
 
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWriteOperations && !isMockAuth) {
+      showToast(
+        'error',
+        'Operation Restricted',
+        'Write operations are disabled for your current subscription or eligibility status.'
+      );
+      return;
+    }
     if (!name.trim()) {
       showToast('error', 'Validation Error', 'Supplier Name is required.');
       return;
@@ -137,6 +153,8 @@ export const SuppliersPage: React.FC = () => {
           variant="primary"
           onClick={handleOpenCreate}
           leftIcon={<Plus className="w-4 h-4" />}
+          disabled={!canWriteOperations && !isMockAuth}
+          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
         >
           Add Supplier
         </Button>
@@ -165,7 +183,7 @@ export const SuppliersPage: React.FC = () => {
           icon={<Truck className="w-7 h-7" />}
           title="No suppliers found"
           description="Register your manufacturers and wholesale distributors."
-          actionLabel="Add Supplier"
+          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Add Supplier"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -307,7 +325,12 @@ export const SuppliersPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isSubmitting}
+              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+            >
               Save Supplier
             </Button>
           </div>
