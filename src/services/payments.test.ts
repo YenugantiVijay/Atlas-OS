@@ -156,7 +156,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
       const payments = await paymentsService.getPayments(orgId, false);
 
       expect(fromFn).toHaveBeenCalledWith('payments');
-      expect(selectFn).toHaveBeenCalledWith('*, allocations:payment_allocations(*)');
+      expect(selectFn).toHaveBeenCalledWith('*, allocations:payment_allocations(*), customer:customers!fk_payments_customer_org(*)');
       expect(eqFn).toHaveBeenCalledWith('organization_id', orgId);
       expect(orderFn).toHaveBeenCalledWith('created_at', { ascending: false });
       expect(payments.length).toBe(1);

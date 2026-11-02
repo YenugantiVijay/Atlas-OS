@@ -137,8 +137,8 @@ export const QuotationsPage: React.FC = () => {
         updated[index] = {
           ...updated[index],
           productId: val,
-          unitPrice: prod?.sellingPrice || updated[index].unitPrice,
-          taxRate: prod?.taxRate || updated[index].taxRate,
+          unitPrice: prod?.sellingPrice ?? updated[index].unitPrice,
+          taxRate: prod?.taxRate ?? updated[index].taxRate,
         };
       } else {
         updated[index] = { ...updated[index], [field]: val };
@@ -434,6 +434,7 @@ export const QuotationsPage: React.FC = () => {
                   >
                     <div className="flex-1 w-full">
                       <select
+                        aria-label={`Product ${idx + 1}`}
                         value={item.productId}
                         onChange={(e) => handleItemChange(idx, 'productId', e.target.value)}
                         className="w-full text-xs rounded-lg border border-border bg-surface-card p-1.5 font-medium"
@@ -465,6 +466,7 @@ export const QuotationsPage: React.FC = () => {
                         <input
                           type="number"
                           step="0.01"
+                          min="0"
                           title="Unit Price"
                           value={item.unitPrice}
                           onChange={(e) =>

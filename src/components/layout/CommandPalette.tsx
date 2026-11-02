@@ -15,7 +15,11 @@ import {
   X,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
+import { productsService } from '@/services/products.service';
+import { customersService } from '@/services/customers.service';
+import { Product, Customer } from '@/types';
+import { hasPermission, Action } from '@/lib/permissions';
+import { useDialog } from '@/components/ui/useDialog';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -30,27 +34,46 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
-  const { currentOrg } = useOrg();
+  const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const dialogRef = useDialog(isOpen, onClose);
+  const orgId = currentOrg?.id;
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (isOpen) onClose();
+    if (isOpen) setQuery('');
+  }, [isOpen, orgId]);
+
+  useEffect(() => {
+    let active = true;
+    setProducts([]);
+    setCustomers([]);
+    setLoadError(false);
+    if (!isOpen || !orgId || !hasPermission(currentRole, 'data:read')) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    Promise.all([
+      productsService.getProducts(orgId, isMockAuth),
+      customersService.getCustomers(orgId, isMockAuth),
+    ]).then(([productList, customerList]) => {
+      if (active) {
+        setProducts(productList);
+        setCustomers(customerList);
       }
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    }).catch(() => {
+      if (active) setLoadError(true);
+    }).finally(() => {
+      if (active) setIsLoading(false);
+    });
+    return () => { active = false; };
+  }, [isOpen, orgId, currentRole, isMockAuth, retryCount]);
 
   if (!isOpen) return null;
-
-  const orgId = currentOrg?.id || '';
-  const products = storage.getProducts(orgId);
-  const customers = storage.getCustomers(orgId);
 
   const navigationItems = [
     { label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4 text-atlas-600" />, path: '/' },
@@ -64,15 +87,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Suppliers', icon: <Truck className="w-4 h-4 text-atlas-600" />, path: '/suppliers' },
     { label: 'ATLAS AI Assistant', icon: <Sparkles className="w-4 h-4 text-atlas-600" />, path: '/ai' },
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
-  ];
+  ].filter((item) => item.path === '/' || hasPermission(currentRole, item.path === '/audit' ? 'audit:read' : 'data:read'));
 
   const quickActions = [
-    { label: 'New Product', type: 'product' },
-    { label: 'New Customer', type: 'customer' },
-    { label: 'New Quotation', type: 'quotation' },
-    { label: 'New Sales Order', type: 'order' },
-    { label: 'Record Payment', type: 'payment' },
-  ];
+    { label: 'New Product', type: 'product', action: 'products:create' },
+    { label: 'New Customer', type: 'customer', action: 'customers:manage' },
+    { label: 'New Quotation', type: 'quotation', action: 'quotations:create' },
+    { label: 'New Sales Order', type: 'order', action: 'orders:create' },
+    { label: 'Record Payment', type: 'payment', action: 'payments:record' },
+  ].filter((item) => (canWriteOperations || isMockAuth) && hasPermission(currentRole, item.action as Action) &&
+    item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
   const filteredNav = navigationItems.filter((item) =>
     item.label.toLowerCase().includes(query.toLowerCase())
@@ -107,6 +131,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
@@ -125,7 +151,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           <Search className="w-5 h-5 text-atlas-500 mr-3 shrink-0" />
           <input
             type="text"
-            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search commands, products, customers, or workflows..."
@@ -145,7 +170,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         {/* Results Container */}
         <div className="max-h-[60vh] overflow-y-auto p-2.5 space-y-3.5">
           {/* Quick Actions */}
-          <div>
+          {quickActions.length > 0 && <div>
             <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
               Quick Actions
             </div>
@@ -162,7 +187,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Navigation */}
           <div>
@@ -188,6 +213,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           </div>
 
           {/* Filtered Products */}
+          {isLoading && <p role="status" className="px-3 text-sm text-content-secondary">Loading products and customers...</p>}
+          {loadError && (
+            <div role="alert" className="px-3 text-sm text-rose-700">
+              Search data could not be loaded.{' '}
+              <button type="button" className="underline" onClick={() => setRetryCount((count) => count + 1)}>Try again</button>
+            </div>
+          )}
+          {query.trim() && !isLoading && !loadError && filteredNav.length === 0 && quickActions.length === 0 &&
+            filteredProducts.length === 0 && filteredCustomers.length === 0 && (
+              <p role="status" className="px-3 text-sm text-content-secondary">No matching commands, products, or customers.</p>
+            )}
           {query.trim() && filteredProducts.length > 0 && (
             <div>
               <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
@@ -198,7 +234,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => handleSelectNav(`/products`)}
+                    onClick={() => handleSelectNav(`/products?search=${encodeURIComponent(p.sku)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
                   >
                     <div>
@@ -225,7 +261,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => handleSelectNav(`/customers`)}
+                    onClick={() => handleSelectNav(`/customers?search=${encodeURIComponent(c.name)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
                   >
                     <div>

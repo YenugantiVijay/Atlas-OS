@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LoadError } from '@/components/ui/LoadError';
 import {
   Receipt,
   Search,
@@ -22,17 +23,19 @@ export const InvoicesPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const loadInvoices = async () => {
     if (!currentOrg) return;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await invoicesService.getInvoices(currentOrg.id, isMockAuth);
       setInvoices(data);
     } catch (err: any) {
-      console.error('Failed to load invoices:', err);
+      setLoadError(err instanceof Error ? err.message : 'Invoices could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +100,7 @@ export const InvoicesPage: React.FC = () => {
       </Card>
 
       {/* Invoices Table */}
-      {isLoading ? (
+      {loadError ? <LoadError message={loadError} onRetry={loadInvoices} /> : isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-12 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />

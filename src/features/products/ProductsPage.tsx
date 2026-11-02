@@ -81,6 +81,7 @@ export const ProductsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    setSearchQuery(searchParams.get('search') || '');
     loadProducts();
     if (searchParams.get('action') === 'create') {
       setIsCreateModalOpen(true);

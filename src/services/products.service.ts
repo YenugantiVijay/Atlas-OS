@@ -19,7 +19,7 @@ export function mapDbProduct(row: any, stock: number = 0): Product {
     sellingPrice: Number(row.selling_price) || 0,
     taxRate: parseTaxRate(row.tax_rate, 18),
     hsnCode: row.hsn_code || undefined,
-    reorderThreshold: Number(row.reorder_threshold) || 10,
+    reorderThreshold: Number(row.reorder_threshold ?? 10),
     currentStock: stock,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
@@ -64,7 +64,7 @@ export const productsService = {
         stockMap[m.product_id] = (stockMap[m.product_id] || 0) + Number(m.quantity_change);
       }
     } else if (movErr) {
-      console.warn('Failed to load stock movements for product stock totals:', movErr.message);
+      throw new Error(`Failed to load stock totals: ${movErr.message}`);
     }
 
     return dbProducts.map((row) => mapDbProduct(row, stockMap[row.id] || 0));

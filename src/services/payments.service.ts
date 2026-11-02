@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Payment, PaymentAllocation, PaymentMethod, Role } from '@/types';
+import { mapDbCustomer } from './customers.service';
 
 export function mapDbPaymentAllocation(row: any): PaymentAllocation {
   return {
@@ -18,6 +19,7 @@ export function mapDbPayment(row: any, allocations: PaymentAllocation[] = []): P
     organizationId: row.organization_id,
     paymentNumber: row.payment_number,
     customerId: row.customer_id,
+    customer: row.customer ? mapDbCustomer(row.customer) : undefined,
     amount: Number(row.amount),
     paymentMethod: row.payment_method as PaymentMethod,
     referenceNumber: row.reference_number || undefined,
@@ -41,7 +43,7 @@ export const paymentsService = {
 
     const { data: dbPayments, error } = await supabase
       .from('payments')
-      .select('*, allocations:payment_allocations(*)')
+      .select('*, allocations:payment_allocations(*), customer:customers!fk_payments_customer_org(*)')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false });
 

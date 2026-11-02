@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useId } from 'react';
 import { X } from 'lucide-react';
+import { useDialog } from './useDialog';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -18,19 +19,9 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   maxWidth = 'lg',
 }) => {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useDialog(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -54,19 +45,23 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Dialog card */}
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className={`relative w-full ${maxWidths[maxWidth]} max-h-[90vh] flex flex-col rounded-2xl border border-border bg-surface-card shadow-modal transition-all z-10 my-4 animate-in fade-in zoom-in-95 duration-150`}
       >
         <div className="flex items-start justify-between p-5 sm:p-6 border-b border-border shrink-0">
           <div className="pr-4">
-            <h2 id="modal-title" className="text-lg font-semibold text-content-primary tracking-tight">
+            <h2 id={titleId} className="text-lg font-semibold text-content-primary tracking-tight">
               {title}
             </h2>
-            {description && <p className="text-xs text-content-secondary mt-1">{description}</p>}
+            {description && <p id={descriptionId} className="text-xs text-content-secondary mt-1">{description}</p>}
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-content-muted hover:bg-surface-muted hover:text-content-primary transition-colors focus-visible:ring-2 focus-visible:ring-atlas-500"
             aria-label="Close dialog"

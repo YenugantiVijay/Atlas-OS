@@ -68,6 +68,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   useEffect(() => {
+    setSearchQuery(searchParams.get('search') || '');
     loadCustomers();
     if (searchParams.get('action') === 'create') {
       handleOpenCreate();
@@ -136,7 +137,7 @@ export const CustomersPage: React.FC = () => {
             billingAddress: billingAddress.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
             creditLimit: parseFloat(creditLimit) || 0,
-            creditDays: parseInt(creditDays, 10) || 30,
+            creditDays: creditDays === '' ? 30 : Number(creditDays),
           },
           isMockAuth
         );
@@ -152,7 +153,7 @@ export const CustomersPage: React.FC = () => {
             billingAddress: billingAddress.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
             creditLimit: parseFloat(creditLimit) || 0,
-            creditDays: parseInt(creditDays, 10) || 30,
+            creditDays: creditDays === '' ? 30 : Number(creditDays),
             isActive: true,
           },
           isMockAuth

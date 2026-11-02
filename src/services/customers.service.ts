@@ -16,7 +16,7 @@ export function mapDbCustomer(row: any, currentReceivable: number = 0): Customer
     gstin: row.gstin || undefined,
     pan: row.pan || undefined,
     creditLimit: Number(row.credit_limit) || 0,
-    creditDays: Number(row.credit_days) || 30,
+    creditDays: Number(row.credit_days ?? 30),
     avatarUrl: undefined,
     isActive: Boolean(row.is_active),
     currentReceivable,
@@ -57,7 +57,7 @@ export const customersService = {
       .not('status', 'in', '("PAID","CANCELLED")');
 
     if (invErr) {
-      console.warn('Failed to load customer invoice receivables:', invErr.message);
+      throw new Error(`Failed to load customer receivables: ${invErr.message}`);
     }
 
     const receivableMap: Record<string, number> = {};
@@ -95,7 +95,7 @@ export const customersService = {
       gstin: input.gstin?.trim() || null,
       pan: input.pan?.trim() || null,
       credit_limit: input.creditLimit || 0,
-      credit_days: input.creditDays || 30,
+      credit_days: input.creditDays ?? 30,
       is_active: input.isActive ?? true,
     };
 

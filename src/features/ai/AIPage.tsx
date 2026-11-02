@@ -101,9 +101,19 @@ export const AIPage: React.FC = () => {
     const q = query.toLowerCase();
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    if (q.includes('valuation') || q.includes('inventory value')) {
+      const metrics = await dashboardService.getDashboardMetrics(orgId, isMockAuth);
+      return {
+        id: 'ai-' + Date.now(),
+        sender: 'assistant',
+        content: `**Inventory Valuation for ${currentOrg?.name}:**\n\n• **Total Stock Value at Purchase Cost:** ${formatCurrency(metrics.totalStockValue)}\n• **Active Products at or Below Reorder Threshold:** ${metrics.lowStockItemsCount}\n\nValuation is calculated from recorded stock quantities multiplied by product purchase costs.`,
+        timestamp,
+      };
+    }
+
     if (q.includes('stock') || q.includes('reorder') || q.includes('threshold') || q.includes('replenish')) {
       const products = await productsService.getProducts(orgId, isMockAuth);
-      const lowStock = products.filter((p) => (p.currentStock || 0) <= p.reorderThreshold);
+      const lowStock = products.filter((p) => p.isActive && (p.currentStock || 0) <= p.reorderThreshold);
 
       if (lowStock.length === 0) {
         return {

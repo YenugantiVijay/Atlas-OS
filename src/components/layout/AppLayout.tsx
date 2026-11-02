@@ -41,12 +41,18 @@ export const AppLayout: React.FC = () => {
     subscription,
     canWriteOperations,
     currentOrg,
+    currentUser,
+    currentRole,
     organizations,
     enterDemoMode,
     exitDemoMode,
     refreshOrgData,
     signOut,
   } = useOrg();
+
+  // Feature pages hold local state outside React Query. Remount them when the
+  // tenant/account changes so drafts, details and delayed responses cannot carry over.
+  const workspaceKey = `${isDemoMode ? 'demo' : 'cloud'}:${currentUser?.id}:${currentOrg?.id}:${currentRole}`;
 
   // Global keyboard shortcut: Ctrl+K / Cmd+K to toggle Command Palette
   useEffect(() => {
@@ -187,7 +193,7 @@ export const AppLayout: React.FC = () => {
             <div className="mb-5 p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="truncate">
+                <span>
                   <strong>Demo Sandbox:</strong> Changes are stored in browser local storage only and will not persist to the cloud.
                 </span>
               </div>
@@ -343,7 +349,7 @@ export const AppLayout: React.FC = () => {
               </div>
             </div>
           ) : (
-            <React.Suspense fallback={<RouteLoadingFallback />}>
+            <React.Suspense key={workspaceKey} fallback={<RouteLoadingFallback />}>
               <Outlet />
             </React.Suspense>
           )}
@@ -352,6 +358,7 @@ export const AppLayout: React.FC = () => {
 
       {/* Command Palette */}
       <CommandPalette
+        key={workspaceKey}
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onOpenQuickCreate={handleOpenQuickCreate}

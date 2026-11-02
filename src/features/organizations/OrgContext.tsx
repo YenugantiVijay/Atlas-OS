@@ -1089,7 +1089,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: updatedAuth.user.id,
       email: updatedAuth.user.email || '',
       fullName: updates.fullName || currentUser?.fullName || '',
-      avatarUrl: updates.avatarUrl || currentUser?.avatarUrl,
+      avatarUrl: updates.avatarUrl ?? currentUser?.avatarUrl,
     };
 
     setCurrentUser(updatedUser);

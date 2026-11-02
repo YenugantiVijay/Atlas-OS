@@ -50,7 +50,7 @@ export const dashboardService = {
 
     const todaySales = roundMoney(
       allOrders
-        .filter((o) => o.orderDate === todayStr && o.status !== 'CANCELLED')
+        .filter((o) => o.orderDate === todayStr && (o.status === 'CONFIRMED' || o.status === 'FULFILLED'))
         .reduce((sum, o) => sum + o.totalAmount, 0)
     );
 

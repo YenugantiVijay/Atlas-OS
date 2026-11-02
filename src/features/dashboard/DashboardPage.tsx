@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LoadError } from '@/components/ui/LoadError';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -34,18 +35,21 @@ export const DashboardPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     const fetchDashboardData = async () => {
       if (currentOrg) {
         setIsLoading(true);
+        setLoadError(null);
         try {
           const [metricsData, ordersData, invoicesData, productsData] = await Promise.all([
             dashboardService.getDashboardMetrics(currentOrg.id, isMockAuth),
-            ordersService.getSalesOrders(currentOrg.id, isMockAuth).catch(() => []),
-            invoicesService.getInvoices(currentOrg.id, isMockAuth).catch(() => []),
-            productsService.getProducts(currentOrg.id, isMockAuth).catch(() => []),
+            ordersService.getSalesOrders(currentOrg.id, isMockAuth),
+            invoicesService.getInvoices(currentOrg.id, isMockAuth),
+            productsService.getProducts(currentOrg.id, isMockAuth),
           ]);
 
           if (isMounted) {
@@ -55,7 +59,7 @@ export const DashboardPage: React.FC = () => {
             setProducts(productsData);
           }
         } catch (err) {
-          console.error('Failed to load dashboard data:', err);
+          if (isMounted) setLoadError(err instanceof Error ? err.message : 'Dashboard data could not be loaded.');
         } finally {
           if (isMounted) setIsLoading(false);
         }
@@ -65,7 +69,11 @@ export const DashboardPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentOrg, isMockAuth]);
+  }, [currentOrg, isMockAuth, retryCount]);
+
+  if (loadError) {
+    return <LoadError message={loadError} onRetry={() => setRetryCount((count) => count + 1)} />;
+  }
 
   if (isLoading || !metrics) {
     return (
@@ -107,7 +115,7 @@ export const DashboardPage: React.FC = () => {
               </span>
               <span className="text-xs text-slate-300 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                Verified Local Engine
+                {isMockAuth ? 'Demo workspace' : 'Cloud workspace'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">

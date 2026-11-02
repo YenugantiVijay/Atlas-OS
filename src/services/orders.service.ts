@@ -11,6 +11,7 @@ import {
 } from '@/types';
 import { calculateDocumentTotals, parseTaxRate } from '@/lib/money';
 import { withDocumentNumberRetry } from '@/services/numbering.service';
+import { mapDbCustomer } from './customers.service';
 
 export function mapDbSalesOrderItem(row: any): SalesOrderItem {
   return {
@@ -37,6 +38,7 @@ export function mapDbSalesOrder(row: any, items: SalesOrderItem[] = []): SalesOr
     organizationId: row.organization_id,
     orderNumber: row.order_number,
     customerId: row.customer_id,
+    customer: row.customer ? mapDbCustomer(row.customer) : undefined,
     quotationId: row.quotation_id || undefined,
     status: row.status as OrderStatus,
     orderDate: row.order_date,
@@ -80,6 +82,7 @@ export function mapDbQuotation(row: any, items: QuotationItem[] = []): Quotation
     organizationId: row.organization_id,
     quotationNumber: row.quotation_number,
     customerId: row.customer_id,
+    customer: row.customer ? mapDbCustomer(row.customer) : undefined,
     status: row.status as QuotationStatus,
     validUntil: row.valid_until,
     subtotal: Number(row.subtotal),
@@ -110,7 +113,7 @@ export const ordersService = {
 
     const { data: dbOrders, error: ordersErr } = await supabase
       .from('sales_orders')
-      .select('*, items:sales_order_items(*)')
+      .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false });
 
@@ -275,7 +278,7 @@ export const ordersService = {
 
     const { data: dbQuotations, error } = await supabase
       .from('quotations')
-      .select('*, items:quotation_items(*)')
+      .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false });
 

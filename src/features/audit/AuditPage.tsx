@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LoadError } from '@/components/ui/LoadError';
 import { Search, ShieldCheck } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { auditService } from '@/services/audit.service';
@@ -14,6 +15,8 @@ export const AuditPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -21,11 +24,12 @@ export const AuditPage: React.FC = () => {
     const fetchAudit = async () => {
       if (currentOrg) {
         setIsLoading(true);
+        setLoadError(null);
         try {
           const data = await auditService.getAuditEvents(currentOrg.id, isMockAuth);
           if (isMounted) setEvents(data);
         } catch (err) {
-          console.error('Failed to load audit events:', err);
+          if (isMounted) setLoadError(err instanceof Error ? err.message : 'Audit events could not be loaded.');
         } finally {
           if (isMounted) setIsLoading(false);
         }
@@ -35,7 +39,7 @@ export const AuditPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentOrg, isMockAuth]);
+  }, [currentOrg, isMockAuth, retryCount]);
 
   const filteredEvents = events.filter((e) => {
     const s = searchQuery.toLowerCase();
@@ -78,7 +82,7 @@ export const AuditPage: React.FC = () => {
       </Card>
 
       {/* Audit Log Table */}
-      {isLoading ? (
+      {loadError ? <LoadError message={loadError} onRetry={() => setRetryCount((count) => count + 1)} /> : isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-12 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />
