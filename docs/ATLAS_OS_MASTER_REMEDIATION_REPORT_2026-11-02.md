@@ -383,10 +383,10 @@ All database remediations are consolidated into migration:
 
 ---
 
-## J. CI FAILURE & DATABASE ACCEPTANCE REPAIR (PHASE 2 REMEDIATION)
+## J. CI FAILURE & DATABASE ACCEPTANCE REPAIR (PHASE 2 & PHASE 3 REMEDIATION)
 
 ### 1. Root Cause Analysis of CI / Test Harness Failures
-During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550989`, `41494541066`), multiple test-infrastructure and security-contract defects were identified:
+During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550989`, `41494541066`, `41507973454`, `41507965220`), multiple test-infrastructure and security-contract defects were identified and resolved:
 
 1. **Role "authenticated" Non-Existence:** The standard `postgres:15-alpine` container lacks Supabase-specific roles (`anon`, `authenticated`, `service_role`, `authenticator`). This was resolved in Step 1 bootstrap by provisioning genuine Supabase-compatible roles, schemas, privileges, and auth helper functions.
 2. **Enum Case Mismatch in Test Fixtures:** The test runner inserted `'APPROVED'` for `organization_eligibility.status`. Migration `013_business_eligibility_and_trials.sql` authoritatively defines:
@@ -395,19 +395,27 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
    ```
    PostgreSQL enforces case-sensitivity on enums, triggering error `invalid input value for enum eligibility_status_type: "APPROVED"`. Corrected to lowercase `'approved'`.
 3. **Column Drift in Organization Subscriptions Fixture:** The test runner inserted into `plan_code` and `current_period_end`. The authoritative schema in migration `013` defines `plan_tier` and `current_period_ends_at`. Corrected fixture to valid columns.
-4. **Distorted Idempotency Expectations:** The test runner incorrectly expected exceptions when re-confirming orders or re-converting quotations. Migration `024` intentionally implemented idempotent replay:
+4. **Missing Product Category in Fixtures (Runs 41507973454 / 41507965220):** Migration `002_products_customers_suppliers.sql` defines:
+   ```sql
+   category VARCHAR(100) NOT NULL,
+   ```
+   The acceptance test runner fixture omitted `category`, causing PostgreSQL error: `null value in column "category" of relation "products" violates not-null constraint` (SQLSTATE 23502). Corrected product fixtures to supply valid commercial categories (`'Wires & Cables'` and `'Switchgear'`).
+5. **Non-Existent Column in Cleanup Query:** The test cleanup executed `DELETE FROM payment_allocations WHERE organization_id IN (...)`. In migration `005`, `payment_allocations` does not have an `organization_id` column (it references `payment_id REFERENCES payments(id) ON DELETE CASCADE`). This caused the warning `Cleanup warning: column "organization_id" does not exist`. Corrected to delete via `payment_id` subquery.
+6. **Statutory Ledger Immutability & Ephemeral Test Database Isolation:** Invoices, stock movements, and payment records have strict database triggers preventing deletion (e.g. `trg_invoice_lifecycle` rejects `DELETE`). Attempting direct `DELETE` in a shared database violates financial regulations and conflicts with triggers.
+   The test runner was upgraded to provision an isolated, ephemeral test database (`atlas_test_<runId>`) for each run. At completion, `DROP DATABASE IF EXISTS <testDbName> WITH (FORCE)` completely disposes of all test data in milliseconds without needing to circumvent or disable statutory immutability triggers.
+7. **Distorted Idempotency Expectations:** The test runner incorrectly expected exceptions when re-confirming orders or re-converting quotations. Migration `024` intentionally implemented idempotent replay:
    - `confirm_sales_order` returns `{ success: true, idempotent_replay: true, order_id: ..., status: 'CONFIRMED' }` without double-deducting inventory.
    - `convert_quotation_atomic` returns the existing linked sales order with `{ idempotent_replay: true }` without creating duplicate records or sequences.
    Test runner assertions were updated to verify safe idempotent replay, unchanging stock balances, and single-document invariants.
-5. **Security Assumption Flaw in Migration 025 (Trigger Definer vs Invoker):** Migration `025` declared lifecycle triggers as `SECURITY DEFINER`. In PostgreSQL, inside a `SECURITY DEFINER` function, `CURRENT_USER` resolves to the function owner (`postgres`), never `'authenticated'`, `'anon'`, or `'public'`. Consequently, the check:
+8. **Security Assumption Flaw in Migration 025 (Trigger Definer vs Invoker):** Migration `025` declared lifecycle triggers as `SECURITY DEFINER`. In PostgreSQL, inside a `SECURITY DEFINER` function, `CURRENT_USER` resolves to the function owner (`postgres`), never `'authenticated'`, `'anon'`, or `'public'`. Consequently, the check:
    ```sql
    v_is_trusted := (current_setting('app.authoritative_order_transition', true) = 'true')
                    AND (CURRENT_USER NOT IN ('authenticated', 'anon', 'public'));
    ```
    always evaluated to `TRUE` if a caller set the session GUC, failing to distinguish client DML from RPC execution.
    Forward-only Migration `026_authoritative_lifecycle_invoker_triggers.sql` re-defines all lifecycle triggers as `SECURITY INVOKER`. Under `SECURITY INVOKER`, client statements run with `CURRENT_USER = 'authenticated'` (rejecting the GUC), while authoritative RPCs (`confirm_sales_order`, `create_invoice_atomic`) execute with `CURRENT_USER = 'postgres'`, correctly authorizing the transition.
-6. **Post-Migration Permission Distortion:** The previous test runner executed `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;` after all migrations ran. This wiped out explicit `REVOKE INSERT, UPDATE, DELETE` directives from migrations `013`, `017`, and `022`. The statement was removed; standard Supabase default privileges are now established during Step 1 bootstrap prior to migrations, ensuring explicit table revocations remain permanently in effect. Dedicated tests assert that direct mutations on `stock_movements`, `payments`, `payment_allocations`, and `organization_eligibility` fail with SQLSTATE `42501` (`insufficient_privilege`).
-7. **Test Database Safety & Clean Teardown:** Added pre-flight host validation refusing execution against remote or production databases (e.g. `*.supabase.co`), guaranteed strict non-zero exit on local DB unavailability, and implemented explicit FK-ordered cleanup in the `finally` block.
+9. **Post-Migration Permission Distortion:** The previous test runner executed `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;` after all migrations ran. This wiped out explicit `REVOKE INSERT, UPDATE, DELETE` directives from migrations `013`, `017`, and `022`. The statement was removed; standard Supabase default privileges are now established during Step 1 bootstrap prior to migrations, ensuring explicit table revocations remain permanently in effect. Dedicated tests assert that direct mutations on `stock_movements`, `payments`, `payment_allocations`, and `organization_eligibility` fail with SQLSTATE `42501` (`insufficient_privilege`).
+10. **Test Database Safety Guard:** Added pre-flight host validation refusing execution against remote or production databases (e.g. `*.supabase.co`), guaranteed strict non-zero exit on local DB unavailability, and ensured cleanup errors fail the suite loudly rather than being ignored.
 
 ---
 
@@ -419,7 +427,7 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
 |---|---|---|
 | `.github/workflows/ci.yml` | +24, -2 | Added PostgreSQL 15 service container and `test:db` CI step. |
 | `package.json` | +1, -0 | Added `"test:db": "node scripts/run_local_db_acceptance.mjs"`. |
-| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, Supabase bootstrap, lexical migration application (001-026), lowercase enums, schema alignment, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and FK-ordered cleanup. |
+| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, ephemeral test DB creation/drop, Supabase bootstrap, lexical migration application (001-026), lowercase enums, valid product category, schema-accurate columns, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and clean teardown. |
 | `src/features/ai/AIPage.tsx` | +36, -9 | Added tenant change reset `useEffect`, role gate on proposal approval, and IST overdue checks. |
 | `src/features/invoices/InvoicesPage.tsx` | +19, -6 | Added `.printable-tax-invoice` class, `.no-print` wrapper, and statutory Indian GST details. |
 | `src/features/orders/OrdersPage.tsx` | +13, -3 | Added IST date default and empty customer/product guards before opening modal. |
@@ -445,7 +453,7 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
 | `supabase/migrations/024_master_security_lifecycle_and_order_integrity.sql` | Consolidated forward-only migration containing all P0/P1 database triggers, RLS policies, and RPCs. |
 | `supabase/migrations/025_harden_authoritative_lifecycle_context.sql` | Initial forward-only migration defining lifecycle trust flags. |
 | `supabase/migrations/026_authoritative_lifecycle_invoker_triggers.sql` | Forward-only migration re-declaring lifecycle triggers as SECURITY INVOKER to accurately detect caller roles and prevent GUC spoofing. |
-| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 20 database security & lifecycle acceptance contracts under real restricted database roles (`authenticated`, `anon`). |
+| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 21 database security & lifecycle acceptance contracts under real restricted database roles (`authenticated`, `anon`). |
 | `src/lib/dates.ts` | Authoritative Indian Standard Time (`Asia/Kolkata`) date, offset, and aging library. |
 | `src/lib/dates.test.ts` | Unit tests verifying IST date calculations and overdue comparisons. |
 
