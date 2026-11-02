@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
+import { getBusinessDate } from '@/lib/dates';
 
 interface LineItemDraft {
   productId: string;
@@ -55,7 +56,7 @@ export const OrdersPage: React.FC = () => {
 
   // Form State
   const [customerId, setCustomerId] = useState('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(getBusinessDate());
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,8 +95,16 @@ export const OrdersPage: React.FC = () => {
       showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
       return;
     }
+    if (customers.length === 0) {
+      showToast('warning', 'No Customers Found', 'Please add at least one customer before creating a sales order.');
+      return;
+    }
+    if (products.length === 0) {
+      showToast('warning', 'No Products in Catalog', 'Please add at least one product before creating a sales order.');
+      return;
+    }
     setCustomerId(customers[0]?.id || '');
-    setOrderDate(new Date().toISOString().split('T')[0]);
+    setOrderDate(getBusinessDate());
     setNotes('');
 
     if (products.length > 0) {

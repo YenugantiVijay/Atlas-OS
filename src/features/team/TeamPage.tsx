@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
   Lock,
@@ -8,6 +8,7 @@ import {
   Edit2,
   Check,
   X,
+  Users,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { teamService } from '@/services/team.service';
@@ -20,6 +21,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { getRoleBadgeVariant } from '@/lib/permissions';
 
@@ -33,9 +35,11 @@ function getInitials(name: string): string {
 const ROLES: Role[] = ['owner', 'admin', 'sales', 'inventory', 'accounts', 'viewer'];
 
 export const TeamPage: React.FC = () => {
-  const { currentOrg, currentRole, currentUser, isMockAuth, isDemoMode, memberships, refreshOrgData } = useOrg();
+  const { currentOrg, currentRole, currentUser, isMockAuth, isDemoMode, refreshOrgData } = useOrg();
   const { showToast } = useToast();
 
+  const [teamMembers, setTeamMembers] = useState<Membership[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
@@ -48,6 +52,23 @@ export const TeamPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<Role>('sales');
 
   const isOwner = currentRole === 'owner';
+
+  const loadMembers = useCallback(async () => {
+    if (!currentOrg) return;
+    setIsLoadingMembers(true);
+    try {
+      const list = await teamService.getMembers(currentOrg.id, isMockAuth);
+      setTeamMembers(list);
+    } catch (err: any) {
+      showToast('error', 'Failed to load team members', err.message);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }, [currentOrg, isMockAuth, showToast]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +102,7 @@ export const TeamPage: React.FC = () => {
       setEmail('');
       setFullName('');
       setAvatarUrl('');
+      await loadMembers();
       await refreshOrgData();
     } catch (err: any) {
       showToast('error', 'Invite Failed', err.message);
@@ -92,7 +114,7 @@ export const TeamPage: React.FC = () => {
   const handleUpdateRole = async (member: Membership) => {
     if (!currentOrg) return;
     if (member.role === 'owner' && selectedRole !== 'owner') {
-      const activeOwners = memberships.filter((m) => m.role === 'owner' && m.isActive);
+      const activeOwners = teamMembers.filter((m) => m.role === 'owner' && m.isActive);
       if (activeOwners.length <= 1) {
         showToast('error', 'Operation Blocked', 'Cannot demote the sole active owner of the organization.');
         return;
@@ -109,6 +131,7 @@ export const TeamPage: React.FC = () => {
       );
       showToast('success', 'Role Updated', `Updated role to ${selectedRole} for member.`);
       setEditingMemberId(null);
+      await loadMembers();
       await refreshOrgData();
     } catch (err: any) {
       showToast('error', 'Role Update Failed', err.message);
@@ -122,7 +145,7 @@ export const TeamPage: React.FC = () => {
       return;
     }
     if (member.role === 'owner' && member.isActive) {
-      const activeOwners = memberships.filter((m) => m.role === 'owner' && m.isActive);
+      const activeOwners = teamMembers.filter((m) => m.role === 'owner' && m.isActive);
       if (activeOwners.length <= 1) {
         showToast('error', 'Operation Blocked', 'Cannot deactivate the sole active owner of the organization.');
         return;
@@ -142,6 +165,7 @@ export const TeamPage: React.FC = () => {
         member.isActive ? 'Member Deactivated' : 'Member Activated',
         `Membership status updated.`
       );
+      await loadMembers();
       await refreshOrgData();
     } catch (err: any) {
       showToast('error', 'Status Change Failed', err.message);
@@ -202,8 +226,38 @@ export const TeamPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {memberships.map((m) => {
-              const isEditing = editingMemberId === m.id;
+            {isLoadingMembers ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                  {isOwner && <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>}
+                </TableRow>
+              ))
+            ) : teamMembers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={isOwner ? 6 : 5} className="py-12 text-center text-content-secondary">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Users className="w-8 h-8 text-content-muted" />
+                    <p className="font-medium text-sm">No team members found</p>
+                    <p className="text-xs text-content-muted">Add or invite members to manage access across your organization.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              teamMembers.map((m) => {
+                const isEditing = editingMemberId === m.id;
 
               return (
                 <TableRow key={m.id}>
@@ -321,7 +375,7 @@ export const TeamPage: React.FC = () => {
                   )}
                 </TableRow>
               );
-            })}
+            }))}
           </TableBody>
         </Table>
       </Card>

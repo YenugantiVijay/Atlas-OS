@@ -52,19 +52,32 @@ export const productsService = {
       return [];
     }
 
-    // 2. Fetch stock aggregations from stock_movements ledger
-    const { data: movements, error: movErr } = await supabase
-      .from('stock_movements')
-      .select('product_id, quantity_change')
-      .eq('organization_id', orgId);
-
+    // 2. Fetch authoritative stock aggregations from database RPC
     const stockMap: Record<string, number> = {};
-    if (!movErr && movements) {
-      for (const m of movements) {
-        stockMap[m.product_id] = (stockMap[m.product_id] || 0) + Number(m.quantity_change);
+    const { data: stockLevels, error: stockErr } = await supabase.rpc('get_product_stock_levels', {
+      p_org_id: orgId,
+    });
+
+    if (!stockErr && stockLevels) {
+      for (const item of (stockLevels as Array<{ product_id: string; current_stock: number }>)) {
+        stockMap[item.product_id] = Number(item.current_stock) || 0;
       }
-    } else if (movErr) {
-      throw new Error(`Failed to load stock totals: ${movErr.message}`);
+    } else {
+      // Fallback if RPC is not yet deployed
+      const { data: movements, error: movementsErr } = await supabase
+        .from('stock_movements')
+        .select('product_id, quantity_change')
+        .eq('organization_id', orgId);
+
+      if (movementsErr) {
+        throw new Error('Failed to load stock totals: ' + movementsErr.message);
+      }
+
+      if (movements) {
+        for (const m of movements) {
+          stockMap[m.product_id] = (stockMap[m.product_id] || 0) + Number(m.quantity_change);
+        }
+      }
     }
 
     return dbProducts.map((row) => mapDbProduct(row, stockMap[row.id] || 0));
@@ -101,6 +114,7 @@ export const productsService = {
       p_is_active: input.isActive ?? true,
       p_opening_stock: openingStock || 0,
       p_notes: 'Initial opening stock',
+      p_image_url: input.imageUrl || null,
     });
 
     if (error) {
@@ -137,6 +151,7 @@ export const productsService = {
     if (updates.hsnCode !== undefined) payload.hsn_code = updates.hsnCode?.trim() || null;
     if (updates.reorderThreshold !== undefined) payload.reorder_threshold = updates.reorderThreshold;
     if (updates.isActive !== undefined) payload.is_active = updates.isActive;
+    if (updates.imageUrl !== undefined) payload.image_url = updates.imageUrl || null;
 
     const { data, error } = await supabase
       .from('products')

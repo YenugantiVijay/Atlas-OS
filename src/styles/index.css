@@ -55,3 +55,80 @@
     border: 1px solid #E2E8F0;
   }
 }
+
+/* Statutory GST Tax Invoice Print Styles (A4 Compliant) */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  /* Suppress interactive app navigation, sidebar, controls, buttons, toast alerts and backdrop overlays */
+  header,
+  nav,
+  aside,
+  button,
+  .no-print,
+  [role="dialog"] > div:first-child,
+  [data-radix-portal] > div:first-child {
+    display: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Expand modal viewport to full page without clipping or scrollbars */
+  [role="dialog"],
+  [role="dialog"] > div,
+  .modal-container {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Target invoice card for crisp A4 rendering */
+  .printable-tax-invoice {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    page-break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .printable-tax-invoice table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  .printable-tax-invoice tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .printable-tax-invoice th,
+  .printable-tax-invoice td {
+    border-color: #cbd5e1 !important;
+    padding: 4px 6px !important;
+  }
+}

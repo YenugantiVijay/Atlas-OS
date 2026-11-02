@@ -9,15 +9,19 @@ export interface SupabaseConfigStatus {
 }
 
 export interface SupabaseVerificationResult {
+  configPresent: boolean;
   clientInitialized: boolean;
+  networkRequestSuccessful: boolean;
   authEndpointReachable: boolean;
-  status: 'configured_and_reachable' | 'auth_error' | 'network_error' | 'unconfigured';
+  databaseQuerySuccessful: boolean;
+  databaseAuthorizationSuccessful: boolean;
+  status: 'configured_and_reachable' | 'auth_error' | 'network_error' | 'unconfigured' | 'service_unavailable' | 'unknown';
   message: string;
   latencyMs?: number;
   projectUrl?: string;
   authSessionPresent: boolean;
   details?: string;
-  databaseTablesVerified: false; // Explicit: Auth endpoint ping does not verify database tables or RLS policies
+  databaseTablesVerified: false; // Explicit: Auth endpoint ping does not verify full schema or all RLS policies
 }
 
 /**
@@ -260,8 +264,12 @@ export async function verifySupabaseConnection(): Promise<SupabaseVerificationRe
 
   if (!validation.valid || !validation.url) {
     return {
+      configPresent: false,
       clientInitialized: false,
+      networkRequestSuccessful: false,
       authEndpointReachable: false,
+      databaseQuerySuccessful: false,
+      databaseAuthorizationSuccessful: false,
       status: 'unconfigured',
       message: validation.error || 'Supabase is not configured in .env.local.',
       authSessionPresent: false,
@@ -272,8 +280,12 @@ export async function verifySupabaseConnection(): Promise<SupabaseVerificationRe
   const client = clientInstance;
   if (!client) {
     return {
+      configPresent: true,
       clientInitialized: false,
+      networkRequestSuccessful: false,
       authEndpointReachable: false,
+      databaseQuerySuccessful: false,
+      databaseAuthorizationSuccessful: false,
       status: 'unconfigured',
       message: 'Supabase client instance is null despite passing configuration validation.',
       authSessionPresent: false,
@@ -283,34 +295,93 @@ export async function verifySupabaseConnection(): Promise<SupabaseVerificationRe
 
   const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
+  let networkSuccessful = false;
+  let authReachable = false;
+  let dbQuerySuccessful = false;
+  let dbAuthSuccessful = false;
+  let sessionPresent = false;
+
   try {
-    const { data, error } = await client.auth.getSession();
+    // 1. Session check from storage
+    const { data: sessionData } = await client.auth.getSession();
+    sessionPresent = Boolean(sessionData?.session);
+
+    // 2. Real fresh network probe to remote server to prevent local-storage false positives
+    if (typeof fetch === 'function') {
+      try {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 1200) : null;
+        const res = await fetch(`${validation.url}/auth/v1/health`, {
+          method: 'GET',
+          headers: { apikey: validation.key || '' },
+          signal: controller?.signal,
+        });
+        if (timeoutId) clearTimeout(timeoutId);
+        networkSuccessful = true;
+        authReachable = res.ok || res.status < 500;
+      } catch {
+        networkSuccessful = false;
+        authReachable = false;
+      }
+    }
+
+    // 3. Database query probe with tight timeout
+    try {
+      const dbPromise = client
+        .from('organizations')
+        .select('id')
+        .limit(1);
+
+      const dbTimeout = new Promise<{ error: any }>((resolve) =>
+        setTimeout(() => resolve({ error: new Error('Query timed out') }), 1200)
+      );
+
+      const { error: dbErr } = await Promise.race([dbPromise, dbTimeout]);
+
+      if (!dbErr) {
+        dbQuerySuccessful = true;
+        dbAuthSuccessful = true;
+      } else if (dbErr.code === 'PGRST301' || dbErr.message?.toLowerCase().includes('jwt')) {
+        dbQuerySuccessful = true;
+        dbAuthSuccessful = false; // Query reached PostgREST, but caller is unauthenticated
+      }
+    } catch {
+      // Database network unreachable
+    }
+
     const endTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const latencyMs = Math.round(endTime - startTime);
 
-    if (error) {
+    if (!networkSuccessful && !dbQuerySuccessful) {
       return {
+        configPresent: true,
         clientInitialized: true,
+        networkRequestSuccessful: false,
         authEndpointReachable: false,
-        status: 'auth_error',
-        message: `Supabase Auth endpoint returned an error: ${error.message}`,
+        databaseQuerySuccessful: false,
+        databaseAuthorizationSuccessful: false,
+        status: 'network_error',
+        message: 'Network probe failed: remote Supabase endpoint is unreachable from this client.',
         latencyMs,
         projectUrl: validation.url,
-        authSessionPresent: false,
-        details: error.status ? `HTTP status: ${error.status}` : undefined,
+        authSessionPresent: sessionPresent,
         databaseTablesVerified: false,
       };
     }
 
     return {
+      configPresent: true,
       clientInitialized: true,
-      authEndpointReachable: true,
-      status: 'configured_and_reachable',
+      networkRequestSuccessful: true,
+      authEndpointReachable: authReachable,
+      databaseQuerySuccessful: dbQuerySuccessful,
+      databaseAuthorizationSuccessful: dbAuthSuccessful,
+      status: authReachable || dbQuerySuccessful ? 'configured_and_reachable' : 'service_unavailable',
       message:
-        'Supabase client initialized successfully and Auth endpoint is reachable. (Database tables and RLS policies are not verified by this check).',
+        'Supabase client initialized, remote network probe succeeded, and services are reachable. (Database tables and RLS policies are not verified by this check).',
       latencyMs,
       projectUrl: validation.url,
-      authSessionPresent: Boolean(data?.session),
+      authSessionPresent: sessionPresent,
       databaseTablesVerified: false,
     };
   } catch (err: unknown) {
@@ -319,13 +390,17 @@ export async function verifySupabaseConnection(): Promise<SupabaseVerificationRe
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     return {
+      configPresent: true,
       clientInitialized: true,
+      networkRequestSuccessful: false,
       authEndpointReachable: false,
+      databaseQuerySuccessful: false,
+      databaseAuthorizationSuccessful: false,
       status: 'network_error',
       message: `Network error while reaching Supabase Auth endpoint: ${errorMessage}`,
       latencyMs,
       projectUrl: validation.url,
-      authSessionPresent: false,
+      authSessionPresent: sessionPresent,
       databaseTablesVerified: false,
     };
   }

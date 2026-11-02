@@ -72,6 +72,7 @@ export const paymentsService = {
       referenceNumber?: string;
       paymentDate: string;
       notes?: string;
+      idempotencyKey?: string;
     },
     isMockAuth: boolean = false,
     userRole?: Role | null
@@ -84,7 +85,9 @@ export const paymentsService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    // Call remote transactional RPC
+    const idempotencyKey = input.idempotencyKey || crypto.randomUUID();
+
+    // Call remote transactional RPC with stable request-level idempotency key
     const { data: rpcRes, error: rpcErr } = await supabase.rpc(
       'record_payment_and_allocate',
       {
@@ -97,6 +100,7 @@ export const paymentsService = {
         p_notes: input.notes?.trim() || null,
         p_invoice_id: input.invoiceId || null,
         p_allocated_amount: input.invoiceId ? input.amount : null,
+        p_idempotency_key: idempotencyKey,
       }
     );
 

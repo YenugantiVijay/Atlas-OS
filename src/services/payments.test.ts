@@ -283,6 +283,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         p_notes: 'Partial settlement',
         p_invoice_id: invoiceId,
         p_allocated_amount: 750,
+        p_idempotency_key: expect.any(String),
       });
 
       // Verify confirmation fetch
@@ -347,6 +348,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         p_notes: null,
         p_invoice_id: null,
         p_allocated_amount: null,
+        p_idempotency_key: expect.any(String),
       });
     });
 

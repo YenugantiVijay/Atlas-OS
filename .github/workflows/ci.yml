@@ -2,13 +2,28 @@ name: ATLAS OS CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, Vijay-Atlas ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, Vijay-Atlas ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout Repository
@@ -25,6 +40,11 @@ jobs:
 
       - name: TypeScript Type Check
         run: npm run typecheck
+
+      - name: Run Master Database Lifecycle & Security Acceptance
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/postgres
+        run: npm run test:db
 
       - name: Run Unit & Integration Tests (Vitest)
         run: npm test -- --run

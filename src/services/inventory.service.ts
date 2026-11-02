@@ -25,7 +25,8 @@ export const inventoryService = {
   async getStockMovements(
     orgId: string,
     productId?: string,
-    isMockAuth: boolean = false
+    isMockAuth: boolean = false,
+    pagination?: { page?: number; pageSize?: number }
   ): Promise<StockMovement[]> {
     if (isMockAuth) {
       return storage.getStockMovements(orgId);
@@ -43,6 +44,14 @@ export const inventoryService = {
 
     if (productId && productId !== 'ALL') {
       query = query.eq('product_id', productId);
+    }
+
+    if (pagination?.page && pagination?.pageSize) {
+      const from = (pagination.page - 1) * pagination.pageSize;
+      const to = from + pagination.pageSize - 1;
+      query = query.range(from, to);
+    } else {
+      query = query.limit(100);
     }
 
     const { data, error } = await query;

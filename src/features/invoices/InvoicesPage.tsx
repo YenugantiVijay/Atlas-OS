@@ -199,18 +199,24 @@ export const InvoicesPage: React.FC = () => {
           description="GST Commercial Tax Invoice & Delivery Dispatch Snapshot"
           maxWidth="3xl"
         >
-          <div className="p-4 border border-border rounded-xl bg-surface-card space-y-5 text-xs text-content-primary">
+          <div className="printable-tax-invoice p-4 border border-border rounded-xl bg-surface-card space-y-5 text-xs text-content-primary">
             {/* Header / Distributor info */}
             <div className="flex justify-between items-start border-b border-border pb-4">
               <div>
-                <h3 className="text-base font-bold text-content-primary">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase font-extrabold tracking-wider bg-atlas-100 text-atlas-800 px-2 py-0.5 rounded border border-atlas-200">
+                    TAX INVOICE
+                  </span>
+                  <span className="text-xs text-content-muted font-mono">(Original for Recipient)</span>
+                </div>
+                <h3 className="text-base font-bold text-content-primary mt-2">
                   {currentOrg?.legalName || currentOrg?.name}
                 </h3>
                 <div className="text-content-secondary text-xs mt-0.5">
                   {currentOrg?.addressLine1}, {currentOrg?.city}, {currentOrg?.state} - {currentOrg?.pincode}
                 </div>
                 <div className="text-content-secondary text-xs font-mono mt-0.5">
-                  GSTIN: {currentOrg?.gstin || '29ABCDE1234F1Z5'} • Phone: {currentOrg?.phone}
+                  GSTIN: {currentOrg?.gstin || '29ABCDE1234F1Z5'} • State: {currentOrg?.state || 'Karnataka'} • Phone: {currentOrg?.phone}
                 </div>
               </div>
 
@@ -219,10 +225,13 @@ export const InvoicesPage: React.FC = () => {
                   {selectedInvoice.invoiceNumber}
                 </span>
                 <div className="text-content-secondary text-xs mt-0.5">
-                  Date: <span className="font-mono">{selectedInvoice.invoiceDate}</span>
+                  Invoice Date: <span className="font-mono font-semibold">{selectedInvoice.invoiceDate}</span>
                 </div>
                 <div className="text-content-secondary text-xs">
                   Payment Due: <span className="font-mono">{selectedInvoice.dueDate}</span>
+                </div>
+                <div className="text-content-secondary text-xs mt-1">
+                  Place of Supply: <span className="font-semibold text-content-primary">{selectedInvoice.customer?.billingAddress ? selectedInvoice.customer.billingAddress.split(',').pop()?.trim() : currentOrg?.state || 'State of Supply'}</span>
                 </div>
               </div>
             </div>
@@ -341,7 +350,7 @@ export const InvoicesPage: React.FC = () => {
               })()}
 
             {/* Print & Close */}
-            <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
+            <div className="no-print flex justify-end gap-2.5 pt-4 border-t border-border">
               <Button variant="outline" onClick={() => setSelectedInvoice(null)}>
                 Close
               </Button>

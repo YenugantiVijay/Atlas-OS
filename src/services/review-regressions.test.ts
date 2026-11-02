@@ -6,8 +6,8 @@ import { invoicesService } from './invoices.service';
 import { paymentsService } from './payments.service';
 import { storage } from '@/lib/storage';
 
-const { from } = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock('@/lib/supabase', () => ({ supabase: { from } }));
+const { from, rpc } = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
+vi.mock('@/lib/supabase', () => ({ supabase: { from, rpc } }));
 
 function queryResult(data: unknown, error: { message: string } | null = null) {
   const result = { data, error };
@@ -41,8 +41,9 @@ describe('Review: truthful cloud reads', () => {
 
   it('does not turn a stock ledger failure into zero available stock', async () => {
     from.mockImplementation((table: string) => table === 'products'
-      ? queryResult([{ id: 'product-1' }])
+      ? queryResult([{ id: 'product-1', organization_id: 'org-1' }])
       : queryResult(null, { message: 'Ledger unavailable' }));
+    rpc.mockResolvedValue({ data: null, error: { message: 'RPC unavailable' } });
     await expect(productsService.getProducts('org-1')).rejects.toThrow('Failed to load stock totals');
   });
 
