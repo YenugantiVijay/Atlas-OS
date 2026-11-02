@@ -5,12 +5,13 @@
  * 1. Connects as administrative superuser to disposable PostgreSQL instance.
  * 2. Bootstraps complete Supabase-compatible roles (anon, authenticated, service_role, authenticator),
  *    schemas (auth, extensions, public), privileges, and auth helper functions (auth.uid, auth.role, auth.jwt).
- * 3. Applies forward-only migrations 001 through 025 in strict lexical order with ON_ERROR_STOP=1.
- * 4. Seeds isolated multi-tenant test fixtures with genuine auth identities and roles.
+ * 3. Applies forward-only migrations 001 through 026 in strict lexical order with ON_ERROR_STOP=1.
+ * 4. Seeds isolated multi-tenant test fixtures with genuine auth identities and valid schema attributes.
  * 5. Executes P0/P1 security and lifecycle contracts under REAL RESTRICTED DATABASE ROLES (SET ROLE authenticated / anon).
- * 6. Tests lifecycle trust flags against spoofing attempts by authenticated database roles.
- * 7. Verifies authoritative RPC contracts (confirm_sales_order, create_invoice_atomic, convert_quotation_atomic, record_payment_and_allocate).
- * 8. Guarantees complete cleanup in all execution paths and exits non-zero on any failure.
+ * 6. Tests lifecycle trust flags against spoofing attempts by authenticated database roles (Migration 026 invoker triggers).
+ * 7. Verifies authoritative RPC contracts and idempotent replays (confirm_sales_order, create_invoice_atomic, convert_quotation_atomic, record_payment_and_allocate).
+ * 8. Asserts table-level DML revocations (stock_movements, payments, etc.) are genuinely enforced without post-migration distortion.
+ * 9. Guarantees complete FK-ordered cleanup in all execution paths and exits non-zero on any failure or local DB unavailability.
  */
 
 import fs from 'fs';
@@ -42,6 +43,35 @@ function recordTest(id, name, passed, details, error = null) {
   if (!passed && error) {
     console.error(`       Error:   ${error.message || error}`);
     if (error.code) console.error(`       SQLSTATE: ${error.code}`);
+  }
+}
+
+/**
+ * Validates that DATABASE_URL points to a disposable local test database.
+ * Strictly prevents running acceptance scripts against remote or production environments.
+ */
+function assertDisposableDatabase(urlStr) {
+  let parsed;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    throw new Error(`Invalid DATABASE_URL format: ${urlStr.replace(/:([^:@]+)@/, ':****@')}`);
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const isLocal = ['localhost', '127.0.0.1', '::1', 'postgres'].includes(hostname) || hostname.endsWith('.local');
+  const isRemote =
+    hostname.includes('supabase.co') ||
+    hostname.includes('amazonaws.com') ||
+    hostname.includes('rds.') ||
+    hostname.includes('prod') ||
+    hostname.includes('production') ||
+    !isLocal;
+
+  if (isRemote) {
+    throw new Error(
+      `🚨 SAFETY VIOLATION: Acceptance tests must only run on a disposable local database. Detected remote/production-like host: "${hostname}"`
+    );
   }
 }
 
@@ -102,6 +132,9 @@ async function runAcceptance() {
   console.log(`Target:    ${DATABASE_URL.replace(/:([^:@]+)@/, ':****@')}`);
   console.log('='.repeat(80));
 
+  // Enforce disposable database safety pre-flight
+  assertDisposableDatabase(DATABASE_URL);
+
   const adminClient = new Client({
     connectionString: DATABASE_URL,
     connectionTimeoutMillis: 5000,
@@ -116,15 +149,9 @@ async function runAcceptance() {
     console.error('\nEnvironment Diagnostic:');
     console.error('   A running PostgreSQL instance is required to execute live database acceptance tests.');
     console.error('   - In CI (GitHub Actions): Postgres service container is automatically provisioned.');
-    console.error('   - In local development: start postgres and provide DATABASE_URL.');
-
-    if (process.env.CI) {
-      console.error('\n❌ Failing CI step because database connection is required.');
-      process.exit(1);
-    } else {
-      console.warn('\n⚠️  Skipping database execution due to local environment without active postgres daemon.');
-      process.exit(0);
-    }
+    console.error('   - In local development: start postgres (e.g. docker run -p 5432:5432 ...) and provide DATABASE_URL.');
+    console.error('\n❌ Exiting non-zero because live database acceptance testing could not proceed.');
+    process.exit(1);
   }
 
   const runId = 'sec_' + crypto.randomBytes(4).toString('hex');
@@ -185,7 +212,11 @@ async function runAcceptance() {
       GRANT ALL ON SCHEMA public TO postgres, service_role;
       GRANT ALL ON SCHEMA auth TO postgres, service_role;
 
-      -- 5. Default privileges for future tables and sequences
+      -- 5. Standard Supabase Default privileges for future tables, sequences and functions
+      -- Establishes standard table grants before migrations run so that subsequent
+      -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role, authenticated;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role, authenticated;
@@ -229,9 +260,9 @@ async function runAcceptance() {
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 025 in Strict Lexical Order
+    // Step 2: Apply Migrations 001 - 026 in Strict Lexical Order
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 025)...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 026)...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
@@ -250,10 +281,8 @@ async function runAcceptance() {
       }
     }
 
-    // Grant DML privileges on newly created public tables to authenticated role for RLS evaluation
+    // Ensure sequences are usable by authenticated role (without altering table-level permissions)
     await adminClient.query(`
-      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
-      GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
     `);
 
@@ -275,11 +304,13 @@ async function runAcceptance() {
       ('${orgAId}', '${userAId}', 'owner', true),
       ('${orgBId}', '${userBId}', 'owner', true);
 
+      -- Valid eligibility fixture using authoritative lowercase enum 'approved' (Migration 013)
       INSERT INTO organization_eligibility (organization_id, business_category, sells_electrical_products, status, declared_by) VALUES
-      ('${orgAId}', 'electrical_retail', true, 'APPROVED', '${userAId}'),
-      ('${orgBId}', 'electrical_retail', true, 'APPROVED', '${userBId}');
+      ('${orgAId}', 'electrical_retail', true, 'approved', '${userAId}'),
+      ('${orgBId}', 'electrical_retail', true, 'approved', '${userBId}');
 
-      INSERT INTO organization_subscriptions (organization_id, plan_code, status, current_period_end) VALUES
+      -- Valid subscription fixture matching authoritative schema: plan_tier, status, current_period_ends_at
+      INSERT INTO organization_subscriptions (organization_id, plan_tier, status, current_period_ends_at) VALUES
       ('${orgAId}', 'pro', 'active', now() + interval '30 days'),
       ('${orgBId}', 'pro', 'active', now() + interval '30 days');
 
@@ -298,10 +329,97 @@ async function runAcceptance() {
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
 
     // ------------------------------------------------------------------------
-    // Step 4: Security Assertions — Restricted Roles
+    // Step 4: Security Assertions — Restricted Roles & Lifecycle Boundaries
     // ------------------------------------------------------------------------
     console.log('--- EXECUTING AUTHENTICATED SECURITY & LIFECYCLE TESTS ---\n');
 
+    // TEST GROUP 1: Table-Level Privilege Revocations (Migration 013, 017, 022)
+    // Direct DML mutations must be rejected with SQLSTATE 42501 (insufficient_privilege)
+    await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
+      let stockMovementBlocked = false;
+      let stockMovementErr = null;
+      try {
+        await adminClient.query(`
+          INSERT INTO stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+          VALUES ('${orgAId}', '${prodA1Id}', 10, 'PURCHASE_RECEIPT', 'Bypass attempt');
+        `);
+      } catch (err) {
+        stockMovementErr = err;
+        stockMovementBlocked = err.code === '42501' || err.message.includes('permission denied');
+      }
+      recordTest(
+        'P0-SEC-REVOKE-01',
+        'Direct INSERT on stock_movements is rejected by table-level revocation (SQLSTATE 42501)',
+        stockMovementBlocked,
+        `Migration 022 revokes direct mutations; caught SQLSTATE ${stockMovementErr?.code}`,
+        stockMovementBlocked ? null : stockMovementErr
+      );
+    });
+
+    await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
+      let paymentsBlocked = false;
+      let paymentsErr = null;
+      try {
+        await adminClient.query(`
+          INSERT INTO payments (organization_id, customer_id, payment_number, amount, payment_method, payment_date)
+          VALUES ('${orgAId}', '${custAId}', 'PAY-BYPASS-01', 500.00, 'CASH', '2026-11-02');
+        `);
+      } catch (err) {
+        paymentsErr = err;
+        paymentsBlocked = err.code === '42501' || err.message.includes('permission denied');
+      }
+      recordTest(
+        'P0-SEC-REVOKE-02',
+        'Direct INSERT on payments is rejected by table-level revocation (SQLSTATE 42501)',
+        paymentsBlocked,
+        `Migration 017 revokes direct mutations; caught SQLSTATE ${paymentsErr?.code}`,
+        paymentsBlocked ? null : paymentsErr
+      );
+    });
+
+    await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
+      let allocBlocked = false;
+      let allocErr = null;
+      try {
+        await adminClient.query(`
+          INSERT INTO payment_allocations (organization_id, payment_id, invoice_id, allocated_amount)
+          VALUES ('${orgAId}', '${crypto.randomUUID()}', '${crypto.randomUUID()}', 100.00);
+        `);
+      } catch (err) {
+        allocErr = err;
+        allocBlocked = err.code === '42501' || err.message.includes('permission denied');
+      }
+      recordTest(
+        'P0-SEC-REVOKE-03',
+        'Direct INSERT on payment_allocations is rejected by table-level revocation (SQLSTATE 42501)',
+        allocBlocked,
+        `Migration 017 revokes direct mutations; caught SQLSTATE ${allocErr?.code}`,
+        allocBlocked ? null : allocErr
+      );
+    });
+
+    await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
+      let eligBlocked = false;
+      let eligErr = null;
+      try {
+        await adminClient.query(`
+          INSERT INTO organization_eligibility (organization_id, business_category, status, declared_by)
+          VALUES ('${crypto.randomUUID()}', 'electrical_retail', 'approved', '${userAId}');
+        `);
+      } catch (err) {
+        eligErr = err;
+        eligBlocked = err.code === '42501' || err.message.includes('permission denied');
+      }
+      recordTest(
+        'P0-SEC-REVOKE-04',
+        'Direct INSERT on organization_eligibility is rejected by table-level revocation (SQLSTATE 42501)',
+        eligBlocked,
+        `Migration 013 revokes direct mutations; caught SQLSTATE ${eligErr?.code}`,
+        eligBlocked ? null : eligErr
+      );
+    });
+
+    // TEST GROUP 2: Sales Order Direct Insertion & Transition Boundary
     // TEST 1: Direct insert of CONFIRMED sales order under authenticated role is blocked
     await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
@@ -313,15 +431,20 @@ async function runAcceptance() {
         `);
       } catch (err) {
         caughtErr = err;
-        // Blocked either by RLS check clause (status = 'DRAFT') or by trigger
+        // Blocked either by RLS check clause (status = 'DRAFT') or by trigger (SQLSTATE 23514 / 42501)
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
+
+      // Assert no row was inserted into sales_orders
+      const { rows: verifyNoRow } = await adminClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-01';`);
+      const zeroInserted = verifyNoRow.length === 0;
+
       recordTest(
         'P0-SO-01',
         'Direct insert of CONFIRMED sales order as authenticated role is rejected',
-        blocked,
-        `Enforced by RLS policy sales_orders_insert / trigger (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        blocked && zeroInserted,
+        `Enforced by RLS policy sales_orders_insert and trigger (SQLSTATE ${caughtErr?.code})`,
+        blocked && zeroInserted ? null : caughtErr
       );
     });
 
@@ -338,12 +461,16 @@ async function runAcceptance() {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
+
+      const { rows: verifyNoRow } = await adminClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-02';`);
+      const zeroInserted = verifyNoRow.length === 0;
+
       recordTest(
         'P0-SO-02',
         'Direct insert of FULFILLED sales order as authenticated role is rejected',
-        blocked,
-        `Enforced by RLS policy sales_orders_insert / trigger (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        blocked && zeroInserted,
+        `Enforced by RLS policy sales_orders_insert and trigger (SQLSTATE ${caughtErr?.code})`,
+        blocked && zeroInserted ? null : caughtErr
       );
     });
 
@@ -380,24 +507,29 @@ async function runAcceptance() {
       );
     });
 
-    // TEST 4: Attempted GUC trust flag manipulation by authenticated role is rejected
+    // TEST 4: Attempted GUC trust flag manipulation by authenticated role is rejected (Migration 026)
     await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        // Attacker sets GUC in their own session and tries direct update
+        // Attacker sets session GUC and attempts direct update
         await adminClient.query(`SELECT set_config('app.authoritative_order_transition', 'true', false);`);
         await adminClient.query(`UPDATE sales_orders SET status = 'CONFIRMED' WHERE id = '${draftOrderId}';`);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited');
       }
+
+      // Assert database order status is still DRAFT
+      const { rows: orderRows } = await adminClient.query(`SELECT status FROM sales_orders WHERE id = '${draftOrderId}';`);
+      const remainsDraft = orderRows[0]?.status === 'DRAFT';
+
       recordTest(
         'P0-SO-04-GUC',
         'Attempted GUC spoofing (app.authoritative_order_transition) by authenticated role is rejected',
-        blocked,
-        `Migration 025 enforces trigger trust only within SECURITY DEFINER owner execution (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        blocked && remainsDraft,
+        `Migration 026 SECURITY INVOKER trigger detects CURRENT_USER='authenticated' and rejects transition (SQLSTATE ${caughtErr?.code})`,
+        blocked && remainsDraft ? null : caughtErr
       );
     });
 
@@ -453,34 +585,53 @@ async function runAcceptance() {
         'P0-SO-06',
         'Line item mutation on CONFIRMED sales order is strictly rejected',
         blocked,
-        `Enforced by trg_sales_order_items_enforce_parent_status (SQLSTATE ${caughtErr?.code})`,
+        `Enforced by trg_sales_order_items_enforce_status (SQLSTATE ${caughtErr?.code})`,
         blocked ? null : caughtErr
       );
     });
 
-    // TEST 7: Re-confirmation of already CONFIRMED order is rejected
+    // TEST 7: Idempotent Replay — Re-confirmation of already CONFIRMED order returns safe replay and avoids double-deduction
+    let replayResult = null;
+    let stockAfterReplay = 0;
+    let deductionCount = 0;
+
     await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
-      let blocked = false;
-      let caughtErr = null;
-      try {
-        await adminClient.query(`
-          SELECT confirm_sales_order(
-            p_order_id := '${draftOrderId}'::uuid,
-            p_org_id := '${orgAId}'::uuid
-          );
-        `);
-      } catch (err) {
-        caughtErr = err;
-        blocked = err.code === '23514' || err.message.includes('expected DRAFT') || err.message.includes('cannot be confirmed');
-      }
-      recordTest(
-        'P0-SO-07',
-        'Re-confirmation of CONFIRMED order is rejected (prevents double-deduction)',
-        blocked,
-        `confirm_sales_order rejects non-DRAFT order state (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
-      );
+      const { rows: replayRows } = await adminClient.query(`
+        SELECT confirm_sales_order(
+          p_order_id := '${draftOrderId}'::uuid,
+          p_org_id := '${orgAId}'::uuid
+        ) AS result;
+      `);
+      replayResult = replayRows[0]?.result;
+
+      // Verify stock balance remained identical
+      const { rows: stockReplay } = await adminClient.query(`SELECT get_product_stock_levels('${orgAId}'::uuid) AS res;`);
+      const prod1Replay = stockReplay[0].res.find((p) => p.product_id === prodA1Id);
+      stockAfterReplay = prod1Replay ? prod1Replay.current_stock : 0;
+
+      // Count stock movement deductions for this order
+      const { rows: smRows } = await adminClient.query(`
+        SELECT count(*)::int AS cnt
+        FROM stock_movements
+        WHERE reference_id = '${draftOrderId}' AND movement_type = 'SALES_DISPATCH';
+      `);
+      deductionCount = smRows[0]?.cnt || 0;
     });
+
+    const isIdempotentReplay =
+      replayResult?.success === true &&
+      replayResult?.idempotent_replay === true &&
+      replayResult?.status === 'CONFIRMED' &&
+      stockAfterReplay === stockAfter &&
+      deductionCount === 1;
+
+    recordTest(
+      'P0-SO-07',
+      'Idempotent replay on confirm_sales_order returns cached confirmation and prevents double-deduction',
+      isIdempotentReplay,
+      `Replay returned idempotent_replay: true; Stock remained ${stockAfterReplay}; Deductions count: ${deductionCount}`,
+      isIdempotentReplay ? null : new Error('Replay failed or double-deducted inventory')
+    );
 
     // TEST 8: Direct insert of ISSUED invoice is blocked
     await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
@@ -495,12 +646,16 @@ async function runAcceptance() {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
+
+      const { rows: verifyNoRow } = await adminClient.query(`SELECT id FROM invoices WHERE invoice_number = 'INV-BYPASS-01';`);
+      const zeroInserted = verifyNoRow.length === 0;
+
       recordTest(
         'P0-INV-01',
         'Direct insert of ISSUED invoice as authenticated role is rejected',
-        blocked,
-        `Enforced by RLS invoices_insert / trigger (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        blocked && zeroInserted,
+        `Enforced by RLS invoices_insert and trigger (SQLSTATE ${caughtErr?.code})`,
+        blocked && zeroInserted ? null : caughtErr
       );
     });
 
@@ -570,7 +725,7 @@ async function runAcceptance() {
         'P0-INV-03',
         'Line item modification on ISSUED invoice is strictly rejected',
         blocked,
-        `Enforced by trg_invoice_items_enforce_parent_status (SQLSTATE ${caughtErr?.code})`,
+        `Enforced by trg_invoice_items_enforce_status (SQLSTATE ${caughtErr?.code})`,
         blocked ? null : caughtErr
       );
     });
@@ -589,14 +744,16 @@ async function runAcceptance() {
         'P0-INV-04',
         'Statutory invoice deletion is strictly rejected',
         blocked,
-        `Enforced by trg_invoices_enforce_lifecycle (SQLSTATE ${caughtErr?.code})`,
+        `Enforced by trg_invoice_lifecycle (SQLSTATE ${caughtErr?.code})`,
         blocked ? null : caughtErr
       );
     });
 
-    // TEST 12: Atomic Quotation Creation & Conversion Invariants
+    // TEST 12: Atomic Quotation Creation & Idempotent Conversion Invariants
     let createdQuotId = null;
     let convertedOrderId = null;
+    let repeatedConvertOrderId = null;
+    let repeatedIsReplay = false;
     const quotItemsJson = JSON.stringify([
       {
         product_id: prodA2Id,
@@ -621,7 +778,7 @@ async function runAcceptance() {
       `);
       createdQuotId = qRows[0]?.result?.id;
 
-      // 2. Convert quotation to order atomically
+      // 2. Convert quotation to order atomically (first attempt)
       const { rows: cRows } = await adminClient.query(`
         SELECT convert_quotation_atomic(
           p_org_id := '${orgAId}'::uuid,
@@ -630,37 +787,45 @@ async function runAcceptance() {
         ) AS result;
       `);
       convertedOrderId = cRows[0]?.result?.id;
+
+      // 3. Repeated conversion attempt returns existing sales order safely (idempotent replay)
+      const { rows: cRows2 } = await adminClient.query(`
+        SELECT convert_quotation_atomic(
+          p_org_id := '${orgAId}'::uuid,
+          p_quotation_id := '${createdQuotId}'::uuid,
+          p_idempotency_key := '${crypto.randomUUID()}'::uuid
+        ) AS result;
+      `);
+      repeatedConvertOrderId = cRows2[0]?.result?.id;
+      repeatedIsReplay = cRows2[0]?.result?.idempotent_replay === true;
     });
 
     let quotConverted = false;
-    let duplicateConvertBlocked = false;
-    let duplicateConvertErr = null;
-
+    let totalLinkedOrders = 0;
     await withRoleContext(adminClient, { role: 'authenticated', userId: userAId }, async () => {
       const { rows: qStatus } = await adminClient.query(`SELECT status FROM quotations WHERE id = '${createdQuotId}';`);
       quotConverted = qStatus[0]?.status === 'CONVERTED';
 
-      // 3. Second conversion attempt must be rejected
-      try {
-        await adminClient.query(`
-          SELECT convert_quotation_atomic(
-            p_org_id := '${orgAId}'::uuid,
-            p_quotation_id := '${createdQuotId}'::uuid,
-            p_idempotency_key := '${crypto.randomUUID()}'::uuid
-          );
-        `);
-      } catch (err) {
-        duplicateConvertErr = err;
-        duplicateConvertBlocked = err.code === '23514' || err.message.includes('converted') || err.message.includes('CONVERTED');
-      }
+      const { rows: soCount } = await adminClient.query(`
+        SELECT count(*)::int AS cnt FROM sales_orders WHERE quotation_id = '${createdQuotId}';
+      `);
+      totalLinkedOrders = soCount[0]?.cnt || 0;
     });
+
+    const quotationIdempotencyValid =
+      createdQuotId &&
+      convertedOrderId &&
+      convertedOrderId === repeatedConvertOrderId &&
+      repeatedIsReplay &&
+      quotConverted &&
+      totalLinkedOrders === 1;
 
     recordTest(
       'P1-QUOT-01',
-      'Quotation conversion is atomic, transitions to CONVERTED, and rejects re-conversion',
-      Boolean(createdQuotId && convertedOrderId && quotConverted && duplicateConvertBlocked),
-      `Quotation ${createdQuotId} converted to SO ${convertedOrderId}; re-conversion rejected (SQLSTATE ${duplicateConvertErr?.code})`,
-      createdQuotId && convertedOrderId && quotConverted && duplicateConvertBlocked ? null : duplicateConvertErr
+      'Quotation conversion is atomic, transitions to CONVERTED, and idempotent replay preserves single linked order',
+      Boolean(quotationIdempotencyValid),
+      `Quotation ${createdQuotId} converted to SO ${convertedOrderId}; Replay returned existing SO; Total linked SOs: ${totalLinkedOrders}`,
+      quotationIdempotencyValid ? null : new Error('Quotation conversion failed or created duplicate orders')
     );
 
     // TEST 13: Payment Idempotency & Over-allocation Prevention
@@ -809,17 +974,32 @@ async function runAcceptance() {
 
   } finally {
     // ------------------------------------------------------------------------
-    // Step 5: Mandatory Cleanup Guaranteed in Finally Block
+    // Step 5: Mandatory FK-Ordered Cleanup Guaranteed in Finally Block
     // ------------------------------------------------------------------------
-    console.log('\n--- Cleaning up synthetic test fixtures ---');
+    console.log('\n--- Cleaning up synthetic test fixtures in FK dependency order ---');
     try {
       await adminClient.query(`
         RESET ROLE;
+        DELETE FROM payment_allocations WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM payments WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id IN ('${orgAId}', '${orgBId}'));
+        DELETE FROM invoices WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM sales_order_items WHERE sales_order_id IN (SELECT id FROM sales_orders WHERE organization_id IN ('${orgAId}', '${orgBId}'));
+        DELETE FROM sales_orders WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM quotation_items WHERE quotation_id IN (SELECT id FROM quotations WHERE organization_id IN ('${orgAId}', '${orgBId}'));
+        DELETE FROM quotations WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM stock_movements WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM products WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM customers WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM audit_events WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM organization_subscriptions WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM organization_eligibility WHERE organization_id IN ('${orgAId}', '${orgBId}');
+        DELETE FROM memberships WHERE organization_id IN ('${orgAId}', '${orgBId}');
         DELETE FROM organizations WHERE id IN ('${orgAId}', '${orgBId}');
         DELETE FROM auth.users WHERE id IN ('${userAId}', '${userBId}');
       `);
       cleanupSuccessful = true;
-      console.log('  ✓ Cleanup completed successfully.');
+      console.log('  ✓ FK-ordered cleanup completed successfully.');
     } catch (cleanErr) {
       console.warn('  ⚠️ Cleanup warning:', cleanErr.message);
     }
