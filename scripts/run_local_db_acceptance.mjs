@@ -2,18 +2,19 @@
  * Atlas OS — Master Security, Database & Lifecycle Acceptance Test Runner
  *
  * Runs full database lifecycle verification:
- * 1. Connects as administrative superuser to disposable PostgreSQL instance.
- * 2. Creates and isolates an ephemeral, dedicated test database (e.g. atlas_test_<runId>)
- *    to guarantee 100% test isolation and protect statutory ledger immutability.
- * 3. Bootstraps complete Supabase-compatible roles (anon, authenticated, service_role, authenticator),
+ * 1. Connects as administrative user to disposable local PostgreSQL instance.
+ * 2. Provisions an isolated ephemeral test database (atlas_test_<runId>) to guarantee
+ *    strict test isolation and protect statutory ledger immutability without fallback.
+ * 3. Bootstraps standard Supabase roles (anon, authenticated, service_role, authenticator),
  *    schemas (auth, extensions, public), privileges, and auth helper functions (auth.uid, auth.role, auth.jwt).
  * 4. Applies forward-only migrations 001 through 026 in strict lexical order with ON_ERROR_STOP=1.
  * 5. Seeds isolated multi-tenant test fixtures with genuine auth identities and valid schema attributes.
  * 6. Executes P0/P1 security and lifecycle contracts under REAL RESTRICTED DATABASE ROLES (SET ROLE authenticated / anon).
  * 7. Tests lifecycle trust flags against spoofing attempts by authenticated database roles (Migration 026 invoker triggers).
- * 8. Verifies authoritative RPC contracts and idempotent replays (confirm_sales_order, create_invoice_atomic, convert_quotation_atomic, record_payment_and_allocate).
- * 9. Asserts table-level DML revocations (stock_movements, payments, etc.) are genuinely enforced without post-migration distortion.
- * 10. Disposes of the dedicated test database cleanly in the finally block; exits non-zero on any failure or local DB unavailability.
+ * 8. Queries set-returning stock functions (get_product_stock_levels) using parameterized SQL filtering on product_id.
+ * 9. Verifies authoritative RPC contracts and idempotent replays (confirm_sales_order, create_invoice_atomic, convert_quotation_atomic, record_payment_and_allocate, get_dashboard_metrics).
+ * 10. Asserts table-level DML revocations (stock_movements, payments, etc.) are genuinely enforced without post-migration distortion.
+ * 11. Disposes of the dedicated test database cleanly in the finally block; exits non-zero on any failure or local DB unavailability.
  */
 
 import fs from 'fs';
@@ -164,15 +165,16 @@ async function runAcceptance() {
   }
 
   // --------------------------------------------------------------------------
-  // Provision Dedicated Ephemeral Test Database
+  // Provision Dedicated Ephemeral Test Database (Strict Isolation, No Fallback)
   // --------------------------------------------------------------------------
-  let isDedicatedDb = false;
   let testClient = null;
-  let targetClient = maintClient;
+  let testDbCreated = false;
+  let cleanupSuccessful = false;
 
   try {
     console.log(`Step 0: Provisioning isolated ephemeral test database "${testDbName}"...`);
     await maintClient.query(`CREATE DATABASE "${testDbName}";`);
+    testDbCreated = true;
     console.log(`  ✓ Dedicated test database "${testDbName}" created successfully.`);
 
     const testDbUrl = new URL(DATABASE_URL);
@@ -183,19 +185,12 @@ async function runAcceptance() {
       connectionTimeoutMillis: 5000,
     });
     await testClient.connect();
-    targetClient = testClient;
-    isDedicatedDb = true;
     console.log(`  ✓ Connected to isolated test database "${testDbName}".\n`);
   } catch (createDbErr) {
-    if (createDbErr.code === '42501' || createDbErr.message.includes('permission denied')) {
-      console.warn(`  ⚠️ CREATEDB privilege not held; executing within connected database "${maintDbName}".\n`);
-      targetClient = maintClient;
-      isDedicatedDb = false;
-    } else {
-      console.error(`\n❌ Failed to provision dedicated test database "${testDbName}": ${createDbErr.message}`);
-      await maintClient.end().catch(() => {});
-      throw createDbErr;
-    }
+    console.error(`\n❌ Failed to provision dedicated test database "${testDbName}": ${createDbErr.message}`);
+    console.error('   Strict test database isolation is required. Unsafe fallback execution against shared databases is disabled.');
+    await maintClient.end().catch(() => {});
+    process.exit(1);
   }
 
   const orgAId = crypto.randomUUID();
@@ -206,15 +201,13 @@ async function runAcceptance() {
   const prodA1Id = crypto.randomUUID();
   const prodA2Id = crypto.randomUUID();
 
-  let cleanupSuccessful = false;
-
   try {
     // ------------------------------------------------------------------------
-    // Step 1: Bootstrap Complete Supabase-Compatible Roles, Schemas & Auth
+    // Step 1: Bootstrap Standard Supabase-Compatible Roles, Schemas & Auth
     // ------------------------------------------------------------------------
     console.log('Step 1: Bootstrapping Supabase-compatible roles, schemas and auth environment...');
-    await targetClient.query(`
-      -- 1. Create required Supabase roles if missing
+    await testClient.query(`
+      -- 1. Create standard Supabase roles if missing (unprivileged, non-superuser accounts)
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
@@ -227,10 +220,7 @@ async function runAcceptance() {
           CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
         END IF;
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
-          CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'postgrespassword';
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_admin') THEN
-          CREATE ROLE supabase_admin LOGIN SUPERUSER PASSWORD 'postgrespassword';
+          CREATE ROLE authenticator NOLOGIN NOINHERIT;
         END IF;
       END $$;
 
@@ -239,10 +229,10 @@ async function runAcceptance() {
       GRANT authenticated TO authenticator;
       GRANT service_role TO authenticator;
 
-      -- Grant authenticated and anon to postgres (allows superuser to SET ROLE authenticated/anon for testing)
-      GRANT authenticated TO postgres;
-      GRANT anon TO postgres;
-      GRANT service_role TO postgres;
+      -- Grant authenticated, anon, and service_role to active session user (allows superuser to SET ROLE for testing)
+      GRANT authenticated TO CURRENT_USER;
+      GRANT anon TO CURRENT_USER;
+      GRANT service_role TO CURRENT_USER;
 
       -- 3. Create schemas
       CREATE SCHEMA IF NOT EXISTS auth;
@@ -252,17 +242,17 @@ async function runAcceptance() {
       -- 4. Schema usage and standard permissions
       GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
       GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
-      GRANT ALL ON SCHEMA public TO postgres, service_role;
-      GRANT ALL ON SCHEMA auth TO postgres, service_role;
+      GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
+      GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
 
       -- 5. Standard Supabase Default privileges for future tables, sequences and functions
       -- Establishes standard table grants before migrations run so that subsequent
       -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role, authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role, authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER, service_role;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER, service_role, authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO CURRENT_USER, service_role, authenticated;
 
       -- 6. Auth users table emulation
       CREATE TABLE IF NOT EXISTS auth.users (
@@ -281,7 +271,7 @@ async function runAcceptance() {
       );
 
       GRANT SELECT ON auth.users TO authenticated, anon;
-      GRANT ALL ON auth.users TO postgres, service_role;
+      GRANT ALL ON auth.users TO CURRENT_USER, service_role;
 
       -- 7. Auth helper functions
       CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
@@ -315,7 +305,7 @@ async function runAcceptance() {
       const filePath = path.join(MIGRATIONS_DIR, file);
       const sql = fs.readFileSync(filePath, 'utf8');
       try {
-        await targetClient.query(sql);
+        await testClient.query(sql);
         console.log(`  ✓ Applied migration: ${file}`);
       } catch (migErr) {
         console.error(`\n❌ Migration failed at ${file}: ${migErr.message}`);
@@ -325,7 +315,7 @@ async function runAcceptance() {
     }
 
     // Ensure sequences are usable by authenticated role (without altering table-level permissions)
-    await targetClient.query(`
+    await testClient.query(`
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
     `);
 
@@ -333,7 +323,7 @@ async function runAcceptance() {
     // Step 3: Seed Isolated Multi-Tenant Test Fixtures
     // ------------------------------------------------------------------------
     console.log('\nStep 3: Seeding isolated test fixtures (Org A, Org B, User A, User B)...');
-    await targetClient.query(`
+    await testClient.query(`
       INSERT INTO auth.users (id, email) VALUES
       ('${userAId}', 'owner_a_${runId}@example.com'),
       ('${userBId}', 'owner_b_${runId}@example.com')
@@ -379,14 +369,15 @@ async function runAcceptance() {
 
     // TEST GROUP 1: Table-Level Privilege Revocations (Migration 013, 017, 022)
     // Direct DML mutations must be rejected with SQLSTATE 42501 (insufficient_privilege)
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let stockMovementBlocked = false;
       let stockMovementErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
-          VALUES ('${orgAId}', '${prodA1Id}', 10, 'GOODS_RECEIVED', 'Bypass attempt');
-        `);
+        await testClient.query(
+          `INSERT INTO stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+           VALUES ($1::uuid, $2::uuid, 10, 'GOODS_RECEIVED', 'Bypass attempt');`,
+          [orgAId, prodA1Id]
+        );
       } catch (err) {
         stockMovementErr = err;
         stockMovementBlocked = err.code === '42501' || err.message.includes('permission denied');
@@ -400,13 +391,14 @@ async function runAcceptance() {
       );
     });
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let stockUpdateBlocked = false;
       let stockUpdateErr = null;
       try {
-        await targetClient.query(`
-          UPDATE stock_movements SET quantity_change = 999 WHERE product_id = '${prodA1Id}';
-        `);
+        await testClient.query(
+          `UPDATE stock_movements SET quantity_change = 999 WHERE product_id = $1::uuid;`,
+          [prodA1Id]
+        );
       } catch (err) {
         stockUpdateErr = err;
         stockUpdateBlocked = err.code === '42501' || err.message.includes('permission denied');
@@ -420,14 +412,15 @@ async function runAcceptance() {
       );
     });
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let paymentsBlocked = false;
       let paymentsErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO payments (organization_id, customer_id, payment_number, amount, payment_method, payment_date)
-          VALUES ('${orgAId}', '${custAId}', 'PAY-BYPASS-01', 500.00, 'CASH', '2026-11-02');
-        `);
+        await testClient.query(
+          `INSERT INTO payments (organization_id, customer_id, payment_number, amount, payment_method, payment_date)
+           VALUES ($1::uuid, $2::uuid, 'PAY-BYPASS-01', 500.00, 'CASH', '2026-11-02');`,
+          [orgAId, custAId]
+        );
       } catch (err) {
         paymentsErr = err;
         paymentsBlocked = err.code === '42501' || err.message.includes('permission denied');
@@ -441,14 +434,15 @@ async function runAcceptance() {
       );
     });
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let allocBlocked = false;
       let allocErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO payment_allocations (payment_id, invoice_id, amount_allocated)
-          VALUES ('${crypto.randomUUID()}', '${crypto.randomUUID()}', 100.00);
-        `);
+        await testClient.query(
+          `INSERT INTO payment_allocations (payment_id, invoice_id, amount_allocated)
+           VALUES ($1::uuid, $2::uuid, 100.00);`,
+          [crypto.randomUUID(), crypto.randomUUID()]
+        );
       } catch (err) {
         allocErr = err;
         allocBlocked = err.code === '42501' || err.message.includes('permission denied');
@@ -462,14 +456,15 @@ async function runAcceptance() {
       );
     });
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let eligBlocked = false;
       let eligErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO organization_eligibility (organization_id, business_category, status, declared_by)
-          VALUES ('${crypto.randomUUID()}', 'electrical_retail', 'approved', '${userAId}');
-        `);
+        await testClient.query(
+          `INSERT INTO organization_eligibility (organization_id, business_category, status, declared_by)
+           VALUES ($1::uuid, 'electrical_retail', 'approved', $2::uuid);`,
+          [crypto.randomUUID(), userAId]
+        );
       } catch (err) {
         eligErr = err;
         eligBlocked = err.code === '42501' || err.message.includes('permission denied');
@@ -485,22 +480,22 @@ async function runAcceptance() {
 
     // TEST GROUP 2: Sales Order Direct Insertion & Transition Boundary
     // TEST 1: Direct insert of CONFIRMED sales order under authenticated role is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO sales_orders (organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
-          VALUES ('${orgAId}', '${custAId}', 'SO-BYPASS-01', 'CONFIRMED', '2026-11-02', 100, 18, 118);
-        `);
+        await testClient.query(
+          `INSERT INTO sales_orders (organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
+           VALUES ($1::uuid, $2::uuid, 'SO-BYPASS-01', 'CONFIRMED', '2026-11-02', 100, 18, 118);`,
+          [orgAId, custAId]
+        );
       } catch (err) {
         caughtErr = err;
-        // Blocked either by RLS check clause (status = 'DRAFT') or by trigger (SQLSTATE 23514 / 42501)
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
 
       // Assert no row was inserted into sales_orders
-      const { rows: verifyNoRow } = await targetClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-01';`);
+      const { rows: verifyNoRow } = await testClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-01';`);
       const zeroInserted = verifyNoRow.length === 0;
 
       recordTest(
@@ -513,20 +508,21 @@ async function runAcceptance() {
     });
 
     // TEST 2: Direct insert of FULFILLED sales order under authenticated role is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO sales_orders (organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
-          VALUES ('${orgAId}', '${custAId}', 'SO-BYPASS-02', 'FULFILLED', '2026-11-02', 100, 18, 118);
-        `);
+        await testClient.query(
+          `INSERT INTO sales_orders (organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
+           VALUES ($1::uuid, $2::uuid, 'SO-BYPASS-02', 'FULFILLED', '2026-11-02', 100, 18, 118);`,
+          [orgAId, custAId]
+        );
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
 
-      const { rows: verifyNoRow } = await targetClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-02';`);
+      const { rows: verifyNoRow } = await testClient.query(`SELECT id FROM sales_orders WHERE order_number = 'SO-BYPASS-02';`);
       const zeroInserted = verifyNoRow.length === 0;
 
       recordTest(
@@ -540,24 +536,26 @@ async function runAcceptance() {
 
     // Create a legitimate DRAFT order with items
     const draftOrderId = crypto.randomUUID();
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      await targetClient.query(`
-        INSERT INTO sales_orders (id, organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
-        VALUES ('${draftOrderId}', '${orgAId}', '${custAId}', 'SO-DRAFT-${runId}', 'DRAFT', '2026-11-02', 300, 54, 354);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      await testClient.query(
+        `INSERT INTO sales_orders (id, organization_id, customer_id, order_number, status, order_date, subtotal, tax_amount, total_amount)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 'DRAFT', '2026-11-02', 300, 54, 354);`,
+        [draftOrderId, orgAId, custAId, `SO-DRAFT-${runId}`]
+      );
 
-        INSERT INTO sales_order_items (sales_order_id, product_id, product_name, product_sku, uom, quantity, unit_price, tax_rate, line_subtotal, line_tax, line_total)
-        VALUES ('${draftOrderId}', '${prodA1Id}', 'Copper Wire 2.5sqmm', 'WIRE-25-${runId}', 'Mtr', 10, 30.00, 18, 300, 54, 354);
-      `);
+      await testClient.query(
+        `INSERT INTO sales_order_items (sales_order_id, product_id, product_name, product_sku, uom, quantity, unit_price, tax_rate, line_subtotal, line_tax, line_total)
+         VALUES ($1::uuid, $2::uuid, 'Copper Wire 2.5sqmm', $3, 'Mtr', 10, 30.00, 18, 300, 54, 354);`,
+        [draftOrderId, prodA1Id, `WIRE-25-${runId}`]
+      );
     });
 
     // TEST 3: Direct status change from DRAFT to CONFIRMED as authenticated role is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          UPDATE sales_orders SET status = 'CONFIRMED' WHERE id = '${draftOrderId}';
-        `);
+        await testClient.query(`UPDATE sales_orders SET status = 'CONFIRMED' WHERE id = $1::uuid;`, [draftOrderId]);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('confirm_sales_order');
@@ -572,20 +570,20 @@ async function runAcceptance() {
     });
 
     // TEST 4: Attempted GUC trust flag manipulation by authenticated role is rejected (Migration 026)
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
         // Attacker sets session GUC and attempts direct update
-        await targetClient.query(`SELECT set_config('app.authoritative_order_transition', 'true', false);`);
-        await targetClient.query(`UPDATE sales_orders SET status = 'CONFIRMED' WHERE id = '${draftOrderId}';`);
+        await testClient.query(`SELECT set_config('app.authoritative_order_transition', 'true', false);`);
+        await testClient.query(`UPDATE sales_orders SET status = 'CONFIRMED' WHERE id = $1::uuid;`, [draftOrderId]);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited');
       }
 
       // Assert database order status is still DRAFT
-      const { rows: orderRows } = await targetClient.query(`SELECT status FROM sales_orders WHERE id = '${draftOrderId}';`);
+      const { rows: orderRows } = await testClient.query(`SELECT status FROM sales_orders WHERE id = $1::uuid;`, [draftOrderId]);
       const remainsDraft = orderRows[0]?.status === 'DRAFT';
 
       recordTest(
@@ -598,49 +596,67 @@ async function runAcceptance() {
     });
 
     // TEST 5: Authoritative confirmation via confirm_sales_order RPC succeeds & deducts stock
+    // Uses parameterized set-returning query: SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;
     let confirmedResult = null;
-    let stockBefore = 0;
-    let stockAfter = 0;
+    let stockBefore = null;
+    let stockAfter = null;
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      // Get stock before
-      const { rows: stockB4 } = await targetClient.query(`SELECT get_product_stock_levels('${orgAId}'::uuid) AS res;`);
-      const prod1B4 = stockB4[0].res.find((p) => p.product_id === prodA1Id);
-      stockBefore = prod1B4 ? prod1B4.current_stock : 0;
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      // 1. Get stock before confirmation
+      const { rows: stockB4Rows } = await testClient.query(
+        `SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;`,
+        [orgAId, prodA1Id]
+      );
+      if (stockB4Rows.length === 0) {
+        throw new Error(`Stock record not found for product ${prodA1Id} before confirmation`);
+      }
+      stockBefore = Number(stockB4Rows[0].current_stock);
 
-      // Authoritative confirmation call
-      const { rows: confRows } = await targetClient.query(`
-        SELECT confirm_sales_order(
-          p_order_id := '${draftOrderId}'::uuid,
-          p_org_id := '${orgAId}'::uuid
-        ) AS result;
-      `);
+      // 2. Authoritative confirmation call
+      const { rows: confRows } = await testClient.query(
+        `SELECT confirm_sales_order(p_order_id := $1::uuid, p_org_id := $2::uuid) AS result;`,
+        [draftOrderId, orgAId]
+      );
       confirmedResult = confRows[0]?.result;
 
-      // Get stock after
-      const { rows: stockAft } = await targetClient.query(`SELECT get_product_stock_levels('${orgAId}'::uuid) AS res;`);
-      const prod1Aft = stockAft[0].res.find((p) => p.product_id === prodA1Id);
-      stockAfter = prod1Aft ? prod1Aft.current_stock : 0;
+      // 3. Get stock after confirmation
+      const { rows: stockAftRows } = await testClient.query(
+        `SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;`,
+        [orgAId, prodA1Id]
+      );
+      if (stockAftRows.length === 0) {
+        throw new Error(`Stock record not found for product ${prodA1Id} after confirmation`);
+      }
+      stockAfter = Number(stockAftRows[0].current_stock);
     });
 
     const isConfirmed = confirmedResult?.success === true && confirmedResult?.status === 'CONFIRMED';
-    const exactly10Deducted = stockBefore - stockAfter === 10;
+    const exactly10Deducted = stockBefore === 100 && stockAfter === 90 && (stockBefore - stockAfter === 10);
+
+    // Verify order status and audit log directly in PostgreSQL
+    const { rows: orderCheck } = await testClient.query(`SELECT status FROM sales_orders WHERE id = $1::uuid;`, [draftOrderId]);
+    const dbConfirmed = orderCheck[0]?.status === 'CONFIRMED';
+
+    const { rows: auditCheck } = await testClient.query(
+      `SELECT count(*)::int AS cnt FROM audit_events WHERE entity_id = $1::uuid AND action = 'CONFIRM_ORDER';`,
+      [draftOrderId]
+    );
+    const auditCreated = auditCheck[0]?.cnt === 1;
+
     recordTest(
       'P0-SO-05',
       'Authoritative confirm_sales_order RPC transitions to CONFIRMED and deducts stock exactly once',
-      isConfirmed && exactly10Deducted,
-      `Stock reduced from ${stockBefore} to ${stockAfter} (-10 Mtr)`,
-      isConfirmed && exactly10Deducted ? null : new Error('Stock not deducted or status not confirmed')
+      Boolean(isConfirmed && exactly10Deducted && dbConfirmed && auditCreated),
+      `Stock reduced from ${stockBefore} to ${stockAfter} (-10 Mtr); DB status: ${orderCheck[0]?.status}; Audit records: ${auditCheck[0]?.cnt}`,
+      isConfirmed && exactly10Deducted && dbConfirmed && auditCreated ? null : new Error('Stock deduction, status, or audit record assertion failed')
     );
 
     // TEST 6: Modification of items on CONFIRMED order is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          UPDATE sales_order_items SET quantity = 25 WHERE sales_order_id = '${draftOrderId}';
-        `);
+        await testClient.query(`UPDATE sales_order_items SET quantity = 25 WHERE sales_order_id = $1::uuid;`, [draftOrderId]);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('Cannot') || err.message.includes('immutable');
@@ -656,29 +672,31 @@ async function runAcceptance() {
 
     // TEST 7: Idempotent Replay — Re-confirmation of already CONFIRMED order returns safe replay and avoids double-deduction
     let replayResult = null;
-    let stockAfterReplay = 0;
+    let stockAfterReplay = null;
     let deductionCount = 0;
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      const { rows: replayRows } = await targetClient.query(`
-        SELECT confirm_sales_order(
-          p_order_id := '${draftOrderId}'::uuid,
-          p_org_id := '${orgAId}'::uuid
-        ) AS result;
-      `);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: replayRows } = await testClient.query(
+        `SELECT confirm_sales_order(p_order_id := $1::uuid, p_org_id := $2::uuid) AS result;`,
+        [draftOrderId, orgAId]
+      );
       replayResult = replayRows[0]?.result;
 
       // Verify stock balance remained identical
-      const { rows: stockReplay } = await targetClient.query(`SELECT get_product_stock_levels('${orgAId}'::uuid) AS res;`);
-      const prod1Replay = stockReplay[0].res.find((p) => p.product_id === prodA1Id);
-      stockAfterReplay = prod1Replay ? prod1Replay.current_stock : 0;
+      const { rows: stockReplayRows } = await testClient.query(
+        `SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;`,
+        [orgAId, prodA1Id]
+      );
+      if (stockReplayRows.length === 0) {
+        throw new Error(`Stock record not found for product ${prodA1Id} after replay`);
+      }
+      stockAfterReplay = Number(stockReplayRows[0].current_stock);
 
       // Count stock movement deductions for this order
-      const { rows: smRows } = await targetClient.query(`
-        SELECT count(*)::int AS cnt
-        FROM stock_movements
-        WHERE reference_id = '${draftOrderId}' AND movement_type = 'SALES_DISPATCH';
-      `);
+      const { rows: smRows } = await testClient.query(
+        `SELECT count(*)::int AS cnt FROM stock_movements WHERE reference_id = $1::uuid AND movement_type = 'SALES_DISPATCH';`,
+        [draftOrderId]
+      );
       deductionCount = smRows[0]?.cnt || 0;
     });
 
@@ -686,32 +704,33 @@ async function runAcceptance() {
       replayResult?.success === true &&
       replayResult?.idempotent_replay === true &&
       replayResult?.status === 'CONFIRMED' &&
-      stockAfterReplay === stockAfter &&
+      stockAfterReplay === 90 &&
       deductionCount === 1;
 
     recordTest(
       'P0-SO-07',
       'Idempotent replay on confirm_sales_order returns cached confirmation and prevents double-deduction',
-      isIdempotentReplay,
+      Boolean(isIdempotentReplay),
       `Replay returned idempotent_replay: true; Stock remained ${stockAfterReplay}; Deductions count: ${deductionCount}`,
       isIdempotentReplay ? null : new Error('Replay failed or double-deducted inventory')
     );
 
     // TEST 8: Direct insert of ISSUED invoice is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          INSERT INTO invoices (organization_id, customer_id, invoice_number, status, invoice_date, due_date, subtotal, tax_amount, total_amount)
-          VALUES ('${orgAId}', '${custAId}', 'INV-BYPASS-01', 'ISSUED', '2026-11-02', '2026-11-17', 100, 18, 118);
-        `);
+        await testClient.query(
+          `INSERT INTO invoices (organization_id, customer_id, invoice_number, status, invoice_date, due_date, subtotal, tax_amount, total_amount)
+           VALUES ($1::uuid, $2::uuid, 'INV-BYPASS-01', 'ISSUED', '2026-11-02', '2026-11-17', 100, 18, 118);`,
+          [orgAId, custAId]
+        );
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited') || err.message.includes('DRAFT');
       }
 
-      const { rows: verifyNoRow } = await targetClient.query(`SELECT id FROM invoices WHERE invoice_number = 'INV-BYPASS-01';`);
+      const { rows: verifyNoRow } = await testClient.query(`SELECT id FROM invoices WHERE invoice_number = 'INV-BYPASS-01';`);
       const zeroInserted = verifyNoRow.length === 0;
 
       recordTest(
@@ -736,32 +755,33 @@ async function runAcceptance() {
       },
     ]);
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      const { rows: invCreateRows } = await targetClient.query(`
-        SELECT create_invoice_atomic(
-          p_org_id := '${orgAId}'::uuid,
-          p_customer_id := '${custAId}'::uuid,
-          p_items := '${invItemsJson}'::jsonb,
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: invCreateRows } = await testClient.query(
+        `SELECT create_invoice_atomic(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
+          p_items := $3::jsonb,
           p_invoice_date := '2026-11-02'::date,
           p_due_date := '2026-11-17'::date,
           p_status := 'ISSUED',
           p_notes := 'Invoice created from order',
-          p_sales_order_id := '${draftOrderId}'::uuid,
-          p_idempotency_key := '${crypto.randomUUID()}'::uuid
-        ) AS result;
-      `);
+          p_sales_order_id := $4::uuid,
+          p_idempotency_key := $5::uuid
+        ) AS result;`,
+        [orgAId, custAId, invItemsJson, draftOrderId, crypto.randomUUID()]
+      );
       const invObj = invCreateRows[0]?.result;
       createdInvoiceId = invObj?.id;
       invNumber = invObj?.invoice_number;
     });
 
-    // Verify invoice status and sales order status
+    // Verify invoice status and sales order status directly in database
     let invoiceIssued = false;
     let orderFulfilled = false;
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      const { rows: iRows } = await targetClient.query(`SELECT status FROM invoices WHERE id = '${createdInvoiceId}';`);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: iRows } = await testClient.query(`SELECT status FROM invoices WHERE id = $1::uuid;`, [createdInvoiceId]);
       invoiceIssued = iRows[0]?.status === 'ISSUED';
-      const { rows: soRows } = await targetClient.query(`SELECT status FROM sales_orders WHERE id = '${draftOrderId}';`);
+      const { rows: soRows } = await testClient.query(`SELECT status FROM sales_orders WHERE id = $1::uuid;`, [draftOrderId]);
       orderFulfilled = soRows[0]?.status === 'FULFILLED';
     });
 
@@ -774,13 +794,11 @@ async function runAcceptance() {
     );
 
     // TEST 10: Modification of items on ISSUED invoice is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`
-          UPDATE invoice_items SET quantity = 50 WHERE invoice_id = '${createdInvoiceId}';
-        `);
+        await testClient.query(`UPDATE invoice_items SET quantity = 50 WHERE invoice_id = $1::uuid;`, [createdInvoiceId]);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('Cannot') || err.message.includes('immutable');
@@ -795,11 +813,11 @@ async function runAcceptance() {
     });
 
     // TEST 11: Statutory invoice deletion is blocked
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
       try {
-        await targetClient.query(`DELETE FROM invoices WHERE id = '${createdInvoiceId}';`);
+        await testClient.query(`DELETE FROM invoices WHERE id = $1::uuid;`, [createdInvoiceId]);
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited');
@@ -828,51 +846,55 @@ async function runAcceptance() {
       },
     ]);
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       // 1. Create quotation atomically
-      const { rows: qRows } = await targetClient.query(`
-        SELECT create_quotation_atomic(
-          p_org_id := '${orgAId}'::uuid,
-          p_customer_id := '${custAId}'::uuid,
+      const { rows: qRows } = await testClient.query(
+        `SELECT create_quotation_atomic(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
           p_valid_until := '2026-11-17'::date,
-          p_items := '${quotItemsJson}'::jsonb,
+          p_items := $3::jsonb,
           p_notes := 'Valid for 15 days',
-          p_idempotency_key := '${crypto.randomUUID()}'::uuid
-        ) AS result;
-      `);
+          p_idempotency_key := $4::uuid
+        ) AS result;`,
+        [orgAId, custAId, quotItemsJson, crypto.randomUUID()]
+      );
       createdQuotId = qRows[0]?.result?.id;
 
       // 2. Convert quotation to order atomically (first attempt)
-      const { rows: cRows } = await targetClient.query(`
-        SELECT convert_quotation_atomic(
-          p_org_id := '${orgAId}'::uuid,
-          p_quotation_id := '${createdQuotId}'::uuid,
-          p_idempotency_key := '${crypto.randomUUID()}'::uuid
-        ) AS result;
-      `);
+      const { rows: cRows } = await testClient.query(
+        `SELECT convert_quotation_atomic(
+          p_org_id := $1::uuid,
+          p_quotation_id := $2::uuid,
+          p_idempotency_key := $3::uuid
+        ) AS result;`,
+        [orgAId, createdQuotId, crypto.randomUUID()]
+      );
       convertedOrderId = cRows[0]?.result?.id;
 
       // 3. Repeated conversion attempt returns existing sales order safely (idempotent replay)
-      const { rows: cRows2 } = await targetClient.query(`
-        SELECT convert_quotation_atomic(
-          p_org_id := '${orgAId}'::uuid,
-          p_quotation_id := '${createdQuotId}'::uuid,
-          p_idempotency_key := '${crypto.randomUUID()}'::uuid
-        ) AS result;
-      `);
+      const { rows: cRows2 } = await testClient.query(
+        `SELECT convert_quotation_atomic(
+          p_org_id := $1::uuid,
+          p_quotation_id := $2::uuid,
+          p_idempotency_key := $3::uuid
+        ) AS result;`,
+        [orgAId, createdQuotId, crypto.randomUUID()]
+      );
       repeatedConvertOrderId = cRows2[0]?.result?.id;
       repeatedIsReplay = cRows2[0]?.result?.idempotent_replay === true;
     });
 
     let quotConverted = false;
     let totalLinkedOrders = 0;
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      const { rows: qStatus } = await targetClient.query(`SELECT status FROM quotations WHERE id = '${createdQuotId}';`);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: qStatus } = await testClient.query(`SELECT status FROM quotations WHERE id = $1::uuid;`, [createdQuotId]);
       quotConverted = qStatus[0]?.status === 'CONVERTED';
 
-      const { rows: soCount } = await targetClient.query(`
-        SELECT count(*)::int AS cnt FROM sales_orders WHERE quotation_id = '${createdQuotId}';
-      `);
+      const { rows: soCount } = await testClient.query(
+        `SELECT count(*)::int AS cnt FROM sales_orders WHERE quotation_id = $1::uuid;`,
+        [createdQuotId]
+      );
       totalLinkedOrders = soCount[0]?.cnt || 0;
     });
 
@@ -897,46 +919,48 @@ async function runAcceptance() {
     let pay1Result = null;
     let pay2Result = null;
 
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       // First attempt
-      const { rows: p1 } = await targetClient.query(`
-        SELECT record_payment_and_allocate(
-          p_org_id := '${orgAId}'::uuid,
-          p_customer_id := '${custAId}'::uuid,
+      const { rows: p1 } = await testClient.query(
+        `SELECT record_payment_and_allocate(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
           p_amount := 200.00::numeric,
           p_payment_method := 'UPI'::varchar,
           p_reference_no := 'UPI-123456'::varchar,
           p_payment_date := '2026-11-02'::date,
           p_notes := 'First attempt'::text,
-          p_invoice_id := '${createdInvoiceId}'::uuid,
+          p_invoice_id := $3::uuid,
           p_allocated_amount := 200.00::numeric,
-          p_idempotency_key := '${paymentIdempotencyKey}'::uuid
-        ) AS result;
-      `);
+          p_idempotency_key := $4::uuid
+        ) AS result;`,
+        [orgAId, custAId, createdInvoiceId, paymentIdempotencyKey]
+      );
       pay1Result = p1[0]?.result;
 
       // Replay identical attempt
-      const { rows: p2 } = await targetClient.query(`
-        SELECT record_payment_and_allocate(
-          p_org_id := '${orgAId}'::uuid,
-          p_customer_id := '${custAId}'::uuid,
+      const { rows: p2 } = await testClient.query(
+        `SELECT record_payment_and_allocate(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
           p_amount := 200.00::numeric,
           p_payment_method := 'UPI'::varchar,
           p_reference_no := 'UPI-123456'::varchar,
           p_payment_date := '2026-11-02'::date,
           p_notes := 'First attempt'::text,
-          p_invoice_id := '${createdInvoiceId}'::uuid,
+          p_invoice_id := $3::uuid,
           p_allocated_amount := 200.00::numeric,
-          p_idempotency_key := '${paymentIdempotencyKey}'::uuid
-        ) AS result;
-      `);
+          p_idempotency_key := $4::uuid
+        ) AS result;`,
+        [orgAId, custAId, createdInvoiceId, paymentIdempotencyKey]
+      );
       pay2Result = p2[0]?.result;
     });
 
     // Check invoice total_paid is exactly 200.00 (not 400.00)
     let totalPaidExact = false;
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
-      const { rows: invRows } = await targetClient.query(`SELECT total_paid FROM invoices WHERE id = '${createdInvoiceId}';`);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: invRows } = await testClient.query(`SELECT total_paid FROM invoices WHERE id = $1::uuid;`, [createdInvoiceId]);
       totalPaidExact = Number(invRows[0]?.total_paid) === 200.00;
     });
 
@@ -950,24 +974,25 @@ async function runAcceptance() {
     );
 
     // TEST 14: Tampered payment replay with same key is rejected
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let tamperedBlocked = false;
       let tamperedErr = null;
       try {
-        await targetClient.query(`
-          SELECT record_payment_and_allocate(
-            p_org_id := '${orgAId}'::uuid,
-            p_customer_id := '${custAId}'::uuid,
+        await testClient.query(
+          `SELECT record_payment_and_allocate(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
             p_amount := 999.00::numeric, -- tampered amount!
             p_payment_method := 'UPI'::varchar,
             p_reference_no := 'UPI-123456'::varchar,
             p_payment_date := '2026-11-02'::date,
             p_notes := 'Tampered attempt'::text,
-            p_invoice_id := '${createdInvoiceId}'::uuid,
+            p_invoice_id := $3::uuid,
             p_allocated_amount := 999.00::numeric,
-            p_idempotency_key := '${paymentIdempotencyKey}'::uuid
-          );
-        `);
+            p_idempotency_key := $4::uuid
+          );`,
+          [orgAId, custAId, createdInvoiceId, paymentIdempotencyKey]
+        );
       } catch (err) {
         tamperedErr = err;
         tamperedBlocked = err.code === '23505' || err.message.includes('reused with different request parameters');
@@ -982,21 +1007,19 @@ async function runAcceptance() {
     });
 
     // TEST 15: Cross-tenant isolation under authenticated User B
-    await withRoleContext(targetClient, { role: 'authenticated', userId: userBId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       // User B attempts to access Org A's sales order via direct SELECT
-      const { rows: bOrders } = await targetClient.query(`SELECT * FROM sales_orders WHERE id = '${convertedOrderId}';`);
+      const { rows: bOrders } = await testClient.query(`SELECT * FROM sales_orders WHERE id = $1::uuid;`, [convertedOrderId]);
       const cannotSeeOrgAOrder = bOrders.length === 0;
 
       // User B attempts to confirm Org A's order via RPC
       let rpcBlocked = false;
       let rpcErr = null;
       try {
-        await targetClient.query(`
-          SELECT confirm_sales_order(
-            p_order_id := '${convertedOrderId}'::uuid,
-            p_org_id := '${orgBId}'::uuid
-          );
-        `);
+        await testClient.query(
+          `SELECT confirm_sales_order(p_order_id := $1::uuid, p_org_id := $2::uuid);`,
+          [convertedOrderId, orgBId]
+        );
       } catch (err) {
         rpcErr = err;
         rpcBlocked = err.code === '23514' || err.message.includes('not found') || err.message.includes('Unauthorized') || err.message.includes('Access denied');
@@ -1013,17 +1036,17 @@ async function runAcceptance() {
     });
 
     // TEST 16: Anonymous role restrictions
-    await withRoleContext(targetClient, { role: 'anon', userId: null }, async () => {
+    await withRoleContext(testClient, { role: 'anon', userId: null }, async () => {
       let anonBlocked = false;
       let anonErr = null;
       try {
-        await targetClient.query(`SELECT * FROM sales_orders;`);
+        await testClient.query(`SELECT * FROM sales_orders;`);
       } catch (err) {
         anonErr = err;
         anonBlocked = true;
       }
       // Or if query succeeds, RLS must return exactly 0 rows
-      const { rows } = await targetClient.query(`SELECT count(*)::int AS count FROM sales_orders;`);
+      const { rows } = await testClient.query(`SELECT count(*)::int AS count FROM sales_orders;`);
       const zeroRows = rows[0]?.count === 0;
       const anonSecured = anonBlocked || zeroRows;
 
@@ -1036,23 +1059,46 @@ async function runAcceptance() {
       );
     });
 
+    // TEST 17: Authoritative Dashboard Metrics RPC Integrity
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: dashRows } = await testClient.query(
+        `SELECT get_dashboard_metrics(p_org_id := $1::uuid, p_today := '2026-11-02'::date) AS metrics;`,
+        [orgAId]
+      );
+      const metrics = dashRows[0]?.metrics;
+      const hasMetrics =
+        metrics &&
+        typeof metrics.today_sales !== 'undefined' &&
+        typeof metrics.orders_count !== 'undefined' &&
+        typeof metrics.total_receivables !== 'undefined';
+
+      recordTest(
+        'P1-DASH-01',
+        'Authoritative get_dashboard_metrics RPC aggregates financial and operational totals correctly',
+        Boolean(hasMetrics),
+        `Dashboard metrics: today_sales=${metrics?.today_sales}, orders_count=${metrics?.orders_count}, receivables=${metrics?.total_receivables}`,
+        hasMetrics ? null : new Error('Dashboard metrics returned invalid structure')
+      );
+    });
+
   } finally {
     // ------------------------------------------------------------------------
-    // Step 5: Clean Disposal of Dedicated Test Database & Teardown
+    // Step 5: Clean Disposal of Dedicated Test Database (Guaranteed Teardown)
     // ------------------------------------------------------------------------
     if (testClient) {
       await testClient.end().catch(() => {});
     }
 
-    if (isDedicatedDb) {
-      console.log(`\nStep 5: Disposing isolated test database "${testDbName}"...`);
+    if (testDbCreated) {
+      console.log(`\nStep 5: Disposing isolated ephemeral test database "${testDbName}"...`);
       try {
         // Terminate any active sessions connected to the ephemeral database
-        await maintClient.query(`
-          SELECT pg_terminate_backend(pid)
-          FROM pg_stat_activity
-          WHERE datname = '${testDbName}' AND pid <> pg_backend_pid();
-        `);
+        await maintClient.query(
+          `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+           WHERE datname = $1 AND pid <> pg_backend_pid();`,
+          [testDbName]
+        );
 
         // Drop the dedicated test database completely
         try {
@@ -1070,43 +1116,6 @@ async function runAcceptance() {
         console.error(`  ❌ Failed to drop test database "${testDbName}":`, dropErr.message);
         cleanupSuccessful = false;
         throw new Error(`Test isolation failure: Could not drop test database "${testDbName}": ${dropErr.message}`);
-      }
-    } else {
-      console.log('\nStep 5: Cleaning up synthetic test fixtures in FK dependency order...');
-      try {
-        await maintClient.query(`
-          RESET ROLE;
-          DELETE FROM payment_allocations WHERE payment_id IN (
-            SELECT id FROM payments WHERE organization_id IN ('${orgAId}', '${orgBId}')
-          );
-          DELETE FROM payments WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM invoice_items WHERE invoice_id IN (
-            SELECT id FROM invoices WHERE organization_id IN ('${orgAId}', '${orgBId}')
-          );
-          DELETE FROM sales_order_items WHERE sales_order_id IN (
-            SELECT id FROM sales_orders WHERE organization_id IN ('${orgAId}', '${orgBId}')
-          );
-          DELETE FROM sales_orders WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM quotation_items WHERE quotation_id IN (
-            SELECT id FROM quotations WHERE organization_id IN ('${orgAId}', '${orgBId}')
-          );
-          DELETE FROM quotations WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM stock_movements WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM products WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM customers WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM audit_events WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM organization_subscriptions WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM organization_eligibility WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM memberships WHERE organization_id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM organizations WHERE id IN ('${orgAId}', '${orgBId}');
-          DELETE FROM auth.users WHERE id IN ('${userAId}', '${userBId}');
-        `);
-        cleanupSuccessful = true;
-        console.log('  ✓ FK-ordered cleanup completed successfully.');
-      } catch (cleanErr) {
-        console.error('  ❌ Fallback cleanup failed:', cleanErr.message);
-        cleanupSuccessful = false;
-        throw new Error(`Test isolation failure: Fallback cleanup failed: ${cleanErr.message}`);
       }
     }
 

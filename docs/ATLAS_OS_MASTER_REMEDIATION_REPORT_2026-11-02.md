@@ -299,26 +299,32 @@ Full automated test execution was verified via `npm test -- --run`:
 ---
 
 ### 2. Master Database Lifecycle Acceptance Test Suite
-The committed test runner `scripts/run_local_db_acceptance.mjs` executes 15 end-to-end database security and lifecycle contracts against PostgreSQL:
+The committed test runner `scripts/run_local_db_acceptance.mjs` executes 22 end-to-end database security and lifecycle contracts against PostgreSQL:
 
 | Contract ID | Test Category | Description | Target Invariant | Result |
 |---|---|---|---|---|
+| **P0-SEC-REVOKE-01** | Table DML Revocation | Direct `INSERT` on `stock_movements` blocked | Migration 022 revokes direct mutations; fails with SQLSTATE `42501` | **PASS** |
+| **P0-SEC-REVOKE-02** | Table DML Revocation | Direct `UPDATE` on `stock_movements` blocked | Migration 022 revokes direct mutations; fails with SQLSTATE `42501` | **PASS** |
+| **P0-SEC-REVOKE-03** | Table DML Revocation | Direct `INSERT` on `payments` blocked | Migration 017 revokes direct mutations; fails with SQLSTATE `42501` | **PASS** |
+| **P0-SEC-REVOKE-04** | Table DML Revocation | Direct `INSERT` on `payment_allocations` blocked | Migration 017 revokes direct mutations; fails with SQLSTATE `42501` | **PASS** |
+| **P0-SEC-REVOKE-05** | Table DML Revocation | Direct `INSERT` on `organization_eligibility` blocked | Migration 013 revokes direct mutations; fails with SQLSTATE `42501` | **PASS** |
 | **P0-SO-01** | Sales Order | Direct insert with `status = 'CONFIRMED'` | Trigger `trg_sales_orders_enforce_lifecycle` rejects insert | **PASS** |
 | **P0-SO-02** | Sales Order | Direct insert with `status = 'FULFILLED'` | Trigger `trg_sales_orders_enforce_lifecycle` rejects insert | **PASS** |
 | **P0-SO-03** | Sales Order | Direct status change from `DRAFT` to `CONFIRMED` | Trigger blocks direct update; requires `confirm_sales_order` | **PASS** |
-| **P0-SO-04** | Sales Order | Authoritative confirmation via `confirm_sales_order` | Transitions order to `CONFIRMED` and deducts stock exactly once | **PASS** |
-| **P0-SO-05** | Sales Order | Modification of line items on `CONFIRMED` order | Trigger `trg_sales_order_items_enforce_parent_status` rejects update | **PASS** |
-| **P0-SO-06** | Sales Order | Re-confirmation of already `CONFIRMED` order | Rejected; prevents double-deduction of inventory | **PASS** |
-| **P0-SO-07** | Sales Order | Confirmation with insufficient stock | Rejected; order remains in `DRAFT`; no partial stock movements | **PASS** |
+| **P0-SO-04-GUC** | Lifecycle Context | Attempted GUC spoofing (`app.authoritative_order_transition`) | Migration 026 `SECURITY INVOKER` detects `CURRENT_USER='authenticated'` and rejects transition | **PASS** |
+| **P0-SO-05** | Inventory & Order | Authoritative confirmation via `confirm_sales_order` | Transitions order to `CONFIRMED`, deducts 10 units (100 to 90), and logs audit event | **PASS** |
+| **P0-SO-06** | Sales Order Integrity | Modification of line items on `CONFIRMED` order | Trigger `trg_sales_order_items_enforce_status` rejects update | **PASS** |
+| **P0-SO-07** | Idempotent Replay | Re-confirmation of already `CONFIRMED` order | Safe replay returned; prevents duplicate deduction or movements | **PASS** |
 | **P0-INV-01** | Tax Invoice | Direct insert with `status = 'ISSUED'` | Trigger `trg_invoices_enforce_lifecycle` rejects insert | **PASS** |
 | **P0-INV-02** | Tax Invoice | Authoritative invoice creation via `create_invoice_atomic` | Creates `ISSUED` invoice and marks sales order `FULFILLED` | **PASS** |
-| **P0-INV-03** | Tax Invoice | Modification of line items on `ISSUED` invoice | Trigger `trg_invoice_items_enforce_parent_status` rejects update | **PASS** |
-| **P0-INV-04** | Tax Invoice | Deletion of tax invoice | Trigger rejects `DELETE`; enforces Indian statutory retention | **PASS** |
-| **P1-QUOT-01**| Quotations | Atomic quotation creation and single conversion | Quotation marked `CONVERTED`; duplicate conversion rejected | **PASS** |
+| **P0-INV-03** | Tax Invoice Integrity | Modification of line items on `ISSUED` invoice | Trigger `trg_invoice_items_enforce_status` rejects update | **PASS** |
+| **P0-INV-04** | Statutory Retention | Deletion of tax invoice | Trigger rejects `DELETE`; enforces Indian statutory retention | **PASS** |
+| **P1-QUOT-01** | Quotations | Atomic quotation creation and single conversion | Quotation marked `CONVERTED`; idempotent replay preserves single linked sales order | **PASS** |
 | **P1-PAY-01** | Payments | Idempotent payment recording and allocation | Replay returns cached receipt; prevents double allocation | **PASS** |
 | **P1-PAY-02** | Payments | Replay of idempotency key with altered payload | Rejected with `ERR_IDEMPOTENCY_CONFLICT` | **PASS** |
-| **P1-DASH-01**| Aggregation | Authoritative dashboard metrics calculation | Computed server-side without PostgREST 1000-row truncation | **PASS** |
-| **P1-TEN-01** | Isolation | Cross-tenant RPC execution attempt | Rejected; tenant A records inaccessible to tenant B | **PASS** |
+| **P1-TENANT-01** | Isolation | Cross-tenant data isolation under authenticated role | Cross-tenant queries return 0 rows under RLS; RPC blocks cross-tenant execution | **PASS** |
+| **P1-ANON-01** | Role Boundary | Anonymous role access to private business tables | Blocked by RLS policies; returns 0 rows or fails with `42501` | **PASS** |
+| **P1-DASH-01** | Aggregation | Authoritative dashboard metrics calculation | Computed server-side without PostgREST 1000-row truncation | **PASS** |
 
 ---
 
@@ -416,6 +422,16 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
    Forward-only Migration `026_authoritative_lifecycle_invoker_triggers.sql` re-defines all lifecycle triggers as `SECURITY INVOKER`. Under `SECURITY INVOKER`, client statements run with `CURRENT_USER = 'authenticated'` (rejecting the GUC), while authoritative RPCs (`confirm_sales_order`, `create_invoice_atomic`) execute with `CURRENT_USER = 'postgres'`, correctly authorizing the transition.
 9. **Post-Migration Permission Distortion:** The previous test runner executed `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;` after all migrations ran. This wiped out explicit `REVOKE INSERT, UPDATE, DELETE` directives from migrations `013`, `017`, and `022`. The statement was removed; standard Supabase default privileges are now established during Step 1 bootstrap prior to migrations, ensuring explicit table revocations remain permanently in effect. Dedicated tests assert that direct mutations on `stock_movements`, `payments`, `payment_allocations`, and `organization_eligibility` fail with SQLSTATE `42501` (`insufficient_privilege`).
 10. **Test Database Safety Guard:** Added pre-flight host validation refusing execution against remote or production databases (e.g. `*.supabase.co`), guaranteed strict non-zero exit on local DB unavailability, and ensured cleanup errors fail the suite loudly rather than being ignored.
+11. **Stock RPC Calling Convention & Ephemeral Database Isolation (Runs 41510701772 & 41510694124):** In previous test harness runs, `scripts/run_local_db_acceptance.mjs:608` threw `TypeError: stockB4[0].res.find is not a function`.
+    * *Root Cause:* Migration `024` defines `public.get_product_stock_levels(p_org_id UUID)` returning `TABLE (product_id UUID, current_stock NUMERIC)`. Querying it as a scalar expression `SELECT get_product_stock_levels(...) AS res;` causes PostgreSQL to serialize rows into composite records `'(<uuid>,100)'`, which `node-pg` returns as scalar text rather than JSON.
+    * *Fix:* Replaced query with standard parameterized set-returning query:
+      ```sql
+      SELECT current_stock
+      FROM public.get_product_stock_levels($1::uuid)
+      WHERE product_id = $2::uuid;
+      ```
+    * *Inventory Invariant Verification:* Order confirmation authoritatively deducted 10 units (100 to 90), logged an audit record (`CONFIRM_ORDER`), transitioned order status to `CONFIRMED`, and verified that re-confirmation safely returns an idempotent replay without duplicate deduction or additional movements.
+    * *Strict Isolation & Teardown:* Removed fallback execution against connected maintenance database; ephemeral test database (`atlas_test_<runId>`) creation is strictly required. Teardown terminates connections and force-drops the test database via `DROP DATABASE IF EXISTS ... WITH (FORCE)` in `finally`, leaving zero lingering state. Cluster-wide superuser role `supabase_admin` was eliminated.
 
 ---
 
@@ -427,7 +443,7 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
 |---|---|---|
 | `.github/workflows/ci.yml` | +24, -2 | Added PostgreSQL 15 service container and `test:db` CI step. |
 | `package.json` | +1, -0 | Added `"test:db": "node scripts/run_local_db_acceptance.mjs"`. |
-| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, ephemeral test DB creation/drop, Supabase bootstrap, lexical migration application (001-026), lowercase enums, valid product category, schema-accurate columns, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and clean teardown. |
+| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, ephemeral test DB creation/drop (no fallback), Supabase bootstrap, lexical migration application (001-026), lowercase enums, valid product category, schema-accurate columns, parameterized stock set-returning queries, 22 security & lifecycle contract assertions under restricted roles, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and clean teardown. |
 | `src/features/ai/AIPage.tsx` | +36, -9 | Added tenant change reset `useEffect`, role gate on proposal approval, and IST overdue checks. |
 | `src/features/invoices/InvoicesPage.tsx` | +19, -6 | Added `.printable-tax-invoice` class, `.no-print` wrapper, and statutory Indian GST details. |
 | `src/features/orders/OrdersPage.tsx` | +13, -3 | Added IST date default and empty customer/product guards before opening modal. |
