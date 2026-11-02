@@ -409,12 +409,13 @@ All database remediations are consolidated into migration:
 | `src/services/review-regressions.test.ts` | +7, -5 | Updated stock ledger failure test to match RPC failure propagation. |
 | `src/styles/index.css` | +77, -0 | Added comprehensive `@media print` CSS rules for A4 Tax Invoice presentation. |
 
-### New Files Created (4)
+### New Files Created (5)
 
 | File | Purpose |
 |---|---|
 | `supabase/migrations/024_master_security_lifecycle_and_order_integrity.sql` | Consolidated forward-only migration containing all P0/P1 database triggers, RLS policies, and RPCs. |
-| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 15 database security & lifecycle acceptance contracts. |
+| `supabase/migrations/025_harden_authoritative_lifecycle_context.sql` | Forward-only migration preventing trust flag manipulation outside privileged SECURITY DEFINER RPCs. |
+| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 16 database security & lifecycle acceptance contracts under real restricted database roles (`authenticated`, `anon`). |
 | `src/lib/dates.ts` | Authoritative Indian Standard Time (`Asia/Kolkata`) date, offset, and aging library. |
 | `src/lib/dates.test.ts` | Unit tests verifying IST date calculations and overdue comparisons. |
 
