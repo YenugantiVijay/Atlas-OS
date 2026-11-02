@@ -29,7 +29,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders, classN
 
     // Aggregate real order values
     orders.forEach((o) => {
-      if (o.status !== 'CANCELLED' && dateMap[o.orderDate] !== undefined) {
+      if ((o.status === 'CONFIRMED' || o.status === 'FULFILLED') && dateMap[o.orderDate] !== undefined) {
         dateMap[o.orderDate] += o.totalAmount;
       }
     });

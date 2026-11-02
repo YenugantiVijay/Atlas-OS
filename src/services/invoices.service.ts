@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM } from '@/types';
 import { parseTaxRate } from '@/lib/money';
+import { mapDbCustomer } from './customers.service';
 
 export function mapDbInvoiceItem(row: any): InvoiceItem {
   return {
@@ -28,6 +29,7 @@ export function mapDbInvoice(row: any, items: InvoiceItem[] = []): Invoice {
     organizationId: row.organization_id,
     invoiceNumber: row.invoice_number,
     customerId: row.customer_id,
+    customer: row.customer ? mapDbCustomer(row.customer) : undefined,
     salesOrderId: row.sales_order_id || undefined,
     status: row.status as InvoiceStatus,
     invoiceDate: row.invoice_date,
@@ -80,7 +82,7 @@ export const invoicesService = {
 
     const { data: dbInvoices, error } = await supabase
       .from('invoices')
-      .select('*, items:invoice_items(*)')
+      .select('*, items:invoice_items(*), customer:customers!fk_invoices_customer_org(*)')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false });
 

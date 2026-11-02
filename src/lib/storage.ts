@@ -1789,7 +1789,7 @@ class StorageEngine {
 
     // Today's sales (confirmed/fulfilled orders placed today)
     const todaySales = orders
-      .filter((o) => o.orderDate === todayStr && o.status !== 'CANCELLED')
+      .filter((o) => o.orderDate === todayStr && (o.status === 'CONFIRMED' || o.status === 'FULFILLED'))
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
     // Total outstanding receivables

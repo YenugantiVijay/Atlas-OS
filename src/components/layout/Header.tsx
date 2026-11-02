@@ -73,6 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser,
     updateCurrentUser,
     isAuthenticated,
+    isMockAuth,
     isLoadingAuth,
     signOut,
   } = useOrg();
@@ -160,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
     setIsProfileModalOpen(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editFullName.trim()) {
       showToast('error', 'Name Required', 'Please enter your full name.');
@@ -169,10 +170,10 @@ export const Header: React.FC<HeaderProps> = ({
 
     setIsSavingProfile(true);
     try {
-      updateCurrentUser({
+      await updateCurrentUser({
         fullName: editFullName.trim(),
         email: editEmail.trim(),
-        avatarUrl: editAvatarUrl || undefined,
+        avatarUrl: editAvatarUrl,
       });
 
       showToast('success', 'Profile Updated', 'Your profile details and image have been updated.');
@@ -192,30 +193,32 @@ export const Header: React.FC<HeaderProps> = ({
         }`}
       >
         {/* Left: Hamburger & Organization Selector */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
           {onToggleMobileMenu && (
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="p-1.5 -ml-1 rounded-lg text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:ring-2 focus-visible:ring-atlas-500"
+              className="p-1.5 -ml-1 shrink-0 rounded-lg text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:ring-2 focus-visible:ring-atlas-500"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
 
-          <div ref={orgDropdownRef} className="relative">
+          <div ref={orgDropdownRef} className="relative min-w-0">
             <button
               onClick={() => {
                 setIsOrgDropdownOpen((prev) => !prev);
                 setIsQuickCreateOpen(false);
                 setIsUserMenuOpen(false);
               }}
-              className={`flex h-9 items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 text-xs font-semibold text-content-primary hover:border-slate-300 hover:bg-slate-100/70 transition-colors ${
+              aria-label={`Switch organization: ${currentOrg?.name || 'No organization selected'}`}
+              aria-expanded={isOrgDropdownOpen}
+              className={`flex w-full h-9 items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 text-xs font-semibold text-content-primary hover:border-slate-300 hover:bg-slate-100/70 transition-colors ${
                 isOrgDropdownOpen ? 'border-atlas-400 bg-atlas-50 ring-2 ring-atlas-100' : ''
               }`}
             >
-              <Building2 className="w-3.5 h-3.5 text-atlas-600" />
+              <Building2 className="w-3.5 h-3.5 text-atlas-600 shrink-0" />
               <span className="max-w-[130px] sm:max-w-[180px] truncate">{currentOrg?.name || 'Select Organization'}</span>
               <ChevronDown className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 ${isOrgDropdownOpen ? 'rotate-180 text-atlas-700' : ''}`} />
             </button>
@@ -303,10 +306,11 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Command Palette Trigger */}
           <button
             onClick={onOpenCommandPalette}
+            aria-label="Search Atlas OS"
             className="flex h-9 items-center gap-2 rounded-lg border border-border bg-slate-50 px-2.5 sm:px-3 text-xs text-content-secondary hover:border-slate-300 hover:text-content-primary transition-colors shadow-2xs"
           >
             <Search className="w-3.5 h-3.5 text-content-muted" />
@@ -322,6 +326,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Button
                 size="sm"
                 variant="primary"
+                aria-label="Quick Create"
                 onClick={() => {
                   setIsQuickCreateOpen((prev) => !prev);
                   setIsOrgDropdownOpen(false);
@@ -362,7 +367,9 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsOrgDropdownOpen(false);
                 setIsQuickCreateOpen(false);
               }}
-              className={`flex h-9 items-center gap-2.5 pl-1.5 pr-3 rounded-full border border-border bg-slate-50 hover:bg-atlas-50 hover:border-atlas-300 transition-all shadow-2xs group cursor-pointer ${
+              aria-label="User Profile & Shop Menu"
+              aria-expanded={isUserMenuOpen}
+              className={`flex h-9 items-center gap-2.5 px-1.5 sm:pr-3 rounded-full border border-border bg-slate-50 hover:bg-atlas-50 hover:border-atlas-300 transition-all shadow-2xs group cursor-pointer ${
                 isUserMenuOpen ? 'ring-2 ring-atlas-200 border-atlas-400 bg-atlas-50' : ''
               }`}
               title="User Profile & Shop Menu"
@@ -381,7 +388,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               {/* Right side: Top = Name of shop, Bottom = User name & role */}
-              <div className="text-left flex flex-col justify-center min-w-0 pr-0.5">
+              <div className="text-left hidden xl:flex flex-col justify-center min-w-0 pr-0.5">
                 <div className="text-xs font-bold text-content-primary leading-tight truncate max-w-[140px] sm:max-w-[175px] group-hover:text-atlas-900">
                   {currentOrg?.name || 'Organization'}
                 </div>
@@ -392,7 +399,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Dropdown Chevron */}
               <ChevronDown
-                className={`w-3.5 h-3.5 text-content-muted group-hover:text-atlas-700 shrink-0 transition-transform duration-200 ${
+                className={`hidden sm:block w-3.5 h-3.5 text-content-muted group-hover:text-atlas-700 shrink-0 transition-transform duration-200 ${
                   isUserMenuOpen ? 'rotate-180 text-atlas-700' : ''
                 }`}
               />
@@ -573,6 +580,8 @@ export const Header: React.FC<HeaderProps> = ({
             label="Email Address"
             type="email"
             required
+            disabled={!isMockAuth}
+            helperText={!isMockAuth ? 'Your sign-in email cannot be changed from this profile form.' : undefined}
             value={editEmail}
             onChange={(e) => setEditEmail(e.target.value)}
             placeholder="Enter your email address"
