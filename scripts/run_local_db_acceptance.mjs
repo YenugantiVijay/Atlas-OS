@@ -200,6 +200,7 @@ async function runAcceptance() {
   const custAId = crypto.randomUUID();
   const prodA1Id = crypto.randomUUID();
   const prodA2Id = crypto.randomUUID();
+  const prodB1Id = crypto.randomUUID();
 
   try {
     // ------------------------------------------------------------------------
@@ -293,9 +294,9 @@ async function runAcceptance() {
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 026 in Strict Lexical Order
+    // Step 2: Apply Migrations 001 - 027 in Strict Lexical Order
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 026)...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 027)...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
@@ -353,7 +354,8 @@ async function runAcceptance() {
       -- Products fixture with valid NOT NULL category ('Wires & Cables', 'Switchgear') from Migration 002
       INSERT INTO products (id, organization_id, name, sku, category, uom, purchase_cost, selling_price, tax_rate, reorder_threshold, is_active) VALUES
       ('${prodA1Id}', '${orgAId}', 'Copper Wire 2.5sqmm', 'WIRE-25-${runId}', 'Wires & Cables', 'Mtr', 20.00, 30.00, 18, 50, true),
-      ('${prodA2Id}', '${orgAId}', 'MCB 16A Single Pole', 'MCB-16-${runId}', 'Switchgear', 'Nos', 120.00, 180.00, 18, 10, true);
+      ('${prodA2Id}', '${orgAId}', 'MCB 16A Single Pole', 'MCB-16-${runId}', 'Switchgear', 'Nos', 120.00, 180.00, 18, 10, true),
+      ('${prodB1Id}', '${orgBId}', 'Industrial Relay 24V', 'RELAY-24-${runId}', 'Switchgear', 'Nos', 300.00, 450.00, 18, 5, true);
 
       -- Initial opening stock for product 1 (100 units) and product 2 (50 units)
       INSERT INTO stock_movements (organization_id, product_id, quantity_change, movement_type, notes) VALUES
@@ -651,24 +653,71 @@ async function runAcceptance() {
       isConfirmed && exactly10Deducted && dbConfirmed && auditCreated ? null : new Error('Stock deduction, status, or audit record assertion failed')
     );
 
-    // TEST 6: Modification of items on CONFIRMED order is blocked
+    // TEST 6: Modification of items on CONFIRMED order is restricted under authenticated role
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-      let blocked = false;
+      const { rows: beforeRows } = await testClient.query(
+        `SELECT id, quantity, unit_price FROM sales_order_items WHERE sales_order_id = $1::uuid;`,
+        [draftOrderId]
+      );
+      const qtyBefore = Number(beforeRows[0]?.quantity);
+
+      let rowCount = -1;
       let caughtErr = null;
       try {
-        await testClient.query(`UPDATE sales_order_items SET quantity = 25 WHERE sales_order_id = $1::uuid;`, [draftOrderId]);
+        const res = await testClient.query(
+          `UPDATE sales_order_items SET quantity = 25 WHERE sales_order_id = $1::uuid;`,
+          [draftOrderId]
+        );
+        rowCount = res.rowCount;
       } catch (err) {
         caughtErr = err;
-        blocked = err.code === '42501' || err.code === '23514' || err.message.includes('Cannot') || err.message.includes('immutable');
       }
+
+      const { rows: afterRows } = await testClient.query(
+        `SELECT id, quantity, unit_price FROM sales_order_items WHERE sales_order_id = $1::uuid;`,
+        [draftOrderId]
+      );
+      const qtyAfter = Number(afterRows[0]?.quantity);
+
+      // In PostgreSQL RLS, updating rows not satisfying USING clause matches 0 rows (rowCount = 0)
+      const rlsBlocked = (rowCount === 0 || caughtErr !== null) && qtyBefore === qtyAfter && qtyAfter === 10;
       recordTest(
         'P0-SO-06',
-        'Line item mutation on CONFIRMED sales order is strictly rejected',
-        blocked,
-        `Enforced by trg_sales_order_items_enforce_status (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        'Line item mutation on CONFIRMED sales order is restricted by RLS (zero rows modified)',
+        rlsBlocked,
+        `RLS sales_order_items_update filtered non-draft order (rowCount: ${rowCount}, quantity remained ${qtyAfter})`,
+        rlsBlocked ? null : (caughtErr || new Error(`Expected zero rows modified, got rowCount=${rowCount}`))
       );
     });
+
+    // TEST 6-TRG: Direct mutation of items on CONFIRMED order (bypassing RLS as table owner) is rejected by trigger
+    {
+      let trgBlocked = false;
+      let trgErr = null;
+      try {
+        await testClient.query(
+          `UPDATE sales_order_items SET quantity = 25 WHERE sales_order_id = $1::uuid;`,
+          [draftOrderId]
+        );
+      } catch (err) {
+        trgErr = err;
+        trgBlocked = err.code === '23514' || err.message.includes('CONFIRMED');
+      }
+
+      const { rows: itemCheck } = await testClient.query(
+        `SELECT quantity FROM sales_order_items WHERE sales_order_id = $1::uuid;`,
+        [draftOrderId]
+      );
+      const remains10 = Number(itemCheck[0]?.quantity) === 10;
+
+      recordTest(
+        'P0-SO-06-TRG',
+        'Direct item mutation on CONFIRMED order raises check_violation (23514) in trigger',
+        Boolean(trgBlocked && remains10),
+        `Enforced by trg_sales_order_items_enforce_parent_status (SQLSTATE ${trgErr?.code}, message: "${trgErr?.message}")`,
+        trgBlocked && remains10 ? null : (trgErr || new Error('Trigger did not raise expected check_violation'))
+      );
+    }
 
     // TEST 7: Idempotent Replay — Re-confirmation of already CONFIRMED order returns safe replay and avoids double-deduction
     let replayResult = null;
@@ -714,6 +763,112 @@ async function runAcceptance() {
       `Replay returned idempotent_replay: true; Stock remained ${stockAfterReplay}; Deductions count: ${deductionCount}`,
       isIdempotentReplay ? null : new Error('Replay failed or double-deducted inventory')
     );
+
+    // TEST: Multi-product sales order creation via create_sales_order_atomic
+    let multiSoResult = null;
+    const multiSoKey = crypto.randomUUID();
+    const multiItems = JSON.stringify([
+      { productId: prodA1Id, quantity: 5, unitPrice: 30.00, discountPercent: 0, taxRate: 18 },
+      { productId: prodA2Id, quantity: 2, unitPrice: 180.00, discountPercent: 0, taxRate: 18 },
+    ]);
+
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: soRows } = await testClient.query(
+        `SELECT create_sales_order_atomic(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
+          p_order_date := '2026-11-02'::date,
+          p_items := $3::jsonb,
+          p_notes := 'Multi-item sales order'::text,
+          p_quotation_id := NULL::uuid,
+          p_idempotency_key := $4::uuid
+        ) AS result;`,
+        [orgAId, custAId, multiItems, multiSoKey]
+      );
+      multiSoResult = soRows[0]?.result;
+    });
+
+    // Verification: Subtotal = (5*30) + (2*180) = 150 + 360 = 510; Tax 18% = 91.80; Total = 601.80
+    const multiSoValid =
+      multiSoResult?.id &&
+      multiSoResult?.status === 'DRAFT' &&
+      Number(multiSoResult?.subtotal) === 510.00 &&
+      Number(multiSoResult?.tax_amount) === 91.80 &&
+      Number(multiSoResult?.total_amount) === 601.80 &&
+      Array.isArray(multiSoResult?.items) &&
+      multiSoResult.items.length === 2;
+
+    recordTest(
+      'P0-SO-DOC-01',
+      'Multi-product sales order creation via create_sales_order_atomic calculates subtotal and tax accurately',
+      Boolean(multiSoValid),
+      `Order ${multiSoResult?.order_number} created with 2 items; Subtotal: ${multiSoResult?.subtotal}, Tax: ${multiSoResult?.tax_amount}, Total: ${multiSoResult?.total_amount}`,
+      multiSoValid ? null : new Error('Multi-product sales order creation returned invalid totals or items')
+    );
+
+    // TEST: Cross-tenant product rejection in create_sales_order_atomic
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let crossProdBlocked = false;
+      let crossProdErr = null;
+      const crossTenantItems = JSON.stringify([
+        { productId: prodB1Id, quantity: 1, unitPrice: 450.00, discountPercent: 0, taxRate: 18 },
+      ]);
+      try {
+        await testClient.query(
+          `SELECT create_sales_order_atomic(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_order_date := '2026-11-02'::date,
+            p_items := $3::jsonb,
+            p_notes := 'Cross-tenant product attempt'::text
+          );`,
+          [orgAId, custAId, crossTenantItems]
+        );
+      } catch (err) {
+        crossProdErr = err;
+        crossProdBlocked = err.message.includes('do not belong to organization') || err.message.includes('not found');
+      }
+
+      recordTest(
+        'P0-SO-DOC-02',
+        'Cross-tenant product in create_sales_order_atomic is strictly rejected',
+        crossProdBlocked,
+        `Rejected cross-tenant product: "${crossProdErr?.message}"`,
+        crossProdBlocked ? null : crossProdErr
+      );
+    });
+
+    // TEST: Invalid quantity rejection in create_sales_order_atomic
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let invalidQtyBlocked = false;
+      let invalidQtyErr = null;
+      const invalidQtyItems = JSON.stringify([
+        { productId: prodA1Id, quantity: 0, unitPrice: 30.00, discountPercent: 0, taxRate: 18 },
+      ]);
+      try {
+        await testClient.query(
+          `SELECT create_sales_order_atomic(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_order_date := '2026-11-02'::date,
+            p_items := $3::jsonb,
+            p_notes := 'Invalid quantity attempt'::text
+          );`,
+          [orgAId, custAId, invalidQtyItems]
+        );
+      } catch (err) {
+        invalidQtyErr = err;
+        invalidQtyBlocked = err.message.includes('invalid quantity') || err.message.includes('must be >= 1');
+      }
+
+      recordTest(
+        'P0-SO-DOC-03',
+        'Invalid quantity (<= 0) in create_sales_order_atomic is strictly rejected',
+        invalidQtyBlocked,
+        `Rejected non-positive quantity: "${invalidQtyErr?.message}"`,
+        invalidQtyBlocked ? null : invalidQtyErr
+      );
+    });
 
     // TEST 8: Direct insert of ISSUED invoice is blocked
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
@@ -828,6 +983,76 @@ async function runAcceptance() {
         blocked,
         `Enforced by trg_invoice_lifecycle (SQLSTATE ${caughtErr?.code})`,
         blocked ? null : caughtErr
+      );
+    });
+
+    // TEST: Standalone invoice creation via create_invoice_atomic
+    let standaloneInvResult = null;
+    const standaloneItems = JSON.stringify([
+      { productId: prodA2Id, quantity: 1, unitPrice: 180.00, discountPercent: 0, taxRate: 18 },
+    ]);
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const { rows: invRows } = await testClient.query(
+        `SELECT create_invoice_atomic(
+          p_org_id := $1::uuid,
+          p_customer_id := $2::uuid,
+          p_items := $3::jsonb,
+          p_invoice_date := '2026-11-02'::date,
+          p_due_date := '2026-11-17'::date,
+          p_status := 'ISSUED',
+          p_notes := 'Direct standalone invoice'::text,
+          p_sales_order_id := NULL::uuid,
+          p_idempotency_key := $4::uuid
+        ) AS result;`,
+        [orgAId, custAId, standaloneItems, crypto.randomUUID()]
+      );
+      standaloneInvResult = invRows[0]?.result;
+    });
+
+    const standaloneValid =
+      standaloneInvResult?.id &&
+      standaloneInvResult?.status === 'ISSUED' &&
+      standaloneInvResult?.sales_order_id === null &&
+      Number(standaloneInvResult?.total_amount) === 212.40;
+
+    recordTest(
+      'P0-INV-DOC-01',
+      'Standalone invoice creation via create_invoice_atomic succeeds with accurate totals and null sales_order_id',
+      Boolean(standaloneValid),
+      `Standalone invoice ${standaloneInvResult?.invoice_number} created with total ${standaloneInvResult?.total_amount}`,
+      standaloneValid ? null : new Error('Standalone invoice creation failed')
+    );
+
+    // TEST: Prevent duplicate invoicing on already invoiced sales order
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let duplicateInvBlocked = false;
+      let duplicateInvErr = null;
+      try {
+        await testClient.query(
+          `SELECT create_invoice_atomic(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_items := $3::jsonb,
+            p_invoice_date := '2026-11-02'::date,
+            p_due_date := '2026-11-17'::date,
+            p_status := 'ISSUED',
+            p_notes := 'Duplicate invoice attempt'::text,
+            p_sales_order_id := $4::uuid,
+            p_idempotency_key := $5::uuid
+          );`,
+          [orgAId, custAId, invItemsJson, draftOrderId, crypto.randomUUID()]
+        );
+      } catch (err) {
+        duplicateInvErr = err;
+        duplicateInvBlocked = err.code === '23505' || err.message.includes('Active invoice already exists') || err.message.includes('must be CONFIRMED');
+      }
+
+      recordTest(
+        'P0-INV-DOC-02',
+        'Duplicate invoice creation against already invoiced sales order is strictly rejected',
+        duplicateInvBlocked,
+        `Rejected duplicate invoicing (SQLSTATE ${duplicateInvErr?.code}, message: "${duplicateInvErr?.message}")`,
+        duplicateInvBlocked ? null : duplicateInvErr
       );
     });
 
@@ -1006,6 +1231,42 @@ async function runAcceptance() {
       );
     });
 
+    // TEST: Overpayment rejection in record_payment_and_allocate
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let overpayBlocked = false;
+      let overpayErr = null;
+      try {
+        // createdInvoiceId total is 354.00, already paid 200.00, remaining balance is 154.00.
+        // Attempting to allocate 300.00 must raise Overpayment violation
+        await testClient.query(
+          `SELECT record_payment_and_allocate(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_amount := 300.00::numeric,
+            p_payment_method := 'NEFT'::varchar,
+            p_reference_no := 'NEFT-OVERPAY-01'::varchar,
+            p_payment_date := '2026-11-02'::date,
+            p_notes := 'Overpayment attempt'::text,
+            p_invoice_id := $3::uuid,
+            p_allocated_amount := 300.00::numeric,
+            p_idempotency_key := $4::uuid
+          );`,
+          [orgAId, custAId, createdInvoiceId, crypto.randomUUID()]
+        );
+      } catch (err) {
+        overpayErr = err;
+        overpayBlocked = err.message.includes('Overpayment violation') || err.message.includes('exceeds remaining balance');
+      }
+
+      recordTest(
+        'P1-PAY-DOC-01',
+        'Overpayment exceeding remaining invoice balance is strictly rejected by record_payment_and_allocate',
+        overpayBlocked,
+        `Rejected overpayment: "${overpayErr?.message}"`,
+        overpayBlocked ? null : overpayErr
+      );
+    });
+
     // TEST 15: Cross-tenant isolation under authenticated User B
     await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       // User B attempts to access Org A's sales order via direct SELECT
@@ -1086,6 +1347,13 @@ async function runAcceptance() {
     // Step 5: Clean Disposal of Dedicated Test Database (Guaranteed Teardown)
     // ------------------------------------------------------------------------
     if (testClient) {
+      try {
+        await testClient.query(`
+          REVOKE authenticated, anon, service_role FROM CURRENT_USER;
+        `);
+      } catch (err) {
+        // Safe to ignore if already disconnected or in error state
+      }
       await testClient.end().catch(() => {});
     }
 

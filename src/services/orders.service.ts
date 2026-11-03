@@ -134,6 +134,7 @@ export const ordersService = {
       quotationId?: string;
       orderDate: string;
       notes?: string;
+      idempotencyKey?: string;
       items: Array<{
         productId: string;
         productName: string;
@@ -173,7 +174,9 @@ export const ordersService = {
     }
 
     // Authoritative atomic RPC execution with request idempotency
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey =
+      input.idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
     const { data: rpcData, error: rpcErr } = await supabase.rpc('create_sales_order_atomic', {
       p_org_id: orgId,
       p_customer_id: input.customerId,
@@ -282,6 +285,7 @@ export const ordersService = {
       customerId: string;
       validUntil: string;
       notes?: string;
+      idempotencyKey?: string;
       items: Array<{
         productId: string;
         productName: string;
@@ -319,7 +323,9 @@ export const ordersService = {
       }
     }
 
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey =
+      input.idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
     const { data: rpcData, error: rpcErr } = await supabase.rpc('create_quotation_atomic', {
       p_org_id: orgId,
       p_customer_id: input.customerId,
@@ -360,7 +366,8 @@ export const ordersService = {
   async convertQuotationToOrder(
     orgId: string,
     quotationId: string,
-    isMockAuth: boolean = false
+    isMockAuth: boolean = false,
+    idempotencyKey?: string
   ): Promise<SalesOrder> {
     if (isMockAuth) {
       return storage.convertQuotationToOrder(orgId, quotationId);
@@ -370,11 +377,13 @@ export const ordersService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const idempotencyKey = crypto.randomUUID();
+    const key =
+      idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
     const { data: rpcData, error: rpcErr } = await supabase.rpc('convert_quotation_atomic', {
       p_org_id: orgId,
       p_quotation_id: quotationId,
-      p_idempotency_key: idempotencyKey,
+      p_idempotency_key: key,
     });
 
     if (rpcErr) {

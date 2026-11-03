@@ -54,6 +54,7 @@ export const QuotationsPage: React.FC = () => {
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
+  const [quotationIdempotencyKey, setQuotationIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -101,6 +102,7 @@ export const QuotationsPage: React.FC = () => {
     // Default valid until 15 business days from now (in IST)
     setValidUntil(getBusinessDateOffset(15));
     setNotes('');
+    setQuotationIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
 
     if (products.length > 0) {
       setItems([
@@ -191,12 +193,20 @@ export const QuotationsPage: React.FC = () => {
         };
       });
 
+      const keyToUse =
+        quotationIdempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+      if (!quotationIdempotencyKey && keyToUse) {
+        setQuotationIdempotencyKey(keyToUse);
+      }
+
       const q = await ordersService.createQuotation(
         currentOrg.id,
         {
           customerId,
           validUntil,
           notes: notes.trim() || undefined,
+          idempotencyKey: keyToUse || undefined,
           items: formattedItems,
         },
         isMockAuth
@@ -204,6 +214,7 @@ export const QuotationsPage: React.FC = () => {
 
       showToast('success', 'Quotation Created', `Quotation ${q.quotationNumber} has been generated.`);
       setIsCreateModalOpen(false);
+      setQuotationIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Failed to Create', err.message);
@@ -555,7 +566,10 @@ export const QuotationsPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsCreateModalOpen(false)}
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setQuotationIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel

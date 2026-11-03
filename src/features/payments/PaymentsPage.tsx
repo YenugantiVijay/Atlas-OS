@@ -52,6 +52,7 @@ export const PaymentsPage: React.FC = () => {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [paymentDate, setPaymentDate] = useState(getBusinessDate());
   const [notes, setNotes] = useState('');
+  const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -106,6 +107,7 @@ export const PaymentsPage: React.FC = () => {
     setReferenceNumber('');
     setPaymentDate(getBusinessDate());
     setNotes('');
+    setPaymentIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
     setIsModalOpen(true);
   };
 
@@ -129,6 +131,13 @@ export const PaymentsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const keyToUse =
+        paymentIdempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+      if (!paymentIdempotencyKey && keyToUse) {
+        setPaymentIdempotencyKey(keyToUse);
+      }
+
       const p = await paymentsService.recordPayment(
         currentOrg.id,
         {
@@ -138,6 +147,7 @@ export const PaymentsPage: React.FC = () => {
           paymentMethod,
           referenceNumber: referenceNumber.trim() || undefined,
           paymentDate,
+          idempotencyKey: keyToUse || undefined,
           notes: notes.trim() || undefined,
         },
         isMockAuth,
@@ -150,6 +160,7 @@ export const PaymentsPage: React.FC = () => {
         `Recorded receipt ${p.paymentNumber} for ${formatCurrency(payAmount)}.`
       );
       setIsModalOpen(false);
+      setPaymentIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Payment Failed', err.message);
@@ -426,7 +437,10 @@ export const PaymentsPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setPaymentIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel
