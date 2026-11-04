@@ -589,32 +589,38 @@ export const OrdersPage: React.FC = () => {
                       View
                     </Button>
 
-                    {o.status === 'DRAFT' && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setOrderToConfirm(o)}
-                        leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                        disabled={!canWriteOperations && !isMockAuth}
-                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                      >
-                        Confirm
-                      </Button>
-                    )}
+                    {o.status === 'DRAFT' && (() => {
+                      const confirmPerm = check('orders:confirm');
+                      return (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setOrderToConfirm(o)}
+                          leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                          disabled={!confirmPerm.allowed}
+                          title={!confirmPerm.allowed ? confirmPerm.message : undefined}
+                        >
+                          Confirm
+                        </Button>
+                      );
+                    })()}
 
-                    {o.status === 'CONFIRMED' && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleCreateInvoice(o)}
-                        leftIcon={<Receipt className="w-3.5 h-3.5" />}
-                        isLoading={invoicingOrderId === o.id}
-                        disabled={!!invoicingOrderId || (!canWriteOperations && !isMockAuth)}
-                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                      >
-                        Invoice
-                      </Button>
-                    )}
+                    {o.status === 'CONFIRMED' && (() => {
+                      const invoicePerm = check('invoices:create');
+                      return (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCreateInvoice(o)}
+                          leftIcon={<Receipt className="w-3.5 h-3.5" />}
+                          isLoading={invoicingOrderId === o.id}
+                          disabled={!!invoicingOrderId || !invoicePerm.allowed}
+                          title={!invoicePerm.allowed ? invoicePerm.message : undefined}
+                        >
+                          Invoice
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </TableCell>
               </TableRow>
@@ -948,30 +954,36 @@ export const OrdersPage: React.FC = () => {
                 Close
               </Button>
 
-              {viewingOrder.status === 'DRAFT' && (
-                <Button
-                  variant="primary"
-                  onClick={() => setOrderToConfirm(viewingOrder)}
-                  leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                  disabled={!canWriteOperations && !isMockAuth}
-                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                >
-                  Confirm Order & Deduct Stock
-                </Button>
-              )}
+              {viewingOrder.status === 'DRAFT' && (() => {
+                const confirmPerm = check('orders:confirm');
+                return (
+                  <Button
+                    variant="primary"
+                    onClick={() => setOrderToConfirm(viewingOrder)}
+                    leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                    disabled={!confirmPerm.allowed}
+                    title={!confirmPerm.allowed ? confirmPerm.message : undefined}
+                  >
+                    Confirm Order & Deduct Stock
+                  </Button>
+                );
+              })()}
 
-              {viewingOrder.status === 'CONFIRMED' && (
-                <Button
-                  variant="primary"
-                  onClick={() => handleCreateInvoice(viewingOrder)}
-                  leftIcon={<Receipt className="w-4 h-4" />}
-                  isLoading={invoicingOrderId === viewingOrder.id}
-                  disabled={!!invoicingOrderId || (!canWriteOperations && !isMockAuth)}
-                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                >
-                  Generate Tax Invoice
-                </Button>
-              )}
+              {viewingOrder.status === 'CONFIRMED' && (() => {
+                const invoicePerm = check('invoices:create');
+                return (
+                  <Button
+                    variant="primary"
+                    onClick={() => handleCreateInvoice(viewingOrder)}
+                    leftIcon={<Receipt className="w-4 h-4" />}
+                    isLoading={invoicingOrderId === viewingOrder.id}
+                    disabled={!!invoicingOrderId || !invoicePerm.allowed}
+                    title={!invoicePerm.allowed ? invoicePerm.message : undefined}
+                  >
+                    Generate Tax Invoice
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         </Modal>
@@ -1027,8 +1039,8 @@ export const OrdersPage: React.FC = () => {
                   handleConfirmOrder(target);
                 }}
                 leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-300" />}
-                disabled={!canWriteOperations && !isMockAuth}
-                title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
+                disabled={!check('orders:confirm').allowed}
+                title={!check('orders:confirm').allowed ? check('orders:confirm').message : undefined}
               >
                 Confirm & Allocate Stock
               </Button>

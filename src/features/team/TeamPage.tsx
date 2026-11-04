@@ -204,7 +204,7 @@ export const TeamPage: React.FC = () => {
         <div className="p-3.5 rounded-xl border border-atlas-200 bg-atlas-50 text-atlas-900 text-xs flex items-center gap-3">
           <ShieldAlert className="w-4 h-4 text-atlas-600 shrink-0" />
           <span>
-            <strong>Cloud Security Enforced:</strong> Live Cloud permissions and memberships are verified against Supabase Row Level Security. Only organization owners can reassign roles or adjust member status.
+            <strong>Cloud Security Enforced:</strong> Live Cloud permissions and memberships are verified against Supabase Row Level Security. Only organization owners can reassign roles or adjust member status. <em>Team invitations in Live Cloud are intentionally managed via authorized Edge Functions with transactional email delivery.</em>
           </span>
         </div>
       )}

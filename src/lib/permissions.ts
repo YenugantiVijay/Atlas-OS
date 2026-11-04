@@ -137,10 +137,22 @@ export const ACTION_DESCRIPTIONS: Record<Action, string> = {
   'data:read': 'read organization data',
 };
 
+export const READ_ONLY_ACTIONS: readonly Action[] = ['data:read', 'audit:read', 'reports:financial'];
+
+export function isReadOnlyAction(action: Action): boolean {
+  return READ_ONLY_ACTIONS.includes(action);
+}
+
 export type PermissionDenialReason =
   | 'unauthenticated'
   | 'no_organization'
   | 'role_unauthorized'
+  | 'verification_incomplete'
+  | 'manual_review_pending'
+  | 'eligibility_rejected'
+  | 'trial_expired'
+  | 'subscription_inactive'
+  | 'verification_unavailable'
   | 'eligibility_restricted'
   | 'subscription_restricted';
 
@@ -150,7 +162,12 @@ export interface ActionPermissionContext {
   isDemoMode: boolean;
   currentOrg: { id: string; name?: string } | null | undefined;
   canWriteOperations: boolean;
-  eligibility?: { status: string } | null;
+  authError?: string | null;
+  eligibility?: {
+    status: string;
+    rejectionReason?: string | null;
+    reviewerNotes?: string | null;
+  } | null;
   subscription?: {
     status: string;
     trialEndsAt?: string | null;
@@ -164,6 +181,8 @@ export interface ActionPermissionCheck {
   reason?: PermissionDenialReason;
   title?: string;
   message?: string;
+  actionRoute?: string;
+  actionLabel?: string;
 }
 
 export function evaluateActionPermission(
@@ -207,23 +226,95 @@ export function evaluateActionPermission(
     };
   }
 
-  // 5. Business Eligibility check
-  if (!ctx.eligibility || ctx.eligibility.status !== 'approved') {
+  // 5. Decoupled Read vs Write: Read actions (data:read, audit:read, reports:financial)
+  // are preserved even when trial expires or setup is incomplete, as long as business
+  // is not rejected (matching Migration 014 can_read_organization_data SQL rule)
+  if (isReadOnlyAction(action)) {
+    if (ctx.eligibility?.status === 'rejected') {
+      return {
+        allowed: false,
+        reason: 'eligibility_rejected',
+        title: 'Business Eligibility Rejected',
+        message:
+          'Data access is restricted: ' +
+          (ctx.eligibility.rejectionReason ||
+            'Business eligibility declaration was rejected.'),
+        actionRoute: '/settings',
+        actionLabel: ctx.role === 'owner' ? 'Complete Verification' : 'View Business Status',
+      };
+    }
+    return { allowed: true };
+  }
+
+  // 6. Verification availability check (service/connectivity error)
+  if (ctx.authError) {
     return {
       allowed: false,
-      reason: 'eligibility_restricted',
-      title: 'Operation Restricted',
-      message: 'Write operations are disabled: Organization business eligibility is pending or not approved.',
+      reason: 'verification_unavailable',
+      title: 'Verification Temporarily Unavailable',
+      message: 'Operational write access is disabled: Unable to verify business status due to a connection or service error. Please retry.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
     };
   }
 
-  // 6. Subscription status check
+  // 6. Business Eligibility check
+  if (!ctx.eligibility) {
+    return {
+      allowed: false,
+      reason: 'verification_incomplete',
+      title: 'Business Verification Incomplete',
+      message: 'Operational write access is disabled: Business verification is incomplete: Organization has not completed the mandatory business model declaration.',
+      actionRoute: '/settings',
+      actionLabel: ctx.role === 'owner' ? 'Complete Verification' : 'View Business Status',
+    };
+  }
+
+  if (ctx.eligibility.status === 'review_required') {
+    return {
+      allowed: false,
+      reason: 'manual_review_pending',
+      title: 'Manual Review Pending',
+      message: 'Operational write access is disabled: Business eligibility declaration is pending manual compliance review.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
+    };
+  }
+
+  if (ctx.eligibility.status === 'rejected') {
+    return {
+      allowed: false,
+      reason: 'eligibility_rejected',
+      title: 'Business Eligibility Rejected',
+      message:
+        'Operational write access is disabled: ' +
+        (ctx.eligibility.rejectionReason ||
+          'Business eligibility declaration was rejected. Operational write features are disabled.'),
+      actionRoute: '/settings',
+      actionLabel: ctx.role === 'owner' ? 'Complete Verification' : 'View Business Status',
+    };
+  }
+
+  if (ctx.eligibility.status !== 'approved') {
+    return {
+      allowed: false,
+      reason: 'verification_incomplete',
+      title: 'Business Verification Incomplete',
+      message: 'Operational write access is disabled: Organization business eligibility is pending or not approved.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
+    };
+  }
+
+  // 7. Subscription & Trial status check
   if (!ctx.subscription) {
     return {
       allowed: false,
-      reason: 'subscription_restricted',
-      title: 'Operation Restricted',
-      message: 'Write operations are disabled: No active subscription found for this organization.',
+      reason: 'subscription_inactive',
+      title: 'Subscription Inactive',
+      message: 'Operational write access is disabled: No active subscription found for this organization.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
     };
   }
 
@@ -232,9 +323,11 @@ export function evaluateActionPermission(
     if (!ctx.subscription.trialEndsAt || now > new Date(ctx.subscription.trialEndsAt).getTime()) {
       return {
         allowed: false,
-        reason: 'subscription_restricted',
-        title: 'Operation Restricted',
-        message: 'Write operations are disabled: 7-day trial has expired.',
+        reason: 'trial_expired',
+        title: 'Trial Expired',
+        message: 'Operational write access is disabled: 7-day trial has expired.',
+        actionRoute: '/settings',
+        actionLabel: 'View Business Status',
       };
     }
   } else if (ctx.subscription.status === 'active') {
@@ -242,27 +335,42 @@ export function evaluateActionPermission(
     if (!endTimestamp || now > new Date(endTimestamp).getTime()) {
       return {
         allowed: false,
-        reason: 'subscription_restricted',
-        title: 'Operation Restricted',
-        message: 'Write operations are disabled: Subscription period has ended.',
+        reason: 'subscription_inactive',
+        title: 'Subscription Inactive',
+        message: 'Operational write access is disabled: Subscription period has ended.',
+        actionRoute: '/settings',
+        actionLabel: 'View Business Status',
       };
     }
+  } else if (ctx.subscription.status === 'expired') {
+    return {
+      allowed: false,
+      reason: 'trial_expired',
+      title: 'Trial Expired',
+      message: 'Operational write access is disabled: Subscription or trial has expired.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
+    };
   } else {
     return {
       allowed: false,
-      reason: 'subscription_restricted',
-      title: 'Operation Restricted',
-      message: 'Write operations are disabled for your current subscription or eligibility status.',
+      reason: 'subscription_inactive',
+      title: 'Subscription Inactive',
+      message: 'Operational write access is disabled: Subscription is not active.',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
     };
   }
 
-  // 7. General write operations guard fallback
+  // 8. General operational writes guard fallback
   if (!ctx.canWriteOperations) {
     return {
       allowed: false,
-      reason: 'subscription_restricted',
-      title: 'Operation Restricted',
+      reason: 'subscription_inactive',
+      title: 'Subscription Inactive',
       message: 'Write operations are disabled for your account',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
     };
   }
 

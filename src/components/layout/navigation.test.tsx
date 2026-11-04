@@ -94,6 +94,7 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
     eligibility: null,
     subscription: null,
     canWriteOperations: true,
+    declareEligibility: vi.fn(),
     switchOrganization: vi.fn(),
     createOrganization: vi.fn(),
     updateOrganization: vi.fn(),

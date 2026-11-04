@@ -96,6 +96,7 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
         updatedAt: '2026-01-01T00:00:00Z',
       },
       canWriteOperations: true,
+      declareEligibility: vi.fn(),
       switchOrganization: vi.fn(),
       createOrganization: vi.fn(),
       updateOrganization: vi.fn(),
@@ -257,7 +258,7 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
 
       expect(mockShowToast).toHaveBeenCalledWith(
         'error',
-        'Operation Restricted',
+        expect.stringMatching(/Operation Restricted|Subscription Inactive/),
         expect.stringContaining('Write operations are disabled')
       );
       expect(suppliersService.createSupplier).not.toHaveBeenCalled();

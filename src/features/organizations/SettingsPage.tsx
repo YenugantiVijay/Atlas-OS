@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Database } from 'lucide-react';
+import { Save, Database, ShieldCheck } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -8,9 +8,18 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { getSupabaseStatus, verifySupabaseConnection, SupabaseVerificationResult } from '@/lib/supabase';
+import { validateBusinessTaxIdentifiers, maskPan } from '@/lib/validation';
+import { BusinessVerificationModal } from './BusinessVerificationModal';
 
 export const SettingsPage: React.FC = () => {
-  const { currentOrg, updateOrganization, refreshOrgData } = useOrg();
+  const {
+    currentOrg,
+    currentRole,
+    eligibility,
+    subscription,
+    updateOrganization,
+    refreshOrgData,
+  } = useOrg();
   const { showToast } = useToast();
 
   const [name, setName] = useState('');
@@ -28,6 +37,9 @@ export const SettingsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<SupabaseVerificationResult | null>(null);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+
+  const isOwner = currentRole === 'owner';
 
   const handleVerifyConnection = async () => {
     setIsVerifying(true);
@@ -72,13 +84,29 @@ export const SettingsPage: React.FC = () => {
     }
     if (!currentOrg) return;
 
+    // Shared Business Tax Validation
+    const taxCheck = validateBusinessTaxIdentifiers({
+      gstin: gstin.trim().toUpperCase() || undefined,
+      pan: pan.trim().toUpperCase() || undefined,
+      requirePan: false,
+      allowException: true,
+    });
+
+    if (!taxCheck.valid) {
+      showToast('error', 'Tax Identifier Error', taxCheck.error || 'Invalid PAN or GSTIN format.');
+      return;
+    }
+
+    const effectivePan = taxCheck.effectivePan || pan.trim().toUpperCase();
+    const effectiveGstin = gstin.trim().toUpperCase();
+
     setIsSubmitting(true);
     try {
       await updateOrganization(currentOrg.id, {
         name: name.trim(),
         legalName: legalName.trim() || undefined,
-        gstin: gstin.trim().toUpperCase() || undefined,
-        pan: pan.trim().toUpperCase() || undefined,
+        gstin: effectiveGstin || undefined,
+        pan: effectivePan || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         addressLine1: addressLine1.trim() || undefined,
@@ -92,7 +120,9 @@ export const SettingsPage: React.FC = () => {
       showToast('success', 'Settings Saved', 'Organization profile updated.');
       await refreshOrgData();
     } catch (err: any) {
-      showToast('error', 'Failed to save settings', err.message);
+      const msg = err instanceof Error ? err.message : String(err);
+      const sanitized = effectivePan ? msg.replace(new RegExp(effectivePan, 'g'), maskPan(effectivePan)) : msg;
+      showToast('error', 'Failed to save settings', sanitized);
     } finally {
       setIsSubmitting(false);
     }
@@ -154,14 +184,28 @@ export const SettingsPage: React.FC = () => {
                 <Input
                   label="GSTIN (15 Digits)"
                   value={gstin}
-                  onChange={(e) => setGstin(e.target.value)}
+                  onChange={(e) => {
+                    const upper = e.target.value.toUpperCase();
+                    setGstin(upper);
+                    if (upper.length >= 12 && !pan) {
+                      const derived = upper.substring(2, 12);
+                      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(derived)) {
+                        setPan(derived);
+                      }
+                    }
+                  }}
                   placeholder="29ABCDE1234F1Z5"
                 />
                 <Input
                   label="Permanent Account Number (PAN)"
                   value={pan}
-                  onChange={(e) => setPan(e.target.value)}
+                  onChange={(e) => setPan(e.target.value.toUpperCase())}
                   placeholder="ABCDE1234F"
+                  helperText={
+                    gstin && pan && gstin.substring(2, 12) === pan
+                      ? '✓ Matches embedded GSTIN PAN'
+                      : undefined
+                  }
                 />
               </div>
 
@@ -214,6 +258,148 @@ export const SettingsPage: React.FC = () => {
 
         {/* Backend & Tenancy Status */}
         <div className="space-y-6">
+          {/* Business Verification & Eligibility Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <CardTitle>Business Verification & Status</CardTitle>
+              </div>
+            </CardHeader>
+            <div className="space-y-3.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-content-primary">Eligibility Status</span>
+                  {(() => {
+                    if (!eligibility) {
+                      return (
+                        <Badge variant="default" showDot size="sm">
+                          Undeclared
+                        </Badge>
+                      );
+                    }
+                    switch (eligibility.status) {
+                      case 'approved':
+                        return (
+                          <Badge variant="success" showDot size="sm">
+                            Approved & Active
+                          </Badge>
+                        );
+                      case 'review_required':
+                        return (
+                          <Badge variant="warning" showDot size="sm">
+                            Pending Review
+                          </Badge>
+                        );
+                      case 'rejected':
+                        return (
+                          <Badge variant="danger" showDot size="sm">
+                            Rejected
+                          </Badge>
+                        );
+                      default:
+                        return (
+                          <Badge variant="default" showDot size="sm">
+                            {eligibility.status}
+                          </Badge>
+                        );
+                    }
+                  })()}
+                </div>
+
+                {eligibility?.businessCategory && (
+                  <div className="text-2xs text-content-secondary">
+                    Category: <span className="font-medium text-content-primary">{eligibility.businessCategory}</span>
+                  </div>
+                )}
+
+                {eligibility?.productLines && eligibility.productLines.length > 0 && (
+                  <div className="pt-1">
+                    <span className="text-2xs text-content-secondary block mb-1">Declared Product Lines:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {eligibility.productLines.map((pl) => (
+                        <span key={pl} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-2xs font-mono text-content-primary">
+                          {pl}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {eligibility?.rejectionReason && (
+                  <div className="p-2 rounded bg-rose-50 text-rose-900 border border-rose-200 text-2xs leading-relaxed">
+                    <strong>Rejection Reason:</strong> {eligibility.rejectionReason}
+                  </div>
+                )}
+              </div>
+
+              {/* Subscription / Trial Info */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-content-primary">Operational Subscription</span>
+                  {(() => {
+                    if (!subscription) {
+                      return (
+                        <Badge variant="default" size="sm">
+                          No Subscription
+                        </Badge>
+                      );
+                    }
+                    if (subscription.status === 'trialing') {
+                      const isExpired = subscription.trialEndsAt && Date.now() > new Date(subscription.trialEndsAt).getTime();
+                      return (
+                        <Badge variant={isExpired ? 'danger' : 'teal'} size="sm">
+                          {isExpired ? 'Trial Expired' : '7-Day Trial'}
+                        </Badge>
+                      );
+                    }
+                    if (subscription.status === 'active') {
+                      return (
+                        <Badge variant="success" size="sm">
+                          Active Plan
+                        </Badge>
+                      );
+                    }
+                    return (
+                      <Badge variant="warning" size="sm">
+                        {subscription.status}
+                      </Badge>
+                    );
+                  })()}
+                </div>
+
+                {subscription?.trialEndsAt && (
+                  <p className="text-2xs text-content-secondary">
+                    Trial valid until: {new Date(subscription.trialEndsAt).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+
+              {/* Complete / Resubmit Verification Action */}
+              <div className="pt-1">
+                {isOwner ? (
+                  <Button
+                    type="button"
+                    variant={!eligibility || eligibility.status !== 'approved' ? 'primary' : 'outline'}
+                    size="sm"
+                    className="w-full text-xs font-medium"
+                    onClick={() => setIsVerificationModalOpen(true)}
+                  >
+                    {!eligibility
+                      ? 'Complete Business Verification'
+                      : eligibility.status === 'rejected'
+                      ? 'Resubmit Verification'
+                      : 'Update Verification Declaration'}
+                  </Button>
+                ) : (
+                  <p className="text-2xs text-content-secondary italic text-center">
+                    Only organization owners can submit or update business eligibility declarations.
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -285,6 +471,12 @@ export const SettingsPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Business Verification Modal */}
+      <BusinessVerificationModal
+        isOpen={isVerificationModalOpen}
+        onClose={() => setIsVerificationModalOpen(false)}
+      />
     </div>
   );
 };

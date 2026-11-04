@@ -38,6 +38,11 @@ export interface OrgContextType {
   eligibility: OrganizationEligibility | null;
   subscription: OrganizationSubscription | null;
   canWriteOperations: boolean;
+  declareEligibility: (params: {
+    businessCategory: BusinessCategory;
+    sellsElectricalProducts: boolean;
+    productLines: string[];
+  }) => Promise<OrganizationEligibility>;
   switchOrganization: (orgId: string) => Promise<void>;
   createOrganization: (data: CreateOrganizationInput) => Promise<Organization>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<Organization>;
@@ -1097,6 +1102,137 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return updatedUser;
   };
 
+  const declareEligibility = async (params: {
+    businessCategory: BusinessCategory;
+    sellsElectricalProducts: boolean;
+    productLines: string[];
+  }): Promise<OrganizationEligibility> => {
+    if (!currentOrg) {
+      throw new Error('No active organization selected.');
+    }
+
+    if (isMockAuth || isDemoMode) {
+      // Demo Mode deterministic simulation
+      let newStatus: EligibilityStatus = 'approved';
+      let rejectionReason: string | undefined;
+      let reviewerNotes: string | undefined;
+
+      if (params.businessCategory === 'other_unsupported') {
+        newStatus = 'rejected';
+        rejectionReason =
+          'Unsupported business category. ATLAS OS is exclusively designed for electrical retailers, wholesalers/distributors, and hardware stores selling electrical goods.';
+      } else if (!params.sellsElectricalProducts) {
+        newStatus = 'rejected';
+        rejectionReason =
+          'Business does not sell electrical goods. ATLAS OS is exclusively for businesses selling electrical products.';
+      } else if (!params.productLines || params.productLines.length === 0) {
+        newStatus = 'review_required';
+        reviewerNotes = 'Self-declaration lacked declared product lines. Flagged for manual review.';
+      } else if (eligibility?.status === 'rejected') {
+        newStatus = 'review_required';
+        reviewerNotes = 'Resubmission following previous rejection. Queued for platform reviewer evaluation.';
+      } else if (eligibility?.status === 'review_required') {
+        newStatus = 'review_required';
+        reviewerNotes = 'Declaration updated while pending manual review.';
+      }
+
+      const updatedEligibility: OrganizationEligibility = {
+        organizationId: currentOrg.id,
+        businessCategory: params.businessCategory,
+        sellsElectricalProducts: params.sellsElectricalProducts,
+        productLines: params.productLines || [],
+        status: newStatus,
+        rejectionReason,
+        reviewerNotes,
+        declaredAt: new Date().toISOString(),
+        declaredBy: currentUser?.id || 'demo-user',
+        updatedAt: new Date().toISOString(),
+      };
+
+      setEligibility(updatedEligibility);
+
+      // If approved and no subscription exists, initialize a 7-day trial idempotently
+      if (newStatus === 'approved') {
+        if (!subscription) {
+          const now = Date.now();
+          const newSub: OrganizationSubscription = {
+            organizationId: currentOrg.id,
+            status: 'trialing',
+            planTier: 'trial',
+            trialStartedAt: new Date(now).toISOString(),
+            trialEndsAt: new Date(now + 7 * 24 * 3600 * 1000).toISOString(),
+            paymentMethodEntered: false,
+          };
+          setSubscription(newSub);
+        }
+      }
+
+      queryClient.clear();
+      return updatedEligibility;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    // Role check: Only owners can submit self-declaration
+    if (currentRole !== 'owner') {
+      throw new Error('ERR_FORBIDDEN: Only organization owners can submit eligibility declarations.');
+    }
+
+    const { error: rpcErr } = await supabase.rpc(
+      'self_declare_organization_eligibility',
+      {
+        p_org_id: currentOrg.id,
+        p_category: params.businessCategory,
+        p_sells_electrical: params.sellsElectricalProducts,
+        p_product_lines: params.productLines,
+      }
+    );
+
+    if (rpcErr) {
+      throw new Error('Failed to submit eligibility declaration: ' + rpcErr.message);
+    }
+
+    // Hydrate updated eligibility and subscription from PostgreSQL
+    const [eligibilityRes, subscriptionRes] = await Promise.all([
+      supabase
+        .from('organization_eligibility')
+        .select('*')
+        .eq('organization_id', currentOrg.id)
+        .maybeSingle(),
+      supabase
+        .from('organization_subscriptions')
+        .select('*')
+        .eq('organization_id', currentOrg.id)
+        .maybeSingle(),
+    ]);
+
+    if (eligibilityRes.error) {
+      throw new Error(`Failed to load updated eligibility: ${eligibilityRes.error.message}`);
+    }
+    if (subscriptionRes.error) {
+      throw new Error(`Failed to load updated subscription: ${subscriptionRes.error.message}`);
+    }
+
+    const updatedEligibility = eligibilityRes.data
+      ? mapDbEligibility(eligibilityRes.data as DbEligibilityRow)
+      : null;
+    const updatedSubscription = subscriptionRes.data
+      ? mapDbSubscription(subscriptionRes.data as DbSubscriptionRow)
+      : null;
+
+    setEligibility(updatedEligibility);
+    setSubscription(updatedSubscription);
+    queryClient.clear();
+
+    if (!updatedEligibility) {
+      throw new Error('Failed to retrieve updated eligibility record from server.');
+    }
+
+    return updatedEligibility;
+  };
+
   const refreshOrgData = async () => {
     if (!isMockAuth && session) {
       await loadRemoteData(session);
@@ -1123,6 +1259,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         eligibility,
         subscription,
         canWriteOperations,
+        declareEligibility,
         switchOrganization,
         createOrganization,
         updateOrganization,

@@ -15,6 +15,7 @@ export function useActionPermission() {
     canWriteOperations,
     eligibility,
     subscription,
+    authError,
   } = useOrg();
 
   const check = useCallback(
@@ -27,6 +28,7 @@ export function useActionPermission() {
         canWriteOperations,
         eligibility,
         subscription,
+        authError,
       });
     },
     [
@@ -37,6 +39,7 @@ export function useActionPermission() {
       canWriteOperations,
       eligibility,
       subscription,
+      authError,
     ]
   );
 

@@ -98,6 +98,7 @@ describe('InvoicesPage — Statutory Tax Invoice Presentation and Compliance', (
       eligibility: null,
       subscription: null,
       canWriteOperations: true,
+      declareEligibility: vi.fn(),
       switchOrganization: vi.fn(),
       createOrganization: vi.fn(),
       updateOrganization: vi.fn(),
