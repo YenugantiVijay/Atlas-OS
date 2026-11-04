@@ -9,6 +9,9 @@ export interface ValidationResult<T = string> {
   value?: T;
   derivedPan?: string;
   effectivePan?: string;
+  isException?: boolean;
+  exceptionReason?: string;
+  exceptionReference?: string;
 }
 
 /**
@@ -80,16 +83,41 @@ export function extractPanFromGstin(gstin?: string | null): string | null {
   return null;
 }
 
-/**
- * Shared validator for Indian business tax identifiers.
- * Cross-validates PAN against GSTIN and prevents silent overrides.
- */
-export function validateBusinessTaxIdentifiers(params: {
+export const PAN_EXCEPTION_REASONS = [
+  'GOVERNMENT_EXEMPT_ENTITY',
+  'INFORMAL_SECTOR_MICRO_ENTERPRISE',
+  'PAN_ISSUANCE_IN_PROGRESS',
+] as const;
+
+export type PanExceptionReason = (typeof PAN_EXCEPTION_REASONS)[number];
+
+export interface ValidateTaxOptions {
   gstin?: string | null;
   pan?: string | null;
   requirePan?: boolean;
   allowException?: boolean;
-}): ValidationResult<{ gstin?: string; pan?: string }> {
+  exceptionReason?: string | null;
+  exceptionReference?: string | null;
+}
+
+/**
+ * Shared validator for Indian business tax identifiers.
+ * Enforces business identity policy:
+ * - Standard business onboarding requires a valid PAN.
+ * - Extracts and cross-validates embedded PAN from GSTIN.
+ * - Supports documented exceptions only with backend-auditable reason and reference.
+ * - Protects sensitive identifiers by sanitizing error messages.
+ */
+export function validateBusinessTaxIdentifiers(
+  params: ValidateTaxOptions
+): ValidationResult<{
+  gstin?: string;
+  pan?: string;
+  isException?: boolean;
+  exceptionReason?: string;
+  exceptionReference?: string;
+}> {
+  const requirePan = params.requirePan !== false; // default true for businesses
   const trimmedGstin = params.gstin ? params.gstin.trim().toUpperCase() : '';
   const trimmedPan = params.pan ? params.pan.trim().toUpperCase() : '';
 
@@ -106,8 +134,8 @@ export function validateBusinessTaxIdentifiers(params: {
   // 2. Validate PAN format if provided
   if (trimmedPan) {
     const panRes = validatePan(trimmedPan, {
-      required: params.requirePan,
-      allowException: params.allowException,
+      required: true,
+      allowException: false,
     });
     if (!panRes.valid) {
       return { valid: false, error: panRes.error };
@@ -119,7 +147,7 @@ export function validateBusinessTaxIdentifiers(params: {
     if (derivedPan && trimmedPan !== derivedPan) {
       return {
         valid: false,
-        error: `PAN does not match the PAN embedded within the GSTIN (${derivedPan}). Please verify your credentials.`,
+        error: 'Provided PAN does not match the PAN embedded within the GSTIN. Please verify your credentials.',
         derivedPan,
       };
     }
@@ -127,12 +155,44 @@ export function validateBusinessTaxIdentifiers(params: {
 
   const effectivePan = trimmedPan || derivedPan || '';
 
-  // 4. If PAN is required but missing after deriving
-  if (params.requirePan && !params.allowException && !effectivePan) {
-    return {
-      valid: false,
-      error: 'Valid PAN is required for business registration.',
-    };
+  // 4. If PAN is missing after deriving
+  if (!effectivePan) {
+    if (requirePan) {
+      if (params.allowException) {
+        const reason = params.exceptionReason?.trim();
+        const ref = params.exceptionReference?.trim();
+        const isValidReason = reason && (PAN_EXCEPTION_REASONS as readonly string[]).includes(reason);
+
+        if (!isValidReason || !ref || ref.length < 3) {
+          return {
+            valid: false,
+            error:
+              'Documented statutory exception reason and reference (minimum 3 characters) are required for PAN exemption.',
+          };
+        }
+
+        return {
+          valid: true,
+          derivedPan: undefined,
+          effectivePan: undefined,
+          isException: true,
+          exceptionReason: reason,
+          exceptionReference: ref,
+          value: {
+            gstin: trimmedGstin || undefined,
+            pan: undefined,
+            isException: true,
+            exceptionReason: reason,
+            exceptionReference: ref,
+          },
+        };
+      }
+
+      return {
+        valid: false,
+        error: 'Valid Indian PAN is required for business registration.',
+      };
+    }
   }
 
   return {
@@ -157,6 +217,19 @@ export function maskPan(pan?: string | null): string {
     return 'XXXXX' + trimmed.slice(5);
   }
   return '••••••••••';
+}
+
+/**
+ * Redacts business GSTIN for secure logging and display.
+ * Retains state code and last 4 characters, e.g. "29ABCDE1234F1Z5" -> "29XXXXX1234F1Z5".
+ */
+export function maskGstin(gstin?: string | null): string {
+  if (!gstin) return '';
+  const trimmed = gstin.trim().toUpperCase();
+  if (GSTIN_REGEX.test(trimmed)) {
+    return trimmed.slice(0, 2) + 'XXXXX' + trimmed.slice(7);
+  }
+  return '•••••••••••••••';
 }
 
 export const organizationSchema = z
@@ -194,7 +267,7 @@ export const organizationSchema = z
         if (embeddedPan !== panUpper) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `PAN (${panUpper}) does not match the PAN embedded within the GSTIN (${embeddedPan}).`,
+            message: 'Provided PAN does not match the PAN embedded within the GSTIN.',
             path: ['pan'],
           });
         }

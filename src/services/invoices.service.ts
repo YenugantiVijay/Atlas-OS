@@ -15,7 +15,7 @@ export function mapDbInvoiceItem(row: any): InvoiceItem {
     quantity: Number(row.quantity),
     unitPrice: Number(row.unit_price),
     discountPercent: Number(row.discount_percent) || 0,
-    taxRate: parseTaxRate(row.tax_rate, 18),
+    taxRate: parseTaxRate(row.tax_rate),
     lineSubtotal: Number(row.line_subtotal),
     lineTax: Number(row.line_tax),
     lineTotal: Number(row.line_total),
@@ -133,7 +133,7 @@ export const invoicesService = {
           quantity: it.quantity,
           unit_price: it.unitPrice,
           discount_percent: it.discountPercent ?? 0,
-          tax_rate: parseTaxRate(it.taxRate, 18),
+          tax_rate: parseTaxRate(it.taxRate),
         })),
         p_invoice_date: input.invoiceDate,
         p_due_date: input.dueDate || null,
@@ -220,7 +220,7 @@ export const invoicesService = {
       quantity: Number(it.quantity),
       unitPrice: Number(it.unit_price),
       discountPercent: Number(it.discount_percent) || 0,
-      taxRate: parseTaxRate(it.tax_rate ?? it.taxRate, 18),
+      taxRate: parseTaxRate(it.tax_rate ?? it.taxRate),
     }));
 
     return this.createInvoice(

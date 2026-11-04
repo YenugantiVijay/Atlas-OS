@@ -68,7 +68,7 @@ export const ProductsPage: React.FC = () => {
   const [purchaseCost, setPurchaseCost] = useState('0');
   const [sellingPrice, setSellingPrice] = useState('0');
   const [taxRate, setTaxRate] = useState('18');
-  const [hsnCode, setHsnCode] = useState('8544');
+  const [hsnCode, setHsnCode] = useState('');
   const [reorderThreshold, setReorderThreshold] = useState('10');
   const [openingStock, setOpeningStock] = useState('0');
   const [imageUrl, setImageUrl] = useState('');
@@ -118,7 +118,7 @@ export const ProductsPage: React.FC = () => {
     setPurchaseCost('0');
     setSellingPrice('0');
     setTaxRate('18');
-    setHsnCode('8544');
+    setHsnCode('');
     setReorderThreshold('10');
     setOpeningStock('0');
     setImageUrl('');
@@ -592,7 +592,7 @@ export const ProductsPage: React.FC = () => {
               label="HSN Code"
               value={hsnCode}
               onChange={(e) => setHsnCode(e.target.value)}
-              placeholder="e.g. 8544"
+              placeholder="e.g. 8544, 8536"
             />
             <Input
               label="Reorder Threshold"

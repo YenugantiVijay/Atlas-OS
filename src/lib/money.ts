@@ -15,13 +15,13 @@ export function roundMoney(amount: number): number {
   return fromPaise(toPaise(amount));
 }
 
-export function parseTaxRate(val: unknown, defaultRate: number = 18): number {
+export function parseTaxRate(val: unknown, fallbackRate: number = 0): number {
   if (val === null || val === undefined || val === '') {
-    return defaultRate;
+    return fallbackRate;
   }
   const num = Number(val);
   if (isNaN(num)) {
-    return defaultRate;
+    return fallbackRate;
   }
   return Math.max(0, num);
 }
@@ -53,7 +53,7 @@ export function calculateLineItem(
   quantity: number,
   unitPrice: number,
   discountPercent: number = 0,
-  taxRate: number = 18
+  taxRate: number = 0
 ): LineCalculation {
   if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 0) {
     throw new Error('Quantity cannot be negative or invalid');
@@ -134,7 +134,7 @@ export function calculateDocumentTotals(
             it.quantity,
             it.unitPrice,
             it.discountPercent ?? 0,
-            parseTaxRate(it.taxRate, 18)
+            parseTaxRate(it.taxRate)
           );
     grossPaise += toPaise(line.grossAmount);
     lineDiscountPaise += toPaise(line.discountAmount);
@@ -168,30 +168,30 @@ export function calculateDocumentTotals(
       };
     });
   } else {
-    // Pro-rate document discount across lines based on taxable base.
-    // Remainder is absorbed by the last line that has positive taxable base,
-    // ensuring no line's taxable base drops below zero.
-    let lastTaxableIdx = -1;
-    for (let i = lineCalcs.length - 1; i >= 0; i--) {
-      if (toPaise(lineCalcs[i].taxableAmount) > 0) {
-        lastTaxableIdx = i;
-        break;
-      }
-    }
+    // Proportional Document Discount Allocation via Cumulative Target Tracking (Hamilton-Hare / Largest Remainder)
+    // Guarantees:
+    // 1. No negative discount share (s_k >= 0)
+    // 2. No share exceeds line taxable base (s_k <= T_k)
+    // 3. Sum of line shares strictly equals document discount (sum(s_k) == D)
+    // 4. Lines with zero taxable base receive exactly 0 discount
+    // 5. Deterministic and symmetrical apportionment across all tax slabs
+    let cumTaxablePaise = 0;
+    let prevCumSharePaise = 0;
 
-    let allocatedDocDiscount = 0;
-    adjustedItems = lineCalcs.map((line, idx) => {
+    adjustedItems = lineCalcs.map((line) => {
       const lineTaxable = toPaise(line.taxableAmount);
-      let lineShare = 0;
-      if (rawLineTaxablePaise > 0 && lineTaxable > 0) {
-        if (idx === lastTaxableIdx) {
-          lineShare = Math.min(lineTaxable, docDiscountPaise - allocatedDocDiscount);
-        } else {
-          lineShare = Math.min(lineTaxable, Math.round((docDiscountPaise * lineTaxable) / rawLineTaxablePaise));
-          allocatedDocDiscount += lineShare;
-        }
-      }
-      const adjTaxablePaise = Math.max(0, lineTaxable - lineShare);
+      cumTaxablePaise += lineTaxable;
+
+      // Cumulative target discount share for the prefix sum of taxable bases
+      const cumSharePaise = rawLineTaxablePaise > 0
+        ? Math.round((docDiscountPaise * cumTaxablePaise) / rawLineTaxablePaise)
+        : 0;
+
+      // The marginal discount share apportioned to this specific line item
+      const lineShare = cumSharePaise - prevCumSharePaise;
+      prevCumSharePaise = cumSharePaise;
+
+      const adjTaxablePaise = lineTaxable - lineShare;
       const adjTaxPaise = Math.round(adjTaxablePaise * (line.taxRate / 100));
       const adjTotalPaise = adjTaxablePaise + adjTaxPaise;
       taxPaise += adjTaxPaise;
@@ -301,7 +301,7 @@ export function resolveDocumentPresentation(doc: DocumentHeaderInput): DocumentP
       if (it.lineTotal !== undefined) {
         lineTotalPaise += toPaise(Number(it.lineTotal) || 0);
       } else {
-        const tRate = parseTaxRate(it.taxRate, 18);
+        const tRate = parseTaxRate(it.taxRate, 0);
         const txPaise = Math.round(txbPaise * (tRate / 100));
         lineTaxPaise += txPaise;
         lineTotalPaise += txbPaise + txPaise;

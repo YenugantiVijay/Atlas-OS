@@ -294,9 +294,9 @@ async function runAcceptance() {
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 028 in Strict Lexical Order
+    // Step 2: Apply Migrations 001 - 029 in Strict Lexical Order
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 028)...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 029)...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))

@@ -20,6 +20,8 @@ export type CreateOrganizationInput = Omit<Organization, 'id' | 'createdAt' | 'u
   sellsElectricalProducts?: boolean;
   productLines?: string[];
   idempotencyKey?: string;
+  panExceptionReason?: string;
+  panExceptionReference?: string;
 };
 
 export interface OrgContextType {
@@ -77,6 +79,8 @@ export interface CreateOrganizationRpcParams {
   p_sells_electrical_products: boolean;
   p_product_lines: string[];
   p_idempotency_key: string | null;
+  p_pan_exception_reason?: string | null;
+  p_pan_exception_reference?: string | null;
 }
 
 export interface CreateOrganizationRpcResponse {
@@ -908,6 +912,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       p_sells_electrical_products: sellsElectricalProducts,
       p_product_lines: productLines,
       p_idempotency_key: idempotencyKey,
+      p_pan_exception_reason: data.panExceptionReason?.trim() || null,
+      p_pan_exception_reference: data.panExceptionReference?.trim() || null,
     };
 
     const { data: rawRpcData, error: rpcErr } = await supabase.rpc(

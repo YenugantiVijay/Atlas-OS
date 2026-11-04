@@ -86,6 +86,11 @@ export const OnboardingPage: React.FC = () => {
   ]);
   const [customTagInput, setCustomTagInput] = useState('');
 
+  // Statutory PAN Exception State
+  const [requestPanException, setRequestPanException] = useState(false);
+  const [panExceptionReason, setPanExceptionReason] = useState<string>('GOVERNMENT_EXEMPT_ENTITY');
+  const [panExceptionReference, setPanExceptionReference] = useState('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [idempotencyConflict, setIdempotencyConflict] = useState(false);
@@ -220,8 +225,10 @@ export const OnboardingPage: React.FC = () => {
     const taxValidation = validateBusinessTaxIdentifiers({
       gstin: trimmedGstin || undefined,
       pan: rawPan || undefined,
-      requirePan: false,
-      allowException: true,
+      requirePan: true,
+      allowException: requestPanException,
+      exceptionReason: requestPanException ? panExceptionReason : undefined,
+      exceptionReference: requestPanException ? panExceptionReference : undefined,
     });
 
     if (!taxValidation.valid) {
@@ -250,6 +257,8 @@ export const OnboardingPage: React.FC = () => {
         sellsElectricalProducts,
         productLines,
         idempotencyKey: idempotencyKeyRef.current,
+        panExceptionReason: requestPanException ? panExceptionReason : undefined,
+        panExceptionReference: requestPanException ? panExceptionReference : undefined,
       });
 
       showToast(
@@ -413,14 +422,63 @@ export const OnboardingPage: React.FC = () => {
                     />
 
                     <Input
-                      label="PAN (10 characters)"
+                      label={`PAN (10 characters)${requestPanException ? '' : ' *'}`}
                       value={pan}
                       onChange={(e) => setPan(e.target.value.toUpperCase())}
                       placeholder="ABCDE1234F"
                       maxLength={10}
-                      disabled={isSubmitting}
-                      helperText="Auto-derived from GSTIN or enter manually."
+                      disabled={isSubmitting || requestPanException}
+                      helperText={
+                        requestPanException
+                          ? 'Optional under declared statutory exemption.'
+                          : 'Required for standard business verification. Auto-derived from GSTIN.'
+                      }
                     />
+                  </div>
+
+                  {/* Statutory PAN Exemption Request */}
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-content-secondary select-none">
+                      <input
+                        type="checkbox"
+                        checked={requestPanException}
+                        onChange={(e) => setRequestPanException(e.target.checked)}
+                        className="rounded border-border text-atlas-600 focus:ring-atlas-500"
+                        disabled={isSubmitting}
+                      />
+                      <span>Request documented statutory tax identity exemption (subject to platform manual review)</span>
+                    </label>
+                    {requestPanException && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-2.5 animate-in fade-in duration-150">
+                        <div className="text-2xs text-amber-800 font-medium leading-relaxed">
+                          Atlas OS requires a valid business PAN for standard write operations. If you are operating under an official Indian statutory exemption or pending issuance, provide the official reference below. Your account will be routed for manual compliance review before operational writes are unlocked.
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-2xs font-semibold text-content-secondary mb-1">
+                              Exemption Reason *
+                            </label>
+                            <select
+                              value={panExceptionReason}
+                              onChange={(e) => setPanExceptionReason(e.target.value)}
+                              disabled={isSubmitting}
+                              className="w-full text-xs rounded-lg border border-border bg-surface-card p-2 text-content-primary"
+                            >
+                              <option value="GOVERNMENT_EXEMPT_ENTITY">Government Undertaking / Public Body</option>
+                              <option value="INFORMAL_SECTOR_MICRO_ENTERPRISE">Informal Micro-Enterprise / Artisan</option>
+                              <option value="PAN_ISSUANCE_IN_PROGRESS">PAN Application / Issuance in Progress</option>
+                            </select>
+                          </div>
+                          <Input
+                            label="Exemption / Application Reference *"
+                            value={panExceptionReference}
+                            onChange={(e) => setPanExceptionReference(e.target.value)}
+                            placeholder="e.g. ACK-2026-987654 or Order Ref"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
