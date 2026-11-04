@@ -9,6 +9,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Button } from '@/components/ui/Button';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { useToast } from '@/components/ui/Toast';
+import { hasPermission, Action } from '@/lib/permissions';
 
 export const RouteLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[380px] gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -67,6 +68,25 @@ export const AppLayout: React.FC = () => {
   }, []);
 
   const handleOpenQuickCreate = (type?: string) => {
+    const actionType = type || 'order';
+    const actionMap: Record<string, Action> = {
+      product: 'products:create',
+      customer: 'customers:manage',
+      quotation: 'quotations:create',
+      order: 'orders:create',
+      payment: 'payments:record',
+    };
+    const reqAction = actionMap[actionType] || 'orders:create';
+
+    if (!hasPermission(currentRole, reqAction)) {
+      showToast(
+        'error',
+        'Permission Denied',
+        `Your current role (${currentRole ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) : 'Viewer'}) does not have permission to perform this action.`
+      );
+      return;
+    }
+
     if (!canWriteOperations && !isDemoMode) {
       showToast(
         'warning',
@@ -76,7 +96,7 @@ export const AppLayout: React.FC = () => {
       return;
     }
 
-    switch (type) {
+    switch (actionType) {
       case 'product':
         navigate('/products?action=create');
         break;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users,
@@ -8,8 +8,10 @@ import {
   Mail,
   MapPin,
   Edit2,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { customersService } from '@/services/customers.service';
 import { Customer } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +22,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
@@ -32,11 +35,15 @@ function getInitials(name: string): string {
 
 export const CustomersPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingCreate, setIsPreparingCreate] = useState(false);
+  const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -54,32 +61,37 @@ export const CustomersPage: React.FC = () => {
   const [creditDays, setCreditDays] = useState('30');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadCustomers = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.has('action')) {
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const loadCustomers = useCallback(async (): Promise<Customer[] | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await customersService.getCustomers(currentOrg.id, isMockAuth);
       setCustomers(data);
+      return data;
     } catch (err: any) {
-      showToast('error', 'Failed to load customers', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load customers. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load customers', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    setSearchQuery(searchParams.get('search') || '');
-    loadCustomers();
-    if (searchParams.get('action') === 'create') {
-      handleOpenCreate();
-      searchParams.delete('action');
-      setSearchParams(searchParams);
-    }
-  }, [currentOrg, searchParams, isMockAuth]);
-
-  const handleOpenCreate = () => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+  const handleOpenCreate = useCallback(() => {
+    const perm = check('customers:manage');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
       return;
     }
     setEditingCustomer(null);
@@ -92,11 +104,50 @@ export const CustomersPage: React.FC = () => {
     setCreditLimit('100000');
     setCreditDays('30');
     setIsModalOpen(true);
-  };
+    clearActionParam();
+  }, [check, clearActionParam, showToast]);
+
+  useEffect(() => {
+    setSearchQuery(searchParams.get('search') || '');
+    const requestedAction = searchParams.get('action');
+
+    if (requestedAction === 'create') {
+      const perm = check('customers:manage');
+      if (!perm.allowed) {
+        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParam();
+        loadCustomers();
+        return;
+      }
+      setIsPreparingCreate(true);
+    }
+
+    loadCustomers().then((res) => {
+      setIsPreparingCreate(false);
+      if (requestedAction === 'create' && res) {
+        handleOpenCreate();
+      }
+    });
+  }, [currentOrg?.id, isMockAuth]);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'create' && !isLoading && !isPreparingCreate) {
+      handleOpenCreate();
+    }
+  }, [searchParams, isLoading, isPreparingCreate, handleOpenCreate]);
+
+  useEffect(() => {
+    if (pendingOpenCreate && !isLoading && !loadError) {
+      setPendingOpenCreate(false);
+      handleOpenCreate();
+    }
+  }, [pendingOpenCreate, isLoading, loadError, handleOpenCreate]);
 
   const handleOpenEdit = (c: Customer) => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('customers:manage');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     setEditingCustomer(c);
@@ -113,8 +164,9 @@ export const CustomersPage: React.FC = () => {
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('customers:manage');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!name.trim()) {
@@ -198,16 +250,37 @@ export const CustomersPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          leftIcon={<Plus className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          Add Customer
-        </Button>
+        {(() => {
+          const createPerm = check('customers:manage');
+          return (
+            <Button
+              variant="primary"
+              onClick={handleOpenCreate}
+              leftIcon={<Plus className="w-4 h-4" />}
+              disabled={!createPerm.allowed}
+              title={!createPerm.allowed ? createPerm.message : undefined}
+            >
+              Add Customer
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing customer...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => loadCustomers()}
+        />
+      )}
 
       {/* Search */}
       <Card>
@@ -236,7 +309,7 @@ export const CustomersPage: React.FC = () => {
               ? 'No customer records match your search query.'
               : 'Add your first electrical contractor or dealer to start preparing quotations and sales orders.'
           }
-          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Add Customer"}
+          actionLabel={!check('customers:manage').allowed ? undefined : "Add Customer"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -336,8 +409,8 @@ export const CustomersPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleOpenEdit(c)}
                       leftIcon={<Edit2 className="w-3.5 h-3.5" />}
-                      disabled={!canWriteOperations && !isMockAuth}
-                      title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
+                      disabled={!check('customers:manage').allowed}
+                      title={!check('customers:manage').allowed ? check('customers:manage').message : undefined}
                     >
                       Edit
                     </Button>

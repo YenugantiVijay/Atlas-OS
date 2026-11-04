@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSafeSearchParams } from '@/hooks/useSafeSearchParams';
 import {
   Truck,
   Plus,
@@ -6,8 +7,10 @@ import {
   Phone,
   Mail,
   MapPin,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { suppliersService } from '@/services/suppliers.service';
 import { Supplier } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -18,14 +21,20 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
 import { useToast } from '@/components/ui/Toast';
 
 export const SuppliersPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSafeSearchParams();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingCreate, setIsPreparingCreate] = useState(false);
+  const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -40,30 +49,37 @@ export const SuppliersPage: React.FC = () => {
   const [paymentTerms, setPaymentTerms] = useState('30 Days Net');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadSuppliers = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.has('action')) {
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const loadSuppliers = useCallback(async (): Promise<Supplier[] | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await suppliersService.getSuppliers(currentOrg.id, isMockAuth);
       setSuppliers(data);
+      return data;
     } catch (err: any) {
-      showToast('error', 'Failed to load suppliers', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load suppliers. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load suppliers', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    loadSuppliers();
-  }, [currentOrg, isMockAuth]);
-
-  const handleOpenCreate = () => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast(
-        'error',
-        'Operation Restricted',
-        'Write operations are disabled for your current subscription or eligibility status.'
-      );
+  const handleOpenCreate = useCallback(() => {
+    const perm = check('suppliers:manage');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
       return;
     }
     setName('');
@@ -75,16 +91,50 @@ export const SuppliersPage: React.FC = () => {
     setGstin('');
     setPaymentTerms('30 Days Net');
     setIsModalOpen(true);
-  };
+    clearActionParam();
+  }, [check, clearActionParam, showToast]);
+
+  useEffect(() => {
+    const requestedAction = searchParams.get('action');
+
+    if (requestedAction === 'create') {
+      const perm = check('suppliers:manage');
+      if (!perm.allowed) {
+        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParam();
+        loadSuppliers();
+        return;
+      }
+      setIsPreparingCreate(true);
+    }
+
+    loadSuppliers().then((res) => {
+      setIsPreparingCreate(false);
+      if (requestedAction === 'create' && res) {
+        handleOpenCreate();
+      }
+    });
+  }, [currentOrg?.id, isMockAuth]);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'create' && !isLoading && !isPreparingCreate) {
+      handleOpenCreate();
+    }
+  }, [searchParams, isLoading, isPreparingCreate, handleOpenCreate]);
+
+  useEffect(() => {
+    if (pendingOpenCreate && !isLoading && !loadError) {
+      setPendingOpenCreate(false);
+      handleOpenCreate();
+    }
+  }, [pendingOpenCreate, isLoading, loadError, handleOpenCreate]);
 
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWriteOperations && !isMockAuth) {
-      showToast(
-        'error',
-        'Operation Restricted',
-        'Write operations are disabled for your current subscription or eligibility status.'
-      );
+    const perm = check('suppliers:manage');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!name.trim()) {
@@ -149,16 +199,37 @@ export const SuppliersPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          leftIcon={<Plus className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          Add Supplier
-        </Button>
+        {(() => {
+          const createPerm = check('suppliers:manage');
+          return (
+            <Button
+              variant="primary"
+              onClick={handleOpenCreate}
+              leftIcon={<Plus className="w-4 h-4" />}
+              disabled={!createPerm.allowed}
+              title={!createPerm.allowed ? createPerm.message : undefined}
+            >
+              Add Supplier
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing supplier...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => loadSuppliers()}
+        />
+      )}
 
       {/* Search */}
       <Card>
@@ -183,7 +254,7 @@ export const SuppliersPage: React.FC = () => {
           icon={<Truck className="w-7 h-7" />}
           title="No suppliers found"
           description="Register your manufacturers and wholesale distributors."
-          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Add Supplier"}
+          actionLabel={!check('suppliers:manage').allowed ? undefined : "Add Supplier"}
           onAction={handleOpenCreate}
         />
       ) : (

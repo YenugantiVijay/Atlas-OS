@@ -114,3 +114,158 @@ export function getRoleBadgeVariant(role: Role | null | undefined): 'violet' | '
       return 'default';
   }
 }
+
+export const ACTION_DESCRIPTIONS: Record<Action, string> = {
+  'org:manage': 'manage organization settings',
+  'members:manage': 'manage team members and roles',
+  'audit:read': 'view the system audit trail',
+  'products:create': 'create products',
+  'products:update': 'edit products',
+  'products:delete': 'delete products',
+  'inventory:adjust': 'record stock adjustments',
+  'customers:manage': 'create or edit customers',
+  'suppliers:manage': 'create or edit suppliers',
+  'quotations:create': 'create quotations',
+  'quotations:update': 'edit quotations',
+  'orders:create': 'create sales orders',
+  'orders:confirm': 'confirm sales orders',
+  'orders:cancel': 'cancel sales orders',
+  'invoices:create': 'create tax invoices',
+  'invoices:issue': 'issue tax invoices',
+  'payments:record': 'record customer payments',
+  'reports:financial': 'view financial reports',
+  'data:read': 'read organization data',
+};
+
+export type PermissionDenialReason =
+  | 'unauthenticated'
+  | 'no_organization'
+  | 'role_unauthorized'
+  | 'eligibility_restricted'
+  | 'subscription_restricted';
+
+export interface ActionPermissionContext {
+  role: Role | null | undefined;
+  isAuthenticated: boolean;
+  isDemoMode: boolean;
+  currentOrg: { id: string; name?: string } | null | undefined;
+  canWriteOperations: boolean;
+  eligibility?: { status: string } | null;
+  subscription?: {
+    status: string;
+    trialEndsAt?: string | null;
+    currentPeriodEndsAt?: string | null;
+    gracePeriodEndsAt?: string | null;
+  } | null;
+}
+
+export interface ActionPermissionCheck {
+  allowed: boolean;
+  reason?: PermissionDenialReason;
+  title?: string;
+  message?: string;
+}
+
+export function evaluateActionPermission(
+  action: Action,
+  ctx: ActionPermissionContext
+): ActionPermissionCheck {
+  // 1. Role permission check (Applies in BOTH Demo Mode and Live Cloud Mode)
+  if (!ctx.role || !hasPermission(ctx.role, action)) {
+    const roleName = ctx.role ? ctx.role.charAt(0).toUpperCase() + ctx.role.slice(1) : 'Viewer';
+    const actionDesc = ACTION_DESCRIPTIONS[action] || action;
+    return {
+      allowed: false,
+      reason: 'role_unauthorized',
+      title: 'Permission Denied',
+      message: `Your current role (${roleName}) does not have permission to ${actionDesc}.`,
+    };
+  }
+
+  // 2. Demo mode grants operational write capability if the user role permits it
+  if (ctx.isDemoMode) {
+    return { allowed: true };
+  }
+
+  // 3. Authentication check for Live Cloud
+  if (!ctx.isAuthenticated) {
+    return {
+      allowed: false,
+      reason: 'unauthenticated',
+      title: 'Authentication Required',
+      message: 'You must be signed in to perform this action.',
+    };
+  }
+
+  // 4. Organization selection check
+  if (!ctx.currentOrg) {
+    return {
+      allowed: false,
+      reason: 'no_organization',
+      title: 'Organization Required',
+      message: 'Please select an active organization before creating records.',
+    };
+  }
+
+  // 5. Business Eligibility check
+  if (!ctx.eligibility || ctx.eligibility.status !== 'approved') {
+    return {
+      allowed: false,
+      reason: 'eligibility_restricted',
+      title: 'Operation Restricted',
+      message: 'Write operations are disabled: Organization business eligibility is pending or not approved.',
+    };
+  }
+
+  // 6. Subscription status check
+  if (!ctx.subscription) {
+    return {
+      allowed: false,
+      reason: 'subscription_restricted',
+      title: 'Operation Restricted',
+      message: 'Write operations are disabled: No active subscription found for this organization.',
+    };
+  }
+
+  const now = Date.now();
+  if (ctx.subscription.status === 'trialing') {
+    if (!ctx.subscription.trialEndsAt || now > new Date(ctx.subscription.trialEndsAt).getTime()) {
+      return {
+        allowed: false,
+        reason: 'subscription_restricted',
+        title: 'Operation Restricted',
+        message: 'Write operations are disabled: 7-day trial has expired.',
+      };
+    }
+  } else if (ctx.subscription.status === 'active') {
+    const endTimestamp = ctx.subscription.gracePeriodEndsAt || ctx.subscription.currentPeriodEndsAt;
+    if (!endTimestamp || now > new Date(endTimestamp).getTime()) {
+      return {
+        allowed: false,
+        reason: 'subscription_restricted',
+        title: 'Operation Restricted',
+        message: 'Write operations are disabled: Subscription period has ended.',
+      };
+    }
+  } else {
+    return {
+      allowed: false,
+      reason: 'subscription_restricted',
+      title: 'Operation Restricted',
+      message: 'Write operations are disabled for your current subscription or eligibility status.',
+    };
+  }
+
+  // 7. General write operations guard fallback
+  if (!ctx.canWriteOperations) {
+    return {
+      allowed: false,
+      reason: 'subscription_restricted',
+      title: 'Operation Restricted',
+      message: 'Write operations are disabled for your account',
+    };
+  }
+
+  return { allowed: true };
+}
+

@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CreditCard,
   Plus,
   Search,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { paymentsService } from '@/services/payments.service';
 import { customersService } from '@/services/customers.service';
 import { invoicesService } from '@/services/invoices.service';
@@ -19,6 +21,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
+import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
@@ -34,13 +38,18 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 
 export const PaymentsPage: React.FC = () => {
   const { currentOrg, isMockAuth, currentRole, canWriteOperations } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingRecord, setIsPreparingRecord] = useState(false);
+  const [pendingOpenRecord, setPendingOpenRecord] = useState(false);
+  const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -55,9 +64,18 @@ export const PaymentsPage: React.FC = () => {
   const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadData = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.has('action')) {
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const loadData = useCallback(async (): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [payList, custList, invList] = await Promise.all([
         paymentsService.getPayments(currentOrg.id, isMockAuth),
@@ -67,38 +85,45 @@ export const PaymentsPage: React.FC = () => {
       setPayments(payList);
       setCustomers(custList);
       setInvoices(invList);
+      return { customers: custList, invoices: invList };
     } catch (err: any) {
-      showToast('error', 'Failed to load payments', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load the required records. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load payments', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    loadData();
-    if (searchParams.get('action') === 'record') {
-      handleOpenRecord();
-      searchParams.delete('action');
-      setSearchParams(searchParams);
-    }
-  }, [currentOrg, searchParams, isMockAuth]);
-
-  const handleOpenRecord = (preselectedInvoice?: Invoice) => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+  const initializeAndOpenRecord = useCallback((custList: Customer[], preselectedInvoice?: Invoice) => {
+    const perm = check('payments:record');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
       return;
     }
-    if (customers.length === 0) {
-      showToast('warning', 'No Customers Found', 'Please add at least one customer before recording a payment.');
+
+    if (custList.length === 0) {
+      showToast('warning', 'No Customers Found', 'No customers found. Add a customer before recording a payment.');
+      setPrerequisite({
+        type: 'customer',
+        title: 'No Customers Found',
+        message: 'No customers found. Add a customer before recording a payment.',
+        actionRoute: '/customers?action=create',
+        actionLabel: 'Add Customer',
+      });
+      clearActionParam();
       return;
     }
+
     if (preselectedInvoice) {
       setCustomerId(preselectedInvoice.customerId);
       setInvoiceId(preselectedInvoice.id);
       const rem = calculateInvoiceBalance(preselectedInvoice.totalAmount, preselectedInvoice.totalPaid);
       setAmount(String(rem));
     } else {
-      setCustomerId(customers[0]?.id || '');
+      setCustomerId(custList[0]?.id || '');
       setInvoiceId('');
       setAmount('');
     }
@@ -109,12 +134,88 @@ export const PaymentsPage: React.FC = () => {
     setNotes('');
     setPaymentIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
     setIsModalOpen(true);
+    clearActionParam();
+  }, [check, clearActionParam, showToast]);
+
+  // Initial load effect
+  useEffect(() => {
+    let active = true;
+    const requestedAction = searchParams.get('action');
+
+    if (requestedAction === 'record') {
+      const perm = check('payments:record');
+      if (!perm.allowed) {
+        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParam();
+        loadData();
+        return;
+      }
+      setIsPreparingRecord(true);
+    }
+
+    loadData().then((result) => {
+      if (!active) return;
+      setIsPreparingRecord(false);
+      if (requestedAction === 'record') {
+        if (!result) {
+          showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+          return;
+        }
+        initializeAndOpenRecord(result.customers);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [currentOrg?.id, isMockAuth]);
+
+  // Listen for action=record if navigation happens while component is already mounted
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'record' && !isLoading && !isPreparingRecord) {
+      if (loadError) {
+        showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+        return;
+      }
+      initializeAndOpenRecord(customers);
+    }
+  }, [searchParams, isLoading, isPreparingRecord, loadError, customers, initializeAndOpenRecord, showToast]);
+
+  // Handle pending open if user clicked "Record Payment" while initial load was running
+  useEffect(() => {
+    if (pendingOpenRecord && !isLoading && !loadError) {
+      setPendingOpenRecord(false);
+      initializeAndOpenRecord(customers);
+    }
+  }, [pendingOpenRecord, isLoading, loadError, customers, initializeAndOpenRecord]);
+
+  const handleOpenRecord = (preselectedInvoice?: Invoice) => {
+    const perm = check('payments:record');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      return;
+    }
+
+    if (isLoading) {
+      setPendingOpenRecord(true);
+      showToast('info', 'Preparing Payment', 'Preparing payment...');
+      return;
+    }
+
+    if (loadError) {
+      showToast('error', 'Unable to Load Records', 'Unable to load the required records. Check your connection and try again.');
+      return;
+    }
+
+    initializeAndOpenRecord(customers, preselectedInvoice);
   };
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('payments:record');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     const payAmount = parseFloat(amount);
@@ -208,16 +309,37 @@ export const PaymentsPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => handleOpenRecord()}
-          leftIcon={<Plus className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          Record Payment
-        </Button>
+        {(() => {
+          const recordPerm = check('payments:record');
+          return (
+            <Button
+              variant="primary"
+              onClick={() => handleOpenRecord()}
+              leftIcon={<Plus className="w-4 h-4" />}
+              disabled={!recordPerm.allowed}
+              title={!recordPerm.allowed ? recordPerm.message : undefined}
+            >
+              Record Payment
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingRecord || (pendingOpenRecord && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing payment...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => loadData()}
+        />
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
@@ -281,7 +403,7 @@ export const PaymentsPage: React.FC = () => {
           icon={<CreditCard className="w-7 h-7" />}
           title="No payments recorded"
           description="Log customer payments against outstanding tax invoices."
-          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "Record Payment"}
+          actionLabel={!check('payments:record').allowed ? undefined : "Record Payment"}
           onAction={() => handleOpenRecord()}
         />
       ) : (
@@ -456,6 +578,12 @@ export const PaymentsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Missing Customer Prerequisite Modal */}
+      <PrerequisiteModal
+        prerequisite={prerequisite}
+        onClose={() => setPrerequisite(null)}
+      />
     </div>
   );
 };

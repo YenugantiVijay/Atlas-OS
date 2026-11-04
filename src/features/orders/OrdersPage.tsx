@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -8,8 +8,10 @@ import {
   Eye,
   Receipt,
   Trash2,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { ordersService } from '@/services/orders.service';
 import { customersService } from '@/services/customers.service';
 import { productsService } from '@/services/products.service';
@@ -24,6 +26,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
+import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
@@ -38,6 +42,7 @@ interface LineItemDraft {
 
 export const OrdersPage: React.FC = () => {
   const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -45,7 +50,11 @@ export const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingCreate, setIsPreparingCreate] = useState(false);
+  const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
+  const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
 
@@ -63,9 +72,18 @@ export const OrdersPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoicingOrderId, setInvoicingOrderId] = useState<string | null>(null);
 
-  const loadData = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.has('action')) {
+      nextParams.delete('action');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const loadData = useCallback(async (): Promise<{ customers: Customer[]; products: Product[] } | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [ordList, custList, prodList] = await Promise.all([
         ordersService.getSalesOrders(currentOrg.id, isMockAuth),
@@ -75,54 +93,141 @@ export const OrdersPage: React.FC = () => {
       setOrders(ordList);
       setCustomers(custList);
       setProducts(prodList);
+      return { customers: custList, products: prodList };
     } catch (err: any) {
-      showToast('error', 'Failed to load orders', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load the required records. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load orders', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    loadData();
-    if (searchParams.get('action') === 'create') {
-      handleOpenCreate();
-      searchParams.delete('action');
-      setSearchParams(searchParams);
+  const initializeAndOpenCreate = useCallback((custList: Customer[], prodList: Product[]) => {
+    const perm = check('orders:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
+      return;
     }
-  }, [currentOrg, searchParams, isMockAuth]);
 
-  const handleOpenCreate = () => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    if (custList.length === 0) {
+      showToast('warning', 'No Customers Found', 'No customers found. Add a customer before creating this sales order.');
+      setPrerequisite({
+        type: 'customer',
+        title: 'No Customers Found',
+        message: 'No customers found. Add a customer before creating this sales order.',
+        actionRoute: '/customers?action=create',
+        actionLabel: 'Add Customer',
+      });
+      clearActionParam();
       return;
     }
-    if (customers.length === 0) {
-      showToast('warning', 'No Customers Found', 'Please add at least one customer before creating a sales order.');
+
+    if (prodList.length === 0) {
+      showToast('warning', 'No Products Found', 'No products found. Add a product before creating this sales order.');
+      setPrerequisite({
+        type: 'product',
+        title: 'No Products Found',
+        message: 'No products found. Add a product before creating this sales order.',
+        actionRoute: '/products?action=create',
+        actionLabel: 'Add Product',
+      });
+      clearActionParam();
       return;
     }
-    if (products.length === 0) {
-      showToast('warning', 'No Products in Catalog', 'Please add at least one product before creating a sales order.');
-      return;
-    }
-    setCustomerId(customers[0]?.id || '');
+
+    setCustomerId(custList[0]?.id || '');
     setOrderDate(getBusinessDate());
     setNotes('');
     setOrderIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
 
-    if (products.length > 0) {
-      setItems([
-        {
-          productId: products[0].id,
-          quantity: 1,
-          unitPrice: products[0].sellingPrice,
-          discountPercent: 0,
-          taxRate: products[0].taxRate,
-        },
-      ]);
-    } else {
-      setItems([]);
-    }
+    setItems([
+      {
+        productId: prodList[0].id,
+        quantity: 1,
+        unitPrice: prodList[0].sellingPrice,
+        discountPercent: 0,
+        taxRate: prodList[0].taxRate,
+      },
+    ]);
     setIsCreateModalOpen(true);
+    clearActionParam();
+  }, [check, clearActionParam, showToast]);
+
+  // Initial load effect
+  useEffect(() => {
+    let active = true;
+    const requestedAction = searchParams.get('action');
+
+    if (requestedAction === 'create') {
+      const perm = check('orders:create');
+      if (!perm.allowed) {
+        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParam();
+        loadData();
+        return;
+      }
+      setIsPreparingCreate(true);
+    }
+
+    loadData().then((result) => {
+      if (!active) return;
+      setIsPreparingCreate(false);
+      if (requestedAction === 'create') {
+        if (!result) {
+          showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+          return;
+        }
+        initializeAndOpenCreate(result.customers, result.products);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [currentOrg?.id, isMockAuth]);
+
+  // Listen for action=create if navigation happens while component is already mounted
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'create' && !isLoading && !isPreparingCreate) {
+      if (loadError) {
+        showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+        return;
+      }
+      initializeAndOpenCreate(customers, products);
+    }
+  }, [searchParams, isLoading, isPreparingCreate, loadError, customers, products, initializeAndOpenCreate, showToast]);
+
+  // Handle pending open if user clicked "New Sales Order" while initial load was running
+  useEffect(() => {
+    if (pendingOpenCreate && !isLoading && !loadError) {
+      setPendingOpenCreate(false);
+      initializeAndOpenCreate(customers, products);
+    }
+  }, [pendingOpenCreate, isLoading, loadError, customers, products, initializeAndOpenCreate]);
+
+  const handleOpenCreate = () => {
+    const perm = check('orders:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      return;
+    }
+
+    if (isLoading) {
+      setPendingOpenCreate(true);
+      showToast('info', 'Preparing Sales Order', 'Preparing sales order...');
+      return;
+    }
+
+    if (loadError) {
+      showToast('error', 'Unable to Load Records', 'Unable to load the required records. Check your connection and try again.');
+      return;
+    }
+
+    initializeAndOpenCreate(customers, products);
   };
 
   const handleAddItem = () => {
@@ -167,8 +272,9 @@ export const OrdersPage: React.FC = () => {
 
   const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('orders:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!customerId) {
@@ -233,8 +339,9 @@ export const OrdersPage: React.FC = () => {
    * Validates available stock, prevents overselling, writes movements, updates status.
    */
   const handleConfirmOrder = async (order: SalesOrder) => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('orders:confirm');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!currentOrg) return;
@@ -255,8 +362,9 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleCreateInvoice = async (order: SalesOrder) => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('invoices:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!currentOrg || invoicingOrderId) return;
@@ -303,16 +411,37 @@ export const OrdersPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          leftIcon={<Plus className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          New Sales Order
-        </Button>
+        {(() => {
+          const createPerm = check('orders:create');
+          return (
+            <Button
+              variant="primary"
+              onClick={handleOpenCreate}
+              leftIcon={<Plus className="w-4 h-4" />}
+              disabled={!createPerm.allowed}
+              title={!createPerm.allowed ? createPerm.message : undefined}
+            >
+              New Sales Order
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing sales order...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => loadData()}
+        />
+      )}
 
       {/* Search & Status Filters */}
       <Card>
@@ -370,7 +499,7 @@ export const OrdersPage: React.FC = () => {
           icon={<FileText className="w-7 h-7" />}
           title="No sales orders found"
           description="Create sales orders directly or convert accepted contractor quotations."
-          actionLabel={!canWriteOperations && !isMockAuth ? undefined : "New Sales Order"}
+          actionLabel={!check('orders:create').allowed ? undefined : "New Sales Order"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -892,6 +1021,12 @@ export const OrdersPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Missing Customer / Product Prerequisite Modal */}
+      <PrerequisiteModal
+        prerequisite={prerequisite}
+        onClose={() => setPrerequisite(null)}
+      />
     </div>
   );
 };

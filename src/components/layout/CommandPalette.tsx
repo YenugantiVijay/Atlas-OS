@@ -19,6 +19,7 @@ import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
 import { Product, Customer } from '@/types';
 import { hasPermission, Action } from '@/lib/permissions';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { useDialog } from '@/components/ui/useDialog';
 
 export interface CommandPaletteProps {
@@ -34,7 +35,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
-  const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, currentRole, isMockAuth } = useOrg();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,13 +90,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => item.path === '/' || hasPermission(currentRole, item.path === '/audit' ? 'audit:read' : 'data:read'));
 
+  const { check: checkActionPermission } = useActionPermission();
+
   const quickActions = [
-    { label: 'New Product', type: 'product', action: 'products:create' },
-    { label: 'New Customer', type: 'customer', action: 'customers:manage' },
-    { label: 'New Quotation', type: 'quotation', action: 'quotations:create' },
-    { label: 'New Sales Order', type: 'order', action: 'orders:create' },
-    { label: 'Record Payment', type: 'payment', action: 'payments:record' },
-  ].filter((item) => (canWriteOperations || isMockAuth) && hasPermission(currentRole, item.action as Action) &&
+    { label: 'New Product', type: 'product', action: 'products:create' as Action },
+    { label: 'New Customer', type: 'customer', action: 'customers:manage' as Action },
+    { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
+    { label: 'New Sales Order', type: 'order', action: 'orders:create' as Action },
+    { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
+  ].filter((item) => checkActionPermission(item.action).allowed &&
     item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
   const filteredNav = navigationItems.filter((item) =>
