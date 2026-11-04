@@ -4,7 +4,7 @@ import { Product, UOM } from '@/types';
 import { parseTaxRate } from '@/lib/money';
 
 // Helper to map snake_case Postgres row to camelCase Product model
-export function mapDbProduct(row: any, stock: number = 0): Product {
+export function mapDbProduct(row: any, stock?: number): Product {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -53,34 +53,30 @@ export const productsService = {
     }
 
     // 2. Fetch authoritative stock aggregations from database RPC
-    const stockMap: Record<string, number> = {};
     const { data: stockLevels, error: stockErr } = await supabase.rpc('get_product_stock_levels', {
       p_org_id: orgId,
     });
 
-    if (!stockErr && stockLevels) {
-      for (const item of (stockLevels as Array<{ product_id: string; current_stock: number }>)) {
-        stockMap[item.product_id] = Number(item.current_stock) || 0;
-      }
-    } else {
-      // Fallback if RPC is not yet deployed
-      const { data: movements, error: movementsErr } = await supabase
-        .from('stock_movements')
-        .select('product_id, quantity_change')
-        .eq('organization_id', orgId);
-
-      if (movementsErr) {
-        throw new Error('Failed to load stock totals: ' + movementsErr.message);
-      }
-
-      if (movements) {
-        for (const m of movements) {
-          stockMap[m.product_id] = (stockMap[m.product_id] || 0) + Number(m.quantity_change);
-        }
-      }
+    if (stockErr) {
+      throw new Error(`Failed to load stock totals from authoritative database: ${stockErr.message}`);
     }
 
-    return dbProducts.map((row) => mapDbProduct(row, stockMap[row.id] || 0));
+    if (!Array.isArray(stockLevels)) {
+      throw new Error('Authoritative stock service returned an invalid response structure.');
+    }
+
+    const stockMap = new Map<string, number>();
+    for (const item of (stockLevels as Array<{ product_id: string; current_stock: number | string }>)) {
+      const parsedStock = Number(item.current_stock);
+      stockMap.set(item.product_id, Number.isFinite(parsedStock) ? parsedStock : 0);
+    }
+
+    return dbProducts.map((row) => {
+      // If product exists in authoritative stock aggregation, pass its exact stock (including zero).
+      // If product is missing from stock aggregation, currentStock is undefined (distinguishing missing from zero).
+      const stock = stockMap.has(row.id) ? stockMap.get(row.id)! : undefined;
+      return mapDbProduct(row, stock);
+    });
   },
 
   async createProduct(
@@ -165,8 +161,8 @@ export const productsService = {
       throw new Error(`Failed to update product: ${error.message}`);
     }
 
-    // Preserve stock count
-    const currentStock = updates.currentStock ?? 0;
+    // Preserve stock count if provided
+    const currentStock = updates.currentStock;
     return mapDbProduct(data, currentStock);
   },
 };
