@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
+import { getBusinessDate } from '@/lib/dates';
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   'UPI',
@@ -49,8 +50,9 @@ export const PaymentsPage: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getBusinessDate());
   const [notes, setNotes] = useState('');
+  const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -86,6 +88,10 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
       return;
     }
+    if (customers.length === 0) {
+      showToast('warning', 'No Customers Found', 'Please add at least one customer before recording a payment.');
+      return;
+    }
     if (preselectedInvoice) {
       setCustomerId(preselectedInvoice.customerId);
       setInvoiceId(preselectedInvoice.id);
@@ -99,8 +105,9 @@ export const PaymentsPage: React.FC = () => {
 
     setPaymentMethod('UPI');
     setReferenceNumber('');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(getBusinessDate());
     setNotes('');
+    setPaymentIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
     setIsModalOpen(true);
   };
 
@@ -124,6 +131,13 @@ export const PaymentsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const keyToUse =
+        paymentIdempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+      if (!paymentIdempotencyKey && keyToUse) {
+        setPaymentIdempotencyKey(keyToUse);
+      }
+
       const p = await paymentsService.recordPayment(
         currentOrg.id,
         {
@@ -133,6 +147,7 @@ export const PaymentsPage: React.FC = () => {
           paymentMethod,
           referenceNumber: referenceNumber.trim() || undefined,
           paymentDate,
+          idempotencyKey: keyToUse || undefined,
           notes: notes.trim() || undefined,
         },
         isMockAuth,
@@ -145,6 +160,7 @@ export const PaymentsPage: React.FC = () => {
         `Recorded receipt ${p.paymentNumber} for ${formatCurrency(payAmount)}.`
       );
       setIsModalOpen(false);
+      setPaymentIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Payment Failed', err.message);
@@ -421,7 +437,10 @@ export const PaymentsPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setPaymentIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel

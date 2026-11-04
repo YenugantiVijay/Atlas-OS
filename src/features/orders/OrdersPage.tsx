@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
+import { getBusinessDate } from '@/lib/dates';
 
 interface LineItemDraft {
   productId: string;
@@ -55,9 +56,10 @@ export const OrdersPage: React.FC = () => {
 
   // Form State
   const [customerId, setCustomerId] = useState('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(getBusinessDate());
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
+  const [orderIdempotencyKey, setOrderIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoicingOrderId, setInvoicingOrderId] = useState<string | null>(null);
 
@@ -94,9 +96,18 @@ export const OrdersPage: React.FC = () => {
       showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
       return;
     }
+    if (customers.length === 0) {
+      showToast('warning', 'No Customers Found', 'Please add at least one customer before creating a sales order.');
+      return;
+    }
+    if (products.length === 0) {
+      showToast('warning', 'No Products in Catalog', 'Please add at least one product before creating a sales order.');
+      return;
+    }
     setCustomerId(customers[0]?.id || '');
-    setOrderDate(new Date().toISOString().split('T')[0]);
+    setOrderDate(getBusinessDate());
     setNotes('');
+    setOrderIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
 
     if (products.length > 0) {
       setItems([
@@ -187,12 +198,20 @@ export const OrdersPage: React.FC = () => {
         };
       });
 
+      const keyToUse =
+        orderIdempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+      if (!orderIdempotencyKey && keyToUse) {
+        setOrderIdempotencyKey(keyToUse);
+      }
+
       const order = await ordersService.createSalesOrder(
         currentOrg.id,
         {
           customerId,
           orderDate,
           notes: notes.trim() || undefined,
+          idempotencyKey: keyToUse || undefined,
           items: formattedItems,
         },
         isMockAuth
@@ -200,6 +219,7 @@ export const OrdersPage: React.FC = () => {
 
       showToast('success', 'Order Created', `Order ${order.orderNumber} saved as Draft.`);
       setIsCreateModalOpen(false);
+      setOrderIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Failed to Create', err.message);
@@ -643,7 +663,10 @@ export const OrdersPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsCreateModalOpen(false)}
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setOrderIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel

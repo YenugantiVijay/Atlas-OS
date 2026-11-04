@@ -5,6 +5,7 @@ import {
   Search,
   Eye,
   Printer,
+  AlertTriangle,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { invoicesService } from '@/services/invoices.service';
@@ -18,6 +19,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency, calculateInvoiceBalance, resolveDocumentPresentation } from '@/lib/money';
+import { resolvePlaceOfSupply } from '@/lib/gst';
 
 export const InvoicesPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
@@ -199,18 +201,54 @@ export const InvoicesPage: React.FC = () => {
           description="GST Commercial Tax Invoice & Delivery Dispatch Snapshot"
           maxWidth="3xl"
         >
-          <div className="p-4 border border-border rounded-xl bg-surface-card space-y-5 text-xs text-content-primary">
+          <div className="printable-tax-invoice p-4 border border-border rounded-xl bg-surface-card space-y-5 text-xs text-content-primary">
+            {/* Actionable Compliance Warning if organization information is missing */}
+            {(!currentOrg?.gstin || !currentOrg?.addressLine1) && (
+              <div className="no-print p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs">
+                  <span className="font-bold block">Tax Compliance Configuration Required:</span>
+                  {!currentOrg?.gstin && ' Organization GSTIN is missing.'}
+                  {!currentOrg?.addressLine1 && ' Organization registered address is missing.'}
+                  {' '}Statutory Indian GST invoices require valid seller tax information. Please update your business profile in Organization Settings.
+                </div>
+              </div>
+            )}
+
             {/* Header / Distributor info */}
             <div className="flex justify-between items-start border-b border-border pb-4">
               <div>
-                <h3 className="text-base font-bold text-content-primary">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase font-extrabold tracking-wider bg-atlas-100 text-atlas-800 px-2 py-0.5 rounded border border-atlas-200">
+                    TAX INVOICE
+                  </span>
+                  <span className="text-xs text-content-muted font-mono">(Original for Recipient)</span>
+                </div>
+                <h3 className="text-base font-bold text-content-primary mt-2">
                   {currentOrg?.legalName || currentOrg?.name}
                 </h3>
                 <div className="text-content-secondary text-xs mt-0.5">
-                  {currentOrg?.addressLine1}, {currentOrg?.city}, {currentOrg?.state} - {currentOrg?.pincode}
+                  {currentOrg?.addressLine1 ? (
+                    `${currentOrg.addressLine1}${currentOrg.city ? `, ${currentOrg.city}` : ''}${currentOrg.state ? `, ${currentOrg.state}` : ''}${currentOrg.pincode ? ` - ${currentOrg.pincode}` : ''}`
+                  ) : (
+                    <span className="text-amber-700 italic">Address Not Configured</span>
+                  )}
                 </div>
-                <div className="text-content-secondary text-xs font-mono mt-0.5">
-                  GSTIN: {currentOrg?.gstin || '29ABCDE1234F1Z5'} • Phone: {currentOrg?.phone}
+                <div className="text-content-secondary text-xs font-mono mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span>
+                    GSTIN:{' '}
+                    {currentOrg?.gstin ? (
+                      <span className="font-semibold text-content-primary">{currentOrg.gstin}</span>
+                    ) : (
+                      <span className="text-amber-700 font-semibold bg-amber-100/60 px-1.5 py-0.2 rounded">Not Configured</span>
+                    )}
+                  </span>
+                  {currentOrg?.state && (
+                    <span>• State: <span className="font-semibold text-content-primary">{currentOrg.state}</span></span>
+                  )}
+                  {currentOrg?.phone && (
+                    <span>• Phone: <span className="font-semibold text-content-primary">{currentOrg.phone}</span></span>
+                  )}
                 </div>
               </div>
 
@@ -219,11 +257,28 @@ export const InvoicesPage: React.FC = () => {
                   {selectedInvoice.invoiceNumber}
                 </span>
                 <div className="text-content-secondary text-xs mt-0.5">
-                  Date: <span className="font-mono">{selectedInvoice.invoiceDate}</span>
+                  Invoice Date: <span className="font-mono font-semibold">{selectedInvoice.invoiceDate}</span>
                 </div>
                 <div className="text-content-secondary text-xs">
                   Payment Due: <span className="font-mono">{selectedInvoice.dueDate}</span>
                 </div>
+                {(() => {
+                  const pos = resolvePlaceOfSupply({ customer: selectedInvoice.customer, currentOrg });
+                  return (
+                    <div className="text-content-secondary text-xs mt-1">
+                      Place of Supply:{' '}
+                      {pos.isVerified && pos.placeOfSupply ? (
+                        <span className="font-semibold text-content-primary">
+                          {pos.stateCode ? `${pos.stateCode} - ${pos.placeOfSupply}` : pos.placeOfSupply}
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold bg-amber-100/60 px-1 py-0.2 rounded" title={pos.warning}>
+                          Not Available (Action Required)
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -341,7 +396,7 @@ export const InvoicesPage: React.FC = () => {
               })()}
 
             {/* Print & Close */}
-            <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
+            <div className="no-print flex justify-end gap-2.5 pt-4 border-t border-border">
               <Button variant="outline" onClick={() => setSelectedInvoice(null)}>
                 Close
               </Button>

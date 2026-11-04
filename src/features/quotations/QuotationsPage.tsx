@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
+import { getBusinessDateOffset } from '@/lib/dates';
 
 interface LineItemDraft {
   productId: string;
@@ -53,6 +54,7 @@ export const QuotationsPage: React.FC = () => {
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
+  const [quotationIdempotencyKey, setQuotationIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -88,12 +90,19 @@ export const QuotationsPage: React.FC = () => {
       showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
       return;
     }
+    if (customers.length === 0) {
+      showToast('warning', 'No Customers Found', 'Please add at least one customer before creating a quotation.');
+      return;
+    }
+    if (products.length === 0) {
+      showToast('warning', 'No Products in Catalog', 'Please add at least one product before creating a quotation.');
+      return;
+    }
     setCustomerId(customers[0]?.id || '');
-    // Default valid until 15 days from now
-    const d = new Date();
-    d.setDate(d.getDate() + 15);
-    setValidUntil(d.toISOString().split('T')[0]);
+    // Default valid until 15 business days from now (in IST)
+    setValidUntil(getBusinessDateOffset(15));
     setNotes('');
+    setQuotationIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
 
     if (products.length > 0) {
       setItems([
@@ -184,12 +193,20 @@ export const QuotationsPage: React.FC = () => {
         };
       });
 
+      const keyToUse =
+        quotationIdempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+      if (!quotationIdempotencyKey && keyToUse) {
+        setQuotationIdempotencyKey(keyToUse);
+      }
+
       const q = await ordersService.createQuotation(
         currentOrg.id,
         {
           customerId,
           validUntil,
           notes: notes.trim() || undefined,
+          idempotencyKey: keyToUse || undefined,
           items: formattedItems,
         },
         isMockAuth
@@ -197,6 +214,7 @@ export const QuotationsPage: React.FC = () => {
 
       showToast('success', 'Quotation Created', `Quotation ${q.quotationNumber} has been generated.`);
       setIsCreateModalOpen(false);
+      setQuotationIdempotencyKey('');
       await loadData();
     } catch (err: any) {
       showToast('error', 'Failed to Create', err.message);
@@ -548,7 +566,10 @@ export const QuotationsPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsCreateModalOpen(false)}
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setQuotationIdempotencyKey('');
+              }}
               disabled={isSubmitting}
             >
               Cancel

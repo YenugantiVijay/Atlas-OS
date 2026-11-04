@@ -9,8 +9,8 @@ import {
   QuotationStatus,
   UOM,
 } from '@/types';
-import { calculateDocumentTotals, parseTaxRate } from '@/lib/money';
-import { withDocumentNumberRetry } from '@/services/numbering.service';
+import { parseTaxRate } from '@/lib/money';
+import { getBusinessDate } from '@/lib/dates';
 import { mapDbCustomer } from './customers.service';
 
 export function mapDbSalesOrderItem(row: any): SalesOrderItem {
@@ -134,6 +134,7 @@ export const ordersService = {
       quotationId?: string;
       orderDate: string;
       notes?: string;
+      idempotencyKey?: string;
       items: Array<{
         productId: string;
         productName: string;
@@ -155,78 +156,64 @@ export const ordersService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    // 1. Calculate financials using audited money calculations
-    const docTotals = calculateDocumentTotals(
-      input.items.map((it) => ({
+    // Input validation prior to database submission
+    if (!input.items || input.items.length === 0) {
+      throw new Error('Sales order must contain at least one line item');
+    }
+
+    for (const item of input.items) {
+      if (item.quantity <= 0) {
+        throw new Error('Quantity cannot be negative or invalid');
+      }
+      if (item.unitPrice < 0) {
+        throw new Error('Unit price cannot be negative or invalid');
+      }
+      if (item.discountPercent < 0 || item.discountPercent > 100) {
+        throw new Error('Discount percentage must be between 0 and 100');
+      }
+    }
+
+    // Authoritative atomic RPC execution with request idempotency
+    const idempotencyKey =
+      input.idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('create_sales_order_atomic', {
+      p_org_id: orgId,
+      p_customer_id: input.customerId,
+      p_order_date: input.orderDate || getBusinessDate(),
+      p_items: input.items.map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        productSku: it.productSku,
+        uom: it.uom,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         discountPercent: it.discountPercent,
         taxRate: it.taxRate,
-      }))
-    );
-
-    const formattedItems = input.items.map((it, idx) => {
-      const line = docTotals.items[idx];
-      return {
-        product_id: it.productId,
-        product_name: it.productName,
-        product_sku: it.productSku,
-        uom: it.uom,
-        quantity: it.quantity,
-        unit_price: it.unitPrice,
-        discount_percent: it.discountPercent,
-        tax_rate: parseTaxRate(it.taxRate, 18),
-        line_subtotal: line.taxableAmount,
-        line_tax: line.taxAmount,
-        line_total: line.totalAmount,
-        document_discount_share: line.documentDiscountShare ?? 0,
-      };
+      })),
+      p_notes: input.notes?.trim() || null,
+      p_quotation_id: input.quotationId || null,
+      p_idempotency_key: idempotencyKey,
     });
 
-    const client = supabase!;
-    // 2. Insert sales order header with atomic sequential numbering and collision retry
-    const orderHeader = await withDocumentNumberRetry<{ id: string } & Record<string, any>>(
-      orgId,
-      'SALES_ORDER',
-      async (allocatedOrderNumber) => {
-        return client
-          .from('sales_orders')
-          .insert({
-            organization_id: orgId,
-            order_number: allocatedOrderNumber,
-            customer_id: input.customerId,
-            quotation_id: input.quotationId || null,
-            status: 'DRAFT',
-            order_date: input.orderDate,
-            subtotal: docTotals.grossSubtotal,
-            discount_amount: docTotals.discountTotal,
-            tax_amount: docTotals.taxAmount,
-            total_amount: docTotals.totalAmount,
-            totals_version: 2,
-            notes: input.notes || null,
-          })
-          .select()
-          .single();
-      }
-    );
-
-    // 3. Insert line items
-    const lineItemPayload = formattedItems.map((it) => ({
-      ...it,
-      sales_order_id: orderHeader.id,
-    }));
-
-    const { data: insertedItems, error: itemsErr } = await supabase
-      .from('sales_order_items')
-      .insert(lineItemPayload)
-      .select();
-
-    if (itemsErr) {
-      throw new Error(`Failed to insert order items: ${itemsErr.message}`);
+    if (rpcErr) {
+      throw new Error(`Failed to create sales order: ${rpcErr.message}`);
     }
 
-    const items = (insertedItems || []).map(mapDbSalesOrderItem);
-    return mapDbSalesOrder(orderHeader, items);
+    // Attempt to load customer relation for UI presentation
+    const { data: createdOrder } = await supabase
+      .from('sales_orders')
+      .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)')
+      .eq('id', rpcData.id)
+      .single();
+
+    if (createdOrder) {
+      const items = (createdOrder.items || []).map(mapDbSalesOrderItem);
+      return mapDbSalesOrder(createdOrder, items);
+    }
+
+    const items = (rpcData.items || []).map(mapDbSalesOrderItem);
+    return mapDbSalesOrder(rpcData, items);
   },
 
   /**
@@ -298,6 +285,7 @@ export const ordersService = {
       customerId: string;
       validUntil: string;
       notes?: string;
+      idempotencyKey?: string;
       items: Array<{
         productId: string;
         productName: string;
@@ -319,81 +307,67 @@ export const ordersService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const docTotals = calculateDocumentTotals(
-      input.items.map((it) => ({
+    if (!input.items || input.items.length === 0) {
+      throw new Error('Quotation must contain at least one line item');
+    }
+
+    for (const item of input.items) {
+      if (item.quantity <= 0) {
+        throw new Error('Quantity cannot be negative or invalid');
+      }
+      if (item.unitPrice < 0) {
+        throw new Error('Unit price cannot be negative or invalid');
+      }
+      if (item.discountPercent < 0 || item.discountPercent > 100) {
+        throw new Error('Discount percentage must be between 0 and 100');
+      }
+    }
+
+    const idempotencyKey =
+      input.idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('create_quotation_atomic', {
+      p_org_id: orgId,
+      p_customer_id: input.customerId,
+      p_valid_until: input.validUntil,
+      p_items: input.items.map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        productSku: it.productSku,
+        uom: it.uom,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         discountPercent: it.discountPercent,
         taxRate: it.taxRate,
-      }))
-    );
-
-    const formattedItems = input.items.map((it, idx) => {
-      const line = docTotals.items[idx];
-      return {
-        product_id: it.productId,
-        product_name: it.productName,
-        product_sku: it.productSku,
-        uom: it.uom,
-        quantity: it.quantity,
-        unit_price: it.unitPrice,
-        discount_percent: it.discountPercent,
-        tax_rate: parseTaxRate(it.taxRate, 18),
-        line_subtotal: line.taxableAmount,
-        line_tax: line.taxAmount,
-        line_total: line.totalAmount,
-        document_discount_share: line.documentDiscountShare ?? 0,
-      };
+      })),
+      p_notes: input.notes?.trim() || null,
+      p_idempotency_key: idempotencyKey,
     });
 
-    const client = supabase!;
-    // 2. Insert quotation header with atomic sequential numbering and collision retry
-    const quotHeader = await withDocumentNumberRetry<{ id: string } & Record<string, any>>(
-      orgId,
-      'QUOTATION',
-      async (allocatedQuotationNumber) => {
-        return client
-          .from('quotations')
-          .insert({
-            organization_id: orgId,
-            quotation_number: allocatedQuotationNumber,
-            customer_id: input.customerId,
-            status: 'DRAFT',
-            valid_until: input.validUntil,
-            subtotal: docTotals.grossSubtotal,
-            discount_amount: docTotals.discountTotal,
-            tax_amount: docTotals.taxAmount,
-            total_amount: docTotals.totalAmount,
-            totals_version: 2,
-            notes: input.notes || null,
-          })
-          .select()
-          .single();
-      }
-    );
-
-    const lineItemPayload = formattedItems.map((it) => ({
-      ...it,
-      quotation_id: quotHeader.id,
-    }));
-
-    const { data: insertedItems, error: itemsErr } = await supabase
-      .from('quotation_items')
-      .insert(lineItemPayload)
-      .select();
-
-    if (itemsErr) {
-      throw new Error(`Failed to insert quotation items: ${itemsErr.message}`);
+    if (rpcErr) {
+      throw new Error(`Failed to create quotation: ${rpcErr.message}`);
     }
 
-    const items = (insertedItems || []).map(mapDbQuotationItem);
-    return mapDbQuotation(quotHeader, items);
+    const { data: createdQuot } = await supabase
+      .from('quotations')
+      .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)')
+      .eq('id', rpcData.id)
+      .single();
+
+    if (createdQuot) {
+      const items = (createdQuot.items || []).map(mapDbQuotationItem);
+      return mapDbQuotation(createdQuot, items);
+    }
+
+    const items = (rpcData.items || []).map(mapDbQuotationItem);
+    return mapDbQuotation(rpcData, items);
   },
 
   async convertQuotationToOrder(
     orgId: string,
     quotationId: string,
-    isMockAuth: boolean = false
+    isMockAuth: boolean = false,
+    idempotencyKey?: string
   ): Promise<SalesOrder> {
     if (isMockAuth) {
       return storage.convertQuotationToOrder(orgId, quotationId);
@@ -403,50 +377,31 @@ export const ordersService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const { data: quot, error: quotErr } = await supabase
-      .from('quotations')
-      .select('*, items:quotation_items(*)')
-      .eq('id', quotationId)
-      .eq('organization_id', orgId)
+    const key =
+      idempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('convert_quotation_atomic', {
+      p_org_id: orgId,
+      p_quotation_id: quotationId,
+      p_idempotency_key: key,
+    });
+
+    if (rpcErr) {
+      throw new Error(`Failed to convert quotation: ${rpcErr.message}`);
+    }
+
+    const { data: orderRow } = await supabase
+      .from('sales_orders')
+      .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)')
+      .eq('id', rpcData.id)
       .single();
 
-    if (quotErr || !quot) {
-      throw new Error(`Quotation not found: ${quotErr?.message || 'Invalid ID'}`);
+    if (orderRow) {
+      const items = (orderRow.items || []).map(mapDbSalesOrderItem);
+      return mapDbSalesOrder(orderRow, items);
     }
 
-    const orderItems = (quot.items || []).map((it: any) => ({
-      productId: it.product_id,
-      productName: it.product_name,
-      productSku: it.product_sku,
-      uom: it.uom,
-      quantity: Number(it.quantity),
-      unitPrice: Number(it.unit_price),
-      discountPercent: Number(it.discount_percent) || 0,
-      taxRate: parseTaxRate(it.tax_rate ?? it.taxRate, 18),
-    }));
-
-    const order = await this.createSalesOrder(
-      orgId,
-      {
-        customerId: quot.customer_id,
-        orderDate: new Date().toISOString().split('T')[0],
-        quotationId: quot.id,
-        notes: `Converted from Quotation ${quot.quotation_number}`,
-        items: orderItems,
-      },
-      false
-    );
-
-    const { error: updateErr } = await supabase
-      .from('quotations')
-      .update({ status: 'ACCEPTED', updated_at: new Date().toISOString() })
-      .eq('id', quotationId)
-      .eq('organization_id', orgId);
-
-    if (updateErr) {
-      throw new Error(`Order created, but failed to update quotation status: ${updateErr.message}`);
-    }
-
-    return order;
+    const items = (rpcData.items || []).map(mapDbSalesOrderItem);
+    return mapDbSalesOrder(rpcData, items);
   },
 };

@@ -1039,6 +1039,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.state !== undefined) dbPayload.state = updates.state;
     if (updates.pincode !== undefined) dbPayload.pincode = updates.pincode;
     if (updates.currency !== undefined) dbPayload.currency = updates.currency;
+    if (updates.logoUrl !== undefined) dbPayload.logo_url = updates.logoUrl;
 
     const { data: updatedRows, error } = await supabase
       .from('organizations')

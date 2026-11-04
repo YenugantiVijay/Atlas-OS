@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Send,
@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
+import { isInvoiceOverdue } from '@/lib/dates';
 
 interface ReplenishmentItem {
   productId: string;
@@ -47,7 +48,7 @@ interface Message {
 }
 
 export const AIPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { showToast } = useToast();
 
   const [inputPrompt, setInputPrompt] = useState('');
@@ -61,6 +62,18 @@ export const AIPage: React.FC = () => {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Cross-tenant protection: Reset conversation state immediately whenever active tenant changes
+  useEffect(() => {
+    setMessages([
+      {
+        id: 'msg-' + Date.now(),
+        sender: 'assistant',
+        content: `Hello! I am ATLAS Operational Assistant for ${currentOrg?.name || 'your business'}. All my responses, summaries, and stock recommendations are computed deterministically from your active database records using verified business rules.\n\nHow can I assist your operations today?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  }, [currentOrg?.id]);
 
   const sampleQueries = [
     { label: "Summarize today's sales & orders", query: "Summarize today's orders and sales." },
@@ -161,13 +174,10 @@ export const AIPage: React.FC = () => {
       ]);
 
       const now = new Date();
-      // True overdue: invoice due date is strictly in the past and unpaid balance remains
+      // True overdue: invoice due date is strictly in the past (in IST) and unpaid balance remains
       const overdueInvoices = invoices.filter((inv) => {
-        if (!inv.dueDate) return false;
         const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
-        if (balance <= 0) return false;
-        const due = new Date(inv.dueDate);
-        return due < now && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+        return isInvoiceOverdue(inv.dueDate) && balance > 0 && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
       });
 
       if (overdueInvoices.length === 0) {
@@ -251,6 +261,18 @@ export const AIPage: React.FC = () => {
 
   const handleApproveAction = async (messageId: string, action: NonNullable<Message['proposedAction']>) => {
     if (!currentOrg) return;
+
+    if (action.type === 'REPLENISHMENT_PROPOSAL') {
+      const isAuthorized = currentRole === 'owner' || currentRole === 'admin' || currentRole === 'inventory';
+      if (!isAuthorized) {
+        showToast(
+          'error',
+          'Operation Restricted',
+          'Only Owner, Admin, or Inventory managers may approve purchasing replenishment proposals.'
+        );
+        return;
+      }
+    }
 
     // Transition state: executing
     setMessages((prev) =>
