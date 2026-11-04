@@ -146,10 +146,12 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
     const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const panInput = screen.getByLabelText(/PAN/i);
     const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
 
     fireEvent.change(nameInput, { target: { value: 'Concurrent Test Org' } });
+    fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
 
     // First click
     fireEvent.click(submitBtn);
@@ -192,7 +194,9 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
     const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const panInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(nameInput, { target: { value: 'Retry Success Org' } });
+    fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
 
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
 
@@ -228,7 +232,9 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     const { rerender } = render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
     const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const panInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(nameInput, { target: { value: 'Org One' } });
+    fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
 
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
     fireEvent.click(submitBtn);
@@ -250,7 +256,9 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     rerender(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
     const reopenedNameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const reopenedPanInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(reopenedNameInput, { target: { value: 'Org Two' } });
+    fireEvent.change(reopenedPanInput, { target: { value: 'ABCDE1234F' } });
 
     fireEvent.click(screen.getByRole('button', { name: /Create Organization/i }));
 
@@ -276,11 +284,13 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
     const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const panInput = screen.getByLabelText(/PAN/i);
     const phoneInput = screen.getByLabelText(/Phone/i);
     const cityInput = screen.getByLabelText(/City/i);
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
 
     fireEvent.change(nameInput, { target: { value: 'Dynamic Supplies Ltd' } });
+    fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
     fireEvent.change(phoneInput, { target: { value: '+91 99999 11111' } });
 
     // First attempt fails
@@ -436,6 +446,10 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
       target: { value: 'Pioneer Wholesale Cables' },
+    });
+
+    fireEvent.change(screen.getByLabelText(/PAN/i), {
+      target: { value: 'ABCDE1234F' },
     });
 
     // Select Hardware & Electrical Store

@@ -318,7 +318,7 @@ export const InvoicesPage: React.FC = () => {
                       <div className="font-semibold text-content-primary text-xs">{it.productName}</div>
                       <div className="text-xs font-mono text-atlas-700 mt-0.5">{it.productSku}</div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{it.hsnCode || '8544'}</TableCell>
+                    <TableCell className="font-mono text-xs">{it.hsnCode || '—'}</TableCell>
                     <TableCell className="text-center font-mono text-xs">
                       {it.quantity} {it.uom}
                     </TableCell>

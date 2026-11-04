@@ -55,13 +55,20 @@ describe('Financial and Money Calculation Engine', () => {
       expect(parseTaxRate(28)).toBe(28);
     });
 
-    it('falls back to default only when value is truly missing or invalid', () => {
-      expect(parseTaxRate(null, 18)).toBe(18);
-      expect(parseTaxRate(undefined, 18)).toBe(18);
-      expect(parseTaxRate('', 18)).toBe(18);
+    it('defaults to 0% (no fabricated 18%) when tax rate is missing or invalid', () => {
+      expect(parseTaxRate(null)).toBe(0);
+      expect(parseTaxRate(undefined)).toBe(0);
+      expect(parseTaxRate('')).toBe(0);
+      expect(parseTaxRate('invalid')).toBe(0);
+      expect(parseTaxRate(NaN)).toBe(0);
+    });
+
+    it('falls back to custom fallback only when explicit fallbackRate is passed', () => {
+      expect(parseTaxRate(null, 12)).toBe(12);
+      expect(parseTaxRate(undefined, 5)).toBe(5);
+      expect(parseTaxRate('', 28)).toBe(28);
       expect(parseTaxRate('invalid', 18)).toBe(18);
-      expect(parseTaxRate(NaN, 18)).toBe(18);
-      expect(parseTaxRate(undefined, 0)).toBe(0);
+      expect(parseTaxRate(NaN, 0)).toBe(0);
     });
 
     it('ensures database mappers preserve legitimate 0% tax rates', () => {
@@ -343,12 +350,13 @@ describe('Financial and Money Calculation Engine', () => {
       );
 
       // In paise: 10,000 paise gross per item (total 30,000 paise). Document discount: 10,000 paise.
+      // Under fair proportional allocation (cumulative tracking):
       // Line 1: round(10000 * 10000 / 30000) = 3333 paise (₹33.33). Adj taxable = 6667 paise (₹66.67).
-      // Line 2: round(10000 * 10000 / 30000) = 3333 paise (₹33.33). Adj taxable = 6667 paise (₹66.67).
-      // Line 3: remainder absorbed = 10000 - (3333 + 3333) = 3334 paise (₹33.34). Adj taxable = 6666 paise (₹66.66).
+      // Line 2: round(10000 * 20000 / 30000) - 3333 = 3334 paise (₹33.34). Adj taxable = 6666 paise (₹66.66).
+      // Line 3: 10000 - 6667 = 3333 paise (₹33.33). Adj taxable = 6667 paise (₹66.67).
       expect(doc.items[0].taxableAmount).toBe(66.67);
-      expect(doc.items[1].taxableAmount).toBe(66.67);
-      expect(doc.items[2].taxableAmount).toBe(66.66);
+      expect(doc.items[1].taxableAmount).toBe(66.66);
+      expect(doc.items[2].taxableAmount).toBe(66.67);
       expect(roundMoney(doc.items[0].taxableAmount + doc.items[1].taxableAmount + doc.items[2].taxableAmount)).toBe(200);
 
       const sumLineTotal = roundMoney(doc.items.reduce((s, it) => s + it.totalAmount, 0));
@@ -408,6 +416,130 @@ describe('Financial and Money Calculation Engine', () => {
       expect(doc.items[0].documentDiscountShare).toBe(100);
       expect(doc.items[1].documentDiscountShare).toBe(200);
       expect(roundMoney(doc.items[0].documentDiscountShare! + doc.items[1].documentDiscountShare!)).toBe(300);
+    });
+
+    describe('Phase A1 Document Discount Apportionment Integrity & Boundary Tests', () => {
+      it('reproduces and resolves the confirmed 5-line 1-paisa defect without negative final share', () => {
+        // Confirmed defect scenario:
+        // Five line items, each with taxable value ₹0.01 (1 paisa).
+        // Document-level discount is ₹0.03 (3 paise).
+        // The old code allocated 1 paisa to each of lines 0..3 (4 paise total),
+        // leaving the 5th line (index 4) with 3 - 4 = -1 paisa (-₹0.01).
+        const doc = calculateDocumentTotals(
+          [
+            { quantity: 1, unitPrice: 0.01, discountPercent: 0, taxRate: 18 },
+            { quantity: 1, unitPrice: 0.01, discountPercent: 0, taxRate: 18 },
+            { quantity: 1, unitPrice: 0.01, discountPercent: 0, taxRate: 18 },
+            { quantity: 1, unitPrice: 0.01, discountPercent: 0, taxRate: 18 },
+            { quantity: 1, unitPrice: 0.01, discountPercent: 0, taxRate: 18 },
+          ],
+          0.03
+        );
+
+        // Guarantees:
+        // 1. No line receives a negative discount share!
+        for (let i = 0; i < doc.items.length; i++) {
+          const share = doc.items[i].documentDiscountShare!;
+          expect(share).toBeGreaterThanOrEqual(0);
+          expect(share).toBeLessThanOrEqual(0.01);
+        }
+
+        // 2. Line 4 (final line) is explicitly non-negative
+        expect(doc.items[4].documentDiscountShare).toBeGreaterThanOrEqual(0);
+
+        // 3. Sum of allocated shares strictly equals the document discount of ₹0.03
+        const sumShares = doc.items.reduce((acc, it) => acc + toPaise(it.documentDiscountShare!), 0);
+        expect(fromPaise(sumShares)).toBe(0.03);
+
+        // 4. Fundamental financial identity: Gross - Discount + Tax === Total
+        expect(roundMoney(doc.grossSubtotal - doc.discountTotal + doc.taxAmount)).toBe(doc.totalAmount);
+        expect(doc.taxableAmount).toBe(0.02); // 0.05 - 0.03 = 0.02
+      });
+
+      it('guarantees zero-value lines receive exactly 0 discount share', () => {
+        const doc = calculateDocumentTotals(
+          [
+            { quantity: 1, unitPrice: 100, discountPercent: 0, taxRate: 18 },
+            { quantity: 0, unitPrice: 50, discountPercent: 0, taxRate: 18 }, // 0 taxable
+            { quantity: 1, unitPrice: 200, discountPercent: 0, taxRate: 18 },
+          ],
+          60
+        );
+
+        expect(doc.items[1].documentDiscountShare).toBe(0);
+        expect(doc.items[0].documentDiscountShare).toBe(20);
+        expect(doc.items[2].documentDiscountShare).toBe(40);
+        expect(roundMoney(doc.items[0].documentDiscountShare! + doc.items[2].documentDiscountShare!)).toBe(60);
+      });
+
+      it('guarantees correct discount allocation and tax calculation across mixed tax rates', () => {
+        // Line 1: 1000 @ 0% GST (exempt)
+        // Line 2: 1000 @ 5% GST
+        // Line 3: 1000 @ 12% GST
+        // Line 4: 1000 @ 18% GST
+        // Line 5: 1000 @ 28% GST
+        // Total taxable = 5000. Doc discount = 1000 (20% pro-rata)
+        const doc = calculateDocumentTotals(
+          [
+            { quantity: 1, unitPrice: 1000, discountPercent: 0, taxRate: 0 },
+            { quantity: 1, unitPrice: 1000, discountPercent: 0, taxRate: 5 },
+            { quantity: 1, unitPrice: 1000, discountPercent: 0, taxRate: 12 },
+            { quantity: 1, unitPrice: 1000, discountPercent: 0, taxRate: 18 },
+            { quantity: 1, unitPrice: 1000, discountPercent: 0, taxRate: 28 },
+          ],
+          1000
+        );
+
+        // Each line should receive exactly 200 discount share (1000 / 5 = 200)
+        expect(doc.items[0].documentDiscountShare).toBe(200);
+        expect(doc.items[1].documentDiscountShare).toBe(200);
+        expect(doc.items[2].documentDiscountShare).toBe(200);
+        expect(doc.items[3].documentDiscountShare).toBe(200);
+        expect(doc.items[4].documentDiscountShare).toBe(200);
+
+        // Post-discount taxable: each line is 800
+        expect(doc.items[0].taxAmount).toBe(0); // 800 * 0%
+        expect(doc.items[1].taxAmount).toBe(40); // 800 * 5%
+        expect(doc.items[2].taxAmount).toBe(96); // 800 * 12%
+        expect(doc.items[3].taxAmount).toBe(144); // 800 * 18%
+        expect(doc.items[4].taxAmount).toBe(224); // 800 * 28%
+
+        expect(doc.taxAmount).toBe(0 + 40 + 96 + 144 + 224); // 504
+        expect(doc.taxableAmount).toBe(4000);
+        expect(doc.totalAmount).toBe(4504);
+        expect(roundMoney(doc.grossSubtotal - doc.discountTotal + doc.taxAmount)).toBe(doc.totalAmount);
+      });
+
+      it('handles 100% full document discount properly (all lines drop to 0)', () => {
+        const doc = calculateDocumentTotals(
+          [
+            { quantity: 5, unitPrice: 100, discountPercent: 0, taxRate: 18 },
+            { quantity: 2, unitPrice: 250, discountPercent: 0, taxRate: 12 },
+          ],
+          1000 // 500 + 500 = 1000
+        );
+
+        expect(doc.items[0].documentDiscountShare).toBe(500);
+        expect(doc.items[1].documentDiscountShare).toBe(500);
+        expect(doc.taxableAmount).toBe(0);
+        expect(doc.taxAmount).toBe(0);
+        expect(doc.totalAmount).toBe(0);
+      });
+
+      it('produces identical deterministic results across repeated invocations', () => {
+        const items = [
+          { quantity: 3, unitPrice: 149.99, discountPercent: 2.5, taxRate: 18 },
+          { quantity: 7, unitPrice: 89.5, discountPercent: 0, taxRate: 5 },
+          { quantity: 1, unitPrice: 1250, discountPercent: 10, taxRate: 28 },
+        ];
+        const res1 = calculateDocumentTotals(items, 150.75);
+        const res2 = calculateDocumentTotals(items, 150.75);
+
+        expect(res1.totalAmount).toBe(res2.totalAmount);
+        expect(res1.items[0].documentDiscountShare).toBe(res2.items[0].documentDiscountShare);
+        expect(res1.items[1].documentDiscountShare).toBe(res2.items[1].documentDiscountShare);
+        expect(res1.items[2].documentDiscountShare).toBe(res2.items[2].documentDiscountShare);
+      });
     });
   });
 

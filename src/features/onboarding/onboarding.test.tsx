@@ -354,6 +354,9 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
         target: { value: 'Nandi Electrical Agency' },
       });
+      fireEvent.change(screen.getByLabelText(/GSTIN/i), {
+        target: { value: '29ABCDE1234F1Z5' },
+      });
       fireEvent.change(screen.getByLabelText(/Street \/ Shop \/ Warehouse Address/i), {
         target: { value: '12 Industrial Area' },
       });
@@ -415,6 +418,9 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
 
       fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
         target: { value: 'Apex Electricals' },
+      });
+      fireEvent.change(screen.getByLabelText(/GSTIN/i), {
+        target: { value: '29ABCDE1234F1Z5' },
       });
 
       const submitBtn = screen.getByRole('button', { name: /Create My Organization/i });
@@ -570,6 +576,9 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       // Business name
       fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
         target: { value: 'Venkata Power Distributors' },
+      });
+      fireEvent.change(screen.getByLabelText(/GSTIN/i), {
+        target: { value: '29ABCDE1234F1Z5' },
       });
 
       // Select Business Category: Electrical Retail Shop
@@ -741,6 +750,81 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
         expect.stringContaining('Operational write access is disabled')
       );
       expect(screen.queryByTestId('orders-page')).not.toBeInTheDocument();
+    });
+
+    it('19. Onboarding form rejects submission without PAN when statutory exemption is not selected', async () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: null,
+        organizations: [],
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/onboarding']}>
+          <Routes>
+            <Route path="/onboarding" element={<OnboardingPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+        target: { value: 'No PAN Enterprises' },
+      });
+
+      const submitBtn = screen.getByRole('button', { name: /Create My Organization/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Valid Indian PAN is required for business registration/i)).toBeInTheDocument();
+        expect(mockCreateOrganization).not.toHaveBeenCalled();
+      });
+    });
+
+    it('20. Onboarding form accepts documented statutory PAN exemption with reason and reference and submits successfully', async () => {
+      setupOrgContextMock({
+        isAuthenticated: true,
+        currentOrg: null,
+        organizations: [],
+      });
+
+      mockCreateOrganization.mockResolvedValueOnce({
+        id: 'org-exempt-001',
+        name: 'Govt Electrical Supply Undertaking',
+        currency: 'INR',
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/onboarding']}>
+          <Routes>
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/" element={<div data-testid="dashboard-destination">Main Dashboard</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+        target: { value: 'Govt Electrical Supply Undertaking' },
+      });
+
+      // Toggle statutory tax identity exemption
+      const exemptionCheckbox = screen.getByRole('checkbox', {
+        name: /Request documented statutory tax identity exemption/i,
+      });
+      fireEvent.click(exemptionCheckbox);
+
+      // Fill exemption reference
+      const refInput = screen.getByLabelText(/Exemption \/ Application Reference/i);
+      fireEvent.change(refInput, { target: { value: 'GOV-ORDER-2026-X1' } });
+
+      const submitBtn = screen.getByRole('button', { name: /Create My Organization/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(mockCreateOrganization).toHaveBeenCalledTimes(1);
+        const payload = mockCreateOrganization.mock.calls[0][0];
+        expect(payload.panExceptionReason).toBe('GOVERNMENT_EXEMPT_ENTITY');
+        expect(payload.panExceptionReference).toBe('GOV-ORDER-2026-X1');
+      });
     });
   });
 });

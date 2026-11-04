@@ -427,6 +427,8 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
         p_sells_electrical_products: true,
         p_product_lines: [],
         p_idempotency_key: attemptKey,
+        p_pan_exception_reason: null,
+        p_pan_exception_reference: null,
       });
     });
 

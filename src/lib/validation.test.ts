@@ -10,6 +10,8 @@ import {
   extractPanFromGstin,
   validateBusinessTaxIdentifiers,
   maskPan,
+  maskGstin,
+  PAN_EXCEPTION_REASONS,
 } from './validation';
 
 describe('Domain Input Validation Schemas', () => {
@@ -212,6 +214,64 @@ describe('Domain Input Validation Schemas', () => {
       expect(maskPan('XYZAB9999K')).toBe('XXXXX9999K');
       expect(maskPan('')).toBe('');
       expect(maskPan('INVALID')).toBe('••••••••••');
+    });
+
+    it('redacts GSTIN for secure application logging and error reporting', () => {
+      expect(maskGstin('29ABCDE1234F1Z5')).toBe('29XXXXX1234F1Z5');
+      expect(maskGstin('')).toBe('');
+      expect(maskGstin('INVALID')).toBe('•••••••••••••••');
+    });
+
+    it('rejects business tax validation when PAN is missing without documented exception', () => {
+      const res = validateBusinessTaxIdentifiers({
+        requirePan: true,
+        allowException: false,
+      });
+      expect(res.valid).toBe(false);
+      expect(res.error).toBe('Valid Indian PAN is required for business registration.');
+    });
+
+    it('rejects business tax validation when allowException is true but reason or reference is missing', () => {
+      const res1 = validateBusinessTaxIdentifiers({
+        requirePan: true,
+        allowException: true, // missing reason and reference
+      });
+      expect(res1.valid).toBe(false);
+      expect(res1.error).toContain('Documented statutory exception reason and reference');
+
+      const res2 = validateBusinessTaxIdentifiers({
+        requirePan: true,
+        allowException: true,
+        exceptionReason: 'UNKNOWN_REASON',
+        exceptionReference: 'REF123',
+      });
+      expect(res2.valid).toBe(false);
+      expect(res2.error).toContain('Documented statutory exception reason and reference');
+    });
+
+    it('accepts documented statutory PAN exception when valid reason and reference are supplied', () => {
+      const res = validateBusinessTaxIdentifiers({
+        requirePan: true,
+        allowException: true,
+        exceptionReason: PAN_EXCEPTION_REASONS[0],
+        exceptionReference: 'GOV-EXEMPT-ORDER-2026-99',
+      });
+      expect(res.valid).toBe(true);
+      expect(res.isException).toBe(true);
+      expect(res.exceptionReason).toBe('GOVERNMENT_EXEMPT_ENTITY');
+      expect(res.exceptionReference).toBe('GOV-EXEMPT-ORDER-2026-99');
+    });
+
+    it('confirms customer schema does NOT require PAN for ordinary retail customers', () => {
+      const retailCustomer = {
+        name: 'Suresh Patel',
+        phone: '+91 99001 22334',
+        billingAddress: 'Main Road, Chickpet, Bangalore',
+        creditLimit: 0,
+        creditDays: 0,
+      };
+      // Must be completely valid without any PAN or GSTIN
+      expect(customerSchema.safeParse(retailCustomer).success).toBe(true);
     });
 
     it('organizationSchema validates when GSTIN and PAN match', () => {
