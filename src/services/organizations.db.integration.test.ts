@@ -168,5 +168,69 @@ describe('PostgreSQL Migration 020 Integration Contracts', () => {
         expect(error?.message).toMatch(/ERR_CONFLICT.*Idempotency key collision/i);
       });
     });
+
+    // =========================================================================
+    // 3. Migration 030: Canonical v2, Continuing Enforcement & Privacy Contracts
+    // =========================================================================
+    describe('Migration 030 Canonical v2 & Privacy Contracts', () => {
+      it('creates organization via canonical create_organization_v2 with valid PAN', async () => {
+        const { data, error } = await supabase!.rpc('create_organization_v2', {
+          p_name: 'Canonical Test Corp',
+          p_gstin: '29ABCDE1234F1Z5',
+          p_pan: 'ABCDE1234F',
+          p_currency: 'INR',
+          p_business_category: 'electrical_retail',
+          p_sells_electrical_products: true,
+          p_product_lines: ['Wires & Cables'],
+        });
+
+        expect(error).toBeNull();
+        expect(data).toBeDefined();
+        expect(data.eligibility_status).toBe('approved');
+        expect(data.trial_initialized).toBe(true);
+      });
+
+      it('rejects create_organization_v2 without PAN and without exception', async () => {
+        const { data, error } = await supabase!.rpc('create_organization_v2', {
+          p_name: 'Missing PAN Corp',
+          p_currency: 'INR',
+          p_business_category: 'electrical_retail',
+          p_sells_electrical_products: true,
+        });
+
+        expect(data).toBeNull();
+        expect(error).toBeDefined();
+        expect(error?.message).toMatch(/ERR_PAN_REQUIRED/);
+      });
+
+      it('routes statutory exception to review_required without automatic trial in v2', async () => {
+        const { data, error } = await supabase!.rpc('create_organization_v2', {
+          p_name: 'Govt Micro Corp',
+          p_currency: 'INR',
+          p_business_category: 'electrical_retail',
+          p_sells_electrical_products: true,
+          p_pan_exception_reason: 'GOVERNMENT_EXEMPT_ENTITY',
+          p_pan_exception_reference: 'GOV-REF-123',
+        });
+
+        expect(error).toBeNull();
+        expect(data).toBeDefined();
+        expect(data.eligibility_status).toBe('review_required');
+        expect(data.trial_initialized).toBe(false);
+      });
+
+      it('legacy create_organization rejects missing PAN (delegates to v2)', async () => {
+        const { data, error } = await supabase!.rpc('create_organization', {
+          p_name: 'Legacy Bypass Attempt',
+          p_currency: 'INR',
+          p_business_category: 'electrical_retail',
+          p_sells_electrical_products: true,
+        });
+
+        expect(data).toBeNull();
+        expect(error).toBeDefined();
+        expect(error?.message).toMatch(/ERR_PAN_REQUIRED/);
+      });
+    });
   });
 });

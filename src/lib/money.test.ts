@@ -9,6 +9,7 @@ import {
   formatCurrency,
   calculateInvoiceBalance,
   resolveDocumentPresentation,
+  isExplicitTaxRate,
 } from './money';
 import { mapDbProduct } from '@/services/products.service';
 import { mapDbSalesOrderItem, mapDbQuotationItem } from '@/services/orders.service';
@@ -55,20 +56,32 @@ describe('Financial and Money Calculation Engine', () => {
       expect(parseTaxRate(28)).toBe(28);
     });
 
-    it('defaults to 0% (no fabricated 18%) when tax rate is missing or invalid', () => {
-      expect(parseTaxRate(null)).toBe(0);
-      expect(parseTaxRate(undefined)).toBe(0);
-      expect(parseTaxRate('')).toBe(0);
-      expect(parseTaxRate('invalid')).toBe(0);
-      expect(parseTaxRate(NaN)).toBe(0);
+    it('strictly throws when tax rate is missing or invalid and no fallback is provided (preventing silent 0% or 18% fabrication)', () => {
+      expect(() => parseTaxRate(null)).toThrow(/Tax rate is required/);
+      expect(() => parseTaxRate(undefined)).toThrow(/Tax rate is required/);
+      expect(() => parseTaxRate('')).toThrow(/Tax rate is required/);
+      expect(() => parseTaxRate('invalid')).toThrow(/Invalid tax rate/);
+      expect(() => parseTaxRate(NaN)).toThrow(/Invalid tax rate/);
     });
 
     it('falls back to custom fallback only when explicit fallbackRate is passed', () => {
+      expect(parseTaxRate(null, 0)).toBe(0);
       expect(parseTaxRate(null, 12)).toBe(12);
       expect(parseTaxRate(undefined, 5)).toBe(5);
       expect(parseTaxRate('', 28)).toBe(28);
       expect(parseTaxRate('invalid', 18)).toBe(18);
       expect(parseTaxRate(NaN, 0)).toBe(0);
+    });
+
+    it('isExplicitTaxRate distinguishes legitimate 0% from missing/invalid tax rates', () => {
+      expect(isExplicitTaxRate(0)).toBe(true);
+      expect(isExplicitTaxRate('0')).toBe(true);
+      expect(isExplicitTaxRate(18)).toBe(true);
+      expect(isExplicitTaxRate(null)).toBe(false);
+      expect(isExplicitTaxRate(undefined)).toBe(false);
+      expect(isExplicitTaxRate('')).toBe(false);
+      expect(isExplicitTaxRate('invalid')).toBe(false);
+      expect(isExplicitTaxRate(NaN)).toBe(false);
     });
 
     it('ensures database mappers preserve legitimate 0% tax rates', () => {

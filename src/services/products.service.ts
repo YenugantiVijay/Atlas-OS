@@ -17,7 +17,7 @@ export function mapDbProduct(row: any, stock: number = 0): Product {
     uom: (row.uom as UOM) || 'Nos',
     purchaseCost: Number(row.purchase_cost) || 0,
     sellingPrice: Number(row.selling_price) || 0,
-    taxRate: parseTaxRate(row.tax_rate),
+    taxRate: parseTaxRate(row.tax_rate, 0),
     hsnCode: row.hsn_code || undefined,
     reorderThreshold: Number(row.reorder_threshold ?? 10),
     currentStock: stock,

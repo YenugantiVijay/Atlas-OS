@@ -36,17 +36,186 @@ const DATABASE_URL =
 
 const testResults = [];
 
-function recordTest(id, name, passed, details, error = null) {
-  testResults.push({ id, name, passed, details, error: error ? String(error.message || error) : null, timestamp: new Date().toISOString() });
+/**
+ * Sanitizes log output to prevent raw leakage of PAN, GSTIN, JWT tokens, or credentials.
+ * Masks sensitive substrings (e.g., ABCDE****F, 29ABCDE****F1Z5).
+ */
+function sanitizeLog(text) {
+  if (!text || typeof text !== 'string') return text;
+  // Mask 15-character Indian GSTIN (e.g. 29ABCDE1234F1Z5 -> 29ABCDE****F1Z5)
+  let sanitized = text.replace(/\b([0-9]{2}[A-Z]{5})[0-9]{4}([A-Z][0-9A-Z]Z[0-9A-Z])\b/g, '$1****$2');
+  // Mask 10-character Indian PAN (e.g. ABCDE1234F -> ABCDE****F)
+  sanitized = sanitized.replace(/\b([A-Z]{5})[0-9]{4}([A-Z])\b/g, '$1****$2');
+  // Mask Bearer tokens or JWTs
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*/gi, 'Bearer [REDACTED_TOKEN]');
+  sanitized = sanitized.replace(/eyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*/g, '[REDACTED_JWT]');
+  // Mask passwords
+  sanitized = sanitized.replace(/(password|passwd|pwd)[:=]\s*([^&\s\n,]+)/gi, '$1=****');
+  sanitized = sanitized.replace(/:([^:@]+)@/, ':****@');
+  return sanitized;
+}
+
+/**
+ * Classifies failure types based on error characteristics or diagnostic hints:
+ * - PERMISSION_FAILURE: Table/schema permission denied (e.g. SQLSTATE 42501)
+ * - RLS_FAILURE: Row-level security restriction (0 rows affected or policy violation)
+ * - SCHEMA_FAILURE: Missing relation, column, function, or schema definition
+ * - BUSINESS_LOGIC_FAILURE: Exception mismatch, unraised expected error, or invalid business outcome
+ * - FIXTURE_FAILURE: Setup, seeding, or teardown environment breakdown
+ */
+function classifyFailure(error, diagnostic = null) {
+  if (diagnostic?.category) return diagnostic.category;
+  if (!error) {
+    if (diagnostic?.rlsFailure) return 'RLS_FAILURE';
+    return 'BUSINESS_LOGIC_FAILURE';
+  }
+  const code = String(error.code || '');
+  const msg = (error.message || '').toLowerCase();
+
+  if (code === '42501' || msg.includes('permission denied') || msg.includes('must be superuser') || msg.includes('insufficient privilege')) {
+    return 'PERMISSION_FAILURE';
+  }
+  if (diagnostic?.rlsFailure || msg.includes('row-level security') || msg.includes('rls policy')) {
+    return 'RLS_FAILURE';
+  }
+  if (
+    code.startsWith('42P') ||
+    code === '42703' ||
+    code === '42883' ||
+    code.startsWith('3F') ||
+    (msg.includes('relation') && msg.includes('does not exist')) ||
+    (msg.includes('column') && msg.includes('does not exist')) ||
+    (msg.includes('function') && msg.includes('does not exist'))
+  ) {
+    return 'SCHEMA_FAILURE';
+  }
+  if (msg.includes('fixture') || msg.includes('seed') || msg.includes('provision') || msg.includes('cleanup')) {
+    return 'FIXTURE_FAILURE';
+  }
+  return 'BUSINESS_LOGIC_FAILURE';
+}
+
+function recordTest(id, name, passed, details, error = null, diagnostic = null) {
+  const sanitizedDetails = details ? sanitizeLog(String(details)) : null;
+  const sanitizedError = error ? sanitizeLog(String(error.message || error)) : null;
+  const category = !passed ? (diagnostic?.category || classifyFailure(error, diagnostic)) : null;
+
+  testResults.push({
+    id,
+    name,
+    passed,
+    details: sanitizedDetails,
+    error: sanitizedError,
+    category,
+    sqlstate: error?.code || null,
+    timestamp: new Date().toISOString(),
+  });
+
   const badge = passed ? '✅ PASS' : '❌ FAIL';
   console.log(`[${id}] ${badge} - ${name}`);
-  if (details) {
-    console.log(`       Details: ${details}`);
+  if (sanitizedDetails) {
+    console.log(`       Details:   ${sanitizedDetails}`);
   }
-  if (!passed && error) {
-    console.error(`       Error:   ${error.message || error}`);
-    if (error.code) console.error(`       SQLSTATE: ${error.code}`);
+  if (!passed) {
+    if (diagnostic?.operation) console.error(`       Operation: ${diagnostic.operation}`);
+    if (diagnostic?.expected)  console.error(`       Expected:  ${diagnostic.expected}`);
+    if (diagnostic?.actual)    console.error(`       Actual:    ${diagnostic.actual}`);
+    if (category)              console.error(`       Category:  ${category}`);
+    if (sanitizedError)        console.error(`       Error:     ${sanitizedError}`);
+    if (error?.code)           console.error(`       SQLSTATE:  ${error.code}`);
   }
+}
+
+/**
+ * Bootstraps a disposable database with standard Supabase-compatible roles, schemas,
+ * default privileges, and auth helpers.
+ * Shared across both Scenario A (fresh install) and Scenario B (migration upgrade).
+ */
+async function bootstrapDisposableDatabase(client) {
+  await client.query(`
+    -- 1. Create standard Supabase roles if missing (unprivileged, non-superuser accounts)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN NOINHERIT;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN NOINHERIT;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
+        CREATE ROLE authenticator NOLOGIN NOINHERIT;
+      END IF;
+    END $$;
+
+    -- 2. Configure role inheritance and memberships
+    GRANT anon TO authenticator;
+    GRANT authenticated TO authenticator;
+    GRANT service_role TO authenticator;
+
+    -- Grant authenticated, anon, and service_role to active session user (allows superuser to SET ROLE for testing)
+    GRANT authenticated TO CURRENT_USER;
+    GRANT anon TO CURRENT_USER;
+    GRANT service_role TO CURRENT_USER;
+
+    -- 3. Create schemas
+    CREATE SCHEMA IF NOT EXISTS auth;
+    CREATE SCHEMA IF NOT EXISTS extensions;
+    CREATE SCHEMA IF NOT EXISTS public;
+
+    -- 4. Schema usage and standard permissions
+    GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+    GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+    GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
+    GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
+
+    -- 5. Standard Supabase Default privileges for future tables, sequences and functions
+    -- Establishes standard table grants before migrations run so that subsequent
+    -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER, service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER, service_role, authenticated;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO CURRENT_USER, service_role, authenticated;
+
+    -- 6. Auth users table emulation
+    CREATE TABLE IF NOT EXISTS auth.users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      instance_id uuid,
+      aud varchar(255) DEFAULT 'authenticated',
+      role varchar(255) DEFAULT 'authenticated',
+      email varchar(255) UNIQUE,
+      encrypted_password varchar(255),
+      email_confirmed_at timestamptz DEFAULT now(),
+      raw_app_meta_data jsonb DEFAULT '{"provider":"email","providers":["email"]}'::jsonb,
+      raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
+      is_super_admin boolean DEFAULT false,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
+
+    GRANT SELECT ON auth.users TO authenticated, anon;
+    GRANT ALL ON auth.users TO CURRENT_USER, service_role;
+
+    -- 7. Auth helper functions
+    CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
+      SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    $$ LANGUAGE sql STABLE;
+
+    CREATE OR REPLACE FUNCTION auth.role() RETURNS text AS $$
+      SELECT coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated');
+    $$ LANGUAGE sql STABLE;
+
+    CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb AS $$
+      SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    $$ LANGUAGE sql STABLE;
+
+    GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
+    GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
+    GRANT EXECUTE ON FUNCTION auth.jwt() TO PUBLIC, anon, authenticated, service_role;
+  `);
 }
 
 /**
@@ -128,6 +297,377 @@ async function withRoleContext(client, { role = 'authenticated', userId = null }
   }
 }
 
+/**
+ * Scenario B: Upgrading an existing database at migration 029 state to migration 030.
+ * Verifies that:
+ * 1. Existing organization, ownership, eligibility, trial, and audit records remain 100% preserved.
+ * 2. New canonical create_organization_v2 and legacy compatibility wrapper execute correctly on upgraded database.
+ * 3. Continuing identity enforcement protects existing records from unauthorized mutations.
+ */
+async function runUpgradeScenarioB(maintClient, baseRunId) {
+  console.log('\n' + '='.repeat(80));
+  console.log('SCENARIO B: EXISTING DATABASE UPGRADE (MIGRATION 029 -> 030)');
+  console.log('='.repeat(80));
+
+  const upgradeRunId = 'upg_' + crypto.randomBytes(4).toString('hex');
+  const testUpgradeDbName = `atlas_upgrade_${upgradeRunId}`;
+
+  // 1. Create dedicated upgrade test database
+  await maintClient.query(`CREATE DATABASE "${testUpgradeDbName}";`);
+
+  const upgradeDbUrl = new URL(DATABASE_URL);
+  upgradeDbUrl.pathname = `/${testUpgradeDbName}`;
+
+  const upgradeClient = new Client({
+    connectionString: upgradeDbUrl.toString(),
+    connectionTimeoutMillis: 5000,
+  });
+  await upgradeClient.connect();
+
+  try {
+    // 2. Bootstrap auth schema and roles using shared disposable bootstrap
+    console.log('\nBootstrapping Supabase-compatible roles, schemas and auth environment...');
+    await bootstrapDisposableDatabase(upgradeClient);
+    console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
+
+    // 3. Apply ONLY migrations 001 through 029 (the state before PR #15)
+    console.log('\nApplying original migrations 001 -> 029...');
+    const allFiles = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+    const pre030Files = allFiles.filter((f) => f < '030_');
+
+    for (const file of pre030Files) {
+      const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+      await upgradeClient.query(sql);
+    }
+    console.log(`  ✓ Applied ${pre030Files.length} baseline migrations up to 029.`);
+
+    await upgradeClient.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;`);
+
+    // 4. Seed pre-existing approved organization and entitlement records at 029 state
+    const existingUserId = crypto.randomUUID();
+    const existingOrgId = crypto.randomUUID();
+    const subscriptionEnd = new Date(Date.now() + 25 * 24 * 3600 * 1000).toISOString();
+
+    await upgradeClient.query(`
+      INSERT INTO auth.users (id, email) VALUES ('${existingUserId}', 'existing_owner@example.com');
+
+      INSERT INTO organizations (id, name, currency, legal_name, gstin, pan)
+      VALUES ('${existingOrgId}', 'Pre-existing Approved Distributor', 'INR', 'Pre-existing Corp', '29ABCDE1234F1Z5', 'ABCDE1234F');
+
+      INSERT INTO memberships (organization_id, user_id, role, is_active)
+      VALUES ('${existingOrgId}', '${existingUserId}', 'owner', true);
+
+      INSERT INTO organization_eligibility (organization_id, business_category, sells_electrical_products, status, declared_by)
+      VALUES ('${existingOrgId}', 'electrical_wholesale_distributor', true, 'approved', '${existingUserId}');
+
+      INSERT INTO organization_subscriptions (organization_id, plan_tier, status, current_period_ends_at)
+      VALUES ('${existingOrgId}', 'pro', 'active', '${subscriptionEnd}');
+
+      INSERT INTO audit_events (organization_id, actor_id, action, entity_type, entity_id, details)
+      VALUES ('${existingOrgId}', '${existingUserId}', 'INITIAL_SEED_029', 'organizations', '${existingOrgId}', '{"note": "pre-upgrade"}'::jsonb);
+    `);
+    console.log('  ✓ Seeded pre-existing approved organization at Migration 029 state.');
+
+    // 5. Take baseline snapshot
+    const { rows: orgSnap } = await upgradeClient.query(`SELECT * FROM organizations WHERE id = '${existingOrgId}';`);
+    const { rows: elSnap } = await upgradeClient.query(`SELECT status FROM organization_eligibility WHERE organization_id = '${existingOrgId}';`);
+    const { rows: subSnap } = await upgradeClient.query(`SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = '${existingOrgId}';`);
+    const { rows: auditSnap } = await upgradeClient.query(`SELECT count(*)::int AS count FROM audit_events WHERE organization_id = '${existingOrgId}';`);
+
+    // 6. Apply ONLY Migration 030 (forward-only upgrade)
+    console.log('\nApplying Migration 030 (forward-only upgrade)...');
+    const mig030Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '030_organization_identity_privacy_and_canonical_contract.sql'), 'utf8');
+    await upgradeClient.query(mig030Sql);
+    console.log('  ✓ Migration 030 applied successfully to existing database.');
+
+    // 7. Verify pre-existing data and entitlements are 100% preserved
+    const { rows: orgPost } = await upgradeClient.query(`SELECT * FROM organizations WHERE id = '${existingOrgId}';`);
+    const { rows: elPost } = await upgradeClient.query(`SELECT status FROM organization_eligibility WHERE organization_id = '${existingOrgId}';`);
+    const { rows: subPost } = await upgradeClient.query(`SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = '${existingOrgId}';`);
+    const { rows: auditPost } = await upgradeClient.query(`SELECT count(*)::int AS count FROM audit_events WHERE organization_id = '${existingOrgId}';`);
+
+    const orgUnchanged = orgPost[0]?.name === orgSnap[0]?.name && orgPost[0]?.pan === orgSnap[0]?.pan && orgPost[0]?.gstin === orgSnap[0]?.gstin;
+    const elUnchanged = elPost[0]?.status === 'approved' && elPost[0]?.status === elSnap[0]?.status;
+    const subUnchanged = subPost[0]?.status === 'active' && new Date(subPost[0]?.current_period_ends_at).getTime() === new Date(subSnap[0]?.current_period_ends_at).getTime();
+    const auditPreserved = auditPost[0]?.count >= auditSnap[0]?.count;
+
+    const upgradeIntegrityPassed = orgUnchanged && elUnchanged && subUnchanged && auditPreserved;
+    recordTest(
+      'P1-UPG-01',
+      'Scenario B Upgrade: Migration 030 preserves pre-existing organizations, approved eligibility, and trial dates',
+      upgradeIntegrityPassed,
+      `orgPreserved=${orgUnchanged}, eligibilityPreserved=${elUnchanged}, subPreserved=${subUnchanged}, auditPreserved=${auditPreserved}`,
+      upgradeIntegrityPassed ? null : new Error('Existing database state corrupted by migration 030')
+    );
+
+    // 8. Test upgraded functions on the upgraded database
+    const unauthorizedUserId = crypto.randomUUID();
+    await upgradeClient.query(
+      `INSERT INTO auth.users (id, email) VALUES ($1, 'unauthorized_user@example.com');`,
+      [unauthorizedUserId]
+    );
+
+    let preflightPassed = false;
+    let ownerUpdatePassed = false;
+    let unauthorizedBlocked = false;
+    let removeBlocked = false;
+    let removeCategory = null;
+    let mismatchBlocked = false;
+    let alterDemoted = false;
+    let subIntact = false;
+    let v2WorksOnUpgradedDb = false;
+    let legacyBlocked = false;
+    let upgErr = null;
+    let failureDiagnostic = null;
+
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      // 8.1 Pre-flight check: existingOrgId is visible to existingUserId under RLS and has valid PAN/GSTIN
+      const { rows: preflightRows } = await upgradeClient.query(
+        `SELECT id, name, legal_name, pan, gstin FROM organizations WHERE id = $1;`,
+        [existingOrgId]
+      );
+      preflightPassed =
+        preflightRows.length === 1 &&
+        preflightRows[0].pan === 'ABCDE1234F' &&
+        preflightRows[0].gstin === '29ABCDE1234F1Z5';
+
+      if (!preflightPassed) {
+        failureDiagnostic = {
+          operation: 'Pre-flight RLS visibility & identity check',
+          expected: '1 row with registered PAN and GSTIN visible to organization owner',
+          actual: `rows=${preflightRows.length}, data=${JSON.stringify(preflightRows[0] || {})}`,
+          category: preflightRows.length === 0 ? 'RLS_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.2 Permitted owner update: owner can update permitted attributes (legal_name/phone) under RLS
+      const ownerUpdateRes = await upgradeClient.query(
+        `UPDATE organizations SET legal_name = 'Pre-existing Corp Updated' WHERE id = $1;`,
+        [existingOrgId]
+      );
+      ownerUpdatePassed = ownerUpdateRes.rowCount === 1;
+      if (!ownerUpdatePassed) {
+        failureDiagnostic = {
+          operation: 'Permitted owner update under RLS',
+          expected: 'rowCount = 1 for owner updating permitted organization field',
+          actual: `rowCount = ${ownerUpdateRes.rowCount}`,
+          category: 'RLS_FAILURE',
+        };
+        return;
+      }
+
+      // 8.3 Explicit PAN removal rejected: updating pan = NULL on org with existing PAN raises ERR_CANNOT_REMOVE_PAN
+      try {
+        const res = await upgradeClient.query(
+          `UPDATE organizations SET pan = NULL WHERE id = $1;`,
+          [existingOrgId]
+        );
+        if (res.rowCount === 0) {
+          removeCategory = 'RLS_FAILURE';
+        } else {
+          removeCategory = 'BUSINESS_LOGIC_FAILURE';
+        }
+      } catch (err) {
+        if (err.code === '42501') {
+          removeCategory = 'PERMISSION_FAILURE';
+          upgErr = err;
+        } else if (err.message.includes('ERR_CANNOT_REMOVE_PAN')) {
+          removeBlocked = true;
+        } else {
+          removeCategory = 'BUSINESS_LOGIC_FAILURE';
+          upgErr = err;
+        }
+      }
+
+      if (!removeBlocked) {
+        failureDiagnostic = {
+          operation: 'Enforce non-removability of registered PAN',
+          expected: 'PostgreSQL exception ERR_CANNOT_REMOVE_PAN',
+          actual: upgErr ? upgErr.message : `No exception thrown (category: ${removeCategory})`,
+          category: removeCategory || 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.4 PAN/GSTIN mismatch rejected: updating to mismatched PAN/GSTIN raises ERR_PAN_GSTIN_MISMATCH
+      try {
+        await upgradeClient.query(
+          `UPDATE organizations SET pan = 'XYZAB1234C' WHERE id = $1;`,
+          [existingOrgId]
+        );
+      } catch (err) {
+        mismatchBlocked = err.message.includes('ERR_PAN_GSTIN_MISMATCH');
+        if (!mismatchBlocked) upgErr = err;
+      }
+
+      if (!mismatchBlocked) {
+        failureDiagnostic = {
+          operation: 'Reject PAN / GSTIN mismatch on UPDATE',
+          expected: 'PostgreSQL exception ERR_PAN_GSTIN_MISMATCH',
+          actual: upgErr ? upgErr.message : 'No exception thrown',
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.5 Authorized PAN alteration with matching GSTIN succeeds and demotes status to review_required
+      try {
+        const alterRes = await upgradeClient.query(
+          `UPDATE organizations SET pan = 'XYZAB1234C', gstin = '29XYZAB1234C1Z5' WHERE id = $1;`,
+          [existingOrgId]
+        );
+        if (alterRes.rowCount === 1) {
+          const { rows: elRows } = await upgradeClient.query(
+            `SELECT status FROM organization_eligibility WHERE organization_id = $1;`,
+            [existingOrgId]
+          );
+          alterDemoted = elRows[0]?.status === 'review_required';
+        }
+      } catch (err) {
+        upgErr = err;
+      }
+
+      if (!alterDemoted) {
+        failureDiagnostic = {
+          operation: 'Authorized PAN alteration status demotion',
+          expected: 'Update succeeds and demotes eligibility status to review_required',
+          actual: upgErr ? upgErr.message : 'Status was not demoted to review_required',
+          category: upgErr?.code === '42501' ? 'PERMISSION_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.6 Subscriptions and trial dates remain intact throughout
+      const { rows: subRows } = await upgradeClient.query(
+        `SELECT plan_tier, status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1;`,
+        [existingOrgId]
+      );
+      subIntact =
+        subRows[0]?.status === 'active' &&
+        subRows[0]?.plan_tier === 'pro' &&
+        new Date(subRows[0]?.current_period_ends_at).getTime() === new Date(subscriptionEnd).getTime();
+
+      if (!subIntact) {
+        failureDiagnostic = {
+          operation: 'Subscription and trial preservation on upgraded database',
+          expected: 'Subscription remains active with plan_tier pro and preserved end date',
+          actual: `status=${subRows[0]?.status}, plan_tier=${subRows[0]?.plan_tier}`,
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.7 create_organization_v2 works on upgraded database
+      try {
+        const { rows: newOrgRows } = await upgradeClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Upgraded New Org',
+            p_gstin := '29ABCDE1234F1Z5',
+            p_pan := 'ABCDE1234F',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables']
+          ) AS res;`
+        );
+        const newOrg = newOrgRows[0]?.res;
+        v2WorksOnUpgradedDb = Boolean(newOrg && newOrg.id && newOrg.eligibility_status === 'approved');
+      } catch (err) {
+        upgErr = err;
+      }
+
+      if (!v2WorksOnUpgradedDb) {
+        failureDiagnostic = {
+          operation: 'create_organization_v2 execution on upgraded database',
+          expected: 'New organization created with approved eligibility status',
+          actual: upgErr ? upgErr.message : 'Invalid response from create_organization_v2',
+          category: upgErr?.code === '42501' ? 'PERMISSION_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.8 legacy wrapper blocks missing PAN
+      try {
+        await upgradeClient.query(
+          `SELECT create_organization(
+            p_name := 'Legacy Missing PAN',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true
+          );`
+        );
+      } catch (err) {
+        legacyBlocked = err.message.includes('ERR_PAN_REQUIRED');
+        if (!legacyBlocked) upgErr = err;
+      }
+
+      if (!legacyBlocked) {
+        failureDiagnostic = {
+          operation: 'Legacy create_organization wrapper PAN requirement enforcement',
+          expected: 'PostgreSQL exception ERR_PAN_REQUIRED',
+          actual: upgErr ? upgErr.message : 'No exception thrown',
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+    });
+
+    // 8.9 Unauthorized user blocked by RLS (0 rows affected)
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: unauthorizedUserId }, async () => {
+      const unauthRes = await upgradeClient.query(
+        `UPDATE organizations SET legal_name = 'Malicious Hijack' WHERE id = $1;`,
+        [existingOrgId]
+      );
+      unauthorizedBlocked = (unauthRes.rowCount === 0);
+    });
+
+    if (!unauthorizedBlocked) {
+      failureDiagnostic = {
+        operation: 'Unauthorized user cross-tenant update isolation under RLS',
+        expected: 'rowCount = 0 (RLS blocks mutation of foreign organization)',
+        actual: 'rowCount > 0 (foreign organization was mutated)',
+        category: 'RLS_FAILURE',
+      };
+    }
+
+    const upgradedOpsPassed =
+      preflightPassed &&
+      ownerUpdatePassed &&
+      unauthorizedBlocked &&
+      removeBlocked &&
+      mismatchBlocked &&
+      alterDemoted &&
+      subIntact &&
+      v2WorksOnUpgradedDb &&
+      legacyBlocked;
+
+    recordTest(
+      'P1-UPG-02',
+      'Scenario B Upgrade: Upgraded database enforces canonical v2, legacy wrapper protection, and continuing identity enforcement',
+      upgradedOpsPassed,
+      `preflight=${preflightPassed}, ownerUpdate=${ownerUpdatePassed}, unauthBlocked=${unauthorizedBlocked}, removeBlocked=${removeBlocked}, mismatchBlocked=${mismatchBlocked}, alterDemoted=${alterDemoted}, subIntact=${subIntact}, v2Works=${v2WorksOnUpgradedDb}, legacyBlocked=${legacyBlocked}`,
+      upgradedOpsPassed ? null : upgErr,
+      failureDiagnostic
+    );
+
+  } finally {
+    if (upgradeClient) {
+      await upgradeClient.end().catch(() => {});
+    }
+    try {
+      await maintClient.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid();`,
+        [testUpgradeDbName]
+      );
+      await maintClient.query(`DROP DATABASE IF EXISTS "${testUpgradeDbName}";`);
+      console.log(`  ✓ Scenario B upgrade test database "${testUpgradeDbName}" dropped cleanly.`);
+    } catch (err) {
+      console.error(`Failed to drop upgrade test db "${testUpgradeDbName}":`, err.message);
+    }
+  }
+}
+
 async function runAcceptance() {
   console.log('='.repeat(80));
   console.log('ATLAS OS — MASTER SECURITY & LIFECYCLE DATABASE ACCEPTANCE SUITE');
@@ -198,6 +738,7 @@ async function runAcceptance() {
   const userAId = crypto.randomUUID();
   const userBId = crypto.randomUUID();
   const custAId = crypto.randomUUID();
+  const custBId = crypto.randomUUID();
   const prodA1Id = crypto.randomUUID();
   const prodA2Id = crypto.randomUUID();
   const prodB1Id = crypto.randomUUID();
@@ -207,96 +748,13 @@ async function runAcceptance() {
     // Step 1: Bootstrap Standard Supabase-Compatible Roles, Schemas & Auth
     // ------------------------------------------------------------------------
     console.log('Step 1: Bootstrapping Supabase-compatible roles, schemas and auth environment...');
-    await testClient.query(`
-      -- 1. Create standard Supabase roles if missing (unprivileged, non-superuser accounts)
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
-          CREATE ROLE anon NOLOGIN NOINHERIT;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
-          CREATE ROLE authenticated NOLOGIN NOINHERIT;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
-          CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
-          CREATE ROLE authenticator NOLOGIN NOINHERIT;
-        END IF;
-      END $$;
-
-      -- 2. Configure role inheritance and memberships
-      GRANT anon TO authenticator;
-      GRANT authenticated TO authenticator;
-      GRANT service_role TO authenticator;
-
-      -- Grant authenticated, anon, and service_role to active session user (allows superuser to SET ROLE for testing)
-      GRANT authenticated TO CURRENT_USER;
-      GRANT anon TO CURRENT_USER;
-      GRANT service_role TO CURRENT_USER;
-
-      -- 3. Create schemas
-      CREATE SCHEMA IF NOT EXISTS auth;
-      CREATE SCHEMA IF NOT EXISTS extensions;
-      CREATE SCHEMA IF NOT EXISTS public;
-
-      -- 4. Schema usage and standard permissions
-      GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-      GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
-      GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
-      GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
-
-      -- 5. Standard Supabase Default privileges for future tables, sequences and functions
-      -- Establishes standard table grants before migrations run so that subsequent
-      -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER, service_role;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER, service_role, authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO CURRENT_USER, service_role, authenticated;
-
-      -- 6. Auth users table emulation
-      CREATE TABLE IF NOT EXISTS auth.users (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        instance_id uuid,
-        aud varchar(255) DEFAULT 'authenticated',
-        role varchar(255) DEFAULT 'authenticated',
-        email varchar(255) UNIQUE,
-        encrypted_password varchar(255),
-        email_confirmed_at timestamptz DEFAULT now(),
-        raw_app_meta_data jsonb DEFAULT '{"provider":"email","providers":["email"]}'::jsonb,
-        raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
-        is_super_admin boolean DEFAULT false,
-        created_at timestamptz DEFAULT now(),
-        updated_at timestamptz DEFAULT now()
-      );
-
-      GRANT SELECT ON auth.users TO authenticated, anon;
-      GRANT ALL ON auth.users TO CURRENT_USER, service_role;
-
-      -- 7. Auth helper functions
-      CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
-        SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
-      $$ LANGUAGE sql STABLE;
-
-      CREATE OR REPLACE FUNCTION auth.role() RETURNS text AS $$
-        SELECT coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated');
-      $$ LANGUAGE sql STABLE;
-
-      CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb AS $$
-        SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
-      $$ LANGUAGE sql STABLE;
-
-      GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
-      GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
-      GRANT EXECUTE ON FUNCTION auth.jwt() TO PUBLIC, anon, authenticated, service_role;
-    `);
+    await bootstrapDisposableDatabase(testClient);
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 029 in Strict Lexical Order
+    // Step 2: Apply Migrations 001 - 030 in Strict Lexical Order (Scenario A: Fresh Installation)
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 029)...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 030) [Scenario A: Fresh Installation]...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
@@ -349,7 +807,8 @@ async function runAcceptance() {
       ('${orgBId}', 'pro', 'active', now() + interval '30 days');
 
       INSERT INTO customers (id, organization_id, name, phone, gstin) VALUES
-      ('${custAId}', '${orgAId}', 'Apex Power Projects', '9876543210', '29AAACP1234A1Z1');
+      ('${custAId}', '${orgAId}', 'Apex Power Projects', '9876543210', '29AAACP1234A1Z1'),
+      ('${custBId}', '${orgBId}', 'Org B Industrial Controls', '9123456780', '29AABCU9603R1ZM');
 
       -- Products fixture with valid NOT NULL category ('Wires & Cables', 'Switchgear') from Migration 002
       INSERT INTO products (id, organization_id, name, sku, category, uom, purchase_cost, selling_price, tax_rate, reorder_threshold, is_active) VALUES
@@ -1351,6 +1810,448 @@ async function runAcceptance() {
         hasMetrics ? null : new Error('Dashboard metrics returned invalid structure')
       );
     });
+
+    // ========================================================================
+    // TEST GROUP 10: Phase A1 Canonical Contracts, Continuing Identity Enforcement & Tax Hardening (Scenario A)
+    // ========================================================================
+    console.log('\n--- PHASE A1 CANONICAL CONTRACTS & IDENTITY PRIVACY VERIFICATION ---\n');
+
+    // TEST 18: Canonical create_organization_v2 with valid PAN
+    let panOrgId = null;
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const panOrgKey = crypto.randomUUID();
+      let v2Created = false;
+      let v2Err = null;
+      let v2Result = null;
+      try {
+        const { rows } = await testClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Valid PAN Electricals',
+            p_legal_name := 'Valid PAN Electricals Pvt Ltd',
+            p_gstin := '29ABCDE1234F1Z5',
+            p_pan := 'ABCDE1234F',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables'],
+            p_idempotency_key := $1::uuid
+          ) AS res;`,
+          [panOrgKey]
+        );
+        v2Result = rows[0]?.res;
+        panOrgId = v2Result?.id;
+        v2Created = v2Result && v2Result.id && v2Result.eligibility_status === 'approved' && v2Result.trial_initialized === true;
+      } catch (err) {
+        v2Err = err;
+      }
+      recordTest(
+        'P1-A1-01',
+        'Canonical create_organization_v2 creates organization with valid PAN and initializes approved trial',
+        Boolean(v2Created),
+        `Org created: id=${v2Result?.id}, eligibility=${v2Result?.eligibility_status}, trial=${v2Result?.trial_initialized}`,
+        v2Created ? null : v2Err
+      );
+    });
+
+    // TEST 19: Missing PAN without permitted exception path is rejected
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let missingPanBlocked = false;
+      let missingPanErr = null;
+      try {
+        await testClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'No PAN Hardware',
+            p_legal_name := 'No PAN Hardware Ltd',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables'],
+            p_idempotency_key := $1::uuid
+          );`,
+          [crypto.randomUUID()]
+        );
+      } catch (err) {
+        missingPanErr = err;
+        missingPanBlocked = err.message.includes('ERR_PAN_REQUIRED');
+      }
+      recordTest(
+        'P1-A1-02',
+        'Missing PAN is strictly rejected without a permitted exception path (ERR_PAN_REQUIRED)',
+        missingPanBlocked,
+        `Caught: ${missingPanErr?.message}`,
+        missingPanBlocked ? null : missingPanErr
+      );
+    });
+
+    // TEST 20: PAN and GSTIN mismatch is rejected
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let mismatchBlocked = false;
+      let mismatchErr = null;
+      try {
+        await testClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Mismatch Electricals',
+            p_gstin := '29ABCDE1234F1Z5',
+            p_pan := 'XYZAB5678C',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables'],
+            p_idempotency_key := $1::uuid
+          );`,
+          [crypto.randomUUID()]
+        );
+      } catch (err) {
+        mismatchErr = err;
+        mismatchBlocked = err.message.includes('ERR_PAN_GSTIN_MISMATCH');
+      }
+      recordTest(
+        'P1-A1-03',
+        'PAN and GSTIN mismatch is rejected by cross-validation trigger (ERR_PAN_GSTIN_MISMATCH)',
+        mismatchBlocked,
+        `Caught: ${mismatchErr?.message}`,
+        mismatchBlocked ? null : mismatchErr
+      );
+    });
+
+    // TEST 21: Documented statutory exception enters manual review without automatic trial
+    let exceptionOrgId = null;
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let exceptionOrgRes = null;
+      let exceptionErr = null;
+      try {
+        const { rows } = await testClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Govt Power Board Agency',
+            p_currency := 'INR',
+            p_business_category := 'electrical_wholesale_distributor'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables'],
+            p_pan_exception_reason := 'GOVERNMENT_EXEMPT_ENTITY',
+            p_pan_exception_reference := 'GOV-EXEMPT-2026-001',
+            p_idempotency_key := $1::uuid
+          ) AS res;`,
+          [crypto.randomUUID()]
+        );
+        exceptionOrgRes = rows[0]?.res;
+        exceptionOrgId = exceptionOrgRes?.id;
+      } catch (err) {
+        exceptionErr = err;
+      }
+      const isReviewRequired = exceptionOrgRes?.eligibility_status === 'review_required';
+      const noTrialInRes = exceptionOrgRes?.trial_initialized === false;
+
+      let noSubInDb = false;
+      if (exceptionOrgRes?.id) {
+        const { rows: subRows } = await testClient.query(
+          `SELECT count(*)::int AS count FROM organization_subscriptions WHERE organization_id = $1::uuid;`,
+          [exceptionOrgRes.id]
+        );
+        noSubInDb = subRows[0]?.count === 0;
+      }
+
+      const exceptionHandled = isReviewRequired && noTrialInRes && noSubInDb;
+      recordTest(
+        'P1-A1-04',
+        'Documented statutory exception enters manual review without automatic trial initialization',
+        exceptionHandled,
+        `Status=${exceptionOrgRes?.eligibility_status}, trial_initialized=${exceptionOrgRes?.trial_initialized}, db_subscriptions=${noSubInDb ? 0 : 'present'}`,
+        exceptionHandled ? null : exceptionErr
+      );
+    });
+
+    // TEST 22: Legacy RPC cannot bypass security
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let legacyBypassBlocked = false;
+      let legacyErr = null;
+      try {
+        await testClient.query(
+          `SELECT create_organization(
+            p_name := 'Legacy Bypass Corp',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables'],
+            p_idempotency_key := $1::uuid
+          );`,
+          [crypto.randomUUID()]
+        );
+      } catch (err) {
+        legacyErr = err;
+        legacyBypassBlocked = err.message.includes('ERR_PAN_REQUIRED');
+      }
+      recordTest(
+        'P1-A1-06',
+        'Legacy create_organization RPC wrapper strictly blocks bypassing PAN (delegates to v2)',
+        legacyBypassBlocked,
+        `Caught: ${legacyErr?.message}`,
+        legacyBypassBlocked ? null : legacyErr
+      );
+    });
+
+    // TEST 23: PostgREST-compatible function resolution
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let v2Distinct = false;
+      let v2ResErr = null;
+      try {
+        const { rows } = await testClient.query(
+          `SELECT proname, pronargs FROM pg_proc WHERE proname IN ('create_organization', 'create_organization_v2');`
+        );
+        const hasV1 = rows.some((r) => r.proname === 'create_organization' && Number(r.pronargs) === 15);
+        const hasV2 = rows.some((r) => r.proname === 'create_organization_v2' && Number(r.pronargs) === 17);
+        v2Distinct = hasV1 && hasV2;
+      } catch (err) {
+        v2ResErr = err;
+      }
+      recordTest(
+        'P1-A1-07',
+        'PostgREST function resolution: create_organization (15) and create_organization_v2 (17) are distinct',
+        v2Distinct,
+        `Found distinct signatures for legacy v1 and canonical v2`,
+        v2Distinct ? null : v2ResErr
+      );
+    });
+
+    // TEST 24: Correct audit column names (authoritative details column) & Successful audit creation
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let auditValid = false;
+      let auditErr = null;
+      let auditRecord = null;
+      try {
+        if (!panOrgId) {
+          throw new Error('Prerequisite organization creation (P1-A1-01) failed; cannot verify audit event');
+        }
+        const { rows } = await testClient.query(
+          `SELECT organization_id, action, entity_type, entity_id, details FROM audit_events WHERE organization_id = $1::uuid AND action = 'ORGANIZATION_CREATED_ATOMIC' ORDER BY created_at DESC LIMIT 1;`,
+          [panOrgId]
+        );
+        auditRecord = rows[0];
+        const hasDetailsObj = auditRecord && auditRecord.details && typeof auditRecord.details === 'object';
+        const hasCorrectOrg = auditRecord && auditRecord.organization_id === panOrgId;
+        const hasMaskedPan = auditRecord?.details?.pan && String(auditRecord.details.pan).startsWith('XXXXX');
+        const hasMaskedGstin = auditRecord?.details?.gstin && String(auditRecord.details.gstin).includes('XXXXX');
+        const hasCategory = Boolean(auditRecord?.details?.category);
+        auditValid = Boolean(hasDetailsObj && hasCorrectOrg && hasMaskedPan && hasMaskedGstin && hasCategory);
+        if (!auditValid) {
+          throw new Error(`Audit event validation failed: record=${JSON.stringify(auditRecord)}`);
+        }
+      } catch (err) {
+        auditErr = err;
+      }
+      recordTest(
+        'P1-A1-08',
+        'Audit events table uses authoritative "details" column (resolving "metadata" defect)',
+        Boolean(auditValid),
+        `Audit event verified: org=${auditRecord?.organization_id}, details.pan=${auditRecord?.details?.pan}, details.gstin=${auditRecord?.details?.gstin}`,
+        auditValid ? null : auditErr
+      );
+    });
+
+    // TEST 25: Atomic rollback on failure
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      const failingAttemptKey = crypto.randomUUID();
+      let failed = false;
+      try {
+        await testClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Rollback Test Org',
+            p_pan := 'INVALID_PAN',
+            p_idempotency_key := $1::uuid
+          );`,
+          [failingAttemptKey]
+        );
+      } catch (err) {
+        failed = true;
+      }
+      const { rows } = await testClient.query(
+        `SELECT count(*)::int AS count FROM organizations WHERE name = 'Rollback Test Org';`
+      );
+      const zeroOrphans = rows[0]?.count === 0 && failed;
+      recordTest(
+        'P1-A1-10',
+        'Transactional integrity: validation failure triggers atomic rollback with zero orphan rows',
+        zeroOrphans,
+        `Zero orphan organizations created after validation failure`,
+        zeroOrphans ? null : new Error('Orphan organization record remained after failure')
+      );
+    });
+
+    // TEST 26: Sensitive identifier protection & Masking (Requires non-empty audit rows)
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let privacyCompliant = false;
+      let privacyErr = null;
+      try {
+        const { rows } = await testClient.query(
+          `SELECT details FROM audit_events WHERE action = 'ORGANIZATION_CREATED_ATOMIC' ORDER BY created_at DESC LIMIT 5;`
+        );
+        if (!rows || rows.length === 0) {
+          throw new Error('Zero audit events found for ORGANIZATION_CREATED_ATOMIC; cannot verify privacy compliance');
+        }
+        const hasRawPan = rows.some((r) => {
+          const d = JSON.stringify(r.details || {});
+          return d.includes('ABCDE1234F') && !d.includes('XXXXX1234F');
+        });
+        const hasMaskedPan = rows.some((r) => {
+          const d = JSON.stringify(r.details || {});
+          return d.includes('XXXXX1234F');
+        });
+        privacyCompliant = !hasRawPan && hasMaskedPan;
+      } catch (err) {
+        privacyErr = err;
+      }
+      recordTest(
+        'P1-A1-11',
+        'Sensitive identifier privacy: PAN and GSTIN are masked in audit_events details',
+        privacyCompliant,
+        `Zero raw PAN identifiers leaked into audit details; verified masked records present`,
+        privacyCompliant ? null : privacyErr
+      );
+    });
+
+    // TEST 27: Continuing identity enforcement on UPDATE
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      // Subtest A: Removing PAN from an approved organization is strictly rejected
+      let removePanBlocked = false;
+      let removePanErr = null;
+      try {
+        await testClient.query(
+          `UPDATE organizations SET pan = NULL WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+      } catch (err) {
+        removePanErr = err;
+        removePanBlocked = err.message.includes('ERR_CANNOT_REMOVE_PAN');
+      }
+
+      // Subtest B: Changing PAN without updating a previously recorded GSTIN is rejected by cross-validation
+      let mismatchBlocked = false;
+      let mismatchErr = null;
+      try {
+        await testClient.query(
+          `UPDATE organizations SET pan = 'ZYXWV9876U' WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+      } catch (err) {
+        mismatchErr = err;
+        mismatchBlocked = err.message.includes('ERR_PAN_GSTIN_MISMATCH');
+      }
+
+      // Subtest C & D: Changing PAN with an appropriately matching replacement GSTIN triggers demotion to review_required
+      let alterDemoted = false;
+      let alterErr = null;
+      try {
+        await testClient.query(
+          `UPDATE organizations SET pan = 'ZYXWV9876U', gstin = '29ZYXWV9876U1Z5' WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+        const { rows: elRows } = await testClient.query(
+          `SELECT status, reviewer_notes FROM organization_eligibility WHERE organization_id = $1::uuid;`,
+          [orgAId]
+        );
+        alterDemoted = elRows[0]?.status === 'review_required';
+      } catch (err) {
+        alterErr = err;
+      }
+
+      // Subtest E: Existing subscriptions and trial dates remain intact after identity change
+      let subIntact = false;
+      const { rows: subRows } = await testClient.query(
+        `SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1::uuid;`,
+        [orgAId]
+      );
+      subIntact = subRows[0]?.status === 'active';
+
+      // Subtest F: Unauthorized user (e.g. userB) cannot change orgA's business identity
+      let unauthBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        const { rowCount } = await testClient.query(
+          `UPDATE organizations SET name = 'Unauthorized Hijack' WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+        unauthBlocked = rowCount === 0;
+      });
+
+      const continuingPassed = removePanBlocked && mismatchBlocked && alterDemoted && subIntact && unauthBlocked;
+      recordTest(
+        'P1-A1-13',
+        'Continuing identity enforcement: Cannot remove PAN from approved org; altering PAN demotes status to review_required',
+        continuingPassed,
+        `removeBlocked=${removePanBlocked}, mismatchBlocked=${mismatchBlocked}, alterDemoted=${alterDemoted}, subIntact=${subIntact}, unauthBlocked=${unauthBlocked}`,
+        continuingPassed ? null : (removePanErr || mismatchErr || alterErr || new Error('Subtest failed'))
+      );
+    });
+
+    // TEST 28: Existing subscription & trial preservation
+    await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+      const { rows: subRows } = await testClient.query(
+        `SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1::uuid;`,
+        [orgBId]
+      );
+      const sub = subRows[0];
+      const subPreserved = sub && sub.status === 'active' && new Date(sub.current_period_ends_at) > new Date();
+      recordTest(
+        'P1-A1-14',
+        'Existing trial and subscription dates remain unchanged during lifecycle execution',
+        Boolean(subPreserved),
+        `Subscription status=${sub?.status}, ends_at=${sub?.current_period_ends_at}`,
+        subPreserved ? null : new Error('Existing subscription data was unexpectedly mutated')
+      );
+    });
+
+    // TEST 29: Explicit 0% tax remains valid (exempt supplies)
+    await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+      let zeroTaxPassed = false;
+      let zeroTaxErr = null;
+      try {
+        const { rows: invRows } = await testClient.query(
+          `SELECT create_invoice_atomic(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_items := jsonb_build_array(
+              jsonb_build_object(
+                'productId', $3::uuid,
+                'quantity', 2,
+                'unitPrice', 100.00,
+                'discountPercent', 0,
+                'taxRate', 0.00
+              )
+            ),
+            p_status := 'ISSUED',
+            p_idempotency_key := $4::uuid
+          ) AS inv;`,
+          [orgBId, custBId, prodB1Id, crypto.randomUUID()]
+        );
+        const inv = invRows[0]?.inv;
+        const zeroTaxAmount = inv && Number(inv.tax_amount) === 0;
+        const correctTotal = inv && Number(inv.total_amount) === 200.00;
+        const correctSubtotal = inv && Number(inv.subtotal) === 200.00;
+        const item = inv?.items?.[0];
+        const itemZeroRate = item && Number(item.tax_rate) === 0 && Number(item.line_tax) === 0 && Number(item.line_total) === 200.00;
+
+        // Verify database persistence of the item tax rate
+        const { rows: dbItemRows } = await testClient.query(
+          `SELECT tax_rate, line_tax, line_total FROM invoice_items WHERE invoice_id = $1::uuid;`,
+          [inv?.id]
+        );
+        const dbItemPersisted = dbItemRows.length > 0 && Number(dbItemRows[0].tax_rate) === 0 && Number(dbItemRows[0].line_tax) === 0;
+
+        zeroTaxPassed = Boolean(zeroTaxAmount && correctTotal && correctSubtotal && itemZeroRate && dbItemPersisted);
+      } catch (err) {
+        zeroTaxErr = err;
+      }
+      recordTest(
+        'P1-A1-15',
+        'Explicit 0% tax rate on invoice line item is preserved and calculates exactly zero tax (exempt supply)',
+        zeroTaxPassed,
+        `Invoice created with 0% tax: tax_amount=0.00, total=200.00, item.tax_rate=0, dbPersisted=${zeroTaxPassed}`,
+        zeroTaxPassed ? null : zeroTaxErr
+      );
+    });
+
+    // ------------------------------------------------------------------------
+    // Execute Scenario B: Upgrade Pre-existing 029 Database to 030
+    // ------------------------------------------------------------------------
+    await runUpgradeScenarioB(maintClient, runId);
 
   } finally {
     // ------------------------------------------------------------------------

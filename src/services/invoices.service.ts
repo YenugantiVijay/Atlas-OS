@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM } from '@/types';
-import { parseTaxRate } from '@/lib/money';
+import { parseTaxRate, isExplicitTaxRate } from '@/lib/money';
 import { mapDbCustomer } from './customers.service';
 
 export function mapDbInvoiceItem(row: any): InvoiceItem {
@@ -116,6 +116,20 @@ export const invoicesService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
+    const finalStatus = input.status || 'ISSUED';
+    // Strict Tax Rate Verification on Final Issuance:
+    // When issuing an invoice (status = 'ISSUED'), every line item must contain an explicit, verified tax rate.
+    // Unverified or missing tax rates cannot be silently zero-rated or fabricated.
+    if (input.status === 'ISSUED') {
+      input.items.forEach((it, idx) => {
+        if (!isExplicitTaxRate(it.taxRate)) {
+          throw new Error(
+            `Failed to create invoice: Item ${idx + 1} (${it.productName || it.productSku || 'unnamed'}) is missing an explicit tax rate. Issued invoices require an explicit, verified tax rate (0% for exempt supplies).`
+          );
+        }
+      });
+    }
+
     const idempotencyKey =
       input.idempotencyKey ||
       (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
@@ -133,11 +147,11 @@ export const invoicesService = {
           quantity: it.quantity,
           unit_price: it.unitPrice,
           discount_percent: it.discountPercent ?? 0,
-          tax_rate: parseTaxRate(it.taxRate),
+          tax_rate: isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : null,
         })),
         p_invoice_date: input.invoiceDate,
         p_due_date: input.dueDate || null,
-        p_status: input.status || 'ISSUED',
+        p_status: finalStatus,
         p_notes: input.notes?.trim() || null,
         p_sales_order_id: input.salesOrderId || null,
         p_idempotency_key: idempotencyKey,
