@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { dashboardService } from '@/services/dashboard.service';
 import { ordersService } from '@/services/orders.service';
 import { invoicesService } from '@/services/invoices.service';
@@ -29,6 +30,7 @@ import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } fr
 
 export const DashboardPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
+  const { check } = useActionPermission();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -127,15 +129,26 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => navigate('/orders?action=create')}
-              leftIcon={<Plus className="w-4 h-4" />}
-              className="bg-teal-500 hover:bg-teal-600 text-white shadow-sm font-semibold"
-            >
-              New Sales Order
-            </Button>
+            {(() => {
+              const orderPerm = check('orders:create');
+              return (
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={!orderPerm.allowed}
+                  title={!orderPerm.allowed ? orderPerm.message : undefined}
+                  onClick={() => {
+                    if (orderPerm.allowed) {
+                      navigate('/orders?action=create');
+                    }
+                  }}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  className="bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm font-semibold"
+                >
+                  New Sales Order
+                </Button>
+              );
+            })()}
             <Button
               variant="outline"
               size="md"
@@ -419,41 +432,86 @@ export const DashboardPage: React.FC = () => {
           <CardTitle>Distribution Workflows</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/quotations?action=create')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
-          >
-            <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-              <FileText className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-semibold text-content-primary">Create Quotation</span>
-            <span className="text-xs text-content-secondary mt-0.5">Draft contractor pricing</span>
-          </button>
+          {(() => {
+            const quotationPerm = check('quotations:create');
+            return (
+              <button
+                type="button"
+                disabled={!quotationPerm.allowed}
+                title={!quotationPerm.allowed ? quotationPerm.message : undefined}
+                onClick={() => {
+                  if (quotationPerm.allowed) {
+                    navigate('/quotations?action=create');
+                  }
+                }}
+                className={`flex flex-col items-start p-4 rounded-xl border border-border transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                  quotationPerm.allowed
+                    ? 'bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 cursor-pointer'
+                    : 'bg-slate-100/60 opacity-60 cursor-not-allowed border-slate-200'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold text-content-primary">Create Quotation</span>
+                <span className="text-xs text-content-secondary mt-0.5">Draft contractor pricing</span>
+              </button>
+            );
+          })()}
 
-          <button
-            type="button"
-            onClick={() => navigate('/products?action=create')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
-          >
-            <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-              <Boxes className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-semibold text-content-primary">Add Product SKU</span>
-            <span className="text-xs text-content-secondary mt-0.5">Cables, MCBs, lighting</span>
-          </button>
+          {(() => {
+            const productPerm = check('products:create');
+            return (
+              <button
+                type="button"
+                disabled={!productPerm.allowed}
+                title={!productPerm.allowed ? productPerm.message : undefined}
+                onClick={() => {
+                  if (productPerm.allowed) {
+                    navigate('/products?action=create');
+                  }
+                }}
+                className={`flex flex-col items-start p-4 rounded-xl border border-border transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                  productPerm.allowed
+                    ? 'bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 cursor-pointer'
+                    : 'bg-slate-100/60 opacity-60 cursor-not-allowed border-slate-200'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+                  <Boxes className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold text-content-primary">Add Product SKU</span>
+                <span className="text-xs text-content-secondary mt-0.5">Cables, MCBs, lighting</span>
+              </button>
+            );
+          })()}
 
-          <button
-            type="button"
-            onClick={() => navigate('/payments?action=record')}
-            className="flex flex-col items-start p-4 rounded-xl border border-border bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500"
-          >
-            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-              <IndianRupee className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-semibold text-content-primary">Record Payment</span>
-            <span className="text-xs text-content-secondary mt-0.5">UPI, NEFT, Cheques</span>
-          </button>
+          {(() => {
+            const paymentPerm = check('payments:record');
+            return (
+              <button
+                type="button"
+                disabled={!paymentPerm.allowed}
+                title={!paymentPerm.allowed ? paymentPerm.message : undefined}
+                onClick={() => {
+                  if (paymentPerm.allowed) {
+                    navigate('/payments?action=record');
+                  }
+                }}
+                className={`flex flex-col items-start p-4 rounded-xl border border-border transition-all text-left group focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                  paymentPerm.allowed
+                    ? 'bg-slate-50 hover:bg-teal-50/70 hover:border-teal-200 cursor-pointer'
+                    : 'bg-slate-100/60 opacity-60 cursor-not-allowed border-slate-200'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+                  <IndianRupee className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold text-content-primary">Record Payment</span>
+                <span className="text-xs text-content-secondary mt-0.5">UPI, NEFT, Cheques</span>
+              </button>
+            );
+          })()}
 
           <button
             type="button"

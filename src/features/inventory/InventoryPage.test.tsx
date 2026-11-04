@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { InventoryPage } from './InventoryPage';
 import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { inventoryService } from '@/services/inventory.service';
@@ -152,7 +153,11 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
       createdAt: new Date().toISOString(),
     });
 
-    render(<InventoryPage />);
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>
+    );
 
     // Wait for initial data load
     await waitFor(() => {
@@ -199,7 +204,11 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
     });
     vi.mocked(inventoryService.adjustStock).mockReturnValue(pendingPromise as any);
 
-    render(<InventoryPage />);
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Inventory Movement Ledger')).toBeInTheDocument();
@@ -257,7 +266,11 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
       createdAt: new Date().toISOString(),
     });
 
-    render(<InventoryPage />);
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Inventory Movement Ledger')).toBeInTheDocument();
@@ -319,7 +332,11 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
       createdAt: new Date().toISOString(),
     });
 
-    render(<InventoryPage />);
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Inventory Movement Ledger')).toBeInTheDocument();
@@ -390,7 +407,11 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
       createdAt: new Date().toISOString(),
     });
 
-    render(<InventoryPage />);
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Inventory Movement Ledger')).toBeInTheDocument();

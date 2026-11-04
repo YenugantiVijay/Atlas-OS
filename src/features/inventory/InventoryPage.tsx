@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Sliders,
   History,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { inventoryService } from '@/services/inventory.service';
 import { productsService } from '@/services/products.service';
 import { StockMovement, Product, MovementType } from '@/types';
@@ -16,15 +19,25 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
+import { PrerequisiteModal } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
 
 export const InventoryPage: React.FC = () => {
-  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, isMockAuth } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingAdjustment, setIsPreparingAdjustment] = useState(false);
+  const [pendingOpenAdjustment, setPendingOpenAdjustment] = useState(false);
+  const [missingProductModalOpen, setMissingProductModalOpen] = useState(false);
+
   const [selectedProduct, setSelectedProduct] = useState('ALL');
   const [selectedType, setSelectedType] = useState('ALL');
 
@@ -36,9 +49,21 @@ export const InventoryPage: React.FC = () => {
   const [adjustmentIdempotencyKey, setAdjustmentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadData = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const loadData = useCallback(async (): Promise<{ movs: StockMovement[]; prods: Product[] } | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [movs, prods] = await Promise.all([
         inventoryService.getStockMovements(currentOrg.id, undefined, isMockAuth),
@@ -46,41 +71,98 @@ export const InventoryPage: React.FC = () => {
       ]);
       setMovements(movs);
       setProducts(prods);
+      return { movs, prods };
     } catch (err: any) {
-      showToast('error', 'Failed to load inventory data', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load inventory data. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load inventory data', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    loadData();
-  }, [currentOrg, isMockAuth]);
-
-  const handleOpenAdjustment = () => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+  const handleOpenAdjustment = useCallback((availableProducts?: Product[]) => {
+    const perm = check('inventory:adjust');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
       return;
     }
-    if (products.length > 0) {
-      setAdjustProductId(products[0].id);
+
+    const prods = availableProducts ?? products;
+    if (prods.length === 0) {
+      setMissingProductModalOpen(true);
+      clearActionParam();
+      return;
     }
+
+    setAdjustProductId(prods[0].id);
     setAdjustQuantity('');
     setAdjustReason('');
     // Generate one UUID per logical adjustment submission
     setAdjustmentIdempotencyKey(crypto.randomUUID());
     setIsAdjustmentModalOpen(true);
-  };
+    clearActionParam();
+  }, [check, products, clearActionParam, showToast]);
+
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const handleOpenAdjustmentRef = useRef(handleOpenAdjustment);
+  handleOpenAdjustmentRef.current = handleOpenAdjustment;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  useEffect(() => {
+    const params = searchParamsRef.current;
+    const action = params.get('action');
+    if (action === 'adjust' || action === 'create') {
+      const perm = checkRef.current('inventory:adjust');
+      if (!perm.allowed) {
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
+        loadData();
+        return;
+      }
+      setIsPreparingAdjustment(true);
+    }
+
+    loadData().then((res) => {
+      setIsPreparingAdjustment(false);
+      if ((action === 'adjust' || action === 'create') && res) {
+        handleOpenAdjustmentRef.current(res.prods);
+      }
+    });
+  }, [loadData]);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if ((action === 'adjust' || action === 'create') && !isLoading && !isPreparingAdjustment) {
+      handleOpenAdjustment();
+    }
+  }, [searchParams, isLoading, isPreparingAdjustment, handleOpenAdjustment]);
+
+  useEffect(() => {
+    if (pendingOpenAdjustment && !isLoading && !loadError) {
+      setPendingOpenAdjustment(false);
+      handleOpenAdjustment();
+    }
+  }, [pendingOpenAdjustment, isLoading, loadError, handleOpenAdjustment]);
 
   const handleSaveAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Disable repeated submission while the request is pending
     if (isSubmitting) return;
 
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('inventory:adjust');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
+
     const qty = parseInt(adjustQuantity, 10);
     if (!adjustProductId) {
       showToast('error', 'Product Required', 'Please select a product.');
@@ -130,11 +212,13 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const filteredMovements = movements.filter((m) => {
-    const matchesProduct = selectedProduct === 'ALL' || m.productId === selectedProduct;
-    const matchesType = selectedType === 'ALL' || m.movementType === selectedType;
-    return matchesProduct && matchesType;
-  });
+  const filteredMovements = useMemo(() => {
+    return movements.filter((m) => {
+      const matchesProduct = selectedProduct === 'ALL' || m.productId === selectedProduct;
+      const matchesType = selectedType === 'ALL' || m.movementType === selectedType;
+      return matchesProduct && matchesType;
+    });
+  }, [movements, selectedProduct, selectedType]);
 
   const getMovementBadge = (type: MovementType) => {
     switch (type) {
@@ -173,16 +257,42 @@ export const InventoryPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenAdjustment}
-          leftIcon={<Sliders className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          Adjust Stock
-        </Button>
+        {(() => {
+          const adjustPerm = check('inventory:adjust');
+          return (
+            <Button
+              variant="primary"
+              onClick={() => handleOpenAdjustment()}
+              leftIcon={<Sliders className="w-4 h-4" />}
+              disabled={!adjustPerm.allowed}
+              title={!adjustPerm.allowed ? adjustPerm.message : undefined}
+            >
+              Adjust Stock
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingAdjustment || (pendingOpenAdjustment && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing stock adjustment...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => {
+            if (searchParams.get('action') === 'adjust' || searchParams.get('action') === 'create') {
+              setPendingOpenAdjustment(true);
+            }
+            loadData();
+          }}
+        />
+      )}
 
       {/* Filters */}
       <Card>
@@ -362,13 +472,26 @@ export const InventoryPage: React.FC = () => {
               type="submit"
               variant="primary"
               isLoading={isSubmitting}
-              disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
+              disabled={isSubmitting || !check('inventory:adjust').allowed}
             >
               Record Adjustment
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Prerequisite Missing Product Modal */}
+      <PrerequisiteModal
+        isOpen={missingProductModalOpen}
+        onClose={() => setMissingProductModalOpen(false)}
+        title="No Products Found"
+        message="No products found. Add a product before adjusting stock."
+        actionLabel="Add Product"
+        onAction={() => {
+          setMissingProductModalOpen(false);
+          navigate('/products?action=create');
+        }}
+      />
     </div>
   );
 };

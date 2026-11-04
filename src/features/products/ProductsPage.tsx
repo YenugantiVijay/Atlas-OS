@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Boxes,
@@ -7,8 +7,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Edit2,
+  Loader2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useActionPermission } from '@/hooks/useActionPermission';
 import { productsService } from '@/services/products.service';
 import { Product, UOM } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +23,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadError } from '@/components/ui/LoadError';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/money';
 
@@ -39,11 +42,15 @@ const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets'
 
 export const ProductsPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPreparingCreate, setIsPreparingCreate] = useState(false);
+  const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
@@ -67,32 +74,40 @@ export const ProductsPage: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadProducts = async () => {
-    if (!currentOrg) return;
+  const clearActionParam = useCallback(() => {
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const loadProducts = useCallback(async (): Promise<Product[] | null> => {
+    if (!currentOrg) return null;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await productsService.getProducts(currentOrg.id, isMockAuth);
       setProducts(data);
+      return data;
     } catch (err: any) {
-      showToast('error', 'Failed to load products', err.message);
+      const msg = err instanceof Error ? err.message : 'Unable to load products. Check your connection and try again.';
+      setLoadError(msg);
+      showToast('error', 'Failed to load products', msg);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth, showToast]);
 
-  useEffect(() => {
-    setSearchQuery(searchParams.get('search') || '');
-    loadProducts();
-    if (searchParams.get('action') === 'create') {
-      setIsCreateModalOpen(true);
-      searchParams.delete('action');
-      setSearchParams(searchParams);
-    }
-  }, [currentOrg, searchParams, isMockAuth]);
-
-  const handleOpenCreate = () => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+  const handleOpenCreate = useCallback(() => {
+    const perm = check('products:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+      clearActionParam();
       return;
     }
     setSku('');
@@ -109,11 +124,65 @@ export const ProductsPage: React.FC = () => {
     setImageUrl('');
     setEditingProduct(null);
     setIsCreateModalOpen(true);
-  };
+    clearActionParam();
+  }, [check, clearActionParam, showToast]);
+
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const handleOpenCreateRef = useRef(handleOpenCreate);
+  handleOpenCreateRef.current = handleOpenCreate;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  useEffect(() => {
+    setSearchQuery(searchParams.get('search') || '');
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = searchParamsRef.current;
+    const requestedAction = params.get('action');
+
+    if (requestedAction === 'create') {
+      const perm = checkRef.current('products:create');
+      if (!perm.allowed) {
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
+        loadProducts();
+        return;
+      }
+      setIsPreparingCreate(true);
+    }
+
+    loadProducts().then((res) => {
+      setIsPreparingCreate(false);
+      if (requestedAction === 'create' && res) {
+        handleOpenCreateRef.current();
+      }
+    });
+  }, [loadProducts]);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'create' && !isLoading && !isPreparingCreate) {
+      handleOpenCreate();
+    }
+  }, [searchParams, isLoading, isPreparingCreate, handleOpenCreate]);
+
+  useEffect(() => {
+    if (pendingOpenCreate && !isLoading && !loadError) {
+      setPendingOpenCreate(false);
+      handleOpenCreate();
+    }
+  }, [pendingOpenCreate, isLoading, loadError, handleOpenCreate]);
 
   const handleOpenEdit = (p: Product) => {
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check('products:update');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     setEditingProduct(p);
@@ -133,8 +202,9 @@ export const ProductsPage: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWriteOperations && !isMockAuth) {
-      showToast('error', 'Operation Restricted', 'Write operations are disabled for your current subscription or eligibility status.');
+    const perm = check(editingProduct ? 'products:update' : 'products:create');
+    if (!perm.allowed) {
+      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
     if (!sku.trim() || !name.trim()) {
@@ -234,16 +304,37 @@ export const ProductsPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          leftIcon={<Plus className="w-4 h-4" />}
-          disabled={!canWriteOperations && !isMockAuth}
-          title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-        >
-          Add Product
-        </Button>
+        {(() => {
+          const createPerm = check('products:create');
+          return (
+            <Button
+              variant="primary"
+              onClick={handleOpenCreate}
+              leftIcon={<Plus className="w-4 h-4" />}
+              disabled={!createPerm.allowed}
+              title={!createPerm.allowed ? createPerm.message : undefined}
+            >
+              Add Product
+            </Button>
+          );
+        })()}
       </div>
+
+      {/* Preparing Indicator */}
+      {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
+        <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+          <span>Preparing product...</span>
+        </div>
+      )}
+
+      {/* Recoverable Network Error */}
+      {loadError && (
+        <LoadError
+          message={loadError}
+          onRetry={() => loadProducts()}
+        />
+      )}
 
       {/* Filters & Search */}
       <Card>
@@ -302,7 +393,7 @@ export const ProductsPage: React.FC = () => {
               ? 'No products match your current search and filter criteria.'
               : 'Your product catalog is empty. Add your first electrical SKU to begin tracking inventory and issuing quotations.'
           }
-          actionLabel="Add Product"
+          actionLabel={!check('products:create').allowed ? undefined : "Add Product"}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -398,8 +489,8 @@ export const ProductsPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleOpenEdit(p)}
                       leftIcon={<Edit2 className="w-3.5 h-3.5" />}
-                      disabled={!canWriteOperations && !isMockAuth}
-                      title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
+                      disabled={!check('products:update').allowed}
+                      title={!check('products:update').allowed ? check('products:update').message : undefined}
                     >
                       Edit
                     </Button>
