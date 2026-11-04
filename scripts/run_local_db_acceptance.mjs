@@ -36,17 +36,186 @@ const DATABASE_URL =
 
 const testResults = [];
 
-function recordTest(id, name, passed, details, error = null) {
-  testResults.push({ id, name, passed, details, error: error ? String(error.message || error) : null, timestamp: new Date().toISOString() });
+/**
+ * Sanitizes log output to prevent raw leakage of PAN, GSTIN, JWT tokens, or credentials.
+ * Masks sensitive substrings (e.g., ABCDE****F, 29ABCDE****F1Z5).
+ */
+function sanitizeLog(text) {
+  if (!text || typeof text !== 'string') return text;
+  // Mask 15-character Indian GSTIN (e.g. 29ABCDE1234F1Z5 -> 29ABCDE****F1Z5)
+  let sanitized = text.replace(/\b([0-9]{2}[A-Z]{5})[0-9]{4}([A-Z][0-9A-Z]Z[0-9A-Z])\b/g, '$1****$2');
+  // Mask 10-character Indian PAN (e.g. ABCDE1234F -> ABCDE****F)
+  sanitized = sanitized.replace(/\b([A-Z]{5})[0-9]{4}([A-Z])\b/g, '$1****$2');
+  // Mask Bearer tokens or JWTs
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*/gi, 'Bearer [REDACTED_TOKEN]');
+  sanitized = sanitized.replace(/eyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*/g, '[REDACTED_JWT]');
+  // Mask passwords
+  sanitized = sanitized.replace(/(password|passwd|pwd)[:=]\s*([^&\s\n,]+)/gi, '$1=****');
+  sanitized = sanitized.replace(/:([^:@]+)@/, ':****@');
+  return sanitized;
+}
+
+/**
+ * Classifies failure types based on error characteristics or diagnostic hints:
+ * - PERMISSION_FAILURE: Table/schema permission denied (e.g. SQLSTATE 42501)
+ * - RLS_FAILURE: Row-level security restriction (0 rows affected or policy violation)
+ * - SCHEMA_FAILURE: Missing relation, column, function, or schema definition
+ * - BUSINESS_LOGIC_FAILURE: Exception mismatch, unraised expected error, or invalid business outcome
+ * - FIXTURE_FAILURE: Setup, seeding, or teardown environment breakdown
+ */
+function classifyFailure(error, diagnostic = null) {
+  if (diagnostic?.category) return diagnostic.category;
+  if (!error) {
+    if (diagnostic?.rlsFailure) return 'RLS_FAILURE';
+    return 'BUSINESS_LOGIC_FAILURE';
+  }
+  const code = String(error.code || '');
+  const msg = (error.message || '').toLowerCase();
+
+  if (code === '42501' || msg.includes('permission denied') || msg.includes('must be superuser') || msg.includes('insufficient privilege')) {
+    return 'PERMISSION_FAILURE';
+  }
+  if (diagnostic?.rlsFailure || msg.includes('row-level security') || msg.includes('rls policy')) {
+    return 'RLS_FAILURE';
+  }
+  if (
+    code.startsWith('42P') ||
+    code === '42703' ||
+    code === '42883' ||
+    code.startsWith('3F') ||
+    (msg.includes('relation') && msg.includes('does not exist')) ||
+    (msg.includes('column') && msg.includes('does not exist')) ||
+    (msg.includes('function') && msg.includes('does not exist'))
+  ) {
+    return 'SCHEMA_FAILURE';
+  }
+  if (msg.includes('fixture') || msg.includes('seed') || msg.includes('provision') || msg.includes('cleanup')) {
+    return 'FIXTURE_FAILURE';
+  }
+  return 'BUSINESS_LOGIC_FAILURE';
+}
+
+function recordTest(id, name, passed, details, error = null, diagnostic = null) {
+  const sanitizedDetails = details ? sanitizeLog(String(details)) : null;
+  const sanitizedError = error ? sanitizeLog(String(error.message || error)) : null;
+  const category = !passed ? (diagnostic?.category || classifyFailure(error, diagnostic)) : null;
+
+  testResults.push({
+    id,
+    name,
+    passed,
+    details: sanitizedDetails,
+    error: sanitizedError,
+    category,
+    sqlstate: error?.code || null,
+    timestamp: new Date().toISOString(),
+  });
+
   const badge = passed ? '✅ PASS' : '❌ FAIL';
   console.log(`[${id}] ${badge} - ${name}`);
-  if (details) {
-    console.log(`       Details: ${details}`);
+  if (sanitizedDetails) {
+    console.log(`       Details:   ${sanitizedDetails}`);
   }
-  if (!passed && error) {
-    console.error(`       Error:   ${error.message || error}`);
-    if (error.code) console.error(`       SQLSTATE: ${error.code}`);
+  if (!passed) {
+    if (diagnostic?.operation) console.error(`       Operation: ${diagnostic.operation}`);
+    if (diagnostic?.expected)  console.error(`       Expected:  ${diagnostic.expected}`);
+    if (diagnostic?.actual)    console.error(`       Actual:    ${diagnostic.actual}`);
+    if (category)              console.error(`       Category:  ${category}`);
+    if (sanitizedError)        console.error(`       Error:     ${sanitizedError}`);
+    if (error?.code)           console.error(`       SQLSTATE:  ${error.code}`);
   }
+}
+
+/**
+ * Bootstraps a disposable database with standard Supabase-compatible roles, schemas,
+ * default privileges, and auth helpers.
+ * Shared across both Scenario A (fresh install) and Scenario B (migration upgrade).
+ */
+async function bootstrapDisposableDatabase(client) {
+  await client.query(`
+    -- 1. Create standard Supabase roles if missing (unprivileged, non-superuser accounts)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN NOINHERIT;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN NOINHERIT;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
+        CREATE ROLE authenticator NOLOGIN NOINHERIT;
+      END IF;
+    END $$;
+
+    -- 2. Configure role inheritance and memberships
+    GRANT anon TO authenticator;
+    GRANT authenticated TO authenticator;
+    GRANT service_role TO authenticator;
+
+    -- Grant authenticated, anon, and service_role to active session user (allows superuser to SET ROLE for testing)
+    GRANT authenticated TO CURRENT_USER;
+    GRANT anon TO CURRENT_USER;
+    GRANT service_role TO CURRENT_USER;
+
+    -- 3. Create schemas
+    CREATE SCHEMA IF NOT EXISTS auth;
+    CREATE SCHEMA IF NOT EXISTS extensions;
+    CREATE SCHEMA IF NOT EXISTS public;
+
+    -- 4. Schema usage and standard permissions
+    GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+    GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+    GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
+    GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
+
+    -- 5. Standard Supabase Default privileges for future tables, sequences and functions
+    -- Establishes standard table grants before migrations run so that subsequent
+    -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER, service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER, service_role, authenticated;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO CURRENT_USER, service_role, authenticated;
+
+    -- 6. Auth users table emulation
+    CREATE TABLE IF NOT EXISTS auth.users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      instance_id uuid,
+      aud varchar(255) DEFAULT 'authenticated',
+      role varchar(255) DEFAULT 'authenticated',
+      email varchar(255) UNIQUE,
+      encrypted_password varchar(255),
+      email_confirmed_at timestamptz DEFAULT now(),
+      raw_app_meta_data jsonb DEFAULT '{"provider":"email","providers":["email"]}'::jsonb,
+      raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
+      is_super_admin boolean DEFAULT false,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
+
+    GRANT SELECT ON auth.users TO authenticated, anon;
+    GRANT ALL ON auth.users TO CURRENT_USER, service_role;
+
+    -- 7. Auth helper functions
+    CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
+      SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    $$ LANGUAGE sql STABLE;
+
+    CREATE OR REPLACE FUNCTION auth.role() RETURNS text AS $$
+      SELECT coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated');
+    $$ LANGUAGE sql STABLE;
+
+    CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb AS $$
+      SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    $$ LANGUAGE sql STABLE;
+
+    GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
+    GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
+    GRANT EXECUTE ON FUNCTION auth.jwt() TO PUBLIC, anon, authenticated, service_role;
+  `);
 }
 
 /**
@@ -156,32 +325,10 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
   await upgradeClient.connect();
 
   try {
-    // 2. Bootstrap auth schema and roles
-    await upgradeClient.query(`
-      CREATE SCHEMA IF NOT EXISTS auth;
-      CREATE TABLE IF NOT EXISTS auth.users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email TEXT UNIQUE,
-        raw_user_meta_data JSONB DEFAULT '{}'::jsonb,
-        created_at TIMESTAMPTZ DEFAULT now()
-      );
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
-      END $$;
-      GRANT ALL ON SCHEMA public TO postgres, authenticated, anon, service_role;
-      GRANT ALL ON SCHEMA auth TO postgres, authenticated, anon, service_role;
-      CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
-        SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-      $$ LANGUAGE sql STABLE;
-      CREATE OR REPLACE FUNCTION auth.role() RETURNS text AS $$
-        SELECT coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated');
-      $$ LANGUAGE sql STABLE;
-      GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
-      GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
-    `);
+    // 2. Bootstrap auth schema and roles using shared disposable bootstrap
+    console.log('\nBootstrapping Supabase-compatible roles, schemas and auth environment...');
+    await bootstrapDisposableDatabase(upgradeClient);
+    console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // 3. Apply ONLY migrations 001 through 029 (the state before PR #15)
     console.log('\nApplying original migrations 001 -> 029...');
@@ -254,24 +401,193 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
     );
 
     // 8. Test upgraded functions on the upgraded database
-    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
-      // 8a. create_organization_v2 works
-      const { rows: newOrgRows } = await upgradeClient.query(
-        `SELECT create_organization_v2(
-          p_name := 'Upgraded New Org',
-          p_gstin := '29ABCDE1234F1Z5',
-          p_pan := 'ABCDE1234F',
-          p_currency := 'INR',
-          p_business_category := 'electrical_retail'::business_category_type,
-          p_sells_electrical_products := true,
-          p_product_lines := ARRAY['Wires & Cables']
-        ) AS res;`
-      );
-      const newOrg = newOrgRows[0]?.res;
-      const v2WorksOnUpgradedDb = newOrg && newOrg.id && newOrg.eligibility_status === 'approved';
+    const unauthorizedUserId = crypto.randomUUID();
+    await upgradeClient.query(
+      `INSERT INTO auth.users (id, email) VALUES ($1, 'unauthorized_user@example.com');`,
+      [unauthorizedUserId]
+    );
 
-      // 8b. legacy wrapper blocks missing PAN
-      let legacyBlocked = false;
+    let preflightPassed = false;
+    let ownerUpdatePassed = false;
+    let unauthorizedBlocked = false;
+    let removeBlocked = false;
+    let removeCategory = null;
+    let mismatchBlocked = false;
+    let alterDemoted = false;
+    let subIntact = false;
+    let v2WorksOnUpgradedDb = false;
+    let legacyBlocked = false;
+    let upgErr = null;
+    let failureDiagnostic = null;
+
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      // 8.1 Pre-flight check: existingOrgId is visible to existingUserId under RLS and has valid PAN/GSTIN
+      const { rows: preflightRows } = await upgradeClient.query(
+        `SELECT id, name, legal_name, pan, gstin FROM organizations WHERE id = $1;`,
+        [existingOrgId]
+      );
+      preflightPassed =
+        preflightRows.length === 1 &&
+        preflightRows[0].pan === 'ABCDE1234F' &&
+        preflightRows[0].gstin === '29ABCDE1234F1Z5';
+
+      if (!preflightPassed) {
+        failureDiagnostic = {
+          operation: 'Pre-flight RLS visibility & identity check',
+          expected: '1 row with registered PAN and GSTIN visible to organization owner',
+          actual: `rows=${preflightRows.length}, data=${JSON.stringify(preflightRows[0] || {})}`,
+          category: preflightRows.length === 0 ? 'RLS_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.2 Permitted owner update: owner can update permitted attributes (legal_name/phone) under RLS
+      const ownerUpdateRes = await upgradeClient.query(
+        `UPDATE organizations SET legal_name = 'Pre-existing Corp Updated' WHERE id = $1;`,
+        [existingOrgId]
+      );
+      ownerUpdatePassed = ownerUpdateRes.rowCount === 1;
+      if (!ownerUpdatePassed) {
+        failureDiagnostic = {
+          operation: 'Permitted owner update under RLS',
+          expected: 'rowCount = 1 for owner updating permitted organization field',
+          actual: `rowCount = ${ownerUpdateRes.rowCount}`,
+          category: 'RLS_FAILURE',
+        };
+        return;
+      }
+
+      // 8.3 Explicit PAN removal rejected: updating pan = NULL on org with existing PAN raises ERR_CANNOT_REMOVE_PAN
+      try {
+        const res = await upgradeClient.query(
+          `UPDATE organizations SET pan = NULL WHERE id = $1;`,
+          [existingOrgId]
+        );
+        if (res.rowCount === 0) {
+          removeCategory = 'RLS_FAILURE';
+        } else {
+          removeCategory = 'BUSINESS_LOGIC_FAILURE';
+        }
+      } catch (err) {
+        if (err.code === '42501') {
+          removeCategory = 'PERMISSION_FAILURE';
+          upgErr = err;
+        } else if (err.message.includes('ERR_CANNOT_REMOVE_PAN')) {
+          removeBlocked = true;
+        } else {
+          removeCategory = 'BUSINESS_LOGIC_FAILURE';
+          upgErr = err;
+        }
+      }
+
+      if (!removeBlocked) {
+        failureDiagnostic = {
+          operation: 'Enforce non-removability of registered PAN',
+          expected: 'PostgreSQL exception ERR_CANNOT_REMOVE_PAN',
+          actual: upgErr ? upgErr.message : `No exception thrown (category: ${removeCategory})`,
+          category: removeCategory || 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.4 PAN/GSTIN mismatch rejected: updating to mismatched PAN/GSTIN raises ERR_PAN_GSTIN_MISMATCH
+      try {
+        await upgradeClient.query(
+          `UPDATE organizations SET pan = 'XYZAB1234C' WHERE id = $1;`,
+          [existingOrgId]
+        );
+      } catch (err) {
+        mismatchBlocked = err.message.includes('ERR_PAN_GSTIN_MISMATCH');
+        if (!mismatchBlocked) upgErr = err;
+      }
+
+      if (!mismatchBlocked) {
+        failureDiagnostic = {
+          operation: 'Reject PAN / GSTIN mismatch on UPDATE',
+          expected: 'PostgreSQL exception ERR_PAN_GSTIN_MISMATCH',
+          actual: upgErr ? upgErr.message : 'No exception thrown',
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.5 Authorized PAN alteration with matching GSTIN succeeds and demotes status to review_required
+      try {
+        const alterRes = await upgradeClient.query(
+          `UPDATE organizations SET pan = 'XYZAB1234C', gstin = '29XYZAB1234C1Z5' WHERE id = $1;`,
+          [existingOrgId]
+        );
+        if (alterRes.rowCount === 1) {
+          const { rows: elRows } = await upgradeClient.query(
+            `SELECT status FROM organization_eligibility WHERE organization_id = $1;`,
+            [existingOrgId]
+          );
+          alterDemoted = elRows[0]?.status === 'review_required';
+        }
+      } catch (err) {
+        upgErr = err;
+      }
+
+      if (!alterDemoted) {
+        failureDiagnostic = {
+          operation: 'Authorized PAN alteration status demotion',
+          expected: 'Update succeeds and demotes eligibility status to review_required',
+          actual: upgErr ? upgErr.message : 'Status was not demoted to review_required',
+          category: upgErr?.code === '42501' ? 'PERMISSION_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.6 Subscriptions and trial dates remain intact throughout
+      const { rows: subRows } = await upgradeClient.query(
+        `SELECT plan_tier, status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1;`,
+        [existingOrgId]
+      );
+      subIntact =
+        subRows[0]?.status === 'active' &&
+        subRows[0]?.plan_tier === 'pro' &&
+        new Date(subRows[0]?.current_period_ends_at).getTime() === new Date(subscriptionEnd).getTime();
+
+      if (!subIntact) {
+        failureDiagnostic = {
+          operation: 'Subscription and trial preservation on upgraded database',
+          expected: 'Subscription remains active with plan_tier pro and preserved end date',
+          actual: `status=${subRows[0]?.status}, plan_tier=${subRows[0]?.plan_tier}`,
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.7 create_organization_v2 works on upgraded database
+      try {
+        const { rows: newOrgRows } = await upgradeClient.query(
+          `SELECT create_organization_v2(
+            p_name := 'Upgraded New Org',
+            p_gstin := '29ABCDE1234F1Z5',
+            p_pan := 'ABCDE1234F',
+            p_currency := 'INR',
+            p_business_category := 'electrical_retail'::business_category_type,
+            p_sells_electrical_products := true,
+            p_product_lines := ARRAY['Wires & Cables']
+          ) AS res;`
+        );
+        const newOrg = newOrgRows[0]?.res;
+        v2WorksOnUpgradedDb = Boolean(newOrg && newOrg.id && newOrg.eligibility_status === 'approved');
+      } catch (err) {
+        upgErr = err;
+      }
+
+      if (!v2WorksOnUpgradedDb) {
+        failureDiagnostic = {
+          operation: 'create_organization_v2 execution on upgraded database',
+          expected: 'New organization created with approved eligibility status',
+          actual: upgErr ? upgErr.message : 'Invalid response from create_organization_v2',
+          category: upgErr?.code === '42501' ? 'PERMISSION_FAILURE' : 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
+      }
+
+      // 8.8 legacy wrapper blocks missing PAN
       try {
         await upgradeClient.query(
           `SELECT create_organization(
@@ -283,27 +599,57 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
         );
       } catch (err) {
         legacyBlocked = err.message.includes('ERR_PAN_REQUIRED');
+        if (!legacyBlocked) upgErr = err;
       }
 
-      // 8c. continuing enforcement prevents dropping PAN from existing org
-      let removeBlocked = false;
-      try {
-        await upgradeClient.query(
-          `UPDATE organizations SET pan = NULL WHERE id = '${existingOrgId}';`
-        );
-      } catch (err) {
-        removeBlocked = err.message.includes('ERR_CANNOT_REMOVE_PAN');
+      if (!legacyBlocked) {
+        failureDiagnostic = {
+          operation: 'Legacy create_organization wrapper PAN requirement enforcement',
+          expected: 'PostgreSQL exception ERR_PAN_REQUIRED',
+          actual: upgErr ? upgErr.message : 'No exception thrown',
+          category: 'BUSINESS_LOGIC_FAILURE',
+        };
+        return;
       }
-
-      const upgradedOpsPassed = v2WorksOnUpgradedDb && legacyBlocked && removeBlocked;
-      recordTest(
-        'P1-UPG-02',
-        'Scenario B Upgrade: Upgraded database enforces canonical v2, legacy wrapper protection, and continuing identity enforcement',
-        upgradedOpsPassed,
-        `v2Works=${Boolean(v2WorksOnUpgradedDb)}, legacyBlocked=${legacyBlocked}, removeBlocked=${removeBlocked}`,
-        upgradedOpsPassed ? null : new Error('Operations on upgraded database failed verification')
-      );
     });
+
+    // 8.9 Unauthorized user blocked by RLS (0 rows affected)
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: unauthorizedUserId }, async () => {
+      const unauthRes = await upgradeClient.query(
+        `UPDATE organizations SET legal_name = 'Malicious Hijack' WHERE id = $1;`,
+        [existingOrgId]
+      );
+      unauthorizedBlocked = (unauthRes.rowCount === 0);
+    });
+
+    if (!unauthorizedBlocked) {
+      failureDiagnostic = {
+        operation: 'Unauthorized user cross-tenant update isolation under RLS',
+        expected: 'rowCount = 0 (RLS blocks mutation of foreign organization)',
+        actual: 'rowCount > 0 (foreign organization was mutated)',
+        category: 'RLS_FAILURE',
+      };
+    }
+
+    const upgradedOpsPassed =
+      preflightPassed &&
+      ownerUpdatePassed &&
+      unauthorizedBlocked &&
+      removeBlocked &&
+      mismatchBlocked &&
+      alterDemoted &&
+      subIntact &&
+      v2WorksOnUpgradedDb &&
+      legacyBlocked;
+
+    recordTest(
+      'P1-UPG-02',
+      'Scenario B Upgrade: Upgraded database enforces canonical v2, legacy wrapper protection, and continuing identity enforcement',
+      upgradedOpsPassed,
+      `preflight=${preflightPassed}, ownerUpdate=${ownerUpdatePassed}, unauthBlocked=${unauthorizedBlocked}, removeBlocked=${removeBlocked}, mismatchBlocked=${mismatchBlocked}, alterDemoted=${alterDemoted}, subIntact=${subIntact}, v2Works=${v2WorksOnUpgradedDb}, legacyBlocked=${legacyBlocked}`,
+      upgradedOpsPassed ? null : upgErr,
+      failureDiagnostic
+    );
 
   } finally {
     if (upgradeClient) {
@@ -402,90 +748,7 @@ async function runAcceptance() {
     // Step 1: Bootstrap Standard Supabase-Compatible Roles, Schemas & Auth
     // ------------------------------------------------------------------------
     console.log('Step 1: Bootstrapping Supabase-compatible roles, schemas and auth environment...');
-    await testClient.query(`
-      -- 1. Create standard Supabase roles if missing (unprivileged, non-superuser accounts)
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
-          CREATE ROLE anon NOLOGIN NOINHERIT;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
-          CREATE ROLE authenticated NOLOGIN NOINHERIT;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
-          CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
-          CREATE ROLE authenticator NOLOGIN NOINHERIT;
-        END IF;
-      END $$;
-
-      -- 2. Configure role inheritance and memberships
-      GRANT anon TO authenticator;
-      GRANT authenticated TO authenticator;
-      GRANT service_role TO authenticator;
-
-      -- Grant authenticated, anon, and service_role to active session user (allows superuser to SET ROLE for testing)
-      GRANT authenticated TO CURRENT_USER;
-      GRANT anon TO CURRENT_USER;
-      GRANT service_role TO CURRENT_USER;
-
-      -- 3. Create schemas
-      CREATE SCHEMA IF NOT EXISTS auth;
-      CREATE SCHEMA IF NOT EXISTS extensions;
-      CREATE SCHEMA IF NOT EXISTS public;
-
-      -- 4. Schema usage and standard permissions
-      GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-      GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
-      GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
-      GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
-
-      -- 5. Standard Supabase Default privileges for future tables, sequences and functions
-      -- Establishes standard table grants before migrations run so that subsequent
-      -- explicit REVOKE statements in migrations 013, 017, 022 remain authoritative.
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER, service_role;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER, service_role, authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO CURRENT_USER, service_role, authenticated;
-
-      -- 6. Auth users table emulation
-      CREATE TABLE IF NOT EXISTS auth.users (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        instance_id uuid,
-        aud varchar(255) DEFAULT 'authenticated',
-        role varchar(255) DEFAULT 'authenticated',
-        email varchar(255) UNIQUE,
-        encrypted_password varchar(255),
-        email_confirmed_at timestamptz DEFAULT now(),
-        raw_app_meta_data jsonb DEFAULT '{"provider":"email","providers":["email"]}'::jsonb,
-        raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
-        is_super_admin boolean DEFAULT false,
-        created_at timestamptz DEFAULT now(),
-        updated_at timestamptz DEFAULT now()
-      );
-
-      GRANT SELECT ON auth.users TO authenticated, anon;
-      GRANT ALL ON auth.users TO CURRENT_USER, service_role;
-
-      -- 7. Auth helper functions
-      CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
-        SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
-      $$ LANGUAGE sql STABLE;
-
-      CREATE OR REPLACE FUNCTION auth.role() RETURNS text AS $$
-        SELECT coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated');
-      $$ LANGUAGE sql STABLE;
-
-      CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb AS $$
-        SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
-      $$ LANGUAGE sql STABLE;
-
-      GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
-      GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
-      GRANT EXECUTE ON FUNCTION auth.jwt() TO PUBLIC, anon, authenticated, service_role;
-    `);
+    await bootstrapDisposableDatabase(testClient);
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
