@@ -1,9 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Customer } from '@/types';
-import { calculateInvoiceBalance, roundMoney } from '@/lib/money';
+import { roundMoney } from '@/lib/money';
 
-export function mapDbCustomer(row: any, currentReceivable: number = 0): Customer {
+export function mapDbCustomer(row: any, currentReceivable?: number): Customer {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -19,7 +19,7 @@ export function mapDbCustomer(row: any, currentReceivable: number = 0): Customer
     creditDays: Number(row.credit_days ?? 30),
     avatarUrl: undefined,
     isActive: Boolean(row.is_active),
-    currentReceivable,
+    currentReceivable: currentReceivable !== undefined ? roundMoney(currentReceivable) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -49,26 +49,31 @@ export const customersService = {
       return [];
     }
 
-    // Calculate customer receivables from invoices
-    const { data: invoices, error: invErr } = await supabase
-      .from('invoices')
-      .select('customer_id, total_amount, total_paid, status')
-      .eq('organization_id', orgId)
-      .not('status', 'in', '("PAID","CANCELLED")');
+    // Authoritative customer receivables calculated strictly in PostgreSQL engine
+    const { data: receivables, error: recvErr } = await supabase.rpc('get_customer_receivables', {
+      p_org_id: orgId,
+    });
 
-    if (invErr) {
-      throw new Error(`Failed to load customer receivables: ${invErr.message}`);
+    if (recvErr) {
+      throw new Error(`Failed to load customer receivables: ${recvErr.message}`);
     }
 
-    const receivableMap: Record<string, number> = {};
-    if (!invErr && invoices) {
-      for (const inv of invoices) {
-        const bal = calculateInvoiceBalance(Number(inv.total_amount) || 0, Number(inv.total_paid) || 0);
-        receivableMap[inv.customer_id] = roundMoney((receivableMap[inv.customer_id] || 0) + bal);
-      }
+    if (!Array.isArray(receivables)) {
+      throw new Error('Authoritative customer receivables service returned an invalid response structure.');
     }
 
-    return dbCustomers.map((c) => mapDbCustomer(c, receivableMap[c.id] || 0));
+    const receivableMap = new Map<string, number>();
+    for (const r of (receivables as Array<{ customer_id: string; current_receivable: number | string }>)) {
+      const parsed = Number(r.current_receivable);
+      receivableMap.set(r.customer_id, Number.isFinite(parsed) ? roundMoney(parsed) : 0);
+    }
+
+    return dbCustomers.map((c) => {
+      // If customer is present in authoritative receivables aggregate, pass its exact value (including zero).
+      // If missing from aggregate, pass undefined so callers distinguish missing data from settled zero.
+      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : undefined;
+      return mapDbCustomer(c, receivable);
+    });
   },
 
   async createCustomer(
@@ -151,6 +156,6 @@ export const customersService = {
       throw new Error(`Failed to update customer: ${error.message}`);
     }
 
-    return mapDbCustomer(data, updates.currentReceivable || 0);
+    return mapDbCustomer(data, updates.currentReceivable);
   },
 };

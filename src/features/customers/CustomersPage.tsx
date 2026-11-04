@@ -344,8 +344,9 @@ export const CustomersPage: React.FC = () => {
           </TableHeader>
           <TableBody>
             {filteredCustomers.map((c) => {
-              const receivable = c.currentReceivable || 0;
-              const hasBalance = receivable > 0;
+              const receivable = c.currentReceivable;
+              const hasReceivableValue = receivable !== undefined;
+              const hasBalance = hasReceivableValue && receivable > 0;
               return (
                 <TableRow key={c.id}>
                   <TableCell>
@@ -409,16 +410,29 @@ export const CustomersPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell className="text-right">
-                    <div
-                      className={`text-sm font-bold tabular-nums ${
-                        hasBalance ? 'text-amber-700' : 'text-emerald-700'
-                      }`}
-                    >
-                      {formatCurrency(receivable)}
-                    </div>
-                    <div className="text-xs text-content-muted mt-0.5">
-                      {hasBalance ? 'Outstanding' : 'Settled'}
-                    </div>
+                    {hasReceivableValue ? (
+                      <>
+                        <div
+                          className={`text-sm font-bold tabular-nums ${
+                            hasBalance ? 'text-amber-700' : 'text-emerald-700'
+                          }`}
+                        >
+                          {formatCurrency(receivable)}
+                        </div>
+                        <div className="text-xs text-content-muted mt-0.5">
+                          {hasBalance ? 'Outstanding' : 'Settled'}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-content-muted">
+                          —
+                        </div>
+                        <div className="text-xs text-content-muted mt-0.5">
+                          Unavailable
+                        </div>
+                      </>
+                    )}
                   </TableCell>
 
                   <TableCell className="text-center">

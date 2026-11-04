@@ -277,11 +277,12 @@ export const ProductsPage: React.FC = () => {
     const matchesCategory =
       selectedCategory === 'All Categories' || p.category === selectedCategory;
 
-    const stock = p.currentStock || 0;
+    const stock = p.currentStock;
+    const hasStock = stock !== undefined;
     const matchesStock =
       stockFilter === 'all' ||
-      (stockFilter === 'low' && stock <= p.reorderThreshold) ||
-      (stockFilter === 'in_stock' && stock > p.reorderThreshold);
+      (stockFilter === 'low' && hasStock && stock <= p.reorderThreshold) ||
+      (stockFilter === 'in_stock' && hasStock && stock > p.reorderThreshold);
 
     return matchesSearch && matchesCategory && matchesStock;
   });
@@ -411,8 +412,9 @@ export const ProductsPage: React.FC = () => {
           </TableHeader>
           <TableBody>
             {filteredProducts.map((p) => {
-              const stock = p.currentStock || 0;
-              const isLowStock = stock <= p.reorderThreshold;
+              const stock = p.currentStock;
+              const hasStock = stock !== undefined;
+              const isLowStock = hasStock && stock <= p.reorderThreshold;
 
               return (
                 <TableRow key={p.id}>
@@ -462,25 +464,38 @@ export const ProductsPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span
-                        className={`font-bold text-sm tabular-nums ${
-                          isLowStock ? 'text-rose-700' : 'text-emerald-700'
-                        }`}
-                      >
-                        {stock.toLocaleString()} {p.uom}
-                      </span>
-                      {isLowStock ? (
-                        <span title={`Below reorder threshold (${p.reorderThreshold})`} className="inline-flex">
-                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" aria-label="Low stock warning" />
-                        </span>
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" aria-label="Healthy stock level" />
-                      )}
-                    </div>
-                    <div className="text-xs text-content-muted mt-0.5">
-                      Min reorder: {p.reorderThreshold}
-                    </div>
+                    {hasStock ? (
+                      <>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span
+                            className={`font-bold text-sm tabular-nums ${
+                              isLowStock ? 'text-rose-700' : 'text-emerald-700'
+                            }`}
+                          >
+                            {stock.toLocaleString()} {p.uom}
+                          </span>
+                          {isLowStock ? (
+                            <span title={`Below reorder threshold (${p.reorderThreshold})`} className="inline-flex">
+                              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" aria-label="Low stock warning" />
+                            </span>
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" aria-label="Healthy stock level" />
+                          )}
+                        </div>
+                        <div className="text-xs text-content-muted mt-0.5">
+                          Min reorder: {p.reorderThreshold}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-content-muted">
+                          —
+                        </div>
+                        <div className="text-xs text-content-muted mt-0.5">
+                          Unavailable
+                        </div>
+                      </>
+                    )}
                   </TableCell>
 
                   <TableCell className="text-center">

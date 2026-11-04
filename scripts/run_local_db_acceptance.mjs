@@ -374,11 +374,16 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
     const { rows: subSnap } = await upgradeClient.query(`SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = '${existingOrgId}';`);
     const { rows: auditSnap } = await upgradeClient.query(`SELECT count(*)::int AS count FROM audit_events WHERE organization_id = '${existingOrgId}';`);
 
-    // 6. Apply ONLY Migration 030 (forward-only upgrade)
+    // 6. Apply Migration 030 and Migration 031 (forward-only upgrades)
     console.log('\nApplying Migration 030 (forward-only upgrade)...');
     const mig030Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '030_organization_identity_privacy_and_canonical_contract.sql'), 'utf8');
     await upgradeClient.query(mig030Sql);
     console.log('  ✓ Migration 030 applied successfully to existing database.');
+
+    console.log('\nApplying Migration 031 (inventory and receivables authoritative aggregation)...');
+    const mig031Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '031_inventory_and_receivables_authoritative_aggregation.sql'), 'utf8');
+    await upgradeClient.query(mig031Sql);
+    console.log('  ✓ Migration 031 applied successfully to existing database.');
 
     // 7. Verify pre-existing data and entitlements are 100% preserved
     const { rows: orgPost } = await upgradeClient.query(`SELECT * FROM organizations WHERE id = '${existingOrgId}';`);
@@ -2245,6 +2250,538 @@ async function runAcceptance() {
         zeroTaxPassed,
         `Invoice created with 0% tax: tax_amount=0.00, total=200.00, item.tax_rate=0, dbPersisted=${zeroTaxPassed}`,
         zeroTaxPassed ? null : zeroTaxErr
+      );
+    });
+
+    // ========================================================================
+    // PHASE A2.1: INVENTORY & RECEIVABLES ACCURACY TESTS
+    // ========================================================================
+
+    // TEST 30 (P1-A2-01): Legitimate zero stock & on-hand inventory accuracy
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let zeroStockPassed = false;
+      let zeroStockErr = null;
+      try {
+        // 1. Seed a product with 0 opening stock (no movements)
+        const prodZeroId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
+           VALUES ($1, $2, 'SKU-ZERO-01', 'Zero Stock Product', 'Lighting', 'Nos', 100.00, 150.00, 18.00, true);`,
+          [prodZeroId, orgAId]
+        );
+
+        // 2. Seed a product with 50 units received and 50 units dispatched (net 0)
+        const prodBalancedId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
+           VALUES ($1, $2, 'SKU-BALANCED-01', 'Net Zero Product', 'Lighting', 'Nos', 200.00, 250.00, 18.00, true);`,
+          [prodBalancedId, orgAId]
+        );
+
+        await testClient.query(
+          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+           VALUES
+            ($1, $2, 50, 'GOODS_RECEIVED', 'Initial receipt'),
+            ($1, $2, -50, 'SALES_DISPATCH', 'Full dispatch');`,
+          [orgAId, prodBalancedId]
+        );
+
+        // 3. Query get_product_stock_levels for orgAId
+        const { rows: stockLevels } = await testClient.query(
+          `SELECT product_id, current_stock FROM public.get_product_stock_levels($1::uuid)
+           WHERE product_id IN ($2::uuid, $3::uuid);`,
+          [orgAId, prodZeroId, prodBalancedId]
+        );
+
+        const zeroRow = stockLevels.find((r) => r.product_id === prodZeroId);
+        const balancedRow = stockLevels.find((r) => r.product_id === prodBalancedId);
+
+        const zeroIsZero = zeroRow && Number(zeroRow.current_stock) === 0;
+        const balancedIsZero = balancedRow && Number(balancedRow.current_stock) === 0;
+
+        // 4. Query single-product get_product_stock
+        const { rows: singleZero } = await testClient.query(
+          `SELECT public.get_product_stock($1::uuid, $2::uuid) AS stock;`,
+          [prodZeroId, orgAId]
+        );
+        const { rows: singleBalanced } = await testClient.query(
+          `SELECT public.get_product_stock($1::uuid, $2::uuid) AS stock;`,
+          [prodBalancedId, orgAId]
+        );
+
+        const singleZeroIsZero = Number(singleZero[0]?.stock) === 0;
+        const singleBalancedIsZero = Number(singleBalanced[0]?.stock) === 0;
+
+        zeroStockPassed = Boolean(zeroIsZero && balancedIsZero && singleZeroIsZero && singleBalancedIsZero);
+      } catch (err) {
+        zeroStockErr = err;
+      }
+
+      recordTest(
+        'P1-A2-01',
+        'Authoritative stock aggregation preserves explicit zero stock for products with no movements or net zero balance',
+        zeroStockPassed,
+        `zeroStockPassed=${zeroStockPassed}`,
+        zeroStockPassed ? null : zeroStockErr
+      );
+    });
+
+    // TEST 31 (P1-A2-02): High-volume inventory movements (> 2,500 transactions)
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let bulkStockPassed = false;
+      let bulkStockErr = null;
+      try {
+        const prodBulkId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
+           VALUES ($1, $2, 'SKU-BULK-01', 'High Volume Stock Product', 'Switchgear', 'Nos', 50.00, 75.00, 18.00, true);`,
+          [prodBulkId, orgAId]
+        );
+
+        // Insert 2,000 movements of +2 and 500 movements of -1 (Total: 2,500 movements, Net: 3,500)
+        await testClient.query(
+          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+           SELECT $1::uuid, $2::uuid, 2, 'GOODS_RECEIVED', 'Bulk Inflow'
+           FROM generate_series(1, 2000);`,
+          [orgAId, prodBulkId]
+        );
+
+        await testClient.query(
+          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+           SELECT $1::uuid, $2::uuid, -1, 'SALES_DISPATCH', 'Bulk Outflow'
+           FROM generate_series(1, 500);`,
+          [orgAId, prodBulkId]
+        );
+
+        // Aggregate through get_product_stock_levels
+        const { rows: bulkRows } = await testClient.query(
+          `SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;`,
+          [orgAId, prodBulkId]
+        );
+
+        // Query direct sum from stock_movements table for consistency verification
+        const { rows: sumRows } = await testClient.query(
+          `SELECT count(*)::int AS cnt, sum(quantity_change)::numeric AS total FROM public.stock_movements WHERE product_id = $1::uuid;`,
+          [prodBulkId]
+        );
+
+        const rpcStock = Number(bulkRows[0]?.current_stock);
+        const dbTotal = Number(sumRows[0]?.total);
+        const dbCount = Number(sumRows[0]?.cnt);
+
+        bulkStockPassed = (rpcStock === 3500 && dbTotal === 3500 && dbCount === 2500);
+      } catch (err) {
+        bulkStockErr = err;
+      }
+
+      recordTest(
+        'P1-A2-02',
+        'Authoritative stock aggregation handles high-volume transaction history (2,500 movements) without silent truncation',
+        bulkStockPassed,
+        `rpcStock=3500, dbCount=2500, match=${bulkStockPassed}`,
+        bulkStockPassed ? null : bulkStockErr
+      );
+    });
+
+    // TEST 32 (P1-A2-03): Cross-tenant isolation & unauthorized access rejection on stock RPCs
+    let isolationStockPassed = false;
+    let isolationStockErr = null;
+    try {
+      // 1. userB (tenant B) attempts to call get_product_stock_levels for orgA
+      let crossTenantLevelsBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        try {
+          await testClient.query(`SELECT * FROM public.get_product_stock_levels($1::uuid);`, [orgAId]);
+        } catch (err) {
+          crossTenantLevelsBlocked = err.message.includes('ERR_UNAUTHORIZED') || err.code === '42501';
+        }
+      });
+
+      // 2. userB attempts to call get_product_stock for orgA product
+      let crossTenantStockBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        try {
+          await testClient.query(`SELECT public.get_product_stock($1::uuid, $2::uuid);`, [prodA1Id, orgAId]);
+        } catch (err) {
+          crossTenantStockBlocked = err.message.includes('Unauthorized') || err.code === '42501';
+        }
+      });
+
+      // 3. anon role attempts to call get_product_stock_levels
+      let anonBlocked = false;
+      await withRoleContext(testClient, { role: 'anon' }, async () => {
+        try {
+          await testClient.query(`SELECT * FROM public.get_product_stock_levels($1::uuid);`, [orgAId]);
+        } catch (err) {
+          anonBlocked = err.code === '42501' || err.message.includes('permission denied');
+        }
+      });
+
+      isolationStockPassed = crossTenantLevelsBlocked && crossTenantStockBlocked && anonBlocked;
+    } catch (err) {
+      isolationStockErr = err;
+    }
+
+    recordTest(
+      'P1-A2-03',
+      'Stock RPCs strictly enforce cross-tenant isolation and reject unauthorized/unauthenticated access',
+      isolationStockPassed,
+      `crossTenantLevelsBlocked=${isolationStockPassed}`,
+      isolationStockPassed ? null : isolationStockErr
+    );
+
+    // TEST 33 (P1-A2-04): Customer receivables aggregation accurately handles zero-balance states
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let zeroRecvPassed = false;
+      let zeroRecvErr = null;
+      try {
+        // Customer 1: No invoices at all
+        const custZero1Id = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+           VALUES ($1, $2, 'Zero Customer No Invoices', 50000, 30, true);`,
+          [custZero1Id, orgAId]
+        );
+
+        // Customer 2: Has PAID, CANCELLED, and DRAFT invoices (net 0 receivable)
+        const custZero2Id = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+           VALUES ($1, $2, 'Zero Customer Settled Invoices', 50000, 30, true);`,
+          [custZero2Id, orgAId]
+        );
+
+        // Paid invoice (total_amount = total_paid = 500)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-Z2-PAID', 'PAID', CURRENT_DATE, 500.00, 500.00, 500.00);`,
+          [orgAId, custZero2Id]
+        );
+
+        // Cancelled invoice
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-Z2-CANC', 'CANCELLED', CURRENT_DATE, 1000.00, 1000.00, 0.00);`,
+          [orgAId, custZero2Id]
+        );
+
+        // Draft invoice (not issued)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-Z2-DRAFT', 'DRAFT', CURRENT_DATE, 750.00, 750.00, 0.00);`,
+          [orgAId, custZero2Id]
+        );
+
+        // Query get_customer_receivables
+        const { rows: recvRows } = await testClient.query(
+          `SELECT customer_id, current_receivable FROM public.get_customer_receivables($1::uuid)
+           WHERE customer_id IN ($2::uuid, $3::uuid);`,
+          [orgAId, custZero1Id, custZero2Id]
+        );
+
+        const r1 = recvRows.find((r) => r.customer_id === custZero1Id);
+        const r2 = recvRows.find((r) => r.customer_id === custZero2Id);
+
+        const cust1Zero = r1 && Number(r1.current_receivable) === 0.00;
+        const cust2Zero = r2 && Number(r2.current_receivable) === 0.00;
+
+        // Query single-customer get_customer_receivable
+        const { rows: singleR1 } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custZero1Id, orgAId]
+        );
+        const { rows: singleR2 } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custZero2Id, orgAId]
+        );
+
+        const single1Zero = Number(singleR1[0]?.receivable) === 0.00;
+        const single2Zero = Number(singleR2[0]?.receivable) === 0.00;
+
+        zeroRecvPassed = Boolean(cust1Zero && cust2Zero && single1Zero && single2Zero);
+      } catch (err) {
+        zeroRecvErr = err;
+      }
+
+      recordTest(
+        'P1-A2-04',
+        'Customer receivables aggregation accurately returns 0.00 for customers without invoices, settled, cancelled, and draft invoices',
+        zeroRecvPassed,
+        `zeroRecvPassed=${zeroRecvPassed}`,
+        zeroRecvPassed ? null : zeroRecvErr
+      );
+    });
+
+    // TEST 34 (P1-A2-05): Multiple invoices with partial payments and exact monetary rounding
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let multiInvoicePassed = false;
+      let multiInvoiceErr = null;
+      try {
+        const custMultiId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+           VALUES ($1, $2, 'Multi Invoice Customer', 100000, 30, true);`,
+          [custMultiId, orgAId]
+        );
+
+        // Invoice 1: PARTIALLY_PAID (1500.50 - 500.25 = 1000.25)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-M1', 'PARTIALLY_PAID', CURRENT_DATE, 1500.50, 1500.50, 500.25);`,
+          [orgAId, custMultiId]
+        );
+
+        // Invoice 2: ISSUED (2500.75 - 0.00 = 2500.75)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-M2', 'ISSUED', CURRENT_DATE, 2500.75, 2500.75, 0.00);`,
+          [orgAId, custMultiId]
+        );
+
+        // Invoice 3: PAID (800.00 - 800.00 = 0.00)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, 'INV-M3', 'PAID', CURRENT_DATE, 800.00, 800.00, 800.00);`,
+          [orgAId, custMultiId]
+        );
+
+        // Expected balance: 1000.25 + 2500.75 = 3501.00
+        const { rows: multiRecv } = await testClient.query(
+          `SELECT current_receivable FROM public.get_customer_receivables($1::uuid) WHERE customer_id = $2::uuid;`,
+          [orgAId, custMultiId]
+        );
+        const { rows: singleRecv } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custMultiId, orgAId]
+        );
+
+        const rpcVal = Number(multiRecv[0]?.current_receivable);
+        const singleVal = Number(singleRecv[0]?.receivable);
+
+        multiInvoicePassed = (rpcVal === 3501.00 && singleVal === 3501.00);
+      } catch (err) {
+        multiInvoiceErr = err;
+      }
+
+      recordTest(
+        'P1-A2-05',
+        'Customer receivables aggregation accurately computes outstanding balances across multiple invoices with exact paise rounding',
+        multiInvoicePassed,
+        `expected=3501.00, actual=${multiInvoicePassed ? 3501.00 : 'mismatch'}`,
+        multiInvoicePassed ? null : multiInvoiceErr
+      );
+    });
+
+    // TEST 35 (P1-A2-06): High-volume invoice records (> 1,200 invoices)
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let highVolumeInvPassed = false;
+      let highVolumeInvErr = null;
+      try {
+        const custBulkInvId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+           VALUES ($1, $2, 'Bulk Invoice Customer', 500000, 60, true);`,
+          [custBulkInvId, orgAId]
+        );
+
+        // Insert 1,000 ISSUED invoices of 15.25 (Sum = 15,250.00)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           SELECT $1::uuid, $2::uuid, 'BULK-INV-IS-' || s, 'ISSUED', CURRENT_DATE, 15.25, 15.25, 0.00
+           FROM generate_series(1, 1000) AS s;`,
+          [orgAId, custBulkInvId]
+        );
+
+        // Insert 200 PAID invoices of 50.00 (Balance = 0.00)
+        await testClient.query(
+          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           SELECT $1::uuid, $2::uuid, 'BULK-INV-PD-' || s, 'PAID', CURRENT_DATE, 50.00, 50.00, 50.00
+           FROM generate_series(1, 200) AS s;`,
+          [orgAId, custBulkInvId]
+        );
+
+        const { rows: bulkRecvRows } = await testClient.query(
+          `SELECT current_receivable FROM public.get_customer_receivables($1::uuid) WHERE customer_id = $2::uuid;`,
+          [orgAId, custBulkInvId]
+        );
+
+        const { rows: singleBulkRows } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custBulkInvId, orgAId]
+        );
+
+        const bulkRpcTotal = Number(bulkRecvRows[0]?.current_receivable);
+        const bulkSingleTotal = Number(singleBulkRows[0]?.receivable);
+
+        // 1,000 * 15.25 = 15,250.00
+        highVolumeInvPassed = (bulkRpcTotal === 15250.00 && bulkSingleTotal === 15250.00);
+      } catch (err) {
+        highVolumeInvErr = err;
+      }
+
+      recordTest(
+        'P1-A2-06',
+        'Customer receivables aggregation computes exact sum across 1,200 invoices without client-side pagination truncation',
+        highVolumeInvPassed,
+        `expected=15250.00, actual=${highVolumeInvPassed ? 15250.00 : 'mismatch'}`,
+        highVolumeInvPassed ? null : highVolumeInvErr
+      );
+    });
+
+    // TEST 36 (P1-A2-07): Cross-tenant isolation & unauthorized access on customer receivables RPCs
+    let isolationRecvPassed = false;
+    let isolationRecvErr = null;
+    try {
+      // 1. userB attempts to call get_customer_receivables for orgA
+      let crossTenantRecvBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        try {
+          await testClient.query(`SELECT * FROM public.get_customer_receivables($1::uuid);`, [orgAId]);
+        } catch (err) {
+          crossTenantRecvBlocked = err.message.includes('ERR_UNAUTHORIZED') || err.code === '42501';
+        }
+      });
+
+      // 2. userB attempts to call get_customer_receivable for orgA customer
+      let crossTenantSingleBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        try {
+          await testClient.query(`SELECT public.get_customer_receivable($1::uuid, $2::uuid);`, [custAId, orgAId]);
+        } catch (err) {
+          crossTenantSingleBlocked = err.message.includes('ERR_UNAUTHORIZED') || err.code === '42501';
+        }
+      });
+
+      // 3. userB attempts to query orgA customer from within orgB (cross-tenant customer probe)
+      let foreignCustomerBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        try {
+          await testClient.query(`SELECT public.get_customer_receivable($1::uuid, $2::uuid);`, [custAId, orgBId]);
+        } catch (err) {
+          foreignCustomerBlocked = err.message.includes('ERR_CUSTOMER_NOT_FOUND');
+        }
+      });
+
+      // 4. anon role attempts to call get_customer_receivables
+      let anonRecvBlocked = false;
+      await withRoleContext(testClient, { role: 'anon' }, async () => {
+        try {
+          await testClient.query(`SELECT * FROM public.get_customer_receivables($1::uuid);`, [orgAId]);
+        } catch (err) {
+          anonRecvBlocked = err.code === '42501' || err.message.includes('permission denied');
+        }
+      });
+
+      isolationRecvPassed = crossTenantRecvBlocked && crossTenantSingleBlocked && foreignCustomerBlocked && anonRecvBlocked;
+    } catch (err) {
+      isolationRecvErr = err;
+    }
+
+    recordTest(
+      'P1-A2-07',
+      'Customer receivables RPCs strictly enforce cross-tenant isolation and reject unauthorized access attempts',
+      isolationRecvPassed,
+      `isolationRecvPassed=${isolationRecvPassed}`,
+      isolationRecvPassed ? null : isolationRecvErr
+    );
+
+    // TEST 37 (P1-A2-08): Partial payment allocation updates invoice status and reduces customer receivable
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let paymentRecvPassed = false;
+      let paymentRecvErr = null;
+      try {
+        const custPayId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+           VALUES ($1, $2, 'Payment Allocation Customer', 100000, 30, true);`,
+          [custPayId, orgAId]
+        );
+
+        const invPayId = crypto.randomUUID();
+        await testClient.query(
+          `INSERT INTO public.invoices (id, organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+           VALUES ($1, $2, $3, 'INV-PAY-01', 'ISSUED', CURRENT_DATE, 6000.00, 6000.00, 0.00);`,
+          [invPayId, orgAId, custPayId]
+        );
+
+        // Initial receivable = 6000.00
+        const { rows: initRecv } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custPayId, orgAId]
+        );
+        const initOk = Number(initRecv[0]?.receivable) === 6000.00;
+
+        // Allocate partial payment: 2,500.00
+        await testClient.query(
+          `SELECT record_payment_and_allocate(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_amount := 2500.00,
+            p_payment_method := 'UPI',
+            p_reference_no := 'UPI-12345',
+            p_payment_date := CURRENT_DATE,
+            p_notes := 'Partial payment 1',
+            p_invoice_id := $3::uuid,
+            p_allocated_amount := 2500.00,
+            p_idempotency_key := $4::uuid
+          );`,
+          [orgAId, custPayId, invPayId, crypto.randomUUID()]
+        );
+
+        // Check invoice status and receivable after partial payment
+        const { rows: invAfterP1 } = await testClient.query(
+          `SELECT status, total_paid FROM public.invoices WHERE id = $1::uuid;`,
+          [invPayId]
+        );
+        const { rows: recvAfterP1 } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custPayId, orgAId]
+        );
+
+        const p1StatusOk = invAfterP1[0]?.status === 'PARTIALLY_PAID' && Number(invAfterP1[0]?.total_paid) === 2500.00;
+        const p1RecvOk = Number(recvAfterP1[0]?.receivable) === 3500.00;
+
+        // Allocate remaining payment: 3,500.00
+        await testClient.query(
+          `SELECT record_payment_and_allocate(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_amount := 3500.00,
+            p_payment_method := 'NEFT',
+            p_reference_no := 'NEFT-998877',
+            p_payment_date := CURRENT_DATE,
+            p_notes := 'Final settlement',
+            p_invoice_id := $3::uuid,
+            p_allocated_amount := 3500.00,
+            p_idempotency_key := $4::uuid
+          );`,
+          [orgAId, custPayId, invPayId, crypto.randomUUID()]
+        );
+
+        // Check invoice status and receivable after final payment
+        const { rows: invAfterP2 } = await testClient.query(
+          `SELECT status, total_paid FROM public.invoices WHERE id = $1::uuid;`,
+          [invPayId]
+        );
+        const { rows: recvAfterP2 } = await testClient.query(
+          `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
+          [custPayId, orgAId]
+        );
+
+        const p2StatusOk = invAfterP2[0]?.status === 'PAID' && Number(invAfterP2[0]?.total_paid) === 6000.00;
+        const p2RecvOk = Number(recvAfterP2[0]?.receivable) === 0.00;
+
+        paymentRecvPassed = Boolean(initOk && p1StatusOk && p1RecvOk && p2StatusOk && p2RecvOk);
+      } catch (err) {
+        paymentRecvErr = err;
+      }
+
+      recordTest(
+        'P1-A2-08',
+        'Partial payment allocation via record_payment_and_allocate transitions invoice status and reduces customer receivable to exact balance',
+        paymentRecvPassed,
+        `paymentRecvPassed=${paymentRecvPassed}`,
+        paymentRecvPassed ? null : paymentRecvErr
       );
     });
 
