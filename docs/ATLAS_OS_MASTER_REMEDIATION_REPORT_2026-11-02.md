@@ -432,18 +432,58 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
       ```
     * *Inventory Invariant Verification:* Order confirmation authoritatively deducted 10 units (100 to 90), logged an audit record (`CONFIRM_ORDER`), transitioned order status to `CONFIRMED`, and verified that re-confirmation safely returns an idempotent replay without duplicate deduction or additional movements.
     * *Strict Isolation & Teardown:* Removed fallback execution against connected maintenance database; ephemeral test database (`atlas_test_<runId>`) creation is strictly required. Teardown terminates connections and force-drops the test database via `DROP DATABASE IF EXISTS ... WITH (FORCE)` in `finally`, leaving zero lingering state. Cluster-wide superuser role `supabase_admin` was eliminated.
+12. **Aggregate Row-Locking Error (Runs 41515200932 & 41515196874):** Database acceptance failed with `FOR UPDATE is not allowed with aggregate functions` (SQLSTATE `0A000`) inside `public.create_invoice_atomic`.
+    * *Root Cause:* Migration `024` attempted row-level locking directly on an aggregate query:
+      ```sql
+      SELECT COUNT(*) INTO v_locked_prod_count
+      FROM public.products
+      WHERE id = ANY(v_product_ids) AND organization_id = p_org_id
+      FOR UPDATE;
+      ```
+      PostgreSQL standard prohibits `FOR UPDATE` on aggregate expressions.
+    * *Fix:* Forward-only migration `027_fix_atomic_document_product_locking.sql` separated product locking from counting:
+      ```sql
+      PERFORM 1 FROM public.products
+      WHERE id = ANY(v_product_ids) AND organization_id = p_org_id
+      FOR UPDATE;
+      GET DIAGNOSTICS v_locked_prod_count = ROW_COUNT;
+      ```
+13. **Product-ID Normalization, `array_agg(NULL)` Bug & Child Schema Alignment (Runs 41618423206 & 41618418542):**
+    * *Confirmed CI Failure:* Runner threw `One or more products in items do not belong to organization` (SQLSTATE `P0001`) at `scripts/run_local_db_acceptance.mjs:914` during authorized invoice creation.
+    * *Root Cause:* In Migration `027`, the product aggregation query assumed camelCase `productId`:
+      ```sql
+      SELECT array_agg(DISTINCT (item->>'productId')::UUID) INTO v_product_ids
+      FROM jsonb_array_elements(p_items) AS item;
+      ```
+      When line items passed snake_case `product_id`, `(item->>'productId')` evaluated to `NULL`. In PostgreSQL, `SELECT array_agg(DISTINCT NULL)` produces `'{NULL}'::uuid[]` (an array containing a single `NULL` element).
+      Consequently:
+      - `v_product_ids IS NULL` evaluated to `FALSE`.
+      - `array_length(v_product_ids, 1) = 0` evaluated to `FALSE` (array length was 1).
+      - The fallback check was bypassed, leaving `v_product_ids` as `'{NULL}'`.
+      - The locking query `WHERE id = ANY('{NULL}')` locked 0 rows (`v_locked_prod_count = 0`).
+      - The verification check `IF v_locked_prod_count != array_length(v_product_ids, 1)` compared `0 != 1`, raising the exception.
+    * *Secondary Schema Defect:* In Migration `024`, `INSERT INTO public.sales_order_items`, `invoice_items`, `quotation_items`, and `payment_allocations` erroneously specified `organization_id`. None of these child tables possess an `organization_id` column (they reference parent documents that enforce tenant ownership).
+    * *Fix:* Forward-only Migration `028_fix_atomic_document_product_id_normalization.sql` was implemented with:
+      1. **Pre-flight Normalization & Validation:** Validates required product IDs, checks UUID formats via regex, rejects conflicting ambiguous IDs (`productId != product_id`), and coalesces:
+         ```sql
+         v_item_prod_str := COALESCE(NULLIF(TRIM(v_item->>'productId'), ''), NULLIF(TRIM(v_item->>'product_id'), ''));
+         ```
+      2. **Strict Distinct Non-Null Array Construction:** Aggregates filtered, non-null distinct UUIDs, guaranteeing `v_product_ids` contains only valid IDs and matches row counts accurately.
+      3. **Exact Table Schema Alignment:** Removed non-existent `organization_id` from item inserts in `create_invoice_atomic`, `create_sales_order_atomic`, and `create_quotation_atomic`.
+      4. **Payment Allocation RPC Redefinition:** Corrected `record_payment_and_allocate` to insert into `public.payment_allocations (payment_id, invoice_id, amount_allocated)` matching the table's actual schema.
+    * *Test Acceptance Results:* The complete acceptance suite applied all migrations (001 -> 028) on real PostgreSQL (PGlite) and passed all 29 P0/P1 security and lifecycle contracts with 100% success.
 
 ---
 
 ## K. APPENDIX: FILE MODIFICATION INVENTORY
 
-### Modified Files (20)
+### Modified Files (21)
 
 | File | Lines Changed | Description of Changes |
 |---|---|---|
 | `.github/workflows/ci.yml` | +24, -2 | Added PostgreSQL 15 service container and `test:db` CI step. |
 | `package.json` | +1, -0 | Added `"test:db": "node scripts/run_local_db_acceptance.mjs"`. |
-| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, ephemeral test DB creation/drop (no fallback), Supabase bootstrap, lexical migration application (001-026), lowercase enums, valid product category, schema-accurate columns, parameterized stock set-returning queries, 22 security & lifecycle contract assertions under restricted roles, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and clean teardown. |
+| `scripts/run_local_db_acceptance.mjs` | Full Rewrite | Complete rewrite: disposable DB guard, ephemeral test DB creation/drop (no fallback), Supabase bootstrap, lexical migration application (001-028), lowercase enums, valid product category, schema-accurate columns, parameterized stock set-returning queries, 29 security & lifecycle contract assertions under restricted roles, idempotent replay contracts, invoker trigger validation, table revocation assertions (SQLSTATE 42501), and clean teardown. |
 | `src/features/ai/AIPage.tsx` | +36, -9 | Added tenant change reset `useEffect`, role gate on proposal approval, and IST overdue checks. |
 | `src/features/invoices/InvoicesPage.tsx` | +19, -6 | Added `.printable-tax-invoice` class, `.no-print` wrapper, and statutory Indian GST details. |
 | `src/features/orders/OrdersPage.tsx` | +13, -3 | Added IST date default and empty customer/product guards before opening modal. |
@@ -461,15 +501,18 @@ During GitHub Actions CI execution (runs `41491149127`, `41491074032`, `41494550
 | `src/services/products.test.ts` | +1, -0 | Updated test assertion to expect `p_image_url: null`. |
 | `src/services/review-regressions.test.ts` | +7, -5 | Updated stock ledger failure test to match RPC failure propagation. |
 | `src/styles/index.css` | +77, -0 | Added comprehensive `@media print` CSS rules for A4 Tax Invoice presentation. |
+| `docs/ATLAS_OS_MASTER_REMEDIATION_REPORT_2026-11-02.md` | Updated | Comprehensive technical documentation of Phase 1, Phase 2, Phase 3, and Phase 4 remediation findings, migrations, and acceptance results. |
 
-### New Files Created (6)
+### New Files Created (8)
 
 | File | Purpose |
 |---|---|
 | `supabase/migrations/024_master_security_lifecycle_and_order_integrity.sql` | Consolidated forward-only migration containing all P0/P1 database triggers, RLS policies, and RPCs. |
 | `supabase/migrations/025_harden_authoritative_lifecycle_context.sql` | Initial forward-only migration defining lifecycle trust flags. |
 | `supabase/migrations/026_authoritative_lifecycle_invoker_triggers.sql` | Forward-only migration re-declaring lifecycle triggers as SECURITY INVOKER to accurately detect caller roles and prevent GUC spoofing. |
-| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 21 database security & lifecycle acceptance contracts under real restricted database roles (`authenticated`, `anon`). |
+| `supabase/migrations/027_fix_atomic_document_product_locking.sql` | Forward-only migration resolving `FOR UPDATE` on aggregate queries by separating row locking from count diagnostics. |
+| `supabase/migrations/028_fix_atomic_document_product_id_normalization.sql` | Forward-only migration implementing pre-flight product ID normalization, UUID validation, distinct array construction, child items schema alignment, and payment allocation RPC redefinition. |
+| `scripts/run_local_db_acceptance.mjs` | Dedicated automated test runner executing 29 database security & lifecycle acceptance contracts under real restricted database roles (`authenticated`, `anon`). |
 | `src/lib/dates.ts` | Authoritative Indian Standard Time (`Asia/Kolkata`) date, offset, and aging library. |
 | `src/lib/dates.test.ts` | Unit tests verifying IST date calculations and overdue comparisons. |
 

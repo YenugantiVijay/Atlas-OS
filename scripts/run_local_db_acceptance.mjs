@@ -294,9 +294,9 @@ async function runAcceptance() {
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 027 in Strict Lexical Order
+    // Step 2: Apply Migrations 001 - 028 in Strict Lexical Order
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 027)...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 028)...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
@@ -952,18 +952,23 @@ async function runAcceptance() {
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
+      let rowCount = -1;
       try {
-        await testClient.query(`UPDATE invoice_items SET quantity = 50 WHERE invoice_id = $1::uuid;`, [createdInvoiceId]);
+        const res = await testClient.query(`UPDATE invoice_items SET quantity = 50 WHERE invoice_id = $1::uuid;`, [createdInvoiceId]);
+        rowCount = res.rowCount;
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('Cannot') || err.message.includes('immutable');
+      }
+      if (rowCount === 0) {
+        blocked = true;
       }
       recordTest(
         'P0-INV-03',
         'Line item modification on ISSUED invoice is strictly rejected',
         blocked,
-        `Enforced by trg_invoice_items_enforce_status (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        `Enforced by RLS and trg_invoice_items_enforce_status (rowCount: ${rowCount}, SQLSTATE ${caughtErr?.code})`,
+        blocked ? null : (caughtErr || new Error(`Expected zero rows modified or error, got rowCount=${rowCount}`))
       );
     });
 
@@ -971,18 +976,23 @@ async function runAcceptance() {
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let blocked = false;
       let caughtErr = null;
+      let rowCount = -1;
       try {
-        await testClient.query(`DELETE FROM invoices WHERE id = $1::uuid;`, [createdInvoiceId]);
+        const res = await testClient.query(`DELETE FROM invoices WHERE id = $1::uuid;`, [createdInvoiceId]);
+        rowCount = res.rowCount;
       } catch (err) {
         caughtErr = err;
         blocked = err.code === '42501' || err.code === '23514' || err.message.includes('prohibited');
+      }
+      if (rowCount === 0) {
+        blocked = true;
       }
       recordTest(
         'P0-INV-04',
         'Statutory invoice deletion is strictly rejected',
         blocked,
-        `Enforced by trg_invoice_lifecycle (SQLSTATE ${caughtErr?.code})`,
-        blocked ? null : caughtErr
+        `Enforced by RLS and trg_invoice_lifecycle (rowCount: ${rowCount}, SQLSTATE ${caughtErr?.code})`,
+        blocked ? null : (caughtErr || new Error(`Expected zero rows deleted or error, got rowCount=${rowCount}`))
       );
     });
 
