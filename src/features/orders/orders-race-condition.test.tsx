@@ -7,7 +7,7 @@ import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { ordersService } from '@/services/orders.service';
 import { customersService } from '@/services/customers.service';
 import { productsService } from '@/services/products.service';
-import { Organization, Customer, Product, SalesOrder } from '@/types';
+import { Organization, Customer, Product } from '@/types';
 
 // Mock Toast
 const mockShowToast = vi.fn();
@@ -58,9 +58,9 @@ describe('OrdersPage — Asynchronous Form Opening & Race Condition Protection',
       email: 'sales@apex.com',
       billingAddress: 'Peenya Industrial Area',
       gstin: '29ABCDE1234F1Z5',
-      paymentTerms: '30 Days Net',
+      creditDays: 30,
       creditLimit: 500000,
-      currentBalance: 0,
+      currentReceivable: 0,
       isActive: true,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
@@ -125,13 +125,17 @@ describe('OrdersPage — Asynchronous Form Opening & Race Condition Protection',
         updatedAt: '2026-01-01T00:00:00Z',
       },
       canWriteOperations: true,
-      auditLog: [],
       switchOrganization: vi.fn(),
-      refreshOrganizations: vi.fn(),
-      refreshEligibility: vi.fn(),
-      refreshSubscription: vi.fn(),
-      signOut: vi.fn(),
+      createOrganization: vi.fn(),
+      updateOrganization: vi.fn(),
       updateCurrentUser: vi.fn(),
+      refreshOrgData: vi.fn(),
+      memberships: [],
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+      enterDemoMode: vi.fn(),
+      exitDemoMode: vi.fn(),
       ...overrides,
     };
 

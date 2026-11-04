@@ -204,7 +204,7 @@ test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Ph
       await dialog.getByLabel('Purchase Cost (₹)').fill('3200');
       await dialog.getByLabel('Selling Price (₹)').fill('3800');
 
-      await dialog.getByRole('button', { name: 'Save Product' }).click();
+      await dialog.getByRole('button', { name: 'Create Product' }).click();
       await expect(dialog).not.toBeVisible();
 
       await expect(page.getByText('TEST-SKU-999', { exact: true })).toBeVisible();
