@@ -392,6 +392,7 @@ async function runAcceptance() {
   const userAId = crypto.randomUUID();
   const userBId = crypto.randomUUID();
   const custAId = crypto.randomUUID();
+  const custBId = crypto.randomUUID();
   const prodA1Id = crypto.randomUUID();
   const prodA2Id = crypto.randomUUID();
   const prodB1Id = crypto.randomUUID();
@@ -543,7 +544,8 @@ async function runAcceptance() {
       ('${orgBId}', 'pro', 'active', now() + interval '30 days');
 
       INSERT INTO customers (id, organization_id, name, phone, gstin) VALUES
-      ('${custAId}', '${orgAId}', 'Apex Power Projects', '9876543210', '29AAACP1234A1Z1');
+      ('${custAId}', '${orgAId}', 'Apex Power Projects', '9876543210', '29AAACP1234A1Z1'),
+      ('${custBId}', '${orgBId}', 'Org B Industrial Controls', '9123456780', '29AABCU9603R1ZM');
 
       -- Products fixture with valid NOT NULL category ('Wires & Cables', 'Switchgear') from Migration 002
       INSERT INTO products (id, organization_id, name, sku, category, uom, purchase_cost, selling_price, tax_rate, reorder_threshold, is_active) VALUES
@@ -1751,12 +1753,25 @@ async function runAcceptance() {
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let auditValid = false;
       let auditErr = null;
+      let auditRecord = null;
       try {
+        if (!panOrgId) {
+          throw new Error('Prerequisite organization creation (P1-A1-01) failed; cannot verify audit event');
+        }
         const { rows } = await testClient.query(
-          `SELECT organization_id, action, details FROM audit_events WHERE action = 'ORGANIZATION_CREATED_ATOMIC' ORDER BY created_at DESC LIMIT 1;`
+          `SELECT organization_id, action, entity_type, entity_id, details FROM audit_events WHERE organization_id = $1::uuid AND action = 'ORGANIZATION_CREATED_ATOMIC' ORDER BY created_at DESC LIMIT 1;`,
+          [panOrgId]
         );
-        const latestAudit = rows[0];
-        auditValid = latestAudit && latestAudit.details && typeof latestAudit.details === 'object';
+        auditRecord = rows[0];
+        const hasDetailsObj = auditRecord && auditRecord.details && typeof auditRecord.details === 'object';
+        const hasCorrectOrg = auditRecord && auditRecord.organization_id === panOrgId;
+        const hasMaskedPan = auditRecord?.details?.pan && String(auditRecord.details.pan).startsWith('XXXXX');
+        const hasMaskedGstin = auditRecord?.details?.gstin && String(auditRecord.details.gstin).includes('XXXXX');
+        const hasCategory = Boolean(auditRecord?.details?.category);
+        auditValid = Boolean(hasDetailsObj && hasCorrectOrg && hasMaskedPan && hasMaskedGstin && hasCategory);
+        if (!auditValid) {
+          throw new Error(`Audit event validation failed: record=${JSON.stringify(auditRecord)}`);
+        }
       } catch (err) {
         auditErr = err;
       }
@@ -1764,7 +1779,7 @@ async function runAcceptance() {
         'P1-A1-08',
         'Audit events table uses authoritative "details" column (resolving "metadata" defect)',
         Boolean(auditValid),
-        `Latest audit event loaded successfully using details JSONB column`,
+        `Audit event verified: org=${auditRecord?.organization_id}, details.pan=${auditRecord?.details?.pan}, details.gstin=${auditRecord?.details?.gstin}`,
         auditValid ? null : auditErr
       );
     });
@@ -1798,7 +1813,7 @@ async function runAcceptance() {
       );
     });
 
-    // TEST 26: Sensitive identifier protection & Masking
+    // TEST 26: Sensitive identifier protection & Masking (Requires non-empty audit rows)
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let privacyCompliant = false;
       let privacyErr = null;
@@ -1806,11 +1821,18 @@ async function runAcceptance() {
         const { rows } = await testClient.query(
           `SELECT details FROM audit_events WHERE action = 'ORGANIZATION_CREATED_ATOMIC' ORDER BY created_at DESC LIMIT 5;`
         );
+        if (!rows || rows.length === 0) {
+          throw new Error('Zero audit events found for ORGANIZATION_CREATED_ATOMIC; cannot verify privacy compliance');
+        }
         const hasRawPan = rows.some((r) => {
           const d = JSON.stringify(r.details || {});
           return d.includes('ABCDE1234F') && !d.includes('XXXXX1234F');
         });
-        privacyCompliant = !hasRawPan;
+        const hasMaskedPan = rows.some((r) => {
+          const d = JSON.stringify(r.details || {});
+          return d.includes('XXXXX1234F');
+        });
+        privacyCompliant = !hasRawPan && hasMaskedPan;
       } catch (err) {
         privacyErr = err;
       }
@@ -1818,18 +1840,19 @@ async function runAcceptance() {
         'P1-A1-11',
         'Sensitive identifier privacy: PAN and GSTIN are masked in audit_events details',
         privacyCompliant,
-        `Zero raw PAN identifiers leaked into audit details`,
+        `Zero raw PAN identifiers leaked into audit details; verified masked records present`,
         privacyCompliant ? null : privacyErr
       );
     });
 
     // TEST 27: Continuing identity enforcement on UPDATE
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      // Subtest A: Removing PAN from an approved organization is strictly rejected
       let removePanBlocked = false;
       let removePanErr = null;
       try {
         await testClient.query(
-          `UPDATE organizations SET pan = NULL, gstin = NULL WHERE id = $1::uuid;`,
+          `UPDATE organizations SET pan = NULL WHERE id = $1::uuid;`,
           [orgAId]
         );
       } catch (err) {
@@ -1837,11 +1860,25 @@ async function runAcceptance() {
         removePanBlocked = err.message.includes('ERR_CANNOT_REMOVE_PAN');
       }
 
+      // Subtest B: Changing PAN without updating a previously recorded GSTIN is rejected by cross-validation
+      let mismatchBlocked = false;
+      let mismatchErr = null;
+      try {
+        await testClient.query(
+          `UPDATE organizations SET pan = 'ZYXWV9876U' WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+      } catch (err) {
+        mismatchErr = err;
+        mismatchBlocked = err.message.includes('ERR_PAN_GSTIN_MISMATCH');
+      }
+
+      // Subtest C & D: Changing PAN with an appropriately matching replacement GSTIN triggers demotion to review_required
       let alterDemoted = false;
       let alterErr = null;
       try {
         await testClient.query(
-          `UPDATE organizations SET pan = 'ZYXWV9876U' WHERE id = $1::uuid;`,
+          `UPDATE organizations SET pan = 'ZYXWV9876U', gstin = '29ZYXWV9876U1Z5' WHERE id = $1::uuid;`,
           [orgAId]
         );
         const { rows: elRows } = await testClient.query(
@@ -1853,13 +1890,31 @@ async function runAcceptance() {
         alterErr = err;
       }
 
-      const continuingPassed = removePanBlocked && alterDemoted;
+      // Subtest E: Existing subscriptions and trial dates remain intact after identity change
+      let subIntact = false;
+      const { rows: subRows } = await testClient.query(
+        `SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1::uuid;`,
+        [orgAId]
+      );
+      subIntact = subRows[0]?.status === 'active';
+
+      // Subtest F: Unauthorized user (e.g. userB) cannot change orgA's business identity
+      let unauthBlocked = false;
+      await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+        const { rowCount } = await testClient.query(
+          `UPDATE organizations SET name = 'Unauthorized Hijack' WHERE id = $1::uuid;`,
+          [orgAId]
+        );
+        unauthBlocked = rowCount === 0;
+      });
+
+      const continuingPassed = removePanBlocked && mismatchBlocked && alterDemoted && subIntact && unauthBlocked;
       recordTest(
         'P1-A1-13',
         'Continuing identity enforcement: Cannot remove PAN from approved org; altering PAN demotes status to review_required',
         continuingPassed,
-        `removeBlocked=${removePanBlocked}, alterDemoted=${alterDemoted}`,
-        continuingPassed ? null : (removePanErr || alterErr)
+        `removeBlocked=${removePanBlocked}, mismatchBlocked=${mismatchBlocked}, alterDemoted=${alterDemoted}, subIntact=${subIntact}, unauthBlocked=${unauthBlocked}`,
+        continuingPassed ? null : (removePanErr || mismatchErr || alterErr || new Error('Subtest failed'))
       );
     });
 
@@ -1901,10 +1956,23 @@ async function runAcceptance() {
             p_status := 'ISSUED',
             p_idempotency_key := $4::uuid
           ) AS inv;`,
-          [orgBId, custAId, prodB1Id, crypto.randomUUID()]
+          [orgBId, custBId, prodB1Id, crypto.randomUUID()]
         );
         const inv = invRows[0]?.inv;
-        zeroTaxPassed = inv && Number(inv.tax_amount) === 0 && Number(inv.total_amount) === 200.00;
+        const zeroTaxAmount = inv && Number(inv.tax_amount) === 0;
+        const correctTotal = inv && Number(inv.total_amount) === 200.00;
+        const correctSubtotal = inv && Number(inv.subtotal) === 200.00;
+        const item = inv?.items?.[0];
+        const itemZeroRate = item && Number(item.tax_rate) === 0 && Number(item.line_tax) === 0 && Number(item.line_total) === 200.00;
+
+        // Verify database persistence of the item tax rate
+        const { rows: dbItemRows } = await testClient.query(
+          `SELECT tax_rate, line_tax, line_total FROM invoice_items WHERE invoice_id = $1::uuid;`,
+          [inv?.id]
+        );
+        const dbItemPersisted = dbItemRows.length > 0 && Number(dbItemRows[0].tax_rate) === 0 && Number(dbItemRows[0].line_tax) === 0;
+
+        zeroTaxPassed = Boolean(zeroTaxAmount && correctTotal && correctSubtotal && itemZeroRate && dbItemPersisted);
       } catch (err) {
         zeroTaxErr = err;
       }
@@ -1912,7 +1980,7 @@ async function runAcceptance() {
         'P1-A1-15',
         'Explicit 0% tax rate on invoice line item is preserved and calculates exactly zero tax (exempt supply)',
         zeroTaxPassed,
-        `Invoice created with 0% tax: tax_amount=0.00, total=200.00`,
+        `Invoice created with 0% tax: tax_amount=0.00, total=200.00, item.tax_rate=0, dbPersisted=${zeroTaxPassed}`,
         zeroTaxPassed ? null : zeroTaxErr
       );
     });

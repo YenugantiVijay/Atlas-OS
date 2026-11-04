@@ -50,6 +50,8 @@ GRANT EXECUTE ON FUNCTION public.mask_gstin(TEXT) TO PUBLIC, anon, authenticated
 CREATE OR REPLACE FUNCTION public.validate_organization_pan_gstin()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_eligibility_status public.eligibility_status_type;
@@ -83,6 +85,15 @@ BEGIN
         END IF;
     END IF;
 
+    -- Continuing Identity Enforcement on UPDATE:
+    -- Guard A: An organization with a registered PAN cannot have its PAN removed
+    -- (Evaluated before auto-derive to prevent explicit clearing of PAN)
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.pan IS NOT NULL AND NEW.pan IS NULL THEN
+            RAISE EXCEPTION 'ERR_CANNOT_REMOVE_PAN: Cannot remove PAN from an active registered organization';
+        END IF;
+    END IF;
+
     -- Cross-validate: if both GSTIN and PAN are present, verify embedded PAN matches submitted PAN
     IF NEW.gstin IS NOT NULL AND NEW.pan IS NOT NULL THEN
         IF substring(NEW.gstin from 3 for 10) != NEW.pan THEN
@@ -99,11 +110,6 @@ BEGIN
         SELECT status INTO v_eligibility_status
         FROM public.organization_eligibility
         WHERE organization_id = NEW.id;
-
-        -- Guard A: An approved organization cannot have its PAN removed
-        IF OLD.pan IS NOT NULL AND NEW.pan IS NULL THEN
-            RAISE EXCEPTION 'ERR_CANNOT_REMOVE_PAN: Cannot remove PAN from an active registered organization';
-        END IF;
 
         -- Guard B: If an approved organization changes its PAN (legal entity alteration),
         -- its approval is automatically revoked to 'review_required' to prevent unverified privilege carryover
@@ -261,13 +267,15 @@ BEGIN
             p_business_category::text,
             p_sells_electrical_products::text,
             coalesce(array_to_string(v_product_lines, ','), ''),
-            coalesce(p_pan_exception_reason, '')
+            coalesce(p_pan_exception_reason, ''),
+            coalesce(p_pan_exception_reference, '')
         ));
 
         SELECT organization_id, request_hash
           INTO v_existing_org_id, v_existing_hash
-          FROM public.organization_creation_requests
-         WHERE idempotency_key = p_idempotency_key;
+          FROM public.organization_creation_idempotency
+         WHERE user_id = v_uid
+           AND idempotency_key = p_idempotency_key;
 
         IF FOUND THEN
             IF v_existing_hash = v_request_hash THEN
@@ -285,12 +293,23 @@ BEGIN
                         'city', o.city,
                         'state', o.state,
                         'pincode', o.pincode,
+                        'role', 'owner',
+                        'eligibility_status', coalesce(e.status::text, 'review_required'),
+                        'business_category', e.business_category,
+                        'sells_electrical_products', coalesce(e.sells_electrical_products, false),
+                        'product_lines', to_jsonb(coalesce(e.product_lines, '{}'::text[])),
+                        'rejection_reason', e.rejection_reason,
+                        'reviewer_notes', e.reviewer_notes,
+                        'trial_initialized', EXISTS (
+                            SELECT 1 FROM public.organization_subscriptions s
+                            WHERE s.organization_id = o.id AND s.status = 'trialing'
+                        ),
                         'created_at', o.created_at,
                         'updated_at', o.updated_at,
-                        'role', 'owner',
                         'idempotent_replay', true
                     )
                     FROM public.organizations o
+                    LEFT JOIN public.organization_eligibility e ON e.organization_id = o.id
                     WHERE o.id = v_existing_org_id
                 );
             ELSE
@@ -396,15 +415,15 @@ BEGIN
 
     -- 7. Record Idempotency mapping
     IF p_idempotency_key IS NOT NULL THEN
-        INSERT INTO public.organization_creation_requests (
-            idempotency_key,
+        INSERT INTO public.organization_creation_idempotency (
             user_id,
+            idempotency_key,
             organization_id,
             request_hash,
             created_at
         ) VALUES (
-            p_idempotency_key,
             v_uid,
+            p_idempotency_key,
             v_org_id,
             v_request_hash,
             v_now
