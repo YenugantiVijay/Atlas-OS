@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LoadError } from '@/components/ui/LoadError';
 import {
   Receipt,
@@ -29,7 +29,7 @@ export const InvoicesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
     if (!currentOrg) return;
     setIsLoading(true);
     setLoadError(null);
@@ -41,11 +41,11 @@ export const InvoicesPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentOrg, isMockAuth]);
 
   useEffect(() => {
     loadInvoices();
-  }, [currentOrg, isMockAuth]);
+  }, [loadInvoices]);
 
   const filteredInvoices = invoices.filter((i) => {
     const s = searchQuery.toLowerCase();

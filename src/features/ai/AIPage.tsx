@@ -73,7 +73,7 @@ export const AIPage: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
-  }, [currentOrg?.id]);
+  }, [currentOrg?.id, currentOrg?.name]);
 
   const sampleQueries = [
     { label: "Summarize today's sales & orders", query: "Summarize today's orders and sales." },

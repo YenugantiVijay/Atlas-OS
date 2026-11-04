@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Boxes,
@@ -75,12 +75,15 @@ export const ProductsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const clearActionParam = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (nextParams.has('action')) {
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const loadProducts = useCallback(async (): Promise<Product[] | null> => {
     if (!currentOrg) return null;
@@ -124,15 +127,30 @@ export const ProductsPage: React.FC = () => {
     clearActionParam();
   }, [check, clearActionParam, showToast]);
 
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const handleOpenCreateRef = useRef(handleOpenCreate);
+  handleOpenCreateRef.current = handleOpenCreate;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   useEffect(() => {
     setSearchQuery(searchParams.get('search') || '');
-    const requestedAction = searchParams.get('action');
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = searchParamsRef.current;
+    const requestedAction = params.get('action');
 
     if (requestedAction === 'create') {
-      const perm = check('products:create');
+      const perm = checkRef.current('products:create');
       if (!perm.allowed) {
-        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParam();
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
         loadProducts();
         return;
       }
@@ -142,10 +160,10 @@ export const ProductsPage: React.FC = () => {
     loadProducts().then((res) => {
       setIsPreparingCreate(false);
       if (requestedAction === 'create' && res) {
-        handleOpenCreate();
+        handleOpenCreateRef.current();
       }
     });
-  }, [currentOrg?.id, isMockAuth]);
+  }, [loadProducts]);
 
   useEffect(() => {
     const action = searchParams.get('action');

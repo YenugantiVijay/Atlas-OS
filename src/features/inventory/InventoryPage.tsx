@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Sliders,
   History,
@@ -6,8 +7,6 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
-import { useSafeSearchParams } from '@/hooks/useSafeSearchParams';
-import { useSafeNavigate } from '@/hooks/useSafeNavigate';
 import { inventoryService } from '@/services/inventory.service';
 import { productsService } from '@/services/products.service';
 import { StockMovement, Product, MovementType } from '@/types';
@@ -28,8 +27,8 @@ export const InventoryPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
   const { check } = useActionPermission();
   const { showToast } = useToast();
-  const [searchParams, setSearchParams] = useSafeSearchParams();
-  const navigate = useSafeNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -51,12 +50,15 @@ export const InventoryPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const clearActionParam = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (nextParams.has('action')) {
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const loadData = useCallback(async (): Promise<{ movs: StockMovement[]; prods: Product[] } | null> => {
     if (!currentOrg) return null;
@@ -104,13 +106,25 @@ export const InventoryPage: React.FC = () => {
     clearActionParam();
   }, [check, products, clearActionParam, showToast]);
 
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const handleOpenAdjustmentRef = useRef(handleOpenAdjustment);
+  handleOpenAdjustmentRef.current = handleOpenAdjustment;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   useEffect(() => {
-    const action = searchParams.get('action');
+    const params = searchParamsRef.current;
+    const action = params.get('action');
     if (action === 'adjust' || action === 'create') {
-      const perm = check('inventory:adjust');
+      const perm = checkRef.current('inventory:adjust');
       if (!perm.allowed) {
-        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParam();
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
         loadData();
         return;
       }
@@ -120,10 +134,10 @@ export const InventoryPage: React.FC = () => {
     loadData().then((res) => {
       setIsPreparingAdjustment(false);
       if ((action === 'adjust' || action === 'create') && res) {
-        handleOpenAdjustment(res.prods);
+        handleOpenAdjustmentRef.current(res.prods);
       }
     });
-  }, [currentOrg?.id, isMockAuth]);
+  }, [loadData]);
 
   useEffect(() => {
     const action = searchParams.get('action');

@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { SuppliersPage } from './SuppliersPage';
 import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { suppliersService } from '@/services/suppliers.service';
@@ -132,7 +133,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
   it('renders suppliers table and allows searching in read-only mode', async () => {
     setupOrgMock({ canWriteOperations: false });
 
-    render(<SuppliersPage />);
+    render(
+      <MemoryRouter>
+        <SuppliersPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();
@@ -154,7 +159,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
     it('disables the Add Supplier header button with descriptive title tooltip', async () => {
       setupOrgMock({ canWriteOperations: false });
 
-      render(<SuppliersPage />);
+      render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();
@@ -172,7 +181,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
       setupOrgMock({ canWriteOperations: false });
       vi.spyOn(suppliersService, 'getSuppliers').mockResolvedValue([]);
 
-      render(<SuppliersPage />);
+      render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('No suppliers found')).toBeInTheDocument();
@@ -191,7 +204,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
     it('disables the Add Supplier header button and prevents opening modal', async () => {
       setupOrgMock({ canWriteOperations: false });
 
-      render(<SuppliersPage />);
+      render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();
@@ -208,7 +225,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
       // Start with write operations allowed
       setupOrgMock({ canWriteOperations: true });
 
-      const { rerender } = render(<SuppliersPage />);
+      const { rerender } = render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();
@@ -220,7 +241,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
 
       // Revoke write access while modal is open
       setupOrgMock({ canWriteOperations: false });
-      rerender(<SuppliersPage />);
+      rerender(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       // Fill in details and attempt to submit form
       fireEvent.change(screen.getByLabelText(/Supplier Name \/ Depot/i), {
@@ -246,7 +271,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
     it('enables the Add Supplier button, opens modal, and saves new supplier', async () => {
       setupOrgMock({ canWriteOperations: true });
 
-      render(<SuppliersPage />);
+      render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();
@@ -297,7 +326,11 @@ describe('SuppliersPage — Operational Write Restrictions & Read-Only Access', 
         canWriteOperations: false,
       });
 
-      render(<SuppliersPage />);
+      render(
+        <MemoryRouter>
+          <SuppliersPage />
+        </MemoryRouter>
+      );
 
       await waitFor(() => {
         expect(screen.getByText('Havells India Regional Depot')).toBeInTheDocument();

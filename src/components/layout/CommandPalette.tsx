@@ -36,6 +36,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const { currentOrg, currentRole, isMockAuth } = useOrg();
+  const { check: checkActionPermission } = useActionPermission();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,8 +90,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'ATLAS AI Assistant', icon: <Sparkles className="w-4 h-4 text-atlas-600" />, path: '/ai' },
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => item.path === '/' || hasPermission(currentRole, item.path === '/audit' ? 'audit:read' : 'data:read'));
-
-  const { check: checkActionPermission } = useActionPermission();
 
   const quickActions = [
     { label: 'New Product', type: 'product', action: 'products:create' as Action },

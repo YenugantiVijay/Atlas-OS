@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CreditCard,
@@ -65,12 +65,15 @@ export const PaymentsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const clearActionParam = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (nextParams.has('action')) {
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const loadData = useCallback(async (): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
     if (!currentOrg) return null;
@@ -137,16 +140,28 @@ export const PaymentsPage: React.FC = () => {
     clearActionParam();
   }, [check, clearActionParam, showToast]);
 
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const initializeAndOpenRecordRef = useRef(initializeAndOpenRecord);
+  initializeAndOpenRecordRef.current = initializeAndOpenRecord;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   // Initial load effect
   useEffect(() => {
     let active = true;
-    const requestedAction = searchParams.get('action');
+    const params = searchParamsRef.current;
+    const requestedAction = params.get('action');
 
     if (requestedAction === 'record') {
-      const perm = check('payments:record');
+      const perm = checkRef.current('payments:record');
       if (!perm.allowed) {
-        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParam();
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
         loadData();
         return;
       }
@@ -158,17 +173,17 @@ export const PaymentsPage: React.FC = () => {
       setIsPreparingRecord(false);
       if (requestedAction === 'record') {
         if (!result) {
-          showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+          showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
           return;
         }
-        initializeAndOpenRecord(result.customers);
+        initializeAndOpenRecordRef.current(result.customers);
       }
     });
 
     return () => {
       active = false;
     };
-  }, [currentOrg?.id, isMockAuth]);
+  }, [loadData]);
 
   // Listen for action=record if navigation happens while component is already mounted
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -73,12 +73,15 @@ export const OrdersPage: React.FC = () => {
   const [invoicingOrderId, setInvoicingOrderId] = useState<string | null>(null);
 
   const clearActionParam = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (nextParams.has('action')) {
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const loadData = useCallback(async (): Promise<{ customers: Customer[]; products: Product[] } | null> => {
     if (!currentOrg) return null;
@@ -156,16 +159,28 @@ export const OrdersPage: React.FC = () => {
     clearActionParam();
   }, [check, clearActionParam, showToast]);
 
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const initializeAndOpenCreateRef = useRef(initializeAndOpenCreate);
+  initializeAndOpenCreateRef.current = initializeAndOpenCreate;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   // Initial load effect
   useEffect(() => {
     let active = true;
-    const requestedAction = searchParams.get('action');
+    const params = searchParamsRef.current;
+    const requestedAction = params.get('action');
 
     if (requestedAction === 'create') {
-      const perm = check('orders:create');
+      const perm = checkRef.current('orders:create');
       if (!perm.allowed) {
-        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParam();
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
         loadData();
         return;
       }
@@ -177,17 +192,17 @@ export const OrdersPage: React.FC = () => {
       setIsPreparingCreate(false);
       if (requestedAction === 'create') {
         if (!result) {
-          showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+          showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
           return;
         }
-        initializeAndOpenCreate(result.customers, result.products);
+        initializeAndOpenCreateRef.current(result.customers, result.products);
       }
     });
 
     return () => {
       active = false;
     };
-  }, [currentOrg?.id, isMockAuth]);
+  }, [loadData]);
 
   // Listen for action=create if navigation happens while component is already mounted
   useEffect(() => {

@@ -1,8 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Plus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { useSafeNavigate } from '@/hooks/useSafeNavigate';
 
 export interface PrerequisiteInfo {
   type: 'customer' | 'product';
@@ -31,7 +31,7 @@ export const PrerequisiteModal: React.FC<PrerequisiteModalProps> = ({
   actionLabel,
   onAction,
 }) => {
-  const navigate = useSafeNavigate();
+  const navigate = useNavigate();
 
   const isModalOpen = isOpen !== undefined ? isOpen : !!prerequisite;
   if (!isModalOpen) return null;

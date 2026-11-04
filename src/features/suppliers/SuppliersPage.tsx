@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSafeSearchParams } from '@/hooks/useSafeSearchParams';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Truck,
   Plus,
@@ -28,7 +28,7 @@ export const SuppliersPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
   const { check } = useActionPermission();
   const { showToast } = useToast();
-  const [searchParams, setSearchParams] = useSafeSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,12 +50,15 @@ export const SuppliersPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const clearActionParam = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (nextParams.has('action')) {
-      nextParams.delete('action');
-      setSearchParams(nextParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        return nextParams;
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const loadSuppliers = useCallback(async (): Promise<Supplier[] | null> => {
     if (!currentOrg) return null;
@@ -94,14 +97,26 @@ export const SuppliersPage: React.FC = () => {
     clearActionParam();
   }, [check, clearActionParam, showToast]);
 
+  const checkRef = useRef(check);
+  checkRef.current = check;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const clearActionParamRef = useRef(clearActionParam);
+  clearActionParamRef.current = clearActionParam;
+  const handleOpenCreateRef = useRef(handleOpenCreate);
+  handleOpenCreateRef.current = handleOpenCreate;
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   useEffect(() => {
-    const requestedAction = searchParams.get('action');
+    const params = searchParamsRef.current;
+    const requestedAction = params.get('action');
 
     if (requestedAction === 'create') {
-      const perm = check('suppliers:manage');
+      const perm = checkRef.current('suppliers:manage');
       if (!perm.allowed) {
-        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParam();
+        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParamRef.current();
         loadSuppliers();
         return;
       }
@@ -111,10 +126,10 @@ export const SuppliersPage: React.FC = () => {
     loadSuppliers().then((res) => {
       setIsPreparingCreate(false);
       if (requestedAction === 'create' && res) {
-        handleOpenCreate();
+        handleOpenCreateRef.current();
       }
     });
-  }, [currentOrg?.id, isMockAuth]);
+  }, [loadSuppliers]);
 
   useEffect(() => {
     const action = searchParams.get('action');
