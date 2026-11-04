@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { validateBusinessTaxIdentifiers, maskPan } from '@/lib/validation';
 
 const SUGGESTED_PRODUCT_LINES = [
   'Wires & Cables',
@@ -214,23 +215,21 @@ export const OnboardingPage: React.FC = () => {
     }
 
     const trimmedGstin = gstin.trim().toUpperCase();
-    let effectivePan = pan.trim().toUpperCase();
-    if (!effectivePan && trimmedGstin.length >= 12) {
-      const derived = trimmedGstin.substring(2, 12);
-      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(derived)) {
-        effectivePan = derived;
-      }
-    }
+    const rawPan = pan.trim().toUpperCase();
 
-    if (trimmedGstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(trimmedGstin)) {
-      setErrorMessage('Invalid GSTIN format. Expected 15-character format (e.g. 29ABCDE1234F1Z5).');
+    const taxValidation = validateBusinessTaxIdentifiers({
+      gstin: trimmedGstin || undefined,
+      pan: rawPan || undefined,
+      requirePan: false,
+      allowException: true,
+    });
+
+    if (!taxValidation.valid) {
+      setErrorMessage(taxValidation.error || 'Invalid business tax identifiers.');
       return;
     }
 
-    if (effectivePan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(effectivePan)) {
-      setErrorMessage('Invalid PAN format. Expected 10-character format (e.g. ABCDE1234F).');
-      return;
-    }
+    const effectivePan = taxValidation.effectivePan;
 
     setIsSubmitting(true);
 
@@ -262,14 +261,15 @@ export const OnboardingPage: React.FC = () => {
       navigate('/', { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('ERR_IDEMPOTENCY_CONFLICT')) {
+      const sanitized = effectivePan ? msg.replace(new RegExp(effectivePan, 'g'), maskPan(effectivePan)) : msg;
+      if (sanitized.includes('ERR_IDEMPOTENCY_CONFLICT')) {
         setIdempotencyConflict(true);
         setErrorMessage(
           'A submission conflict occurred because details changed between attempts. Please click "Reset Submission Key" below to proceed.'
         );
       } else {
-        setErrorMessage(msg);
-        showToast('error', 'Creation Failed', msg);
+        setErrorMessage(sanitized);
+        showToast('error', 'Creation Failed', sanitized);
       }
       // Note: User form values are preserved in state for safe retry
     } finally {

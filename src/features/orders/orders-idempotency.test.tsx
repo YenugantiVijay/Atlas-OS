@@ -121,6 +121,7 @@ describe('OrdersPage — Frontend Submission Idempotency & Retry Integrity', () 
         updatedAt: '2026-01-01T00:00:00Z',
       },
       canWriteOperations: true,
+      declareEligibility: vi.fn(),
       switchOrganization: vi.fn(),
       createOrganization: vi.fn(),
       updateOrganization: vi.fn(),

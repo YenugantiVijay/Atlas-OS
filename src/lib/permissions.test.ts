@@ -126,17 +126,45 @@ describe('evaluateActionPermission Lifecycle & Boundary Guarding', () => {
     expect(result.message).toContain('select an active organization');
   });
 
-  it('denies action when eligibility is not approved (eligibility_restricted)', () => {
+  it('denies action when eligibility is missing (verification_incomplete)', () => {
     const result = evaluateActionPermission('orders:create', {
       ...baseLiveContext,
-      eligibility: { status: 'pending' },
+      eligibility: null,
     });
     expect(result.allowed).toBe(false);
-    expect(result.reason).toBe('eligibility_restricted');
-    expect(result.message).toContain('eligibility is pending');
+    expect(result.reason).toBe('verification_incomplete');
+    expect(result.title).toBe('Business Verification Incomplete');
+    expect(result.actionRoute).toBe('/settings');
+    expect(result.actionLabel).toBe('Complete Verification');
   });
 
-  it('denies action when subscription trial is expired (subscription_restricted)', () => {
+  it('denies action when eligibility requires manual review (manual_review_pending)', () => {
+    const result = evaluateActionPermission('orders:create', {
+      ...baseLiveContext,
+      eligibility: { status: 'review_required' },
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('manual_review_pending');
+    expect(result.title).toBe('Manual Review Pending');
+    expect(result.actionLabel).toBe('View Business Status');
+  });
+
+  it('denies action when eligibility was rejected (eligibility_rejected)', () => {
+    const result = evaluateActionPermission('orders:create', {
+      ...baseLiveContext,
+      eligibility: {
+        status: 'rejected',
+        rejectionReason: 'Unsupported business category.',
+      },
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('eligibility_rejected');
+    expect(result.title).toBe('Business Eligibility Rejected');
+    expect(result.message).toContain('Unsupported business category');
+    expect(result.actionLabel).toBe('Complete Verification');
+  });
+
+  it('denies action when subscription trial is expired (trial_expired)', () => {
     const result = evaluateActionPermission('orders:create', {
       ...baseLiveContext,
       subscription: {
@@ -145,8 +173,43 @@ describe('evaluateActionPermission Lifecycle & Boundary Guarding', () => {
       },
     });
     expect(result.allowed).toBe(false);
-    expect(result.reason).toBe('subscription_restricted');
-    expect(result.message).toContain('trial has expired');
+    expect(result.reason).toBe('trial_expired');
+    expect(result.title).toBe('Trial Expired');
+    expect(result.message).toContain('7-day trial has expired');
+    expect(result.actionLabel).toBe('View Business Status');
+  });
+
+  it('denies action when subscription is missing or inactive (subscription_inactive)', () => {
+    const result = evaluateActionPermission('orders:create', {
+      ...baseLiveContext,
+      subscription: null,
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('subscription_inactive');
+    expect(result.title).toBe('Subscription Inactive');
+    expect(result.actionLabel).toBe('View Business Status');
+  });
+
+  it('denies action when verification service fails (verification_unavailable)', () => {
+    const result = evaluateActionPermission('orders:create', {
+      ...baseLiveContext,
+      authError: 'Network error 503 Service Unavailable',
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('verification_unavailable');
+    expect(result.title).toBe('Verification Temporarily Unavailable');
+    expect(result.actionLabel).toBe('View Business Status');
+  });
+
+  it('provides View Business Status actionLabel for non-owners when verification is incomplete', () => {
+    const result = evaluateActionPermission('orders:create', {
+      ...baseLiveContext,
+      role: 'admin',
+      eligibility: null,
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('verification_incomplete');
+    expect(result.actionLabel).toBe('View Business Status');
   });
 
   it('denies action when operational write access is false fallback', () => {
@@ -155,7 +218,7 @@ describe('evaluateActionPermission Lifecycle & Boundary Guarding', () => {
       canWriteOperations: false,
     });
     expect(result.allowed).toBe(false);
-    expect(result.reason).toBe('subscription_restricted');
+    expect(result.reason).toBe('subscription_inactive');
     expect(result.message).toBe('Write operations are disabled for your account');
   });
 });

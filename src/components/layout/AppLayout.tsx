@@ -9,7 +9,9 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Button } from '@/components/ui/Button';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { useToast } from '@/components/ui/Toast';
-import { hasPermission, Action } from '@/lib/permissions';
+import { Action } from '@/lib/permissions';
+import { useActionPermission } from '@/hooks/useActionPermission';
+import { BusinessVerificationModal } from '@/features/organizations/BusinessVerificationModal';
 
 export const RouteLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[380px] gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -28,8 +30,10 @@ export const AppLayout: React.FC = () => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isNewOrgModalOpen, setIsNewOrgModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { check: checkActionPermission } = useActionPermission();
 
   const {
     isDemoMode,
@@ -78,20 +82,12 @@ export const AppLayout: React.FC = () => {
     };
     const reqAction = actionMap[actionType] || 'orders:create';
 
-    if (!hasPermission(currentRole, reqAction)) {
+    const perm = checkActionPermission(reqAction);
+    if (!perm.allowed) {
       showToast(
-        'error',
-        'Permission Denied',
-        `Your current role (${currentRole ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) : 'Viewer'}) does not have permission to perform this action.`
-      );
-      return;
-    }
-
-    if (!canWriteOperations && !isDemoMode) {
-      showToast(
-        'warning',
-        'Action Restricted',
-        'Operational write access is disabled. Please verify your business eligibility and subscription status.'
+        perm.reason === 'role_unauthorized' ? 'error' : 'warning',
+        perm.title || 'Action Restricted',
+        perm.message || 'Operational write access is disabled. Please verify your business eligibility and subscription status.'
       );
       return;
     }
@@ -271,71 +267,139 @@ export const AppLayout: React.FC = () => {
 
               {eligibility?.status === 'rejected' && (
                 <div
-                  className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-950 text-xs flex items-center justify-between gap-3 animate-in fade-in"
                   data-testid="eligibility-rejected-banner"
                 >
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-semibold text-rose-900">
-                      Business Eligibility Rejected
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-rose-900">
+                        Business Eligibility Rejected
+                      </div>
+                      <p className="text-rose-800 leading-relaxed">
+                        {eligibility.rejectionReason ||
+                          'This organization does not meet the ATLAS OS business model eligibility requirements for electrical distribution.'}{' '}
+                        Operational write features are disabled.
+                      </p>
                     </div>
-                    <p className="text-rose-800 leading-relaxed">
-                      {eligibility.rejectionReason ||
-                        'This organization does not meet the ATLAS OS business model eligibility requirements for electrical distribution.'}{' '}
-                      Operational write features are disabled.
-                    </p>
                   </div>
+                  {currentRole === 'owner' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white/90 hover:bg-white text-xs border-rose-300 text-rose-950"
+                      onClick={() => setIsVerificationModalOpen(true)}
+                      data-testid="resubmit-verification-btn"
+                    >
+                      Resubmit Verification
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white/90 hover:bg-white text-xs border-rose-300 text-rose-950"
+                      onClick={() => navigate('/settings')}
+                      data-testid="view-status-rejected-btn"
+                    >
+                      View Business Status
+                    </Button>
+                  )}
                 </div>
               )}
 
               {eligibility?.status === 'review_required' && (
                 <div
-                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-center justify-between gap-3 animate-in fade-in"
                   data-testid="eligibility-review-banner"
                 >
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-semibold text-amber-900">
-                      Eligibility Declaration Pending Manual Review
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-amber-900">
+                        Eligibility Declaration Pending Manual Review
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        Your business category or product lines declaration requires manual compliance review. Operational write access will remain paused until verified.
+                      </p>
                     </div>
-                    <p className="text-amber-800 leading-relaxed">
-                      Your business category or product lines declaration requires manual compliance review. Operational write access will remain paused until verified.
-                    </p>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 bg-white/90 hover:bg-white text-xs border-amber-300 text-amber-950"
+                    onClick={() => navigate('/settings')}
+                    data-testid="view-status-review-btn"
+                  >
+                    View Business Status
+                  </Button>
                 </div>
               )}
 
               {eligibility?.status === 'approved' && !canWriteOperations && subscription?.status === 'trialing' && (
                 <div
-                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex items-center justify-between gap-3 animate-in fade-in"
                   data-testid="subscription-expired-banner"
                 >
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-semibold text-amber-900">
-                      7-Day Trial Expired
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-amber-900">
+                        7-Day Trial Expired
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        Your complimentary 7-day trial period has ended. Operational writes are disabled. Existing records remain accessible for statutory reporting and export.
+                      </p>
                     </div>
-                    <p className="text-amber-800 leading-relaxed">
-                      Your complimentary 7-day trial period has ended. Operational writes are disabled. Existing records remain accessible for statutory reporting and export.
-                    </p>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 bg-white/90 hover:bg-white text-xs border-amber-300 text-amber-950"
+                    onClick={() => navigate('/settings')}
+                    data-testid="view-status-expired-btn"
+                  >
+                    View Business Status
+                  </Button>
                 </div>
               )}
 
               {!eligibility && !authError && !isSwitchingOrg && (
                 <div
-                  className="mb-5 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-950 text-xs flex items-start gap-3 animate-in fade-in"
+                  className="mb-5 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-950 text-xs flex items-center justify-between gap-3 animate-in fade-in"
                   data-testid="eligibility-missing-banner"
                 >
-                  <AlertCircle className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-semibold text-slate-900">
-                      Business Eligibility Undeclared
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-slate-900">
+                        Business Eligibility Undeclared
+                      </div>
+                      <p className="text-slate-800 leading-relaxed">
+                        This organization has not completed mandatory business model declaration.
+                      </p>
                     </div>
-                    <p className="text-slate-800 leading-relaxed">
-                      This organization has not completed mandatory business model declaration.
-                    </p>
                   </div>
+                  {currentRole === 'owner' ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="shrink-0 text-xs font-semibold"
+                      onClick={() => setIsVerificationModalOpen(true)}
+                      data-testid="complete-verification-btn"
+                    >
+                      Complete Verification
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white/90 hover:bg-white text-xs border-slate-300"
+                      onClick={() => navigate('/settings')}
+                      data-testid="view-status-missing-btn"
+                    >
+                      View Business Status
+                    </Button>
+                  )}
                 </div>
               )}
             </>
@@ -394,6 +458,12 @@ export const AppLayout: React.FC = () => {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      {/* Business Verification Modal */}
+      <BusinessVerificationModal
+        isOpen={isVerificationModalOpen}
+        onClose={() => setIsVerificationModalOpen(false)}
       />
     </div>
   );

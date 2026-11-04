@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useToast } from '@/components/ui/Toast';
 import { BusinessCategory } from '@/types';
+import { validateBusinessTaxIdentifiers, maskPan } from '@/lib/validation';
 
 export interface NewOrgModalProps {
   isOpen: boolean;
@@ -100,13 +101,21 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
     }
 
     const trimmedGstin = gstin.trim().toUpperCase();
-    let effectivePan = pan.trim().toUpperCase();
-    if (!effectivePan && trimmedGstin.length >= 12) {
-      const derived = trimmedGstin.substring(2, 12);
-      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(derived)) {
-        effectivePan = derived;
-      }
+    const rawPan = pan.trim().toUpperCase();
+
+    const taxCheck = validateBusinessTaxIdentifiers({
+      gstin: trimmedGstin || undefined,
+      pan: rawPan || undefined,
+      requirePan: false,
+      allowException: true,
+    });
+
+    if (!taxCheck.valid) {
+      showToast('error', 'Tax Identifier Error', taxCheck.error || 'Invalid business tax identifiers.');
+      return;
     }
+
+    const effectivePan = taxCheck.effectivePan;
 
     setIsSubmitting(true);
     try {
@@ -132,10 +141,11 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
       handleClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('ERR_IDEMPOTENCY_CONFLICT')) {
+      const sanitized = effectivePan ? msg.replace(new RegExp(effectivePan, 'g'), maskPan(effectivePan)) : msg;
+      if (sanitized.includes('ERR_IDEMPOTENCY_CONFLICT')) {
         setIdempotencyConflict(true);
       } else {
-        showToast('error', 'Failed to create organization', msg);
+        showToast('error', 'Failed to create organization', sanitized);
       }
       // NOTE: idempotencyKeyRef.current is preserved intentionally across retries
     } finally {

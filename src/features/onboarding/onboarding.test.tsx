@@ -89,6 +89,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       eligibility: null,
       subscription: null,
       canWriteOperations: true,
+      declareEligibility: vi.fn(),
       switchOrganization: mockSwitchOrganization,
       createOrganization: mockCreateOrganization,
       updateOrganization: vi.fn(),
@@ -736,7 +737,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
 
       expect(mockShowToast).toHaveBeenCalledWith(
         'warning',
-        'Action Restricted',
+        expect.stringMatching(/Action Restricted|Business Verification Incomplete/),
         expect.stringContaining('Operational write access is disabled')
       );
       expect(screen.queryByTestId('orders-page')).not.toBeInTheDocument();

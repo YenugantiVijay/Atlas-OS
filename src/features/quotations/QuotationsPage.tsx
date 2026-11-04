@@ -513,18 +513,21 @@ export const QuotationsPage: React.FC = () => {
                     >
                       View
                     </Button>
-                    {q.status !== 'CONVERTED' && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleConvertToOrder(q)}
-                        rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                        disabled={!canWriteOperations && !isMockAuth}
-                        title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                      >
-                        To Order
-                      </Button>
-                    )}
+                    {q.status !== 'CONVERTED' && (() => {
+                      const orderPerm = check('orders:create');
+                      return (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleConvertToOrder(q)}
+                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                          disabled={!orderPerm.allowed}
+                          title={!orderPerm.allowed ? orderPerm.message : undefined}
+                        >
+                          To Order
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </TableCell>
               </TableRow>
@@ -843,20 +846,23 @@ export const QuotationsPage: React.FC = () => {
               <Button variant="outline" onClick={() => setViewingQuotation(null)}>
                 Close
               </Button>
-              {viewingQuotation.status !== 'CONVERTED' && (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    handleConvertToOrder(viewingQuotation);
-                    setViewingQuotation(null);
-                  }}
-                  rightIcon={<ArrowRight className="w-4 h-4" />}
-                  disabled={!canWriteOperations && !isMockAuth}
-                  title={!canWriteOperations && !isMockAuth ? 'Write operations are disabled for your account' : undefined}
-                >
-                  Convert to Sales Order
-                </Button>
-              )}
+              {viewingQuotation.status !== 'CONVERTED' && (() => {
+                const orderPerm = check('orders:create');
+                return (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      handleConvertToOrder(viewingQuotation);
+                      setViewingQuotation(null);
+                    }}
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
+                    disabled={!orderPerm.allowed}
+                    title={!orderPerm.allowed ? orderPerm.message : undefined}
+                  >
+                    Convert to Sales Order
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         </Modal>

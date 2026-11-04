@@ -5,6 +5,11 @@ import {
   customerSchema,
   paymentRecordSchema,
   stockAdjustmentSchema,
+  validatePan,
+  validateGstin,
+  extractPanFromGstin,
+  validateBusinessTaxIdentifiers,
+  maskPan,
 } from './validation';
 
 describe('Domain Input Validation Schemas', () => {
@@ -124,5 +129,124 @@ describe('Domain Input Validation Schemas', () => {
         paymentDate: '2026-02-25',
       }).success
     ).toBe(false);
+  });
+
+  describe('Business PAN and GSTIN Tax Validation Rules', () => {
+    it('validates a properly formatted 10-character Indian PAN', () => {
+      const result = validatePan('ABCDE1234F');
+      expect(result.valid).toBe(true);
+      expect(result.value).toBe('ABCDE1234F');
+    });
+
+    it('rejects invalid PAN formats', () => {
+      expect(validatePan('12345ABCDE').valid).toBe(false);
+      expect(validatePan('ABCD12345F').valid).toBe(false);
+      expect(validatePan('ABCDE1234').valid).toBe(false);
+      expect(validatePan('ABCDE12345').valid).toBe(false);
+      expect(validatePan('SHORT').valid).toBe(false);
+    });
+
+    it('handles empty PAN with required flag and legal exceptions', () => {
+      // Empty optional PAN is valid
+      expect(validatePan('').valid).toBe(true);
+      expect(validatePan(null).valid).toBe(true);
+
+      // Empty required PAN without exception fails
+      expect(validatePan('', { required: true }).valid).toBe(false);
+
+      // Empty required PAN with legal exception passes
+      expect(validatePan('', { required: true, allowException: true }).valid).toBe(true);
+    });
+
+    it('validates standard 15-character Indian GSTIN', () => {
+      const result = validateGstin('29ABCDE1234F1Z5');
+      expect(result.valid).toBe(true);
+      expect(result.value).toBe('29ABCDE1234F1Z5');
+    });
+
+    it('rejects invalid GSTIN formats', () => {
+      expect(validateGstin('29ABCDE1234F1Z').valid).toBe(false);
+      expect(validateGstin('ABCDE1234F1Z529').valid).toBe(false);
+      expect(validateGstin('INVALID_GSTIN').valid).toBe(false);
+    });
+
+    it('extracts embedded PAN from GSTIN correctly', () => {
+      expect(extractPanFromGstin('29ABCDE1234F1Z5')).toBe('ABCDE1234F');
+      expect(extractPanFromGstin('07AAAAA0000A1Z5')).toBe('AAAAA0000A');
+      expect(extractPanFromGstin('INVALID')).toBe(null);
+      expect(extractPanFromGstin(null)).toBe(null);
+    });
+
+    it('validates matching GSTIN and PAN', () => {
+      const result = validateBusinessTaxIdentifiers({
+        gstin: '29ABCDE1234F1Z5',
+        pan: 'ABCDE1234F',
+      });
+      expect(result.valid).toBe(true);
+      expect(result.derivedPan).toBe('ABCDE1234F');
+      expect(result.effectivePan).toBe('ABCDE1234F');
+    });
+
+    it('fails when submitted PAN does not match embedded PAN in GSTIN', () => {
+      const result = validateBusinessTaxIdentifiers({
+        gstin: '29ABCDE1234F1Z5',
+        pan: 'XYZAB9999K', // mismatch!
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('does not match the PAN embedded within the GSTIN');
+      expect(result.derivedPan).toBe('ABCDE1234F');
+    });
+
+    it('auto-derives effective PAN when only GSTIN is provided', () => {
+      const result = validateBusinessTaxIdentifiers({
+        gstin: '29ABCDE1234F1Z5',
+      });
+      expect(result.valid).toBe(true);
+      expect(result.derivedPan).toBe('ABCDE1234F');
+      expect(result.effectivePan).toBe('ABCDE1234F');
+      expect(result.value?.pan).toBe('ABCDE1234F');
+    });
+
+    it('redacts PAN for secure application logging and error reporting', () => {
+      expect(maskPan('ABCDE1234F')).toBe('XXXXX1234F');
+      expect(maskPan('XYZAB9999K')).toBe('XXXXX9999K');
+      expect(maskPan('')).toBe('');
+      expect(maskPan('INVALID')).toBe('••••••••••');
+    });
+
+    it('organizationSchema validates when GSTIN and PAN match', () => {
+      const validOrg = {
+        name: 'Balaji Electrical Agencies',
+        gstin: '29ABCDE1234F1Z5',
+        pan: 'ABCDE1234F',
+        phone: '+91 98450 12345',
+        addressLine1: 'BVK Iyengar Road',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560053',
+        currency: 'INR',
+      };
+      const parsed = organizationSchema.safeParse(validOrg);
+      expect(parsed.success).toBe(true);
+    });
+
+    it('organizationSchema rejects when GSTIN and PAN mismatch', () => {
+      const mismatchOrg = {
+        name: 'Balaji Electrical Agencies',
+        gstin: '29ABCDE1234F1Z5',
+        pan: 'ZZZZZ9999Z', // does not match ABCDE1234F
+        phone: '+91 98450 12345',
+        addressLine1: 'BVK Iyengar Road',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560053',
+        currency: 'INR',
+      };
+      const parsed = organizationSchema.safeParse(mismatchOrg);
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues[0].message).toContain('does not match the PAN embedded within the GSTIN');
+      }
+    });
   });
 });
