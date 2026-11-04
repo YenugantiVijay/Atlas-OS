@@ -219,7 +219,7 @@ BEGIN
     v_address_line1 := NULLIF(trim(p_address_line1), '');
     v_city := NULLIF(trim(p_city), '');
     v_state := NULLIF(trim(p_state), '');
-    v_pincode := NULLIF(trim(p_pincode)), '');
+    v_pincode := NULLIF(trim(p_pincode), '');
     v_product_lines := coalesce(p_product_lines, '{}');
 
     -- Auto-derive PAN from GSTIN if PAN is not directly supplied
@@ -723,6 +723,9 @@ BEGIN
     );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.self_declare_organization_eligibility(UUID, public.business_category_type, BOOLEAN, TEXT[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.self_declare_organization_eligibility(UUID, public.business_category_type, BOOLEAN, TEXT[]) TO authenticated, service_role;
 
 -- 6. Privacy Compliance Diagnostic Procedure
 CREATE OR REPLACE FUNCTION public.inspect_audit_privacy_compliance()
