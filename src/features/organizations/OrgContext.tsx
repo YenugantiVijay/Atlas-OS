@@ -916,10 +916,25 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       p_pan_exception_reference: data.panExceptionReference?.trim() || null,
     };
 
-    const { data: rawRpcData, error: rpcErr } = await supabase.rpc(
-      'create_organization',
+    const v2Res = await supabase.rpc(
+      'create_organization_v2',
       rpcPayload
     );
+    let rawRpcData = v2Res.data;
+    let rpcErr = v2Res.error;
+
+    // Graceful backward-compatibility fallback to legacy 15-parameter create_organization
+    // if target cloud database has not yet applied migration 030
+    if (rpcErr && (rpcErr.message?.includes('create_organization_v2') || rpcErr.code === 'PGRST202')) {
+      const {
+        p_pan_exception_reason: _unusedReason,
+        p_pan_exception_reference: _unusedRef,
+        ...legacyPayload
+      } = rpcPayload;
+      const legacyRes = await supabase.rpc('create_organization', legacyPayload);
+      rawRpcData = legacyRes.data;
+      rpcErr = legacyRes.error;
+    }
 
     if (rpcErr) {
       throw new Error('Failed to create organization remotely: ' + rpcErr.message);

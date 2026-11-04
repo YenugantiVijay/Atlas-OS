@@ -167,7 +167,9 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
 
     // Open adjustment modal
     fireEvent.click(screen.getByRole('button', { name: /adjust stock/i }));
-    expect(screen.getByText('Manual Stock Adjustment')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Manual Stock Adjustment')).toBeInTheDocument();
+    });
 
     // Fill form
     fireEvent.change(screen.getByPlaceholderText('e.g. +10 or -3'), {

@@ -15,15 +15,41 @@ export function roundMoney(amount: number): number {
   return fromPaise(toPaise(amount));
 }
 
-export function parseTaxRate(val: unknown, fallbackRate: number = 0): number {
+/**
+ * Distinguishes explicit tax rates from missing/indeterminate tax classifications.
+ * Accepts:
+ *   - Explicit 0% tax rates (exempt goods, nil-rated supplies)
+ *   - Standard statutory GST rates (5%, 12%, 18%, 28%, etc.)
+ * Strictly throws if tax rate is missing, undefined, or indeterminate unless
+ * an explicit fallback rate is passed.
+ */
+export function parseTaxRate(val: unknown, fallbackRate?: number): number {
   if (val === null || val === undefined || val === '') {
-    return fallbackRate;
+    if (fallbackRate !== undefined) {
+      return fallbackRate;
+    }
+    throw new Error('Tax rate is required and cannot be omitted or indeterminate');
   }
   const num = Number(val);
   if (isNaN(num)) {
-    return fallbackRate;
+    if (fallbackRate !== undefined) {
+      return fallbackRate;
+    }
+    throw new Error(`Invalid tax rate: "${String(val)}" is not a valid number`);
   }
-  return Math.max(0, num);
+  if (num < 0) {
+    throw new Error('Tax rate cannot be negative');
+  }
+  return num;
+}
+
+/**
+ * Checks whether a given value is an explicitly defined tax rate (including explicit 0%).
+ */
+export function isExplicitTaxRate(val: unknown): boolean {
+  if (val === null || val === undefined || val === '') return false;
+  const num = Number(val);
+  return !isNaN(num) && num >= 0;
 }
 
 export interface LineCalculation {
@@ -53,7 +79,7 @@ export function calculateLineItem(
   quantity: number,
   unitPrice: number,
   discountPercent: number = 0,
-  taxRate: number = 0
+  taxRate?: number
 ): LineCalculation {
   if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 0) {
     throw new Error('Quantity cannot be negative or invalid');
@@ -64,7 +90,7 @@ export function calculateLineItem(
   if (typeof discountPercent !== 'number' || !Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
     throw new Error('Line discount percentage must be between 0% and 100%');
   }
-  if (typeof taxRate !== 'number' || !Number.isFinite(taxRate) || taxRate < 0) {
+  if (taxRate === undefined || taxRate === null || typeof taxRate !== 'number' || !Number.isFinite(taxRate) || taxRate < 0) {
     throw new Error('Tax rate cannot be negative or invalid');
   }
 

@@ -513,6 +513,96 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
         )
       ).rejects.toThrow('Invoice creation succeeded but no invoice payload was returned from server.');
     });
+
+    it('rejects final invoice issuance when line item is missing an explicit tax rate (no silent zero-rating)', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn(),
+      };
+
+      await expect(
+        invoicesService.createInvoice(
+          orgId,
+          {
+            customerId,
+            status: 'ISSUED',
+            invoiceDate: '2026-10-31',
+            dueDate: '2026-11-30',
+            items: [
+              {
+                productId: productId1,
+                productName: 'Unclassified Cable',
+                productSku: 'CBL-UNCLASS',
+                uom: 'Meters',
+                quantity: 10,
+                unitPrice: 50,
+                // taxRate omitted
+              },
+            ],
+          },
+          false
+        )
+      ).rejects.toThrow(/missing an explicit tax rate.*Issued invoices require an explicit, verified tax rate/);
+    });
+
+    it('accepts and preserves explicit 0% tax rate on final invoice issuance (exempt supplies)', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            id: 'inv-zero-tax-uuid',
+            organization_id: orgId,
+            invoice_number: 'ATL/26-27/0099',
+            customer_id: customerId,
+            status: 'ISSUED',
+            invoice_date: '2026-10-31',
+            subtotal: 500,
+            discount_amount: 0,
+            tax_amount: 0,
+            total_amount: 500,
+            items: [
+              {
+                id: 'item-zero-tax',
+                invoice_id: 'inv-zero-tax-uuid',
+                product_id: productId1,
+                product_name: 'Exempt Commodity',
+                quantity: 1,
+                unit_price: 500,
+                discount_percent: 0,
+                tax_rate: 0,
+                line_subtotal: 500,
+                line_tax: 0,
+                line_total: 500,
+              },
+            ],
+          },
+          error: null,
+        }),
+      };
+
+      const inv = await invoicesService.createInvoice(
+        orgId,
+        {
+          customerId,
+          status: 'ISSUED',
+          invoiceDate: '2026-10-31',
+          dueDate: '2026-11-30',
+          items: [
+            {
+              productId: productId1,
+              productName: 'Exempt Commodity',
+              productSku: 'EX-01',
+              uom: 'Nos',
+              quantity: 1,
+              unitPrice: 500,
+              taxRate: 0,
+            },
+          ],
+        },
+        false
+      );
+
+      expect(inv.items?.[0].taxRate).toBe(0);
+      expect(inv.taxAmount).toBe(0);
+    });
   });
 
   describe('createInvoiceFromOrder Delegation to Atomic RPC', () => {

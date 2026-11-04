@@ -410,7 +410,7 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(mockRpcFn).toHaveBeenCalledTimes(1);
       const [rpcName, rpcPayload] = mockRpcFn.mock.calls[0];
 
-      expect(rpcName).toBe('create_organization');
+      expect(rpcName).toBe('create_organization_v2');
       expect(rpcPayload).toEqual({
         p_name: 'Power Grid Electricals',
         p_legal_name: null,
@@ -486,7 +486,7 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       // Exactly ONE RPC call made with all 12 parameters
       expect(mockRpcFn).toHaveBeenCalledTimes(1);
       const [rpcName, rpcPayload] = mockRpcFn.mock.calls[0];
-      expect(rpcName).toBe('create_organization');
+      expect(rpcName).toBe('create_organization_v2');
       expect(rpcPayload.p_phone).toBe('+91 98765 43210');
       expect(rpcPayload.p_email).toBe('contact@krishna.in');
       expect(rpcPayload.p_address_line1).toBe('Market Road 14');
