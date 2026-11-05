@@ -257,9 +257,9 @@ export const SalesReceiptsReportPage: React.FC = () => {
       return;
     }
 
-    if (counts.invoiceCount > 25000) {
+    if (counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES) {
       setExportError(
-        `Selection contains ${counts.invoiceCount.toLocaleString()} invoices, exceeding the maximum allowable browser export of 25,000 records. Please refine by month, quarter, or customer.`
+        `Selection contains ${counts.invoiceCount.toLocaleString()} invoices, exceeding the maximum allowable browser export of ${MAX_SAFE_EXPORT_INVOICES.toLocaleString()} records. Please refine by month, quarter, or customer.`
       );
       return;
     }
@@ -704,7 +704,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
             variant="primary"
             size="lg"
             onClick={handleExportExcel}
-            disabled={isExporting || isLoadingCounts || counts.invoiceCount > 25000}
+            disabled={isExporting || isLoadingCounts || counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES}
             className="w-full gap-2 font-semibold shadow-sm"
           >
             {isExporting ? (

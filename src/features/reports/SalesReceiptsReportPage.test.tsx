@@ -320,6 +320,7 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
     expect(await screen.findByText('12500')).toBeInTheDocument();
     expect(screen.getByText(/Large Export Safety Limit/i)).toBeInTheDocument();
     expect(screen.getByText(/12,500 invoices/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export excel/i })).toBeDisabled();
   });
 
   it('triggers exportReport and initiates download on button click', async () => {
