@@ -11,7 +11,8 @@ import { useActionPermission } from '@/hooks/useActionPermission';
 import { paymentsService } from '@/services/payments.service';
 import { customersService } from '@/services/customers.service';
 import { invoicesService } from '@/services/invoices.service';
-import { Payment, Customer, Invoice, PaymentMethod } from '@/types';
+import { Payment, Customer, Invoice, PaymentMethod, PaymentsSummary } from '@/types';
+import { validateMoneyInput } from '@/lib/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -47,6 +48,7 @@ export const PaymentsPage: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [summary, setSummary] = useState<PaymentsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPreparingRecord, setIsPreparingRecord] = useState(false);
@@ -70,6 +72,21 @@ export const PaymentsPage: React.FC = () => {
   const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      // Stale response guard and form reset on organization switch
+      setIsModalOpen(false);
+      setCustomerId('');
+      setInvoiceId('');
+      setAmount('');
+      setPaymentIdempotencyKey('');
+      setPage(1);
+      setSummary(null);
+    }
+  }, [currentOrg?.id]);
+
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -83,6 +100,7 @@ export const PaymentsPage: React.FC = () => {
 
   const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
     if (!currentOrg) return null;
+    const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -112,24 +130,52 @@ export const PaymentsPage: React.FC = () => {
             )
           );
 
-      const [payRes, custList, invList] = await Promise.all([
+      const summaryPromise = typeof paymentsService.getPaymentsSummary === 'function'
+        ? paymentsService.getPaymentsSummary(currentOrg.id, isMockAuth)
+        : null;
+
+      const [payRes, custList, invList, sumRes] = await Promise.all([
         payPromise,
         customersService.getCustomers(currentOrg.id, isMockAuth),
         invoicesService.getInvoices(currentOrg.id, isMockAuth),
+        summaryPromise,
       ]);
+
+      if (activeOrgIdRef.current !== orgIdAtCall) {
+        // Discard stale response if organization changed during async fetch
+        return null;
+      }
+
       setPayments(payRes.data);
       setTotalCount(payRes.totalCount);
       setTotalPages(payRes.totalPages);
       setCustomers(custList);
       setInvoices(invList);
+      if (sumRes) {
+        setSummary(sumRes);
+      } else {
+        // Fallback summary
+        const openInvoices = invList.filter(
+          (i) => (i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID') && calculateInvoiceBalance(i.totalAmount, i.totalPaid) > 0
+        );
+        setSummary({
+          totalCollected: payRes.data.reduce((s, p) => s + p.amount, 0),
+          paymentCount: payRes.totalCount,
+          totalReceivables: openInvoices.reduce((s, i) => s + calculateInvoiceBalance(i.totalAmount, i.totalPaid), 0),
+          openInvoicesCount: openInvoices.length,
+        });
+      }
       return { customers: custList, invoices: invList };
     } catch (err: any) {
+      if (activeOrgIdRef.current !== orgIdAtCall) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load the required records. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load payments', msg);
       return null;
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgIdAtCall) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
@@ -267,17 +313,42 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
-    const payAmount = parseFloat(amount);
+
     if (!customerId) {
       showToast('error', 'Customer Required', 'Please select a customer.');
       return;
     }
-    if (isNaN(payAmount) || payAmount <= 0) {
-      showToast('error', 'Invalid Amount', 'Payment amount must be greater than 0.');
+
+    const amountValidation = validateMoneyInput(amount, 'Payment amount', { required: true, allowZero: false });
+    if (!amountValidation.valid || !amountValidation.value) {
+      showToast('error', 'Invalid Amount', amountValidation.error || 'Payment amount must be greater than 0.');
       return;
     }
+    const payAmount = amountValidation.value;
 
     if (!currentOrg) return;
+
+    // Validate target invoice eligibility & balance if invoice specified
+    if (invoiceId) {
+      const targetInvoice = customerUnpaidInvoices.find((i) => i.id === invoiceId);
+      if (!targetInvoice) {
+        showToast(
+          'error',
+          'Ineligible Invoice',
+          'Selected invoice is not eligible for payment. Only issued or partially paid invoices with positive balances can be settled.'
+        );
+        return;
+      }
+      const remainingBalance = calculateInvoiceBalance(targetInvoice.totalAmount, targetInvoice.totalPaid);
+      if (payAmount > remainingBalance) {
+        showToast(
+          'error',
+          'Overpayment Violation',
+          `Payment amount (${formatCurrency(payAmount)}) exceeds outstanding balance (${formatCurrency(remainingBalance)}). Overpayment policy prevents excess credit without customer advance authorization.`
+        );
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
@@ -319,16 +390,20 @@ export const PaymentsPage: React.FC = () => {
     }
   };
 
-  // Eligible unpaid invoices for selected customer
+  // Eligible unpaid invoices for selected customer: strictly ISSUED or PARTIALLY_PAID with balance > 0
   const customerUnpaidInvoices = invoices.filter(
     (inv) =>
+      inv.organizationId === currentOrg?.id &&
       inv.customerId === customerId &&
-      inv.status !== 'CANCELLED' &&
-      inv.status !== 'PAID'
+      (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID') &&
+      calculateInvoiceBalance(inv.totalAmount, inv.totalPaid) > 0
   );
 
-  const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalReceivables = customers.reduce((sum, c) => sum + (c.currentReceivable || 0), 0);
+  const totalCollected = summary ? summary.totalCollected : payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalReceivables = summary ? summary.totalReceivables : customers.reduce((sum, c) => sum + (c.currentReceivable || 0), 0);
+  const openInvoicesCount = summary
+    ? summary.openInvoicesCount
+    : invoices.filter((i) => (i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID') && calculateInvoiceBalance(i.totalAmount, i.totalPaid) > 0).length;
 
   const filteredPayments = payments.filter((p) => {
     const s = searchQuery.toLowerCase();
@@ -400,7 +475,7 @@ export const PaymentsPage: React.FC = () => {
             {formatCurrency(totalReceivables)}
           </div>
           <div className="text-xs text-content-muted mt-1">
-            Across {customers.filter((c) => (c.currentReceivable || 0) > 0).length} customer accounts
+            Across active issued invoices
           </div>
         </Card>
 
@@ -412,7 +487,7 @@ export const PaymentsPage: React.FC = () => {
             {formatCurrency(totalCollected)}
           </div>
           <div className="text-xs text-content-muted mt-1">
-            {totalCount} verified payment receipts
+            {summary ? summary.paymentCount : totalCount} verified payment receipts
           </div>
         </Card>
 
@@ -421,7 +496,7 @@ export const PaymentsPage: React.FC = () => {
             Open Invoices
           </div>
           <div className="text-2xl font-bold text-content-primary tabular-nums">
-            {invoices.filter((i) => i.status !== 'PAID' && i.status !== 'CANCELLED').length}
+            {openInvoicesCount}
           </div>
           <div className="text-xs text-content-muted mt-1">
             Awaiting payment settlement

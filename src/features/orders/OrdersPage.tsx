@@ -33,6 +33,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
+import { validateQuantityInput, validateMoneyInput, parseStrictNumber } from '@/lib/validation';
 
 interface LineItemDraft {
   productId: string;
@@ -77,6 +78,34 @@ export const OrdersPage: React.FC = () => {
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoicingOrderId, setInvoicingOrderId] = useState<string | null>(null);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
+
+  // Searchable selection state for scalable order creation
+  const [customerSearchText, setCustomerSearchText] = useState('');
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [productSearchQueries, setProductSearchQueries] = useState<Record<number, string>>({});
+  const [lineItemProductsMap, setLineItemProductsMap] = useState<Record<number, Product[]>>({});
+  const [cachedProductsMap, setCachedProductsMap] = useState<Record<string, Product>>({});
+
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      // Stale response guard and form reset on organization switch
+      setIsCreateModalOpen(false);
+      setViewingOrder(null);
+      setOrderToConfirm(null);
+      setConfirmingOrderId(null);
+      setCustomerId('');
+      setItems([]);
+      setOrderIdempotencyKey('');
+      setCustomerSearchText('');
+      setProductSearchQueries({});
+      setLineItemProductsMap({});
+      setCachedProductsMap({});
+      setPage(1);
+    }
+  }, [currentOrg?.id]);
 
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
@@ -91,6 +120,7 @@ export const OrdersPage: React.FC = () => {
 
   const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; products: Product[] } | null> => {
     if (!currentOrg) return null;
+    const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -114,24 +144,47 @@ export const OrdersPage: React.FC = () => {
             })
           );
 
+      const custPromise = typeof customersService.getCustomersPaginated === 'function'
+        ? customersService.getCustomersPaginated(currentOrg.id, { page: 1, pageSize: 25, isActive: true }, isMockAuth).then((r) => r.data)
+        : customersService.getCustomers(currentOrg.id, isMockAuth);
+
+      const prodPromise = typeof productsService.getProductsPaginated === 'function'
+        ? productsService.getProductsPaginated(currentOrg.id, { page: 1, pageSize: 25, isActive: true }, isMockAuth).then((r) => r.data)
+        : productsService.getProducts(currentOrg.id, isMockAuth);
+
       const [ordRes, custList, prodList] = await Promise.all([
         ordPromise,
-        customersService.getCustomers(currentOrg.id, isMockAuth),
-        productsService.getProducts(currentOrg.id, isMockAuth),
+        custPromise,
+        prodPromise,
       ]);
+
+      if (activeOrgIdRef.current !== orgIdAtCall) return null;
+
       setOrders(ordRes.data);
       setTotalCount(ordRes.totalCount);
       setTotalPages(ordRes.totalPages);
       setCustomers(custList);
       setProducts(prodList);
+
+      setCachedProductsMap((prev) => {
+        const next = { ...prev };
+        for (const p of prodList) {
+          next[p.id] = p;
+        }
+        return next;
+      });
+
       return { customers: custList, products: prodList };
     } catch (err: any) {
+      if (activeOrgIdRef.current !== orgIdAtCall) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load the required records. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load orders', msg);
       return null;
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgIdAtCall) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery, statusFilter, showToast]);
 
@@ -295,7 +348,7 @@ export const OrdersPage: React.FC = () => {
     setItems((prev) => {
       const updated = [...prev];
       if (field === 'productId') {
-        const prod = products.find((p) => p.id === val);
+        const prod = cachedProductsMap[val] || products.find((p) => p.id === val);
         updated[index] = {
           ...updated[index],
           productId: val,
@@ -307,6 +360,54 @@ export const OrdersPage: React.FC = () => {
       }
       return updated;
     });
+  };
+
+  const handleCustomerSearch = async (query: string) => {
+    setCustomerSearchText(query);
+    if (!currentOrg) return;
+    setIsSearchingCustomer(true);
+    try {
+      if (typeof customersService.getCustomersPaginated === 'function') {
+        const res = await customersService.getCustomersPaginated(
+          currentOrg.id,
+          { page: 1, pageSize: 25, search: query, isActive: true },
+          isMockAuth
+        );
+        setCustomers((prev) => {
+          const selected = prev.find((c) => c.id === customerId);
+          const map = new Map<string, Customer>();
+          if (selected) map.set(selected.id, selected);
+          for (const c of res.data) map.set(c.id, c);
+          return Array.from(map.values());
+        });
+      }
+    } catch (e) {
+      console.warn('Customer search error:', e);
+    } finally {
+      setIsSearchingCustomer(false);
+    }
+  };
+
+  const handleProductSearch = async (itemIndex: number, query: string) => {
+    setProductSearchQueries((prev) => ({ ...prev, [itemIndex]: query }));
+    if (!currentOrg) return;
+    try {
+      if (typeof productsService.getProductsPaginated === 'function') {
+        const res = await productsService.getProductsPaginated(
+          currentOrg.id,
+          { page: 1, pageSize: 25, search: query, isActive: true },
+          isMockAuth
+        );
+        setCachedProductsMap((prev) => {
+          const next = { ...prev };
+          for (const p of res.data) next[p.id] = p;
+          return next;
+        });
+        setLineItemProductsMap((prev) => ({ ...prev, [itemIndex]: res.data }));
+      }
+    } catch (e) {
+      console.warn('Product search error:', e);
+    }
   };
 
   const calculateTotals = () => {
@@ -329,12 +430,38 @@ export const OrdersPage: React.FC = () => {
       return;
     }
 
+    // Strict Line Item Validation: Distinguish 0, negative values, non-integers, invalid characters
+    for (let idx = 0; idx < items.length; idx++) {
+      const it = items[idx];
+      const qtyVal = validateQuantityInput(it.quantity, `Item ${idx + 1} Quantity`);
+      if (!qtyVal.valid || qtyVal.value === undefined) {
+        showToast('error', 'Validation Error', qtyVal.error || `Item ${idx + 1} quantity must be at least 1.`);
+        return;
+      }
+      const priceVal = validateMoneyInput(it.unitPrice, `Item ${idx + 1} Unit Price`, { required: true, allowZero: true });
+      if (!priceVal.valid || priceVal.value === undefined) {
+        showToast('error', 'Validation Error', priceVal.error || `Item ${idx + 1} unit price cannot be negative.`);
+        return;
+      }
+      const discVal = parseStrictNumber(it.discountPercent, {
+        fieldName: `Item ${idx + 1} Discount`,
+        min: 0,
+        max: 100,
+        required: false,
+        defaultValue: 0,
+      });
+      if (!discVal.valid) {
+        showToast('error', 'Validation Error', discVal.error || `Item ${idx + 1} discount must be between 0% and 100%.`);
+        return;
+      }
+    }
+
     if (!currentOrg) return;
 
     setIsSubmitting(true);
     try {
       const formattedItems = items.map((it) => {
-        const prod = products.find((p) => p.id === it.productId);
+        const prod = cachedProductsMap[it.productId] || products.find((p) => p.id === it.productId);
         return {
           productId: it.productId,
           productName: prod?.name || 'Product',
@@ -388,6 +515,8 @@ export const OrdersPage: React.FC = () => {
       return;
     }
     if (!currentOrg) return;
+    if (confirmingOrderId) return;
+    setConfirmingOrderId(order.id);
     try {
       await ordersService.confirmSalesOrder(currentOrg.id, order.id, currentRole, isMockAuth);
       showToast(
@@ -401,6 +530,8 @@ export const OrdersPage: React.FC = () => {
       }
     } catch (err: any) {
       showToast('error', 'Confirmation Rejected', err.message);
+    } finally {
+      setConfirmingOrderId(null);
     }
   };
 
@@ -689,16 +820,38 @@ export const OrdersPage: React.FC = () => {
       >
         <form onSubmit={handleSaveOrder} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Customer"
-              required
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              options={customers.map((c) => ({
-                value: c.id,
-                label: `${c.companyName || c.name} (${c.phone || ''})`,
-              }))}
-            />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-content-secondary">
+                  Customer <span className="text-red-500">*</span>
+                </label>
+                {isSearchingCustomer && (
+                  <span className="text-[10px] text-content-muted flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin text-atlas-600" /> Searching...
+                  </span>
+                )}
+              </div>
+              <div className="relative mb-1">
+                <Search className="w-3 h-3 absolute left-2 top-2 text-content-muted" />
+                <input
+                  type="text"
+                  placeholder="Type to search customers..."
+                  value={customerSearchText}
+                  onChange={(e) => handleCustomerSearch(e.target.value)}
+                  className="w-full text-xs rounded-lg border border-border bg-surface-card pl-6 pr-2 py-1 text-content-primary placeholder-content-muted focus:ring-1 focus:ring-atlas-500 focus:outline-none"
+                />
+              </div>
+              <Select
+                label=""
+                required
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                options={customers.map((c) => ({
+                  value: c.id,
+                  label: `${c.companyName || c.name} (${c.phone || ''})`,
+                }))}
+              />
+            </div>
             <Input
               label="Order Date"
               type="date"
@@ -743,17 +896,36 @@ export const OrdersPage: React.FC = () => {
                     className="flex flex-col sm:flex-row items-center gap-2 p-2 rounded-lg bg-surface-card border border-border/80"
                   >
                     <div className="flex-1 w-full">
+                      <div className="relative mb-1">
+                        <Search className="w-3 h-3 absolute left-1.5 top-1.5 text-content-muted" />
+                        <input
+                          type="text"
+                          placeholder="Filter products..."
+                          value={productSearchQueries[idx] || ''}
+                          onChange={(e) => handleProductSearch(idx, e.target.value)}
+                          className="w-full text-[11px] rounded border border-border/70 bg-surface-card pl-5 pr-1.5 py-0.5 text-content-primary placeholder-content-muted focus:outline-none focus:border-atlas-500"
+                        />
+                      </div>
                       <select
                         aria-label={`Product ${idx + 1}`}
                         value={item.productId}
                         onChange={(e) => handleItemChange(idx, 'productId', e.target.value)}
                         className="w-full text-xs rounded-lg border border-border bg-surface-card p-1.5 font-medium"
                       >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku}) — Available: {p.currentStock || 0} {p.uom}
-                          </option>
-                        ))}
+                        {(() => {
+                          const list = lineItemProductsMap[idx] || products;
+                          const hasSelected = list.some((p) => p.id === item.productId);
+                          const finalOptions = hasSelected
+                            ? list
+                            : selectedProd
+                            ? [selectedProd, ...list]
+                            : list;
+                          return finalOptions.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({p.sku}) — Available: {p.currentStock || 0} {p.uom}
+                            </option>
+                          ));
+                        })()}
                       </select>
                       <div className="text-[10px] mt-0.5">
                         <span className={hasSufficientStock ? 'text-emerald-600' : 'text-red-600 font-semibold'}>
@@ -1083,13 +1255,14 @@ export const OrdersPage: React.FC = () => {
               </Button>
               <Button
                 variant="primary"
-                onClick={() => {
+                onClick={async () => {
                   const target = orderToConfirm;
                   setOrderToConfirm(null);
-                  handleConfirmOrder(target);
+                  await handleConfirmOrder(target);
                 }}
+                isLoading={confirmingOrderId === orderToConfirm.id}
                 leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-300" />}
-                disabled={!check('orders:confirm').allowed}
+                disabled={!check('orders:confirm').allowed || Boolean(confirmingOrderId)}
                 title={!check('orders:confirm').allowed ? check('orders:confirm').message : undefined}
               >
                 Confirm & Allocate Stock

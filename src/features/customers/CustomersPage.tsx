@@ -27,6 +27,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
+import { validateMoneyInput, validateCreditDaysInput } from '@/lib/validation';
 
 function getInitials(name: string): string {
   if (!name) return 'C';
@@ -67,6 +68,25 @@ export const CustomersPage: React.FC = () => {
   const [creditDays, setCreditDays] = useState('30');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      // Stale response guard and form reset on organization switch
+      setIsModalOpen(false);
+      setEditingCustomer(null);
+      setName('');
+      setCompanyName('');
+      setPhone('+91 ');
+      setEmail('');
+      setBillingAddress('');
+      setGstin('');
+      setCreditLimit('100000');
+      setCreditDays('30');
+      setPage(1);
+    }
+  }, [currentOrg?.id]);
+
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -80,6 +100,7 @@ export const CustomersPage: React.FC = () => {
 
   const loadCustomers = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Customer[] | null> => {
     if (!currentOrg) return null;
+    const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -111,17 +132,25 @@ export const CustomersPage: React.FC = () => {
             Boolean(c.gstin && c.gstin.toLowerCase().includes(s))
         );
       }
+
+      if (activeOrgIdRef.current !== orgIdAtCall) {
+        return null;
+      }
+
       setCustomers(res.data);
       setTotalCount(res.totalCount);
       setTotalPages(res.totalPages);
       return res.data;
     } catch (err: any) {
+      if (activeOrgIdRef.current !== orgIdAtCall) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load customers. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load customers', msg);
       return null;
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgIdAtCall) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
@@ -226,6 +255,19 @@ export const CustomersPage: React.FC = () => {
       showToast('error', 'Validation Error', 'Customer Name is required.');
       return;
     }
+
+    const creditLimitVal = validateMoneyInput(creditLimit, 'Credit limit', { required: false, allowZero: true });
+    if (!creditLimitVal.valid) {
+      showToast('error', 'Validation Error', creditLimitVal.error || 'Invalid credit limit.');
+      return;
+    }
+
+    const creditDaysVal = validateCreditDaysInput(creditDays, 'Credit days');
+    if (!creditDaysVal.valid) {
+      showToast('error', 'Validation Error', creditDaysVal.error || 'Invalid credit days.');
+      return;
+    }
+
     if (!currentOrg) return;
 
     setIsSubmitting(true);
@@ -241,8 +283,8 @@ export const CustomersPage: React.FC = () => {
             email: email.trim() || undefined,
             billingAddress: billingAddress.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
-            creditLimit: parseFloat(creditLimit) || 0,
-            creditDays: creditDays === '' ? 30 : Number(creditDays),
+            creditLimit: creditLimitVal.value ?? 0,
+            creditDays: creditDaysVal.value ?? 30,
           },
           isMockAuth
         );
@@ -257,8 +299,8 @@ export const CustomersPage: React.FC = () => {
             email: email.trim() || undefined,
             billingAddress: billingAddress.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
-            creditLimit: parseFloat(creditLimit) || 0,
-            creditDays: creditDays === '' ? 30 : Number(creditDays),
+            creditLimit: creditLimitVal.value ?? 0,
+            creditDays: creditDaysVal.value ?? 30,
             isActive: true,
           },
           isMockAuth

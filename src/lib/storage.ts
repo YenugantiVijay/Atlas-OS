@@ -16,7 +16,7 @@ import {
   Role,
   UOM,
 } from '@/types';
-import { calculateInvoiceBalance, calculateDocumentTotals, parseTaxRate } from './money';
+import { calculateInvoiceBalance, calculateDocumentTotals, parseTaxRate, roundMoney } from './money';
 
 /**
  * Calculates Indian Financial Year string (e.g. '25-26', '26-27') from date or year.
@@ -1603,7 +1603,7 @@ class StorageEngine {
       invoiceNumber: invNum,
       customerId: data.customerId,
       salesOrderId: data.salesOrderId,
-      status: 'ISSUED',
+      status: (data as any).status || 'ISSUED',
       invoiceDate: data.invoiceDate,
       dueDate: data.dueDate,
       subtotal: docTotals.grossSubtotal,
@@ -1656,6 +1656,7 @@ class StorageEngine {
       referenceNumber?: string;
       paymentDate: string;
       notes?: string;
+      idempotencyKey?: string;
     },
     userRole?: Role | null
   ): Payment {
@@ -1675,6 +1676,20 @@ class StorageEngine {
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const allocations = this.getItem<PaymentAllocation[]>(STORAGE_KEYS.PAYMENT_ALLOCATIONS, []);
 
+    // Idempotent replay check in mock storage
+    if (data.idempotencyKey) {
+      const existing = payments.find(
+        (p) =>
+          p.organizationId === orgId &&
+          p.idempotencyKey === data.idempotencyKey &&
+          p.customerId === data.customerId &&
+          p.amount === data.amount
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
     const payNum = this.allocateDocumentNumber(orgId, 'RECEIPT');
 
     const newPayment: Payment = {
@@ -1687,6 +1702,7 @@ class StorageEngine {
       referenceNumber: data.referenceNumber,
       paymentDate: data.paymentDate,
       notes: data.notes,
+      idempotencyKey: data.idempotencyKey,
       createdAt: new Date().toISOString(),
     };
 
@@ -1699,12 +1715,24 @@ class StorageEngine {
       if (inv.status === 'CANCELLED') {
         throw new Error('Cannot allocate payment to cancelled invoice');
       }
+      if (inv.status === 'DRAFT') {
+        throw new Error('Cannot allocate payment to draft invoice. Invoice must be issued before recording payments.');
+      }
+      if (inv.status !== 'ISSUED' && inv.status !== 'PARTIALLY_PAID') {
+        throw new Error(
+          `Cannot allocate payment to invoice with status "${inv.status}". Only ISSUED or PARTIALLY_PAID invoices can receive payments.`
+        );
+      }
       if (inv.customerId !== data.customerId) {
         throw new Error(
           `Customer mismatch: Payment customer (${data.customerId}) does not match invoice customer (${inv.customerId})`
         );
       }
       const remainingBalance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
+
+      if (remainingBalance <= 0) {
+        throw new Error(`Invoice ${inv.invoiceNumber} is already fully paid or has no outstanding balance.`);
+      }
 
       if (data.amount > remainingBalance) {
         throw new Error(
@@ -1745,6 +1773,38 @@ class StorageEngine {
     });
 
     return newPayment;
+  }
+
+  public getPaymentsSummary(orgId: string): {
+    totalCollected: number;
+    paymentCount: number;
+    totalReceivables: number;
+    openInvoicesCount: number;
+  } {
+    this.initialize();
+    const payments = this.getPayments(orgId);
+    const invoices = this.getInvoices(orgId);
+
+    const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
+    const paymentCount = payments.length;
+
+    const openInvoices = invoices.filter(
+      (i) =>
+        (i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID') &&
+        calculateInvoiceBalance(i.totalAmount, i.totalPaid) > 0
+    );
+
+    const totalReceivables = openInvoices.reduce(
+      (sum, i) => sum + calculateInvoiceBalance(i.totalAmount, i.totalPaid),
+      0
+    );
+
+    return {
+      totalCollected: roundMoney(totalCollected),
+      paymentCount,
+      totalReceivables: roundMoney(totalReceivables),
+      openInvoicesCount: openInvoices.length,
+    };
   }
 
   // --- Audit Logs ---
