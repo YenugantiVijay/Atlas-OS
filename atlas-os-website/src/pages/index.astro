@@ -4,6 +4,7 @@ import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import Badge from '../components/common/Badge.astro';
 import InteractivePreview from '../components/home/InteractivePreview';
+import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
 import { ALL_FEATURES } from '../data/features';
 ---
@@ -66,7 +67,7 @@ import { ALL_FEATURES } from '../data/features';
             <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
             </svg>
-            <span>Statutory Indian GST Compliant</span>
+            <span>GST-Aware Invoicing</span>
           </div>
           <div class="flex items-center gap-2">
             <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
@@ -78,7 +79,7 @@ import { ALL_FEATURES } from '../data/features';
             <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
             </svg>
-            <span>1-Click 15-Year Excel Exports</span>
+            <span>Historical Sales &amp; Receipts Exports</span>
           </div>
           <div class="flex items-center gap-2">
             <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
@@ -89,8 +90,13 @@ import { ALL_FEATURES } from '../data/features';
         </div>
       </div>
 
+      <!-- SIGNATURE BRAND MOMENT: CONNECTED WORKFLOWS -->
+      <div class="mt-10 md:mt-14 max-w-6xl mx-auto">
+        <CapabilityOrbit />
+      </div>
+
       <!-- INTERACTIVE PRODUCT PREVIEW -->
-      <div class="mt-12 md:mt-16 max-w-6xl mx-auto">
+      <div class="mt-8 md:mt-12 max-w-6xl mx-auto">
         <InteractivePreview client:load />
       </div>
     </Container>
