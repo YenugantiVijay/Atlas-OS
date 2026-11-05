@@ -82,4 +82,36 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await expect(pagination.getByRole('button', { name: 'Previous' })).toBeVisible();
     await expect(pagination.getByRole('button', { name: 'Next' })).toBeVisible();
   });
+
+  test('verifies end-to-end payment workflow and balance settlement', async ({ page }) => {
+    // 1. Navigate to Payments page and verify KPI summary metrics
+    await page.click('text=Payments');
+    await expect(page).toHaveURL(/.*#\/payments/);
+    await expect(page.getByText('Payments & Receivables Ledger')).toBeVisible();
+    await expect(page.getByText('Total Receivables Outstanding')).toBeVisible();
+    await expect(page.getByText('Total Collections Logged')).toBeVisible();
+
+    // 2. Open Record Payment Modal
+    await page.getByRole('button', { name: 'Record Payment' }).click();
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible();
+    await expect(modal.getByText('Record Customer Payment')).toBeVisible();
+
+    // 3. Search and select customer
+    const custSearch = modal.getByPlaceholder(/search customers/i);
+    await expect(custSearch).toBeVisible();
+    await custSearch.fill('Sharma');
+    await page.waitForTimeout(300);
+
+    // 4. Fill payment amount and submit payment
+    const amountInput = modal.getByLabel('Amount Received (₹)');
+    await amountInput.fill('1500');
+    await modal.getByLabel('Reference / Transaction ID').fill('UPI-E2E-TEST-9988');
+
+    await modal.getByRole('button', { name: 'Record Payment Receipt' }).click();
+    await expect(modal).not.toBeVisible();
+
+    // 5. Confirm newly recorded receipt appears in the table
+    await expect(page.getByText('UPI-E2E-TEST-9988')).toBeVisible();
+  });
 });

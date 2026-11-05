@@ -137,6 +137,31 @@ export const customersService = {
     return buildPaginatedResult(mappedCustomers, totalCount, page, pageSize);
   },
 
+  async getCustomerById(orgId: string, customerId: string, isMockAuth: boolean = false): Promise<Customer | null> {
+    if (isMockAuth) {
+      const cust = storage.getCustomers(orgId).find((c) => c.id === customerId);
+      return cust || null;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('id', customerId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to fetch customer: ${error.message}`);
+    }
+
+    if (!data) return null;
+    return mapDbCustomer(data);
+  },
+
   async getCustomers(orgId: string, isMockAuth: boolean = false): Promise<Customer[]> {
     if (isMockAuth) {
       return storage.getCustomers(orgId);

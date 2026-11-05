@@ -464,6 +464,168 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
       });
     });
 
+    it('rejects with explicit failure when get_payments_summary RPC is unavailable (no unsafe client fallback)', async () => {
+      const fromMock = vi.fn();
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'function get_payments_summary does not exist' },
+        }),
+        from: fromMock,
+      };
+
+      await expect(paymentsService.getPaymentsSummary(orgId, false)).rejects.toThrow(
+        'Failed to fetch authoritative payments summary: function get_payments_summary does not exist'
+      );
+      // Confirms client table query fallback is completely eliminated
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid or non-object response payload from get_payments_summary', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: 'invalid_string_response',
+          error: null,
+        }),
+      };
+
+      await expect(paymentsService.getPaymentsSummary(orgId, false)).rejects.toThrow(
+        'Invalid payments summary response: expected object payload'
+      );
+    });
+
+    it('rejects missing or non-finite metric in payments summary response', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            total_collected: '15000.00',
+            payment_count: 5,
+            total_receivables: '25000.00',
+            // open_invoices_count omitted
+          },
+          error: null,
+        }),
+      };
+
+      await expect(paymentsService.getPaymentsSummary(orgId, false)).rejects.toThrow(
+        'Invalid payments summary response: missing open_invoices_count'
+      );
+    });
+
+    it('preserves legitimate numeric zero across all summary metrics', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            total_collected: 0,
+            payment_count: 0,
+            total_receivables: '0.00',
+            open_invoices_count: 0,
+          },
+          error: null,
+        }),
+      };
+
+      const summary = await paymentsService.getPaymentsSummary(orgId, false);
+      expect(summary).toEqual({
+        totalCollected: 0,
+        paymentCount: 0,
+        totalReceivables: 0,
+        openInvoicesCount: 0,
+      });
+    });
+
+    it('handles high-volume organization with >1,000 payments without truncation', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            total_collected: '4500000.00',
+            payment_count: 1450,
+            total_receivables: '1200000.00',
+            open_invoices_count: 320,
+          },
+          error: null,
+        }),
+      };
+
+      const summary = await paymentsService.getPaymentsSummary(orgId, false);
+      expect(summary.paymentCount).toBe(1450);
+      expect(summary.totalCollected).toBe(4500000);
+    });
+
+    it('handles high-volume organization with >1,000 invoices without truncation', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            total_collected: '2000000.00',
+            payment_count: 850,
+            total_receivables: '8500000.00',
+            open_invoices_count: 2400,
+          },
+          error: null,
+        }),
+      };
+
+      const summary = await paymentsService.getPaymentsSummary(orgId, false);
+      expect(summary.openInvoicesCount).toBe(2400);
+      expect(summary.totalReceivables).toBe(8500000);
+    });
+
+    it('rejects cross-tenant access to payments summary with security exception', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'Access denied: Caller cannot read organization data' },
+        }),
+      };
+
+      await expect(paymentsService.getPaymentsSummary(orgId, false)).rejects.toThrow(
+        'Failed to fetch authoritative payments summary: Access denied: Caller cannot read organization data'
+      );
+    });
+
+    it('checks payment status by idempotency key during ambiguous network recovery', async () => {
+      const maybeSingleMock = vi.fn().mockResolvedValue({
+        data: { payment_id: 'pay-uuid-recovered-1' },
+        error: null,
+      });
+      const eqKeyMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+      const eqOrgMock = vi.fn().mockReturnValue({ eq: eqKeyMock });
+      const selectMock = vi.fn().mockReturnValue({ eq: eqOrgMock });
+
+      const paySingleMock = vi.fn().mockResolvedValue({
+        data: {
+          id: 'pay-uuid-recovered-1',
+          organization_id: orgId,
+          payment_number: 'REC/26-27/0055',
+          customer_id: 'cust-uuid-1',
+          amount: 5000,
+          payment_method: 'UPI',
+          payment_date: '2026-11-05',
+          allocations: [],
+        },
+        error: null,
+      });
+      const payEqIdMock = vi.fn().mockReturnValue({ maybeSingle: paySingleMock });
+      const payEqOrgMock = vi.fn().mockReturnValue({ eq: payEqIdMock });
+      const paySelectMock = vi.fn().mockReturnValue({ eq: payEqOrgMock });
+
+      mockSupabaseInstance = {
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'payment_idempotency') {
+            return { select: selectMock };
+          }
+          if (table === 'payments') {
+            return { select: paySelectMock };
+          }
+          return {};
+        }),
+      };
+
+      const res = await paymentsService.checkPaymentStatusByIdempotencyKey(orgId, 'key-uuid-1234');
+      expect(res.committed).toBe(true);
+      expect(res.payment?.paymentNumber).toBe('REC/26-27/0055');
+    });
+
     it('rejects payment allocation to DRAFT invoice in storage layer', () => {
       const testOrg = 'test-org-draft-chk';
       const cust = storage.createCustomer(testOrg, {
