@@ -189,4 +189,24 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.click('a:has-text("Return to Homepage")');
     await expect(page).toHaveURL('http://127.0.0.1:4321/');
   });
+  test('8. Brand workflow showcase appears and respects reduced-motion preferences', async ({ page }) => {
+    await page.goto('/');
+    const orbit = page.locator('.capability-orbit');
+    await expect(orbit).toBeVisible();
+    await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
+    for (const capability of ['Inventory', 'Sales Orders', 'Invoices', 'Payments', 'Reports', 'AI Insights']) {
+      await expect(orbit.getByText(capability, { exact: true })).toBeVisible();
+    }
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const animationName = await orbit.locator('.orbit-chip').first().evaluate((element) =>
+      getComputedStyle(element).animationName
+    );
+    expect(animationName).toBe('none');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(orbit).toBeVisible();
+    await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
+  });
+
 });
