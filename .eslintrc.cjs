@@ -21,6 +21,18 @@ module.exports = {
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
   },
+  overrides: [
+    {
+      files: ['scripts/**/*.{js,mjs}'],
+      env: {
+        node: true,
+        es2022: true,
+      },
+      rules: {
+        'no-undef': 'error',
+      },
+    },
+  ],
   ignorePatterns: [
     'dist',
     'node_modules',

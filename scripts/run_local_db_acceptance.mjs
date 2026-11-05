@@ -676,9 +676,12 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
 
     // 9.2 Pre-seed existing business data (Products, Stock movements, Customers, Invoices) under existingOrgId
     const preProdId = crypto.randomUUID();
+    const preZeroProdId = crypto.randomUUID();
     const preCustId = crypto.randomUUID();
+    const preZeroCustId = crypto.randomUUID();
     const preInvId = crypto.randomUUID();
     const preProdSku = `PRE-UPG-SKU-${upgradeRunId}`;
+    const preZeroProdSku = `PRE-ZERO-SKU-${upgradeRunId}`;
     const preInvNum = `INV-UPG-${upgradeRunId}`;
 
     await upgradeClient.query(`
@@ -687,13 +690,17 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       WHERE organization_id = '${existingOrgId}';
 
       INSERT INTO public.products (id, organization_id, name, sku, category, uom, purchase_cost, selling_price, tax_rate, is_active)
-      VALUES ('${preProdId}', '${existingOrgId}', 'Pre-upgrade Switchgear Master', '${preProdSku}', 'Switchgear', 'Nos', 450.00, 650.00, 18.00, true);
+      VALUES
+        ('${preProdId}', '${existingOrgId}', 'Pre-upgrade Switchgear Master', '${preProdSku}', 'Switchgear', 'Nos', 450.00, 650.00, 18.00, true),
+        ('${preZeroProdId}', '${existingOrgId}', 'Pre-upgrade Zero Stock Cable', '${preZeroProdSku}', 'Wires & Cables', 'Mtr', 10.00, 15.00, 18.00, true);
 
       INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
       VALUES ('${existingOrgId}', '${preProdId}', 120, 'OPENING_STOCK', 'Pre-upgrade opening stock');
 
       INSERT INTO public.customers (id, organization_id, name, phone, gstin, credit_limit, credit_days, is_active)
-      VALUES ('${preCustId}', '${existingOrgId}', 'Pre-upgrade Infrastructure Corp', '9811122233', '29AAACP9999A1Z9', 250000.00, 30, true);
+      VALUES
+        ('${preCustId}', '${existingOrgId}', 'Pre-upgrade Infrastructure Corp', '9811122233', '29AAACP9999A1Z9', 250000.00, 30, true),
+        ('${preZeroCustId}', '${existingOrgId}', 'Pre-upgrade Zero Balance Corp', '9811122244', '29AAACP9999A1Z8', 100000.00, 30, true);
 
       SELECT set_config('app.authoritative_invoice_transition', 'true', false);
 
@@ -941,19 +948,82 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
     let upg05Err = null;
     await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
       try {
+        // 1. Pre-existing product expected stock balance of 120 units
         const { rows: pageStockRows } = await upgradeClient.query(
-          `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
-          [existingOrgId, existingProdId]
+          `SELECT product_id, current_stock FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, preProdId]
         );
-        const pageStockValid = Array.isArray(pageStockRows);
+        const stockRowValid =
+          pageStockRows.length === 1 &&
+          pageStockRows[0].product_id === preProdId &&
+          Number.isFinite(Number(pageStockRows[0].current_stock)) &&
+          Number(pageStockRows[0].current_stock) === 120;
 
+        // 2. Pre-existing customer expected receivable balance of ₹1,770.00
         const { rows: pageRecvRows } = await upgradeClient.query(
-          `SELECT * FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
-          [existingOrgId, existingCustId]
+          `SELECT customer_id, current_receivable FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, preCustId]
         );
-        const pageRecvValid = Array.isArray(pageRecvRows);
+        const recvRowValid =
+          pageRecvRows.length === 1 &&
+          pageRecvRows[0].customer_id === preCustId &&
+          Number.isFinite(Number(pageRecvRows[0].current_receivable)) &&
+          Number(pageRecvRows[0].current_receivable) === 1770.00;
 
-        upg05Passed = pageStockValid && pageRecvValid;
+        // 3. Pre-existing zero balances preserved
+        const { rows: zeroStockRows } = await upgradeClient.query(
+          `SELECT product_id, current_stock FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, preZeroProdId]
+        );
+        const zeroStockValid =
+          zeroStockRows.length === 1 &&
+          zeroStockRows[0].product_id === preZeroProdId &&
+          Number.isFinite(Number(zeroStockRows[0].current_stock)) &&
+          Number(zeroStockRows[0].current_stock) === 0;
+
+        const { rows: zeroRecvRows } = await upgradeClient.query(
+          `SELECT customer_id, current_receivable FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, preZeroCustId]
+        );
+        const zeroRecvValid =
+          zeroRecvRows.length === 1 &&
+          zeroRecvRows[0].customer_id === preZeroCustId &&
+          Number.isFinite(Number(zeroRecvRows[0].current_receivable)) &&
+          Number(zeroRecvRows[0].current_receivable) === 0.00;
+
+        // 4. Verify pre-existing business records remain unchanged after Migration 034
+        const { rows: post034Prod } = await upgradeClient.query(`SELECT * FROM public.products WHERE id = $1;`, [preProdId]);
+        const { rows: post034Stock } = await upgradeClient.query(`SELECT sum(quantity_change)::numeric AS qty FROM public.stock_movements WHERE product_id = $1;`, [preProdId]);
+        const { rows: post034Cust } = await upgradeClient.query(`SELECT * FROM public.customers WHERE id = $1;`, [preCustId]);
+        const { rows: post034Inv } = await upgradeClient.query(`SELECT * FROM public.invoices WHERE id = $1;`, [preInvId]);
+
+        const recordsUnchanged =
+          post034Prod[0]?.name === snapProd[0]?.name &&
+          Number(post034Stock[0]?.qty) === 120 &&
+          post034Cust[0]?.name === snapCust[0]?.name &&
+          Number(post034Inv[0]?.total_amount) === 1770.00;
+
+        // 5. Tenant isolation: cross-tenant access from unauthorized caller is rejected
+        let tenantIsolationOk = false;
+        try {
+          await withRoleContext(upgradeClient, { role: 'authenticated', userId: crypto.randomUUID() }, async () => {
+            await upgradeClient.query(
+              `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+              [existingOrgId, preProdId]
+            );
+          });
+        } catch (tenantErr) {
+          tenantIsolationOk = tenantErr.code === '42501' || tenantErr.message.includes('ERR_UNAUTHORIZED');
+        }
+
+        upg05Passed = Boolean(
+          stockRowValid &&
+          recvRowValid &&
+          zeroStockValid &&
+          zeroRecvValid &&
+          recordsUnchanged &&
+          tenantIsolationOk
+        );
       } catch (err) {
         upg05Err = err;
       }
@@ -961,7 +1031,7 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
 
     recordTest(
       'P1-UPG-05',
-      'Scenario B Upgrade: Migration 034 applies page-scoped stock and receivables RPCs and security hardening forward-only',
+      'Scenario B Upgrade: Migration 034 applies page-scoped stock and receivables RPCs, preserves 120 stock and 1770 receivable, retains zero balances and enforces tenant isolation',
       upg05Passed,
       `upg05Passed=${upg05Passed}`,
       upg05Passed ? null : upg05Err
@@ -3441,54 +3511,106 @@ async function runAcceptance() {
         let pageStockOk = false;
         let pageRecvOk = false;
         let crossTenantStockBlocked = false;
+        let crossTenantRecvBlocked = false;
         let batchLimitBlocked = false;
+        let foreignProdExcluded = false;
 
         await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-          // 1. Valid page stock request
-          const { rows: pStock } = await testClient.query(
-            `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
-            [orgAId, prod1Id]
+          // 1. Authoritative stock query: compare against actual SUM of stock_movements
+          const { rows: expectedStockRows } = await testClient.query(
+            `SELECT COALESCE(SUM(quantity_change), 0)::numeric AS exp_stock
+             FROM public.stock_movements
+             WHERE organization_id = $1::uuid AND product_id = $2::uuid;`,
+            [orgAId, prodA1Id]
           );
-          pageStockOk = Array.isArray(pStock) && pStock.length === 1 && typeof Number(pStock[0].current_stock) === 'number';
+          const expectedStock = Number(expectedStockRows[0].exp_stock);
 
-          // 2. Valid page customer receivables request
-          const { rows: pRecv } = await testClient.query(
-            `SELECT * FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+          const { rows: pStock } = await testClient.query(
+            `SELECT product_id, current_stock FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, prodA1Id]
+          );
+          pageStockOk =
+            pStock.length === 1 &&
+            pStock[0].product_id === prodA1Id &&
+            Number.isFinite(Number(pStock[0].current_stock)) &&
+            Number(pStock[0].current_stock) === expectedStock;
+
+          // 2. Authoritative receivables query: compare against actual SUM of issued/partially paid invoices
+          const { rows: expectedRecvRows } = await testClient.query(
+            `SELECT COALESCE(SUM(ROUND(GREATEST(0.00, total_amount - total_paid)::numeric, 2)), 0.00)::numeric AS exp_recv
+             FROM public.invoices
+             WHERE organization_id = $1::uuid AND customer_id = $2::uuid AND status IN ('ISSUED', 'PARTIALLY_PAID');`,
             [orgAId, custAId]
           );
-          pageRecvOk = Array.isArray(pRecv) && pRecv.length === 1 && typeof Number(pRecv[0].current_receivable) === 'number';
+          const expectedRecv = Number(expectedRecvRows[0].exp_recv);
+
+          const { rows: pRecv } = await testClient.query(
+            `SELECT customer_id, current_receivable FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, custAId]
+          );
+          pageRecvOk =
+            pRecv.length === 1 &&
+            pRecv[0].customer_id === custAId &&
+            Number.isFinite(Number(pRecv[0].current_receivable)) &&
+            Number(pRecv[0].current_receivable) === expectedRecv;
 
           // 3. Batch size limit check (> 100 rejected)
           try {
             await testClient.query(
               `SELECT * FROM public.get_page_product_stock_levels($1::uuid, array_fill($2::uuid, ARRAY[101]));`,
-              [orgAId, prod1Id]
+              [orgAId, prodA1Id]
             );
           } catch (limitErr) {
             batchLimitBlocked = limitErr.message.includes('ERR_INVALID_PARAMETER') || limitErr.message.includes('cannot exceed 100');
           }
+
+          // 4. Unrelated organization product never appears in results
+          const { rows: foreignRows } = await testClient.query(
+            `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, prodB1Id]
+          );
+          foreignProdExcluded = foreignRows.length === 0;
         });
 
-        // 4. Cross-tenant stock check (User B querying Org A)
+        // 5. Cross-tenant stock check (User B querying Org A)
         try {
           await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
             await testClient.query(
               `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
-              [orgAId, prod1Id]
+              [orgAId, prodA1Id]
             );
           });
         } catch (crossErr) {
           crossTenantStockBlocked = crossErr.code === '42501' || crossErr.message.includes('ERR_UNAUTHORIZED');
         }
 
-        pageRpcPassed = Boolean(pageStockOk && pageRecvOk && batchLimitBlocked && crossTenantStockBlocked);
+        // 6. Cross-tenant receivables check (User B querying Org A)
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(
+              `SELECT * FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+              [orgAId, custAId]
+            );
+          });
+        } catch (crossRecvErr) {
+          crossTenantRecvBlocked = crossRecvErr.code === '42501' || crossRecvErr.message.includes('ERR_UNAUTHORIZED');
+        }
+
+        pageRpcPassed = Boolean(
+          pageStockOk &&
+          pageRecvOk &&
+          batchLimitBlocked &&
+          foreignProdExcluded &&
+          crossTenantStockBlocked &&
+          crossTenantRecvBlocked
+        );
       } catch (err) {
         pageRpcErr = err;
       }
 
       recordTest(
         'P1-A2-13',
-        'get_page_product_stock_levels and get_page_customer_receivables execute page-scoped aggregation, enforce 100 batch limit and tenant isolation',
+        'get_page_product_stock_levels and get_page_customer_receivables reconcile with authoritative balances, enforce 100 batch limit, and reject cross-tenant access',
         pageRpcPassed,
         `pageRpcPassed=${pageRpcPassed}`,
         pageRpcPassed ? null : pageRpcErr
