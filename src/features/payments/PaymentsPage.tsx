@@ -5,6 +5,7 @@ import {
   Plus,
   Search,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
@@ -46,9 +47,8 @@ export const PaymentsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<PaymentsSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPreparingRecord, setIsPreparingRecord] = useState(false);
@@ -60,10 +60,16 @@ export const PaymentsPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Modal State
+  // Modal State — bounded & searchable lookup
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [eligibleInvoices, setEligibleInvoices] = useState<Invoice[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [invoiceId, setInvoiceId] = useState('');
+  const [customerSearchText, setCustomerSearchText] = useState('');
+  const [invoiceSearchText, setInvoiceSearchText] = useState('');
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [isSearchingInvoice, setIsSearchingInvoice] = useState(false);
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -73,6 +79,9 @@ export const PaymentsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeOrgIdRef = useRef(currentOrg?.id);
+  const searchCustSeqRef = useRef(0);
+  const searchInvSeqRef = useRef(0);
+
   useEffect(() => {
     if (currentOrg?.id !== activeOrgIdRef.current) {
       activeOrgIdRef.current = currentOrg?.id;
@@ -80,10 +89,15 @@ export const PaymentsPage: React.FC = () => {
       setIsModalOpen(false);
       setCustomerId('');
       setInvoiceId('');
+      setCustomers([]);
+      setEligibleInvoices([]);
+      setCustomerSearchText('');
+      setInvoiceSearchText('');
       setAmount('');
       setPaymentIdempotencyKey('');
       setPage(1);
       setSummary(null);
+      setSummaryError(null);
     }
   }, [currentOrg?.id]);
 
@@ -98,11 +112,12 @@ export const PaymentsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
+  const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
     if (!currentOrg) return null;
     const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
+
     try {
       const payPromise = typeof paymentsService.getPaymentsPaginated === 'function'
         ? paymentsService.getPaymentsPaginated(
@@ -134,11 +149,15 @@ export const PaymentsPage: React.FC = () => {
         ? paymentsService.getPaymentsSummary(currentOrg.id, isMockAuth)
         : null;
 
-      const [payRes, custList, invList, sumRes] = await Promise.all([
+      const [payRes, sumRes] = await Promise.all([
         payPromise,
-        customersService.getCustomers(currentOrg.id, isMockAuth),
-        invoicesService.getInvoices(currentOrg.id, isMockAuth),
-        summaryPromise,
+        summaryPromise ? summaryPromise.catch((err) => {
+          if (activeOrgIdRef.current === orgIdAtCall) {
+            setSummaryError(err instanceof Error ? err.message : 'Unable to load summary metrics');
+            setSummary(null);
+          }
+          return null;
+        }) : null,
       ]);
 
       if (activeOrgIdRef.current !== orgIdAtCall) {
@@ -149,26 +168,14 @@ export const PaymentsPage: React.FC = () => {
       setPayments(payRes.data);
       setTotalCount(payRes.totalCount);
       setTotalPages(payRes.totalPages);
-      setCustomers(custList);
-      setInvoices(invList);
       if (sumRes) {
         setSummary(sumRes);
-      } else {
-        // Fallback summary
-        const openInvoices = invList.filter(
-          (i) => (i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID') && calculateInvoiceBalance(i.totalAmount, i.totalPaid) > 0
-        );
-        setSummary({
-          totalCollected: payRes.data.reduce((s, p) => s + p.amount, 0),
-          paymentCount: payRes.totalCount,
-          totalReceivables: openInvoices.reduce((s, i) => s + calculateInvoiceBalance(i.totalAmount, i.totalPaid), 0),
-          openInvoicesCount: openInvoices.length,
-        });
+        setSummaryError(null);
       }
-      return { customers: custList, invoices: invList };
+      return payRes;
     } catch (err: any) {
       if (activeOrgIdRef.current !== orgIdAtCall) return null;
-      const msg = err instanceof Error ? err.message : 'Unable to load the required records. Check your connection and try again.';
+      const msg = err instanceof Error ? err.message : 'Unable to load payments. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load payments', msg);
       return null;
@@ -179,46 +186,154 @@ export const PaymentsPage: React.FC = () => {
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
-  const initializeAndOpenRecord = useCallback((custList: Customer[], preselectedInvoice?: Invoice) => {
-    const perm = check('payments:record');
-    if (!perm.allowed) {
-      showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-      clearActionParam();
-      return;
-    }
+  const loadEligibleInvoices = useCallback(
+    async (targetCustId: string, search = '', retainId = '') => {
+      if (!currentOrg || !targetCustId) {
+        setEligibleInvoices([]);
+        return;
+      }
+      const seq = ++searchInvSeqRef.current;
+      const orgIdAtCall = currentOrg.id;
+      setIsSearchingInvoice(true);
+      try {
+        const res = await invoicesService.getEligiblePaymentInvoices(
+          orgIdAtCall,
+          targetCustId,
+          { page: 1, pageSize: 25, search, exactInvoiceId: retainId || undefined },
+          isMockAuth
+        );
+        if (seq !== searchInvSeqRef.current || activeOrgIdRef.current !== orgIdAtCall) return;
+        setEligibleInvoices(res.data);
+      } catch (e) {
+        if (seq === searchInvSeqRef.current && activeOrgIdRef.current === orgIdAtCall) {
+          console.warn('Eligible invoices search error:', e);
+        }
+      } finally {
+        if (seq === searchInvSeqRef.current && activeOrgIdRef.current === orgIdAtCall) {
+          setIsSearchingInvoice(false);
+        }
+      }
+    },
+    [currentOrg, isMockAuth]
+  );
 
-    if (custList.length === 0) {
-      showToast('warning', 'No Customers Found', 'No customers found. Add a customer before recording a payment.');
-      setPrerequisite({
-        type: 'customer',
-        title: 'No Customers Found',
-        message: 'No customers found. Add a customer before recording a payment.',
-        actionRoute: '/customers?action=create',
-        actionLabel: 'Add Customer',
+  const handleCustomerSearch = async (query: string) => {
+    setCustomerSearchText(query);
+    if (!currentOrg) return;
+    const seq = ++searchCustSeqRef.current;
+    const orgIdAtCall = currentOrg.id;
+    setIsSearchingCustomer(true);
+    try {
+      const res = await customersService.getCustomersPaginated(
+        orgIdAtCall,
+        { page: 1, pageSize: 25, search: query, isActive: true },
+        isMockAuth
+      );
+      if (seq !== searchCustSeqRef.current || activeOrgIdRef.current !== orgIdAtCall) return;
+      setCustomers((prev) => {
+        const selected = prev.find((c) => c.id === customerId);
+        const map = new Map<string, Customer>();
+        if (selected) map.set(selected.id, selected);
+        for (const c of res.data) map.set(c.id, c);
+        return Array.from(map.values());
       });
-      clearActionParam();
-      return;
+    } catch (e) {
+      if (seq === searchCustSeqRef.current && activeOrgIdRef.current === orgIdAtCall) {
+        console.warn('Customer search error:', e);
+      }
+    } finally {
+      if (seq === searchCustSeqRef.current && activeOrgIdRef.current === orgIdAtCall) {
+        setIsSearchingCustomer(false);
+      }
     }
+  };
 
-    if (preselectedInvoice) {
-      setCustomerId(preselectedInvoice.customerId);
-      setInvoiceId(preselectedInvoice.id);
-      const rem = calculateInvoiceBalance(preselectedInvoice.totalAmount, preselectedInvoice.totalPaid);
-      setAmount(String(rem));
-    } else {
-      setCustomerId(custList[0]?.id || '');
-      setInvoiceId('');
-      setAmount('');
+  const handleInvoiceSearch = (query: string) => {
+    setInvoiceSearchText(query);
+    if (customerId) {
+      loadEligibleInvoices(customerId, query, invoiceId);
     }
+  };
 
-    setPaymentMethod('UPI');
-    setReferenceNumber('');
-    setPaymentDate(getBusinessDate());
-    setNotes('');
-    setPaymentIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
-    setIsModalOpen(true);
-    clearActionParam();
-  }, [check, clearActionParam, showToast]);
+  const initializeAndOpenRecord = useCallback(
+    async (preselectedInvoice?: Invoice) => {
+      const perm = check('payments:record');
+      if (!perm.allowed) {
+        showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
+        clearActionParam();
+        return;
+      }
+      if (!currentOrg) return;
+
+      setIsPreparingRecord(true);
+      try {
+        const custRes = await customersService.getCustomersPaginated(
+          currentOrg.id,
+          { page: 1, pageSize: 25, isActive: true },
+          isMockAuth
+        );
+
+        let custList = custRes.data;
+
+        if (custList.length === 0) {
+          showToast('warning', 'No Customers Found', 'No customers found. Add a customer before recording a payment.');
+          setPrerequisite({
+            type: 'customer',
+            title: 'No Customers Found',
+            message: 'No customers found. Add a customer before recording a payment.',
+            actionRoute: '/customers?action=create',
+            actionLabel: 'Add Customer',
+          });
+          clearActionParam();
+          return;
+        }
+
+        let initialCustId = custList[0]?.id || '';
+        let initialInvId = '';
+        let initialAmount = '';
+
+        if (preselectedInvoice) {
+          initialCustId = preselectedInvoice.customerId;
+          initialInvId = preselectedInvoice.id;
+          const rem = calculateInvoiceBalance(preselectedInvoice.totalAmount, preselectedInvoice.totalPaid);
+          initialAmount = String(rem);
+
+          if (!custList.some((c) => c.id === initialCustId)) {
+            const singleCust = await customersService.getCustomerById(currentOrg.id, initialCustId, isMockAuth);
+            if (singleCust) {
+              custList = [singleCust, ...custList];
+            }
+          }
+        }
+
+        setCustomers(custList);
+        setCustomerId(initialCustId);
+        setInvoiceId(initialInvId);
+        setAmount(initialAmount);
+        setCustomerSearchText('');
+        setInvoiceSearchText('');
+        setPaymentMethod('UPI');
+        setReferenceNumber('');
+        setPaymentDate(getBusinessDate());
+        setNotes('');
+        setPaymentIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+
+        if (initialCustId) {
+          await loadEligibleInvoices(initialCustId, '', initialInvId);
+        } else {
+          setEligibleInvoices([]);
+        }
+
+        setIsModalOpen(true);
+        clearActionParam();
+      } catch (err: any) {
+        showToast('error', 'Unable to Prepare Payment', err.message || 'Failed to initialize payment form');
+      } finally {
+        setIsPreparingRecord(false);
+      }
+    },
+    [check, clearActionParam, currentOrg, isMockAuth, loadEligibleInvoices, showToast]
+  );
 
   const checkRef = useRef(check);
   checkRef.current = check;
@@ -256,7 +371,7 @@ export const PaymentsPage: React.FC = () => {
           showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
           return;
         }
-        initializeAndOpenRecordRef.current(result.customers);
+        initializeAndOpenRecordRef.current();
       }
     });
 
@@ -270,20 +385,20 @@ export const PaymentsPage: React.FC = () => {
     const action = searchParams.get('action');
     if (action === 'record' && !isLoading && !isPreparingRecord) {
       if (loadError) {
-        showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
+        showToast('error', 'Loading Error', 'Unable to load payments. Check your connection and try again.');
         return;
       }
-      initializeAndOpenRecord(customers);
+      initializeAndOpenRecord();
     }
-  }, [searchParams, isLoading, isPreparingRecord, loadError, customers, initializeAndOpenRecord, showToast]);
+  }, [searchParams, isLoading, isPreparingRecord, loadError, initializeAndOpenRecord, showToast]);
 
   // Handle pending open if user clicked "Record Payment" while initial load was running
   useEffect(() => {
     if (pendingOpenRecord && !isLoading && !loadError) {
       setPendingOpenRecord(false);
-      initializeAndOpenRecord(customers);
+      initializeAndOpenRecord();
     }
-  }, [pendingOpenRecord, isLoading, loadError, customers, initializeAndOpenRecord]);
+  }, [pendingOpenRecord, isLoading, loadError, initializeAndOpenRecord]);
 
   const handleOpenRecord = (preselectedInvoice?: Invoice) => {
     const perm = check('payments:record');
@@ -299,11 +414,34 @@ export const PaymentsPage: React.FC = () => {
     }
 
     if (loadError) {
-      showToast('error', 'Unable to Load Records', 'Unable to load the required records. Check your connection and try again.');
+      showToast('error', 'Unable to Load Records', 'Unable to load payments. Check your connection and try again.');
       return;
     }
 
-    initializeAndOpenRecord(customers, preselectedInvoice);
+    initializeAndOpenRecord(preselectedInvoice);
+  };
+
+  const handleSelectCustomer = (newCustId: string) => {
+    setCustomerId(newCustId);
+    setInvoiceId('');
+    setAmount('');
+    setInvoiceSearchText('');
+    if (newCustId) {
+      loadEligibleInvoices(newCustId, '', '');
+    } else {
+      setEligibleInvoices([]);
+    }
+  };
+
+  const handleSelectInvoice = (selectedId: string) => {
+    setInvoiceId(selectedId);
+    if (selectedId) {
+      const inv = eligibleInvoices.find((i) => i.id === selectedId);
+      if (inv) {
+        const rem = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
+        setAmount(String(rem));
+      }
+    }
   };
 
   const handleRecordPayment = async (e: React.FormEvent) => {
@@ -328,37 +466,50 @@ export const PaymentsPage: React.FC = () => {
 
     if (!currentOrg) return;
 
-    // Validate target invoice eligibility & balance if invoice specified
+    // Real-time outstanding balance verification if invoice specified
     if (invoiceId) {
-      const targetInvoice = customerUnpaidInvoices.find((i) => i.id === invoiceId);
-      if (!targetInvoice) {
-        showToast(
-          'error',
-          'Ineligible Invoice',
-          'Selected invoice is not eligible for payment. Only issued or partially paid invoices with positive balances can be settled.'
-        );
-        return;
-      }
-      const remainingBalance = calculateInvoiceBalance(targetInvoice.totalAmount, targetInvoice.totalPaid);
-      if (payAmount > remainingBalance) {
-        showToast(
-          'error',
-          'Overpayment Violation',
-          `Payment amount (${formatCurrency(payAmount)}) exceeds outstanding balance (${formatCurrency(remainingBalance)}). Overpayment policy prevents excess credit without customer advance authorization.`
-        );
+      try {
+        const freshInv = await invoicesService.getInvoiceById(currentOrg.id, invoiceId, isMockAuth);
+        if (!freshInv) {
+          showToast('error', 'Invoice Not Found', 'Target invoice could not be verified.');
+          return;
+        }
+        if (freshInv.status !== 'ISSUED' && freshInv.status !== 'PARTIALLY_PAID') {
+          showToast(
+            'error',
+            'Ineligible Invoice',
+            `Selected invoice is not eligible for payment (current status: ${freshInv.status}). Only issued or partially paid invoices can be settled.`
+          );
+          return;
+        }
+        const remainingBalance = calculateInvoiceBalance(freshInv.totalAmount, freshInv.totalPaid);
+        if (remainingBalance <= 0) {
+          showToast('error', 'Invoice Settled', 'This invoice has already been fully settled.');
+          return;
+        }
+        if (payAmount > remainingBalance) {
+          showToast(
+            'error',
+            'Overpayment Violation',
+            `Payment amount (${formatCurrency(payAmount)}) exceeds outstanding balance (${formatCurrency(remainingBalance)}). Overpayment policy prevents excess credit without customer advance authorization.`
+          );
+          return;
+        }
+      } catch (invErr: any) {
+        showToast('error', 'Invoice Verification Failed', invErr.message || 'Could not verify target invoice');
         return;
       }
     }
 
     setIsSubmitting(true);
-    try {
-      const keyToUse =
-        paymentIdempotencyKey ||
-        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
-      if (!paymentIdempotencyKey && keyToUse) {
-        setPaymentIdempotencyKey(keyToUse);
-      }
+    const keyToUse =
+      paymentIdempotencyKey ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
+    if (!paymentIdempotencyKey && keyToUse) {
+      setPaymentIdempotencyKey(keyToUse);
+    }
 
+    try {
       const p = await paymentsService.recordPayment(
         currentOrg.id,
         {
@@ -384,26 +535,39 @@ export const PaymentsPage: React.FC = () => {
       setPaymentIdempotencyKey('');
       await loadData();
     } catch (err: any) {
-      showToast('error', 'Payment Failed', err.message);
+      // Ambiguous network outcome recovery: check if payment committed under keyToUse
+      if (keyToUse) {
+        try {
+          const recovery = await paymentsService.checkPaymentStatusByIdempotencyKey(
+            currentOrg.id,
+            keyToUse,
+            isMockAuth
+          );
+          if (recovery.committed && recovery.payment) {
+            showToast(
+              'success',
+              'Payment Recovered & Verified',
+              `Payment was successfully recorded on the server as receipt ${recovery.payment.paymentNumber}.`
+            );
+            setIsModalOpen(false);
+            setPaymentIdempotencyKey('');
+            await loadData();
+            return;
+          }
+        } catch (checkErr) {
+          console.warn('Idempotency recovery check warning:', checkErr);
+        }
+      }
+
+      showToast(
+        'error',
+        'Payment Failed',
+        err.message || 'Payment submission failed. You may retry safely with the preserved transaction key.'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // Eligible unpaid invoices for selected customer: strictly ISSUED or PARTIALLY_PAID with balance > 0
-  const customerUnpaidInvoices = invoices.filter(
-    (inv) =>
-      inv.organizationId === currentOrg?.id &&
-      inv.customerId === customerId &&
-      (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID') &&
-      calculateInvoiceBalance(inv.totalAmount, inv.totalPaid) > 0
-  );
-
-  const totalCollected = summary ? summary.totalCollected : payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalReceivables = summary ? summary.totalReceivables : customers.reduce((sum, c) => sum + (c.currentReceivable || 0), 0);
-  const openInvoicesCount = summary
-    ? summary.openInvoicesCount
-    : invoices.filter((i) => (i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID') && calculateInvoiceBalance(i.totalAmount, i.totalPaid) > 0).length;
 
   const filteredPayments = payments.filter((p) => {
     const s = searchQuery.toLowerCase();
@@ -466,43 +630,58 @@ export const PaymentsPage: React.FC = () => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-        <Card hover>
-          <div className="text-xs font-medium text-content-secondary mb-1.5">
-            Total Receivables Outstanding
+      {summaryError ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <div className="font-semibold">Authoritative Financial Totals Unavailable</div>
+              <div className="text-xs text-amber-800 mt-0.5">{summaryError}</div>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-amber-800 tabular-nums">
-            {formatCurrency(totalReceivables)}
-          </div>
-          <div className="text-xs text-content-muted mt-1">
-            Across active issued invoices
-          </div>
-        </Card>
+          <Button variant="outline" size="sm" onClick={() => loadData()}>
+            Retry Summary
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+          <Card hover>
+            <div className="text-xs font-medium text-content-secondary mb-1.5">
+              Total Receivables Outstanding
+            </div>
+            <div className="text-2xl font-bold text-amber-800 tabular-nums">
+              {summary ? formatCurrency(summary.totalReceivables) : '—'}
+            </div>
+            <div className="text-xs text-content-muted mt-1">
+              Across active issued invoices
+            </div>
+          </Card>
 
-        <Card hover>
-          <div className="text-xs font-medium text-content-secondary mb-1.5">
-            Total Collections Logged
-          </div>
-          <div className="text-2xl font-bold text-emerald-700 tabular-nums">
-            {formatCurrency(totalCollected)}
-          </div>
-          <div className="text-xs text-content-muted mt-1">
-            {summary ? summary.paymentCount : totalCount} verified payment receipts
-          </div>
-        </Card>
+          <Card hover>
+            <div className="text-xs font-medium text-content-secondary mb-1.5">
+              Total Collections Logged
+            </div>
+            <div className="text-2xl font-bold text-emerald-700 tabular-nums">
+              {summary ? formatCurrency(summary.totalCollected) : '—'}
+            </div>
+            <div className="text-xs text-content-muted mt-1">
+              {summary ? summary.paymentCount : totalCount} verified payment receipts
+            </div>
+          </Card>
 
-        <Card hover>
-          <div className="text-xs font-medium text-content-secondary mb-1.5">
-            Open Invoices
-          </div>
-          <div className="text-2xl font-bold text-content-primary tabular-nums">
-            {openInvoicesCount}
-          </div>
-          <div className="text-xs text-content-muted mt-1">
-            Awaiting payment settlement
-          </div>
-        </Card>
-      </div>
+          <Card hover>
+            <div className="text-xs font-medium text-content-secondary mb-1.5">
+              Open Invoices
+            </div>
+            <div className="text-2xl font-bold text-content-primary tabular-nums">
+              {summary ? summary.openInvoicesCount : '—'}
+            </div>
+            <div className="text-xs text-content-muted mt-1">
+              Awaiting payment settlement
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Search */}
       <Card>
@@ -620,41 +799,78 @@ export const PaymentsPage: React.FC = () => {
         maxWidth="lg"
       >
         <form onSubmit={handleRecordPayment} className="space-y-4">
-          <Select
-            label="Customer"
-            required
-            value={customerId}
-            onChange={(e) => {
-              setCustomerId(e.target.value);
-              setInvoiceId('');
-            }}
-            options={customers.map((c) => ({
-              value: c.id,
-              label: `${c.companyName || c.name} — Outstanding: ${formatCurrency(c.currentReceivable || 0)}`,
-            }))}
-          />
+          {/* Customer Lookup with Search & Stable Retention */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-content-secondary">
+                Customer <span className="text-red-500">*</span>
+              </label>
+              {isSearchingCustomer && (
+                <span className="text-[11px] text-content-muted flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin text-atlas-600" /> Searching...
+                </span>
+              )}
+            </div>
+            <div className="relative mb-1">
+              <Search className="w-3 h-3 absolute left-2 top-2 text-content-muted" />
+              <input
+                type="text"
+                placeholder="Type to search customers by name, company, phone..."
+                value={customerSearchText}
+                onChange={(e) => handleCustomerSearch(e.target.value)}
+                className="w-full text-xs rounded-lg border border-border bg-surface-card pl-6 pr-2 py-1 text-content-primary placeholder-content-muted focus:ring-1 focus:ring-atlas-500 focus:outline-none"
+              />
+            </div>
+            <Select
+              label=""
+              required
+              value={customerId}
+              onChange={(e) => handleSelectCustomer(e.target.value)}
+              options={customers.map((c) => ({
+                value: c.id,
+                label: `${c.companyName || c.name} — Outstanding: ${formatCurrency(c.currentReceivable || 0)}`,
+              }))}
+            />
+          </div>
 
-          <Select
-            label="Target Invoice to Settle (Optional)"
-            value={invoiceId}
-            onChange={(e) => {
-              setInvoiceId(e.target.value);
-              const inv = invoices.find((i) => i.id === e.target.value);
-              if (inv) {
-                setAmount(String(calculateInvoiceBalance(inv.totalAmount, inv.totalPaid)));
-              }
-            }}
-          >
-            <option value="">General Payment / Account Credit</option>
-            {customerUnpaidInvoices.map((inv) => {
-              const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
-              return (
-                <option key={inv.id} value={inv.id}>
-                  {inv.invoiceNumber} — Due: {inv.dueDate} — Balance: {formatCurrency(balance)}
-                </option>
-              );
-            })}
-          </Select>
+          {/* Eligible Invoices Lookup with Search & Balance Display */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-content-secondary">
+                Target Invoice to Settle (Optional)
+              </label>
+              {isSearchingInvoice && (
+                <span className="text-[11px] text-content-muted flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin text-atlas-600" /> Searching...
+                </span>
+              )}
+            </div>
+            <div className="relative mb-1">
+              <Search className="w-3 h-3 absolute left-2 top-2 text-content-muted" />
+              <input
+                type="text"
+                placeholder="Type to search eligible invoices by invoice #..."
+                value={invoiceSearchText}
+                onChange={(e) => handleInvoiceSearch(e.target.value)}
+                className="w-full text-xs rounded-lg border border-border bg-surface-card pl-6 pr-2 py-1 text-content-primary placeholder-content-muted focus:ring-1 focus:ring-atlas-500 focus:outline-none"
+              />
+            </div>
+            <Select
+              label=""
+              value={invoiceId}
+              onChange={(e) => handleSelectInvoice(e.target.value)}
+              options={[
+                { value: '', label: 'None — General Account Credit' },
+                ...eligibleInvoices.map((inv) => {
+                  const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
+                  return {
+                    value: inv.id,
+                    label: `${inv.invoiceNumber} (Due: ${inv.dueDate}) — Rem: ${formatCurrency(balance)}`,
+                  };
+                }),
+              ]}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Input

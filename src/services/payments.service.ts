@@ -141,40 +141,102 @@ export const paymentsService = {
     const { data, error } = await supabase.rpc('get_payments_summary', { p_org_id: orgId });
 
     if (error) {
-      // Resilient fallback if RPC not yet deployed
-      const [payRes, invRes] = await Promise.all([
-        supabase.from('payments').select('amount', { count: 'exact' }).eq('organization_id', orgId),
-        supabase
-          .from('invoices')
-          .select('total_amount, total_paid')
-          .eq('organization_id', orgId)
-          .in('status', ['ISSUED', 'PARTIALLY_PAID']),
-      ]);
+      throw new Error(`Failed to fetch authoritative payments summary: ${error.message}`);
+    }
 
-      const totalCollected = (payRes.data || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-      const paymentCount = payRes.count || (payRes.data || []).length;
-      const openInvoices = (invRes.data || []).filter(
-        (i) => (Number(i.total_amount) || 0) - (Number(i.total_paid) || 0) > 0
-      );
-      const totalReceivables = openInvoices.reduce(
-        (s, i) => s + ((Number(i.total_amount) || 0) - (Number(i.total_paid) || 0)),
-        0
-      );
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid payments summary response: expected object payload');
+    }
 
-      return {
-        totalCollected: roundMoney(totalCollected),
-        paymentCount,
-        totalReceivables: roundMoney(totalReceivables),
-        openInvoicesCount: openInvoices.length,
-      };
+    // Strict non-coercive metric validation preserving legitimate numeric 0
+    if (data.total_collected === undefined || data.total_collected === null || data.total_collected === '') {
+      throw new Error('Invalid payments summary response: missing total_collected');
+    }
+    const totalCollected = Number(data.total_collected);
+    if (!Number.isFinite(totalCollected) || totalCollected < 0) {
+      throw new Error('Invalid payments summary response: total_collected must be a non-negative finite number');
+    }
+
+    if (data.payment_count === undefined || data.payment_count === null || data.payment_count === '') {
+      throw new Error('Invalid payments summary response: missing payment_count');
+    }
+    const paymentCount = Number(data.payment_count);
+    if (!Number.isFinite(paymentCount) || !Number.isInteger(paymentCount) || paymentCount < 0) {
+      throw new Error('Invalid payments summary response: payment_count must be a non-negative integer');
+    }
+
+    if (data.total_receivables === undefined || data.total_receivables === null || data.total_receivables === '') {
+      throw new Error('Invalid payments summary response: missing total_receivables');
+    }
+    const totalReceivables = Number(data.total_receivables);
+    if (!Number.isFinite(totalReceivables) || totalReceivables < 0) {
+      throw new Error('Invalid payments summary response: total_receivables must be a non-negative finite number');
+    }
+
+    if (data.open_invoices_count === undefined || data.open_invoices_count === null || data.open_invoices_count === '') {
+      throw new Error('Invalid payments summary response: missing open_invoices_count');
+    }
+    const openInvoicesCount = Number(data.open_invoices_count);
+    if (!Number.isFinite(openInvoicesCount) || !Number.isInteger(openInvoicesCount) || openInvoicesCount < 0) {
+      throw new Error('Invalid payments summary response: open_invoices_count must be a non-negative integer');
     }
 
     return {
-      totalCollected: Number(data?.total_collected) || 0,
-      paymentCount: Number(data?.payment_count) || 0,
-      totalReceivables: Number(data?.total_receivables) || 0,
-      openInvoicesCount: Number(data?.open_invoices_count) || 0,
+      totalCollected: roundMoney(totalCollected),
+      paymentCount,
+      totalReceivables: roundMoney(totalReceivables),
+      openInvoicesCount,
     };
+  },
+
+  /**
+   * RECOVERY MECHANISM FOR AMBIGUOUS NETWORK OUTCOMES
+   * Checks whether a payment with the specified idempotency key was committed
+   * to the database without generating a new key or fabricating receipts.
+   */
+  async checkPaymentStatusByIdempotencyKey(
+    orgId: string,
+    idempotencyKey: string,
+    isMockAuth: boolean = false
+  ): Promise<{ committed: boolean; payment?: Payment }> {
+    if (isMockAuth) {
+      const payments = storage.getPayments(orgId);
+      const found = payments.find((p: any) => p.idempotencyKey === idempotencyKey);
+      return { committed: Boolean(found), payment: found };
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    const { data: rec, error } = await supabase
+      .from('payment_idempotency')
+      .select('payment_id')
+      .eq('organization_id', orgId)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to check payment idempotency status: ${error.message}`);
+    }
+
+    if (!rec || !rec.payment_id) {
+      return { committed: false };
+    }
+
+    const { data: payRow, error: payErr } = await supabase
+      .from('payments')
+      .select('*, allocations:payment_allocations(*), customer:customers!fk_payments_customer_org(*)')
+      .eq('organization_id', orgId)
+      .eq('id', rec.payment_id)
+      .maybeSingle();
+
+    if (payErr || !payRow) {
+      return { committed: true };
+    }
+
+    const allocations = (payRow.allocations || []).map(mapDbPaymentAllocation);
+    return { committed: true, payment: mapDbPayment(payRow, allocations) };
   },
 
   /**

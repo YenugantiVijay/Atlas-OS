@@ -544,6 +544,107 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
       ).rejects.toThrow(/missing an explicit tax rate.*Issued invoices require an explicit, verified tax rate/);
     });
 
+    it('rejects invoice issuance when status is omitted (implicit ISSUED) and line item is missing an explicit tax rate', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn(),
+      };
+
+      await expect(
+        invoicesService.createInvoice(
+          orgId,
+          {
+            customerId,
+            // status omitted -> defaults to ISSUED
+            invoiceDate: '2026-10-31',
+            dueDate: '2026-11-30',
+            items: [
+              {
+                productId: productId1,
+                productName: 'Unclassified Cable',
+                productSku: 'CBL-UNCLASS',
+                uom: 'Meters',
+                quantity: 10,
+                unitPrice: 50,
+                // taxRate omitted
+              },
+            ],
+          },
+          false
+        )
+      ).rejects.toThrow(/missing an explicit tax rate.*Issued invoices require an explicit, verified tax rate/);
+    });
+
+    it('allows draft invoice creation without explicit tax rate (tax rate deferred until issuance)', async () => {
+      const mockDraftResponse = {
+        id: 'inv-draft-no-tax',
+        organization_id: orgId,
+        invoice_number: 'ATL/26-27/0050',
+        customer_id: customerId,
+        sales_order_id: null,
+        status: 'DRAFT',
+        invoice_date: '2026-10-31',
+        due_date: '2026-11-30',
+        subtotal: 500,
+        discount_amount: 0,
+        tax_amount: 0,
+        total_amount: 500,
+        total_paid: 0,
+        items: [
+          {
+            id: 'item-draft-no-tax',
+            invoice_id: 'inv-draft-no-tax',
+            product_id: productId1,
+            product_name: 'Draft Item',
+            product_sku: 'DFT-01',
+            uom: 'Nos',
+            quantity: 1,
+            unit_price: 500,
+            discount_percent: 0,
+            tax_rate: 0,
+            line_subtotal: 500,
+            line_tax: 0,
+            line_total: 500,
+          },
+        ],
+      };
+
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: mockDraftResponse,
+          error: null,
+        }),
+      };
+
+      const res = await invoicesService.createInvoice(
+        orgId,
+        {
+          customerId,
+          status: 'DRAFT',
+          invoiceDate: '2026-10-31',
+          dueDate: '2026-11-30',
+          items: [
+            {
+              productId: productId1,
+              productName: 'Draft Item',
+              productSku: 'DFT-01',
+              uom: 'Nos',
+              quantity: 1,
+              unitPrice: 500,
+              // taxRate omitted on DRAFT
+            },
+          ],
+        },
+        false
+      );
+
+      expect(res.status).toBe('DRAFT');
+      expect(mockSupabaseInstance.rpc).toHaveBeenCalledTimes(1);
+      const [rpcName, rpcParams] = mockSupabaseInstance.rpc.mock.calls[0];
+      expect(rpcName).toBe('create_invoice_atomic');
+      expect(rpcParams.p_status).toBe('DRAFT');
+      expect(rpcParams.p_items[0].tax_rate).toBeNull();
+    });
+
     it('accepts and preserves explicit 0% tax rate on final invoice issuance (exempt supplies)', async () => {
       mockSupabaseInstance = {
         rpc: vi.fn().mockResolvedValue({
@@ -1233,6 +1334,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 1,
                 unitPrice: 500,
+                taxRate: 18,
               },
             ],
           },
@@ -1264,6 +1366,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Coils',
                 quantity: 2,
                 unitPrice: 1000,
+                taxRate: 18,
               },
               {
                 productId: undefined as any,
@@ -1272,6 +1375,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 4,
                 unitPrice: 250,
+                taxRate: 18,
               },
             ],
           },
@@ -1303,6 +1407,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Coils',
                 quantity: 1,
                 unitPrice: 1000,
+                taxRate: 18,
               },
               {
                 productId: null as any,
@@ -1311,6 +1416,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 1,
                 unitPrice: 500,
+                taxRate: 18,
               },
             ],
           },
@@ -1342,6 +1448,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 1,
                 unitPrice: 100,
+                taxRate: 18,
               },
             ],
           },
@@ -1373,6 +1480,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 1,
                 unitPrice: 100,
+                taxRate: 18,
               },
             ],
           },
@@ -1405,6 +1513,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
                 uom: 'Nos',
                 quantity: 1,
                 unitPrice: 100,
+                taxRate: 18,
               },
             ],
           },

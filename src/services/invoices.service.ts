@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
-import { parseTaxRate, isExplicitTaxRate } from '@/lib/money';
+import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
@@ -169,6 +169,117 @@ export const invoicesService = {
     });
   },
 
+  async getInvoiceById(orgId: string, invoiceId: string, isMockAuth: boolean = false): Promise<Invoice | null> {
+    if (isMockAuth) {
+      const inv = storage.getInvoices(orgId).find((i) => i.id === invoiceId);
+      return inv || null;
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*, items:invoice_items(*), customer:customers!fk_invoices_customer_org(*)')
+      .eq('organization_id', orgId)
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to fetch invoice: ${error.message}`);
+    }
+
+    if (!data) return null;
+    const items = (data.items || []).map(mapDbInvoiceItem);
+    return mapDbInvoice(data, items);
+  },
+
+  /**
+   * Bounded, server-side lookup of eligible ISSUED and PARTIALLY_PAID invoices
+   * with positive balance for a specific customer.
+   */
+  async getEligiblePaymentInvoices(
+    orgId: string,
+    customerId: string,
+    params: {
+      search?: string;
+      page?: number;
+      pageSize?: number;
+      exactInvoiceId?: string;
+    } = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<Invoice>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const all = storage.getInvoices(orgId);
+      const eligible = all.filter((inv: any) => {
+        if (inv.customerId !== customerId) return false;
+        if (inv.id === params.exactInvoiceId) return true;
+        const isEligibleStatus = inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID';
+        const hasBalance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid) > 0;
+        return isEligibleStatus && hasBalance;
+      });
+      return paginateArray(
+        eligible,
+        { page, pageSize, search: params.search },
+        (inv, s) => inv.invoiceNumber.toLowerCase().includes(s),
+        (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('invoices')
+      .select('*, items:invoice_items(*), customer:customers!fk_invoices_customer_org(*)', { count: 'exact' })
+      .eq('organization_id', orgId)
+      .eq('customer_id', customerId)
+      .in('status', ['ISSUED', 'PARTIALLY_PAID']);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      if (s) {
+        query = query.ilike('invoice_number', `%${s}%`);
+      }
+    }
+
+    query = query
+      .order('due_date', { ascending: true })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+
+    const { data: dbInvoices, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch eligible invoices: ${error.message}`);
+    }
+
+    const totalCount = count || 0;
+    let mapped = (dbInvoices || [])
+      .map((row) => {
+        const items = (row.items || []).map(mapDbInvoiceItem);
+        return mapDbInvoice(row, items);
+      })
+      .filter((inv) => calculateInvoiceBalance(inv.totalAmount, inv.totalPaid) > 0 || inv.id === params.exactInvoiceId);
+
+    if (params.exactInvoiceId && !mapped.some((i) => i.id === params.exactInvoiceId)) {
+      const exact = await this.getInvoiceById(orgId, params.exactInvoiceId, isMockAuth);
+      if (exact && exact.customerId === customerId) {
+        mapped = [exact, ...mapped];
+      }
+    }
+
+    return buildPaginatedResult(mapped, totalCount, page, pageSize);
+  },
+
   /**
    * ATOMIC INVOICE CREATION
    * Replaces non-atomic, 3-step PostgREST insertion with single ACID RPC:
@@ -191,10 +302,11 @@ export const invoicesService = {
 
     const finalStatus = input.status || 'ISSUED';
     // Strict Tax Rate Verification on Final Issuance:
-    // When issuing an invoice (status = 'ISSUED'), every line item must contain an explicit, verified tax rate.
+    // When issuing an invoice (effective finalStatus = 'ISSUED'), every line item must contain an explicit, verified tax rate.
+    // Both explicit and implicit/defaulted ISSUED invoices enforce required tax rates.
     // Unverified or missing tax rates cannot be silently zero-rated or fabricated.
     // Draft invoices (status = 'DRAFT') do not enforce tax rates prematurely.
-    if (input.status === 'ISSUED') {
+    if (finalStatus === 'ISSUED') {
       input.items.forEach((it, idx) => {
         if (!isExplicitTaxRate(it.taxRate)) {
           throw new Error(

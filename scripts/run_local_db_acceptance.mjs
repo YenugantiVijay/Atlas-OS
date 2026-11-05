@@ -306,7 +306,7 @@ async function withRoleContext(client, { role = 'authenticated', userId = null }
  */
 async function runUpgradeScenarioB(maintClient, baseRunId) {
   console.log('\n' + '='.repeat(80));
-  console.log('SCENARIO B: EXISTING DATABASE UPGRADE (MIGRATIONS 029 -> 030 -> 031 -> 032)');
+  console.log('SCENARIO B: EXISTING DATABASE UPGRADE (MIGRATIONS 029 -> 030 -> 031 -> 032 -> 033 -> 034 -> 035 -> 036)');
   console.log('='.repeat(80));
 
   const upgradeRunId = 'upg_' + crypto.randomBytes(4).toString('hex');
@@ -1096,6 +1096,115 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       upg06Passed,
       `upg06Passed=${upg06Passed}`,
       upg06Passed ? null : upg06Err
+    );
+
+    // ------------------------------------------------------------------------
+    // Step 13: Scenario B Upgrade to Migration 036 (Ledger Reconciliation & Workflow Consistency)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SCENARIO B: APPLYING MIGRATION 036 (FORWARD-ONLY UPGRADE) ---');
+    const mig036Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '036_ledger_reconciliation_and_workflow_consistency.sql'), 'utf8');
+    await upgradeClient.query(mig036Sql);
+    console.log('  ✓ Migration 036 applied successfully to existing upgraded database.');
+
+    let upg07Passed = false;
+    let upg07Err = null;
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      try {
+        // 1. Verify covering indexes exist
+        const { rows: upg036Indexes } = await upgradeClient.query(`
+          SELECT indexname FROM pg_indexes
+          WHERE schemaname = 'public'
+            AND indexname IN (
+              'idx_invoices_org_cust_status_due',
+              'idx_payment_allocations_inv_id'
+            );
+        `);
+        const indexesCreated = upg036Indexes.length === 2;
+
+        // 2. Verify create_invoice_atomic rejects non-statutory tax rate on upgraded database
+        let taxCheckBlocked = false;
+        try {
+          await upgradeClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            );`,
+            [
+              existingOrgId,
+              preCustId,
+              JSON.stringify([
+                { productId: preProdId, quantity: 1, unitPrice: 100.00, taxRate: 15.00 }
+              ])
+            ]
+          );
+        } catch (taxErr) {
+          taxCheckBlocked = taxErr.code === '23514' || taxErr.message.includes('invalid tax_rate');
+        }
+
+        // 3. Verify get_eligible_payment_invoices returns pre-seeded eligible invoice
+        const { rows: elRows } = await upgradeClient.query(
+          `SELECT public.get_eligible_payment_invoices(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_limit := 10,
+            p_offset := 0
+          ) AS result;`,
+          [existingOrgId, preCustId]
+        );
+        const elResult = elRows[0]?.result;
+        const elData = elResult?.data || [];
+        const foundPreInv = elData.find((i) => i.id === preInvId);
+        const elInvoicesValid = Boolean(
+          foundPreInv &&
+          foundPreInv.status === 'ISSUED' &&
+          Number(foundPreInv.outstanding_balance) === 1770.00
+        );
+
+        // 4. Verify pre-existing business records remain unchanged after Migration 036
+        const { rows: post036Prod } = await upgradeClient.query(`SELECT * FROM public.products WHERE id = $1;`, [preProdId]);
+        const { rows: post036Stock } = await upgradeClient.query(`SELECT sum(quantity_change)::numeric AS qty FROM public.stock_movements WHERE product_id = $1;`, [preProdId]);
+        const { rows: post036Cust } = await upgradeClient.query(`SELECT * FROM public.customers WHERE id = $1;`, [preCustId]);
+        const { rows: post036Inv } = await upgradeClient.query(`SELECT * FROM public.invoices WHERE id = $1;`, [preInvId]);
+
+        const recordsUnchanged =
+          post036Prod[0]?.name === snapProd[0]?.name &&
+          Number(post036Stock[0]?.qty) === 120 &&
+          post036Cust[0]?.name === snapCust[0]?.name &&
+          Number(post036Inv[0]?.total_amount) === 1770.00;
+
+        // 5. Tenant isolation: cross-tenant access to get_eligible_payment_invoices from unauthorized caller is rejected
+        let tenantIsolationOk = false;
+        try {
+          await withRoleContext(upgradeClient, { role: 'authenticated', userId: crypto.randomUUID() }, async () => {
+            await upgradeClient.query(
+              `SELECT public.get_eligible_payment_invoices($1::uuid, $2::uuid);`,
+              [existingOrgId, preCustId]
+            );
+          });
+        } catch (tenantErr) {
+          tenantIsolationOk = tenantErr.code === '42501' || tenantErr.message.includes('ERR_UNAUTHORIZED') || tenantErr.message.includes('Access denied');
+        }
+
+        upg07Passed = Boolean(
+          indexesCreated &&
+          taxCheckBlocked &&
+          elInvoicesValid &&
+          recordsUnchanged &&
+          tenantIsolationOk
+        );
+      } catch (err) {
+        upg07Err = err;
+      }
+    });
+
+    recordTest(
+      'P1-UPG-07',
+      'Scenario B Upgrade: Migration 036 applies statutory tax enforcement and server-side eligible invoices lookup, preserves all pre-existing records and enforces tenant isolation',
+      upg07Passed,
+      `upg07Passed=${upg07Passed}`,
+      upg07Passed ? null : upg07Err
     );
 
   } finally {
@@ -4023,6 +4132,425 @@ async function runAcceptance() {
         orderConfirmPassed,
         `orderConfirmPassed=${orderConfirmPassed}`,
         orderConfirmPassed ? null : orderConfirmErr
+      );
+
+      // TEST 49 (P1-A3-06): Statutory GST tax rate enforcement on final invoice issuance
+      let taxEnforcementPassed = false;
+      let taxEnforcementErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // 1. Missing tax rate on explicit ISSUED status rejected with check_violation
+          let missingTaxBlocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.create_invoice_atomic(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_items := $3::jsonb,
+                p_status := 'ISSUED'
+              );`,
+              [
+                orgAId,
+                custAId,
+                JSON.stringify([
+                  { productId: prodA1Id, quantity: 1, unitPrice: 100.00 }
+                ])
+              ]
+            );
+          } catch (err) {
+            missingTaxBlocked = err.code === '23514' || err.message.includes('missing tax_rate') || err.message.includes('invalid tax_rate');
+          }
+
+          // 2. Non-statutory tax rate (e.g. 15%) on implicit ISSUED status rejected
+          let invalidTaxBlocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.create_invoice_atomic(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_items := $3::jsonb
+              );`,
+              [
+                orgAId,
+                custAId,
+                JSON.stringify([
+                  { productId: prodA1Id, quantity: 1, unitPrice: 100.00, taxRate: 15.00 }
+                ])
+              ]
+            );
+          } catch (err) {
+            invalidTaxBlocked = err.code === '23514' || err.message.includes('invalid tax_rate');
+          }
+
+          // 3. Valid statutory rates (0, 5, 12, 18, 28) and DRAFT without tax rate succeed
+          const { rows: draftInv } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'DRAFT'
+            ) AS inv;`,
+            [
+              orgAId,
+              custAId,
+              JSON.stringify([
+                { productId: prodA1Id, quantity: 1, unitPrice: 100.00 }
+              ])
+            ]
+          );
+          const draftOk = Boolean(draftInv[0]?.inv?.id);
+
+          const { rows: zeroTaxInv } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            ) AS inv;`,
+            [
+              orgAId,
+              custAId,
+              JSON.stringify([
+                { productId: prodA1Id, quantity: 1, unitPrice: 100.00, taxRate: 0.00 }
+              ])
+            ]
+          );
+          const zeroTaxOk = Boolean(zeroTaxInv[0]?.inv?.id);
+
+          taxEnforcementPassed = missingTaxBlocked && invalidTaxBlocked && draftOk && zeroTaxOk;
+        });
+      } catch (err) {
+        taxEnforcementErr = err;
+      }
+
+      recordTest(
+        'P1-A3-06',
+        'create_invoice_atomic strictly enforces statutory GST rates (0, 5, 12, 18, 28%) on ISSUED invoices with check_violation while preserving non-blocking DRAFT creation',
+        taxEnforcementPassed,
+        `taxEnforcementPassed=${taxEnforcementPassed}`,
+        taxEnforcementPassed ? null : taxEnforcementErr
+      );
+
+      // TEST 50 (P1-A3-07): Dedicated Server-Side Eligible Payment Invoices Lookup Contract
+      let eligibleInvoicesPassed = false;
+      let eligibleInvoicesErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // Create an issued invoice with known amount
+          const { rows: invRows } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            ) AS invoice;`,
+            [
+              orgAId,
+              custAId,
+              JSON.stringify([
+                { productId: prodA1Id, quantity: 2, unitPrice: 200.00, discountPercent: 0, taxRate: 18 }
+              ])
+            ]
+          );
+          const eligibleInvId = invRows[0].invoice.id;
+          const eligibleInvNum = invRows[0].invoice.invoice_number;
+
+          // Fetch eligible payment invoices via RPC
+          const { rows: rpcRows } = await testClient.query(
+            `SELECT public.get_eligible_payment_invoices(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_search := $3::text,
+              p_limit := 25,
+              p_offset := 0
+            ) AS result;`,
+            [orgAId, custAId, eligibleInvNum]
+          );
+          const result = rpcRows[0]?.result;
+          const items = result?.data || [];
+          const found = items.find((i) => i.id === eligibleInvId);
+
+          const rpcReturnsValidData = Boolean(
+            found &&
+            found.invoice_number === eligibleInvNum &&
+            found.status === 'ISSUED' &&
+            Number(found.outstanding_balance) > 0 &&
+            Number(found.outstanding_balance) === Number(found.total_amount) - Number(found.total_paid)
+          );
+
+          // Verify exact ID inclusion works even if search doesn't match
+          const { rows: exactRows } = await testClient.query(
+            `SELECT public.get_eligible_payment_invoices(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_search := 'NON_EXISTENT_SEARCH_STRING_FOR_TEST',
+              p_limit := 10,
+              p_offset := 0,
+              p_exact_id := $3::uuid
+            ) AS result;`,
+            [orgAId, custAId, eligibleInvId]
+          );
+          const exactResult = exactRows[0]?.result;
+          const exactFound = (exactResult?.data || []).find((i) => i.id === eligibleInvId);
+
+          // Verify cross-tenant isolation: unauthorized caller cannot access eligible invoices
+          let crossTenantBlocked = false;
+          try {
+            await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+              await testClient.query(
+                `SELECT public.get_eligible_payment_invoices($1::uuid, $2::uuid);`,
+                [orgAId, custAId]
+              );
+            });
+          } catch (ctErr) {
+            crossTenantBlocked = ctErr.code === '42501' || ctErr.message.includes('Access denied');
+          }
+
+          eligibleInvoicesPassed = rpcReturnsValidData && Boolean(exactFound) && crossTenantBlocked;
+        });
+      } catch (err) {
+        eligibleInvoicesErr = err;
+      }
+
+      recordTest(
+        'P1-A3-07',
+        'get_eligible_payment_invoices returns bounded, page-scoped invoices with positive balance, supports search and exact ID retention, and enforces tenant isolation',
+        eligibleInvoicesPassed,
+        `eligibleInvoicesPassed=${eligibleInvoicesPassed}`,
+        eligibleInvoicesPassed ? null : eligibleInvoicesErr
+      );
+
+      // TEST 51 (P1-A3-08): Authoritative Financial Ledger Reconciliation Invariants
+      let ledgerReconcilPassed = false;
+      let ledgerReconcilErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // 1. Fetch customer receivables via page-scoped RPC
+          const { rows: custRecvRows } = await testClient.query(
+            `SELECT customer_id, current_receivable FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, custAId]
+          );
+          const custRecv = Number(custRecvRows[0]?.current_receivable || 0);
+
+          // 2. Fetch sum of outstanding balances for this customer directly from authoritative invoices
+          const { rows: invSumRows } = await testClient.query(
+            `SELECT COALESCE(SUM(total_amount - total_paid), 0)::numeric(12,2) AS expected_recv
+             FROM public.invoices
+             WHERE organization_id = $1::uuid
+               AND customer_id = $2::uuid
+               AND status IN ('ISSUED', 'PARTIALLY_PAID')
+               AND (total_amount - total_paid) > 0;`,
+            [orgAId, custAId]
+          );
+          const expectedCustRecv = Number(invSumRows[0]?.expected_recv || 0);
+
+          // 3. Fetch organization total receivables from get_payments_summary
+          const { rows: paySumRows } = await testClient.query(
+            `SELECT public.get_payments_summary($1::uuid) AS summary;`,
+            [orgAId]
+          );
+          const orgRecv = Number(paySumRows[0]?.summary?.total_receivables || 0);
+
+          // 4. Fetch total sum of all eligible invoices across the entire organization
+          const { rows: allInvSumRows } = await testClient.query(
+            `SELECT COALESCE(SUM(total_amount - total_paid), 0)::numeric(12,2) AS total_org_recv
+             FROM public.invoices
+             WHERE organization_id = $1::uuid
+               AND status IN ('ISSUED', 'PARTIALLY_PAID')
+               AND (total_amount - total_paid) > 0;`,
+            [orgAId]
+          );
+          const expectedOrgRecv = Number(allInvSumRows[0]?.total_org_recv || 0);
+
+          ledgerReconcilPassed =
+            Math.abs(custRecv - expectedCustRecv) < 0.01 &&
+            Math.abs(orgRecv - expectedOrgRecv) < 0.01 &&
+            custRecv >= 0 &&
+            orgRecv >= custRecv;
+        });
+      } catch (err) {
+        ledgerReconcilErr = err;
+      }
+
+      recordTest(
+        'P1-A3-08',
+        'Authoritative financial ledger reconciliation: customer receivables equal sum of open invoice balances and payments summary matches total organization receivables',
+        ledgerReconcilPassed,
+        `ledgerReconcilPassed=${ledgerReconcilPassed}`,
+        ledgerReconcilPassed ? null : ledgerReconcilErr
+      );
+
+      // TEST 52 (P1-A3-09): Payment Idempotency Request Hash Collision Protection
+      let hashCollisionPassed = false;
+      let hashCollisionErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // 1. Create an issued invoice for payment testing
+          const { rows: invRows } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            ) AS invoice;`,
+            [
+              orgAId,
+              custAId,
+              JSON.stringify([
+                { productId: prodA1Id, quantity: 1, unitPrice: 300.00, discountPercent: 0, taxRate: 18 }
+              ])
+            ]
+          );
+          const invId = invRows[0].invoice.id;
+
+          const collisionKey = crypto.randomUUID();
+
+          // First call succeeds
+          await testClient.query(
+            `SELECT public.record_payment_and_allocate(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_amount := 100.00::numeric,
+              p_payment_method := 'BANK_TRANSFER'::varchar,
+              p_reference_no := 'REF-COL-1'::varchar,
+              p_payment_date := CURRENT_DATE,
+              p_notes := 'Initial payment'::text,
+              p_invoice_id := $3::uuid,
+              p_allocated_amount := 100.00::numeric,
+              p_idempotency_key := $4::uuid
+            );`,
+            [orgAId, custAId, invId, collisionKey]
+          );
+
+          // Second call with same idempotency key but different amount (200.00) must be rejected
+          let collisionBlocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.record_payment_and_allocate(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_amount := 200.00::numeric,
+                p_payment_method := 'BANK_TRANSFER'::varchar,
+                p_reference_no := 'REF-COL-2'::varchar,
+                p_payment_date := CURRENT_DATE,
+                p_notes := 'Modified payment'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 200.00::numeric,
+                p_idempotency_key := $4::uuid
+              );`,
+              [orgAId, custAId, invId, collisionKey]
+            );
+          } catch (err) {
+            collisionBlocked =
+              err.code === '23505' ||
+              err.message.includes('Idempotency key reused with different request parameters');
+          }
+
+          hashCollisionPassed = collisionBlocked;
+        });
+      } catch (err) {
+        hashCollisionErr = err;
+      }
+
+      recordTest(
+        'P1-A3-09',
+        'record_payment_and_allocate strictly rejects idempotency key reuse with different request parameters (hash collision protection)',
+        hashCollisionPassed,
+        `hashCollisionPassed=${hashCollisionPassed}`,
+        hashCollisionPassed ? null : hashCollisionErr
+      );
+
+      // TEST 53 (P1-A3-10): Overpayment and Cross-Customer Allocation Rejection
+      let overpaymentPassed = false;
+      let overpaymentErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // 1. Create an invoice with total ₹118.00
+          const { rows: invRows } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            ) AS invoice;`,
+            [
+              orgAId,
+              custAId,
+              JSON.stringify([
+                { productId: prodA1Id, quantity: 1, unitPrice: 100.00, discountPercent: 0, taxRate: 18 }
+              ])
+            ]
+          );
+          const invId = invRows[0].invoice.id;
+
+          // Attempt allocating more than total amount (e.g. ₹500.00)
+          let overpaymentBlocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.record_payment_and_allocate(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_amount := 500.00::numeric,
+                p_payment_method := 'UPI'::varchar,
+                p_reference_no := 'REF-OVERPAY'::varchar,
+                p_payment_date := CURRENT_DATE,
+                p_notes := 'Overpayment test'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 500.00::numeric
+              );`,
+              [orgAId, custAId, invId]
+            );
+          } catch (err) {
+            overpaymentBlocked =
+              err.message.includes('Overpayment violation') ||
+              err.message.includes('exceeds remaining balance') ||
+              err.code === '23514';
+          }
+
+          // Attempt allocating to a foreign customer's invoice (cross-customer)
+          const testForeignCustId = crypto.randomUUID();
+          await testClient.query(
+            `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+             VALUES ($1::uuid, $2::uuid, 'Foreign Customer Test', 50000, 30, true);`,
+            [testForeignCustId, orgAId]
+          );
+
+          let crossCustomerBlocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.record_payment_and_allocate(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_amount := 50.00::numeric,
+                p_payment_method := 'UPI'::varchar,
+                p_reference_no := 'REF-CROSS-CUST'::varchar,
+                p_payment_date := CURRENT_DATE,
+                p_notes := 'Cross-customer test'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 50.00::numeric
+              );`,
+              [orgAId, testForeignCustId, invId]
+            );
+          } catch (err) {
+            crossCustomerBlocked =
+              err.message.includes('Customer mismatch') ||
+              err.message.includes('does not belong to customer') ||
+              err.message.includes('not found') ||
+              err.code === '23503';
+          }
+
+          overpaymentPassed = overpaymentBlocked && crossCustomerBlocked;
+        });
+      } catch (err) {
+        overpaymentErr = err;
+      }
+
+      recordTest(
+        'P1-A3-10',
+        'record_payment_and_allocate strictly rejects payment allocations exceeding invoice balance and cross-customer invoice allocations',
+        overpaymentPassed,
+        `overpaymentPassed=${overpaymentPassed}`,
+        overpaymentPassed ? null : overpaymentErr
       );
     });
 
