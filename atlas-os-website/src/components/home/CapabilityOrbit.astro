@@ -1,0 +1,230 @@
+---
+/**
+ * A lightweight, no-JavaScript visual that brings Atlas OS workflows
+ * into a connected hub, pauses them in place, and lets them depart.
+ * On small screens and for reduced-motion users, the cards remain still.
+ */
+---
+
+<section class="capability-orbit" aria-label="Atlas OS connects core distributor workflows">
+  <div class="orbit-grid" aria-hidden="true"></div>
+  <div class="orbit-ring orbit-ring-one" aria-hidden="true"></div>
+  <div class="orbit-ring orbit-ring-two" aria-hidden="true"></div>
+
+  <div class="orbit-core">
+    <span class="orbit-eyebrow">THE CONNECTED WORKSPACE</span>
+    <div class="orbit-emblem" aria-hidden="true">
+      <svg viewBox="0 0 48 48" fill="none" width="52" height="52">
+        <path d="M24 8L38 16V32L24 40L10 32V16L24 8Z" stroke="#CCFBF1" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M24 8V24L38 32M24 24L10 32" stroke="#2DD4BF" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="24" cy="24" r="4.5" fill="#0D9488"/>
+        <circle cx="24" cy="24" r="2" fill="#CCFBF1"/>
+      </svg>
+    </div>
+    <h2>One connected<br/><span>business system.</span></h2>
+    <p>Every essential workflow, organized in one place.</p>
+  </div>
+
+  <ul class="orbit-nodes" aria-label="Connected capabilities">
+    <li class="orbit-chip chip-inventory">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+          <path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>
+        </svg>
+      </span>
+      <span><strong>Inventory</strong><small>Stock &amp; SKUs</small></span>
+    </li>
+    <li class="orbit-chip chip-orders">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6M9 18h3"/>
+        </svg>
+      </span>
+      <span><strong>Sales Orders</strong><small>Order lifecycle</small></span>
+    </li>
+    <li class="orbit-chip chip-invoices">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/>
+        </svg>
+      </span>
+      <span><strong>Invoices</strong><small>Billing records</small></span>
+    </li>
+    <li class="orbit-chip chip-payments">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M15 15h3"/>
+        </svg>
+      </span>
+      <span><strong>Payments</strong><small>Receipts &amp; dues</small></span>
+    </li>
+    <li class="orbit-chip chip-reports">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 3v18h17M8 16l4-5 3 2 5-7"/>
+        </svg>
+      </span>
+      <span><strong>Reports</strong><small>Sales &amp; receipts</small></span>
+    </li>
+    <li class="orbit-chip chip-ai">
+      <span class="chip-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3ZM19 17l.7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"/>
+        </svg>
+      </span>
+      <span><strong>AI Insights</strong><small>In development</small></span>
+    </li>
+  </ul>
+  <span class="orbit-footnote">PRODUCT CAPABILITIES · DESIGNED FOR DISTRIBUTORS</span>
+</section>
+
+<style>
+  .capability-orbit {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 410px;
+    border: 1px solid #d5e7e6;
+    border-radius: 30px;
+    background: radial-gradient(circle at 50% 46%, #e0f7f1 0%, #f4fbfa 34%, #f8fafc 70%, #f0f4f8 100%);
+    box-shadow: 0 25px 70px -54px rgba(20,43,77,.35);
+  }
+  .orbit-grid {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(13,148,136,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(13,148,136,.055) 1px,transparent 1px);
+    background-size: 35px 35px;
+    mask-image: radial-gradient(circle at center, #000 10%, transparent 78%);
+    pointer-events: none;
+  }
+  .orbit-ring {
+    position: absolute;
+    left: 50%;
+    top: 48%;
+    transform: translate(-50%,-50%);
+    width: 360px;
+    height: 235px;
+    border: 1px dashed rgba(13,148,136,.2);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .orbit-ring-two {
+    width: 695px;
+    height: 345px;
+    border-color: rgba(20,43,77,.1);
+  }
+  .orbit-core {
+    position: absolute;
+    z-index: 1;
+    top: 47%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    width: min(310px, 86%);
+    text-align: center;
+  }
+  .orbit-eyebrow {
+    display: block;
+    font-size: 9px;
+    letter-spacing: .19em;
+    font-weight: 800;
+    color: #0f766e;
+    margin-bottom: 8px;
+  }
+  .orbit-emblem {
+    display: grid;
+    place-items: center;
+    margin: 0 auto 12px;
+    width: 74px;
+    height: 74px;
+    border-radius: 22px;
+    background: #142b4d;
+    box-shadow: 0 12px 34px -12px rgba(20,43,77,.5), 0 0 0 7px rgba(13,148,136,.08);
+  }
+  .orbit-core h2 {
+    color: #142b4d;
+    font-weight: 800;
+    font-size: clamp(21px,2.3vw,30px);
+    letter-spacing: -.035em;
+    line-height: 1.18;
+  }
+  .orbit-core h2 span { color: #0f766e; }
+  .orbit-core p { font-size: 11px; color: #64748b; margin-top: 11px; }
+  .orbit-nodes { list-style: none; margin: 0; padding: 0; }
+  .orbit-chip {
+    --dx: 40px;
+    --dy: 10px;
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 160px;
+    padding: 10px 12px;
+    border-radius: 15px;
+    border: 1px solid #d6e8e6;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 9px 28px -16px rgba(20,43,77,.3);
+    backdrop-filter: blur(6px);
+    animation: gather-hold 12s ease-in-out infinite;
+  }
+  .orbit-chip .chip-icon {
+    width: 35px;
+    height: 35px;
+    background: #ccfbf1;
+    color: #0f766e;
+    border-radius: 10px;
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+  }
+  .orbit-chip .chip-icon svg { width: 19px; height: 19px; }
+  .orbit-chip strong { display: block; font-size: 12px; line-height: 1.25; color: #172b4d; font-weight: 800; }
+  .orbit-chip small { display: block; font-size: 10px; line-height: 1.4; margin-top: 2px; color: #64748b; }
+  .chip-inventory { left: 7%; top: 11%; --dx: -110px; --dy: -25px; }
+  .chip-orders { right: 7%; top: 11%; --dx: 110px; --dy: -25px; animation-delay: -.7s; }
+  .chip-invoices { left: 3%; top: 42%; --dx: -130px; --dy: 0px; animation-delay: -1.4s; }
+  .chip-payments { right: 3%; top: 42%; --dx: 130px; --dy: 0px; animation-delay: -2.1s; }
+  .chip-reports { left: 11%; bottom: 10%; --dx: -100px; --dy: 65px; animation-delay: -2.8s; }
+  .chip-ai { right: 11%; bottom: 10%; --dx: 100px; --dy: 65px; animation-delay: -3.5s; }
+  .orbit-footnote {
+    position: absolute;
+    inset: auto 0 10px;
+    text-align: center;
+    font-size: 9px;
+    letter-spacing: .12em;
+    color: #94a3b8;
+    font-weight: 700;
+  }
+  @keyframes gather-hold {
+    0%,10% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.85); }
+    27%,68% { opacity: 1; transform: translate(0, 0) scale(1); }
+    90%,100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.87); }
+  }
+  .capability-orbit:hover .orbit-chip,
+  .capability-orbit:focus-within .orbit-chip { animation-play-state: paused; }
+  @media (max-width: 900px) {
+    .capability-orbit { min-height: auto; padding: 29px 20px 20px; }
+    .orbit-core { position: relative; top: auto; left: auto; transform: none; margin: 0 auto 26px; }
+    .orbit-ring { display: none; }
+    .orbit-nodes { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+    .orbit-chip {
+      position: static;
+      min-width: 0;
+      width: 100%;
+      animation: none;
+      transform: none;
+    }
+    .orbit-footnote { position: relative; inset: auto; display: block; margin-top: 20px; }
+  }
+  @media (max-width: 650px) {
+    .orbit-nodes { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .orbit-chip { padding: 9px; gap: 8px; }
+    .orbit-chip .chip-icon { width: 30px; height: 30px; }
+    .orbit-chip strong { font-size: 11px; }
+    .orbit-chip small { font-size: 9px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orbit-chip { animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
+</style>
