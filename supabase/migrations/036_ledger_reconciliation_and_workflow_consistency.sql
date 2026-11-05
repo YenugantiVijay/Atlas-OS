@@ -320,6 +320,12 @@ BEGIN
 
         -- Strict statutory tax rate verification on final invoice issuance
         IF v_status = 'ISSUED' THEN
+            IF (v_item->>'taxRate' IS NULL AND v_item->>'tax_rate' IS NULL) THEN
+                RAISE EXCEPTION 'Item % is missing tax_rate (mandatory for issued invoices)',
+                    v_item_count
+                    USING ERRCODE = 'check_violation';
+            END IF;
+
             IF v_item_tax_rate IS NULL OR v_item_tax_rate NOT IN (0.00, 5.00, 12.00, 18.00, 28.00) THEN
                 RAISE EXCEPTION 'Item % has invalid tax_rate: % (must be one of 0, 5, 12, 18, 28 for issued invoices)',
                     v_item_count, COALESCE(v_item_tax_rate::TEXT, 'NULL')

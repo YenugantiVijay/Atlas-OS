@@ -4153,12 +4153,12 @@ async function runAcceptance() {
                 orgAId,
                 custAId,
                 JSON.stringify([
-                  { productId: prodA1Id, quantity: 1, unitPrice: 100.00, taxRate: null }
+                  { productId: prodA1Id, quantity: 1, unitPrice: 100.00 }
                 ])
               ]
             );
           } catch (err) {
-            missingTaxBlocked = err.code === '23514' || err.message.includes('invalid tax_rate');
+            missingTaxBlocked = err.code === '23514' || err.message.includes('missing tax_rate') || err.message.includes('invalid tax_rate');
           }
 
           // 2. Non-statutory tax rate (e.g. 15%) on implicit ISSUED status rejected
@@ -4194,7 +4194,7 @@ async function runAcceptance() {
               orgAId,
               custAId,
               JSON.stringify([
-                { productId: prodA1Id, quantity: 1, unitPrice: 100.00, taxRate: null }
+                { productId: prodA1Id, quantity: 1, unitPrice: 100.00 }
               ])
             ]
           );
