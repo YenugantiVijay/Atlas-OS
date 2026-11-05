@@ -116,6 +116,18 @@ export function getAvailableFinancialYears(
 }
 
 /**
+ * Validates whether a given string is a valid Indian financial year identifier (e.g. "2018-19" or "FY 2018-19").
+ */
+export function isValidFinancialYearId(fyInput: string): boolean {
+  try {
+    const range = getFinancialYearRange(fyInput);
+    return Boolean(range.startDate && range.endDate);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolves a calendar month string "YYYY-MM" to its exact start and end dates.
  * Properly calculates the last day of month, including leap year February 29th.
  */

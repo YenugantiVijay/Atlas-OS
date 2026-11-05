@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { reportsService, ReportFilterParams } from './reports.service';
+import {
+  reportsService,
+  ReportFilterParams,
+  ExportIntegrityError,
+} from './reports.service';
 import { supabase } from '@/lib/supabase';
 import { Organization, Invoice, Payment, Role } from '@/types';
 import { hasPermission } from '@/lib/permissions';
@@ -116,6 +120,23 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         totalPaid: 11800,
         createdAt: '2025-05-10T10:00:00Z',
         updatedAt: '2025-05-10T10:00:00Z',
+        items: [
+          {
+            id: 'item-1',
+            invoiceId: 'inv-1',
+            productId: 'p-1',
+            productName: 'Polycab Wire',
+            productSku: 'WIR-1',
+            quantity: 10,
+            unitPrice: 1000,
+            discountPercent: 0,
+            taxRate: 18,
+            lineSubtotal: 10000,
+            lineTax: 1800,
+            lineTotal: 11800,
+            uom: 'Coils',
+          },
+        ],
       };
 
       const inv2: Invoice = {
@@ -133,6 +154,23 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         totalPaid: 0,
         createdAt: '2025-07-15T10:00:00Z',
         updatedAt: '2025-07-15T10:00:00Z',
+        items: [
+          {
+            id: 'item-2',
+            invoiceId: 'inv-2',
+            productId: 'p-2',
+            productName: 'Schneider MCB',
+            productSku: 'MCB-1',
+            quantity: 20,
+            unitPrice: 1000,
+            discountPercent: 5,
+            taxRate: 18,
+            lineSubtotal: 20000,
+            lineTax: 3420,
+            lineTotal: 22420,
+            uom: 'Nos',
+          },
+        ],
       };
 
       const pay1: Payment = {
@@ -334,8 +372,9 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
       expect(result.payments).toHaveLength(0);
 
       // Verify progress callback was triggered across batches
-      expect(progressUpdates.length).toBeGreaterThanOrEqual(Math.ceil(TOTAL_INVOICES / BATCH_SIZE));
-      expect(progressUpdates[progressUpdates.length - 1].total).toBe(TOTAL_INVOICES);
+      const invProgresses = progressUpdates.filter((p) => p.stage === 'invoices');
+      expect(invProgresses.length).toBeGreaterThanOrEqual(Math.ceil(TOTAL_INVOICES / BATCH_SIZE));
+      expect(invProgresses[invProgresses.length - 1].total).toBe(TOTAL_INVOICES);
     });
   });
 
@@ -357,6 +396,23 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         totalPaid: 11800,
         createdAt: '2025-03-30T10:00:00Z',
         updatedAt: '2025-04-05T12:00:00Z',
+        items: [
+          {
+            id: 'item-mar-1',
+            invoiceId: 'inv-mar',
+            productId: 'p-3',
+            productName: 'Polycab Wire',
+            productSku: 'WIR-1',
+            quantity: 5,
+            unitPrice: 2000,
+            discountPercent: 0,
+            taxRate: 18,
+            lineSubtotal: 10000,
+            lineTax: 1800,
+            lineTotal: 11800,
+            uom: 'Coils',
+          },
+        ],
       };
 
       // Payment collected in FY 2025-26
@@ -434,6 +490,23 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         totalPaid: 0,
         createdAt: '2025-05-10T10:00:00Z',
         updatedAt: '2025-05-10T10:00:00Z',
+        items: [
+          {
+            id: 'item-a',
+            invoiceId: 'inv-a',
+            productId: 'p-4',
+            productName: 'Wire',
+            productSku: 'W-1',
+            quantity: 1,
+            unitPrice: 1000,
+            discountPercent: 0,
+            taxRate: 18,
+            lineSubtotal: 1000,
+            lineTax: 180,
+            lineTotal: 1180,
+            uom: 'Coils',
+          },
+        ],
       };
 
       const invOrgB: Invoice = {
@@ -451,6 +524,23 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         totalPaid: 0,
         createdAt: '2025-05-10T10:00:00Z',
         updatedAt: '2025-05-10T10:00:00Z',
+        items: [
+          {
+            id: 'item-b',
+            invoiceId: 'inv-b',
+            productId: 'p-5',
+            productName: 'Cable',
+            productSku: 'C-1',
+            quantity: 2,
+            unitPrice: 1000,
+            discountPercent: 0,
+            taxRate: 18,
+            lineSubtotal: 2000,
+            lineTax: 360,
+            lineTotal: 2360,
+            uom: 'Coils',
+          },
+        ],
       };
 
       localStorage.setItem('atlas_invoices_v1', JSON.stringify([invOrgA, invOrgB]));
@@ -470,6 +560,269 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
       const resB = await reportsService.fetchReportData(orgBId, params, true);
       expect(resB.invoices).toHaveLength(1);
       expect(resB.invoices[0].id).toBe('inv-b');
+    });
+  });
+
+  describe('Phase B1 Hardening & Data Completeness Guardrails (Task 1 & 8)', () => {
+    it('throws ExportIntegrityError when an invoice batch returns 0 records prematurely', async () => {
+      // Mock count = 500, but first batch returns empty
+      const mockCountQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ count: 500, error: null }),
+      };
+
+      const mockDataQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({ data: [], error: null }), // Empty rows unexpectedly!
+      };
+
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockImplementation((_cols, opts) => {
+              if (opts?.head) return mockCountQuery;
+              return mockDataQuery;
+            }),
+          };
+        }
+        return { select: vi.fn() };
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+      };
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        ExportIntegrityError
+      );
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Incomplete invoice export/i
+      );
+    });
+
+    it('throws ExportIntegrityError when duplicate rows appear across batches', async () => {
+      const mockCountQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ count: 2, error: null }),
+      };
+
+      const dupRow = {
+        id: 'inv-dup-1',
+        organization_id: orgAId,
+        invoice_number: 'INV-DUP-01',
+        subtotal: 1000,
+        items: [{ id: 'item-1', product_name: 'Wire', quantity: 1, unit_price: 1000, tax_rate: 18, line_total: 1000 }],
+      };
+
+      const mockDataQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({
+          data: [dupRow, dupRow], // Same ID returned twice!
+          error: null,
+        }),
+      };
+
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockImplementation((_cols, opts) => {
+              if (opts?.head) return mockCountQuery;
+              return mockDataQuery;
+            }),
+          };
+        }
+        return { select: vi.fn() };
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+      };
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        ExportIntegrityError
+      );
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Duplicate invoice detected/i
+      );
+    });
+
+    it('throws ExportIntegrityError when record count drifts mid-export (snapshot drift)', async () => {
+      let countCalls = 0;
+      const createCountQuery = () => ({
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockImplementation(() => {
+          countCalls++;
+          // First call returns 1, final re-check returns 2 (record added mid-export)
+          return Promise.resolve({ count: countCalls === 1 ? 1 : 2, error: null });
+        }),
+      });
+
+      const mockDataQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'inv-drift-1',
+              organization_id: orgAId,
+              invoice_number: 'INV-DRIFT-01',
+              subtotal: 1000,
+              items: [{ id: 'item-1', product_name: 'Wire', quantity: 1, unit_price: 1000, tax_rate: 18, line_total: 1000 }],
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockImplementation((_cols, opts) => {
+              if (opts?.head) return createCountQuery();
+              return mockDataQuery;
+            }),
+          };
+        }
+        return { select: vi.fn() };
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+      };
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Inconsistent database snapshot/i
+      );
+    });
+
+    it('throws ExportIntegrityError when an invoice with positive subtotal is missing nested line items', async () => {
+      const mockCountQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ count: 1, error: null }),
+      };
+
+      const mockDataQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'inv-corrupt-1',
+              organization_id: orgAId,
+              invoice_number: 'INV-CORRUPT-01',
+              subtotal: 5000, // Positive subtotal
+              items: [],      // Empty items! Corrupt line items
+            },
+          ],
+          error: null,
+        }),
+      };
+
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockImplementation((_cols, opts) => {
+              if (opts?.head) return mockCountQuery;
+              return mockDataQuery;
+            }),
+          };
+        }
+        return { select: vi.fn() };
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+      };
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        ExportIntegrityError
+      );
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Missing invoice line items/i
+      );
+    });
+
+    it('blocks export when matching invoices exceed safe limit of 10,000', async () => {
+      const mockCountQuery = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ count: 12000, error: null }), // 12k exceeds limit
+      };
+
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockImplementation((_cols, opts) => {
+              if (opts?.head) return mockCountQuery;
+              return { eq: vi.fn().mockReturnThis() };
+            }),
+          };
+        }
+        return { select: vi.fn() };
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+      };
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        ExportIntegrityError
+      );
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Export threshold exceeded/i
+      );
+    });
+
+    it('rejects unauthorized user role attempting to fetch report counts or export data', async () => {
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'ALL',
+        userRole: 'viewer', // Viewer does NOT have reports:financial
+      };
+
+      await expect(reportsService.getMatchingCounts(orgAId, params, true)).rejects.toThrow(
+        /Unauthorized/i
+      );
+      await expect(reportsService.fetchReportData(orgAId, params, true)).rejects.toThrow(
+        /Unauthorized/i
+      );
     });
   });
 });

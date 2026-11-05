@@ -8,12 +8,18 @@ import {
   AlertCircle,
   Loader2,
   Building2,
-  Info,
+  Search,
+  X,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { Customer } from '@/types';
 import { customersService } from '@/services/customers.service';
-import { reportsService, ReportProgress, ReportFilterParams } from '@/services/reports.service';
+import {
+  reportsService,
+  ReportProgress,
+  ReportFilterParams,
+  MAX_SAFE_EXPORT_INVOICES,
+} from '@/services/reports.service';
 import { triggerExcelDownload } from '@/lib/excel';
 import {
   getAvailableFinancialYears,
@@ -28,11 +34,17 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 
 export const SalesReceiptsReportPage: React.FC = () => {
-  const { currentOrg, isMockAuth, isDemoMode } = useOrg();
+  const { currentOrg, isMockAuth, isDemoMode, currentRole } = useOrg();
 
   // Reference date in business timezone
   const todayStr = useMemo(() => getBusinessDate(), []);
-  const availableFys = useMemo(() => getAvailableFinancialYears(5, todayStr), [todayStr]);
+
+  // Expandable Financial Year window (5 or 15 years)
+  const [showAllYears, setShowAllYears] = useState(false);
+  const availableFys = useMemo(
+    () => getAvailableFinancialYears(showAllYears ? 15 : 5, todayStr),
+    [showAllYears, todayStr]
+  );
 
   // Current and previous FY IDs
   const currentFyId = availableFys[0]?.id || '2026-27';
@@ -48,12 +60,15 @@ export const SalesReceiptsReportPage: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState<string>(availableFys[0]?.endDate || todayStr);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [documentType, setDocumentType] = useState<'ALL' | 'INVOICES' | 'PAYMENTS'>('ALL');
   const [invoiceStatus, setInvoiceStatus] = useState<string>('ALL');
 
-  // Customer options
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // Customer search & bounded results
+  const [customerSearchInput, setCustomerSearchInput] = useState<string>('');
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState<string | null>(null);
 
   // Preview Counts & Export state
   const [counts, setCounts] = useState<{ invoiceCount: number; paymentCount: number }>({
@@ -92,37 +107,61 @@ export const SalesReceiptsReportPage: React.FC = () => {
     }
   }, [periodType, selectedFy, selectedMonth, selectedDay, customStartDate, customEndDate, availableFys, todayStr]);
 
-  // Load customer directory
+  // Server-side bounded customer search (Task 5)
+  const searchCustomers = useCallback(
+    async (searchTerm: string) => {
+      if (!currentOrg?.id) return;
+      setIsLoadingCustomers(true);
+      setCustomerSearchError(null);
+
+      try {
+        const res = await customersService.getCustomersPaginated(
+          currentOrg.id,
+          {
+            search: searchTerm.trim() || undefined,
+            pageSize: 25,
+            isActive: true,
+          },
+          isMockAuth
+        );
+        setCustomerResults(res.data);
+      } catch (err: any) {
+        console.error('Failed to search customers:', err);
+        setCustomerSearchError(err?.message || 'Failed to search customers');
+      } finally {
+        setIsLoadingCustomers(false);
+      }
+    },
+    [currentOrg?.id, isMockAuth]
+  );
+
+  // Initial customer load & debounced search
   useEffect(() => {
-    let isMounted = true;
-    if (!currentOrg?.id) return;
+    const timer = setTimeout(() => {
+      searchCustomers(customerSearchInput);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [customerSearchInput, searchCustomers]);
 
-    setIsLoadingCustomers(true);
-    customersService
-      .getCustomers(currentOrg.id, isMockAuth)
-      .then((data) => {
-        if (isMounted) {
-          setCustomers(data);
-          setIsLoadingCustomers(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          console.error('Failed to load customers for report filter:', err);
-          setIsLoadingCustomers(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentOrg?.id, isMockAuth]);
-
-  // Selected customer object
-  const selectedCustomer = useMemo(() => {
-    if (!selectedCustomerId) return undefined;
-    return customers.find((c) => c.id === selectedCustomerId);
-  }, [selectedCustomerId, customers]);
+  // Keep selected customer synchronized if selectedCustomerId changes externally
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setSelectedCustomer(null);
+      return;
+    }
+    const match = customerResults.find((c) => c.id === selectedCustomerId);
+    if (match) {
+      setSelectedCustomer(match);
+    } else if (currentOrg?.id && !selectedCustomer) {
+      // Fetch exact customer by ID so chosen customer is preserved even outside current page
+      customersService
+        .getCustomerById(currentOrg.id, selectedCustomerId, isMockAuth)
+        .then((cust: Customer | null) => {
+          if (cust) setSelectedCustomer(cust);
+        })
+        .catch(() => {});
+    }
+  }, [selectedCustomerId, customerResults, currentOrg?.id, isMockAuth, selectedCustomer]);
 
   // Fetch preview counts when filters change
   const fetchCounts = useCallback(async () => {
@@ -142,6 +181,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
         customerName: selectedCustomer ? selectedCustomer.name : undefined,
         documentType,
         invoiceStatus: invoiceStatus !== 'ALL' ? invoiceStatus : undefined,
+        userRole: currentRole || undefined,
       };
 
       const res = await reportsService.getMatchingCounts(currentOrg.id, filterParams, isMockAuth);
@@ -153,6 +193,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
     }
   }, [
     currentOrg?.id,
+    currentRole,
     periodType,
     customStartDate,
     customEndDate,
@@ -199,6 +240,8 @@ export const SalesReceiptsReportPage: React.FC = () => {
     setCustomStartDate(availableFys[0]?.startDate || todayStr);
     setCustomEndDate(availableFys[0]?.endDate || todayStr);
     setSelectedCustomerId('');
+    setSelectedCustomer(null);
+    setCustomerSearchInput('');
     setDocumentType('ALL');
     setInvoiceStatus('ALL');
     setExportError(null);
@@ -211,6 +254,13 @@ export const SalesReceiptsReportPage: React.FC = () => {
 
     if (periodType === 'CUSTOM' && !isValidDateRange(customStartDate, customEndDate)) {
       setExportError('Invalid custom date range: Start date must be before or equal to End date.');
+      return;
+    }
+
+    if (counts.invoiceCount > 25000) {
+      setExportError(
+        `Selection contains ${counts.invoiceCount.toLocaleString()} invoices, exceeding the maximum allowable browser export of 25,000 records. Please refine by month, quarter, or customer.`
+      );
       return;
     }
 
@@ -234,6 +284,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
         customerName: selectedCustomer ? selectedCustomer.name : undefined,
         documentType,
         invoiceStatus: invoiceStatus !== 'ALL' ? invoiceStatus : undefined,
+        userRole: currentRole || undefined,
       };
 
       const result = await reportsService.exportReport(
@@ -258,40 +309,38 @@ export const SalesReceiptsReportPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border">
+        <div className="space-y-1">
           <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-teal-500/10 text-teal-600 rounded-lg">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
               Sales & Receipts Reports
             </h1>
-            <Badge variant="info" className="gap-1.5 shrink-0">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
-              <span>Excel Export Engine</span>
-            </Badge>
           </div>
-          <p className="text-sm text-content-secondary mt-1">
-            Export comprehensive historical invoices, product line items, payment receipts, and reconciliation ledgers
-            to Microsoft Excel (.xlsx).
+          <p className="text-sm text-content-secondary">
+            Generate one-click audit-ready Microsoft Excel (.xlsx) workbooks for statutory Indian Financial Years,
+            months, or custom date ranges.
           </p>
         </div>
 
         {/* Demo Mode Badge */}
-        {(isDemoMode || isMockAuth) && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-700 text-xs font-medium">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>Demo Mode — Sample Data Only</span>
-          </div>
+        {isDemoMode && (
+          <Badge variant="warning" className="self-start sm:self-center font-mono">
+            DEMO MODE (Local Storage Data)
+          </Badge>
         )}
       </div>
 
-      {/* Main Filter Control Card */}
-      <Card className="p-6 space-y-6 shadow-sm border-border bg-surface-card">
-        {/* Presets Header Row */}
+      {/* Main Filter Configuration Card */}
+      <Card className="p-6 border-border bg-surface-card space-y-6">
+        {/* Preset Range Selector */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-2.5">
-            Quick Period Presets
+          <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-3">
+            Quick Reporting Presets
           </label>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -354,12 +403,21 @@ export const SalesReceiptsReportPage: React.FC = () => {
 
         {/* Detailed Filter Inputs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-border/60">
-          {/* Period Selector Dynamic Column */}
+          {/* Period Selector Dynamic Column (Task 7) */}
           {periodType === 'FY' && (
             <div>
-              <label htmlFor="select-fy" className="block text-xs font-medium text-content-secondary mb-1.5">
-                Indian Financial Year (Apr 1 – Mar 31)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="select-fy" className="block text-xs font-medium text-content-secondary">
+                  Indian Financial Year
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAllYears(!showAllYears)}
+                  className="text-[11px] text-teal-600 hover:text-teal-700 font-medium"
+                >
+                  {showAllYears ? 'Show 5 Years' : 'Show 15 Years'}
+                </button>
+              </div>
               <select
                 id="select-fy"
                 value={selectedFy}
@@ -393,7 +451,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
           {periodType === 'DAY' && (
             <div>
               <label htmlFor="select-day" className="block text-xs font-medium text-content-secondary mb-1.5">
-                Select Single Calendar Date
+                Select Specific Day
               </label>
               <input
                 id="select-day"
@@ -409,7 +467,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
             <>
               <div>
                 <label htmlFor="custom-start" className="block text-xs font-medium text-content-secondary mb-1.5">
-                  Start Date (From)
+                  Start Date (Inclusive)
                 </label>
                 <input
                   id="custom-start"
@@ -421,7 +479,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
               </div>
               <div>
                 <label htmlFor="custom-end" className="block text-xs font-medium text-content-secondary mb-1.5">
-                  End Date (To)
+                  End Date (Inclusive)
                 </label>
                 <input
                   id="custom-end"
@@ -434,25 +492,74 @@ export const SalesReceiptsReportPage: React.FC = () => {
             </>
           )}
 
-          {/* Customer Filter */}
-          <div>
-            <label htmlFor="select-customer" className="block text-xs font-medium text-content-secondary mb-1.5">
-              Customer Account
-            </label>
+          {/* Customer Filter — Searchable Bounded Combobox (Task 5) */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-customer" className="block text-xs font-medium text-content-secondary">
+                Customer Account
+              </label>
+              {selectedCustomerId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomerId('');
+                    setSelectedCustomer(null);
+                    setCustomerSearchInput('');
+                  }}
+                  className="text-[11px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-0.5"
+                >
+                  <X className="w-3 h-3" />
+                  <span>Clear</span>
+                </button>
+              )}
+            </div>
+
+            {/* Search Input for Bounded Server-Side Paging */}
+            <div className="relative mb-1">
+              <input
+                type="text"
+                value={customerSearchInput}
+                onChange={(e) => setCustomerSearchInput(e.target.value)}
+                placeholder="Search by name, company, phone..."
+                className="w-full h-8 text-xs rounded-md border border-border bg-surface-card pl-7 pr-2.5 text-content-primary placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs"
+              />
+              <Search className="w-3.5 h-3.5 text-content-tertiary absolute left-2 top-2.5" />
+            </div>
+
+            {/* Bounded Select Dropdown */}
             <select
               id="select-customer"
+              aria-label="Customer Account"
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCustomerId(val);
+                const match = customerResults.find((c) => c.id === val);
+                if (match) setSelectedCustomer(match);
+                else if (!val) setSelectedCustomer(null);
+              }}
               disabled={isLoadingCustomers}
-              className="w-full h-10 rounded-lg border border-border bg-surface-card px-3 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs disabled:opacity-60"
+              className="w-full h-9 rounded-lg border border-border bg-surface-card px-2.5 py-1.5 text-xs font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs disabled:opacity-60"
             >
               <option value="">All Customers & Trade Accounts</option>
-              {customers.map((c) => (
+              {selectedCustomer && !customerResults.some((c) => c.id === selectedCustomer.id) && (
+                <option key={selectedCustomer.id} value={selectedCustomer.id}>
+                  {selectedCustomer.name} {selectedCustomer.companyName ? `(${selectedCustomer.companyName})` : ''} [Selected]
+                </option>
+              )}
+              {customerResults.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.companyName ? `(${c.companyName})` : ''}
+                  {c.name} {c.companyName ? `(${c.companyName})` : ''} {c.phone ? `• ${c.phone}` : ''}
                 </option>
               ))}
             </select>
+
+            {isLoadingCustomers && (
+              <p className="text-[10px] text-content-tertiary">Searching directory...</p>
+            )}
+            {customerSearchError && (
+              <p className="text-[10px] text-danger">{customerSearchError}</p>
+            )}
           </div>
 
           {/* Document Type */}
@@ -521,6 +628,22 @@ export const SalesReceiptsReportPage: React.FC = () => {
         </div>
       </Card>
 
+      {/* Large Export Safety Notice (Task 6) */}
+      {counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="font-semibold text-sm">Large Export Safety Limit</p>
+            <p>
+              Your selection matches <strong>{counts.invoiceCount.toLocaleString()} invoices</strong>, exceeding the
+              tested client browser limit of {MAX_SAFE_EXPORT_INVOICES.toLocaleString()} records.
+              Please refine your date range (e.g. choose a specific month or quarter) or filter by a specific customer
+              to ensure reliable export.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Live Preview & Action Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Preview Card 1: Invoices */}
@@ -540,7 +663,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
             <span className="text-xs text-content-secondary">invoices</span>
           </div>
           <p className="text-xs text-content-secondary">
-            Includes all billed product line items, statutory GST splits, and current outstanding balances.
+            Includes all billed product line items, authoritative GST snapshots, and current outstanding receivables.
           </p>
         </Card>
 
@@ -581,7 +704,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
             variant="primary"
             size="lg"
             onClick={handleExportExcel}
-            disabled={isExporting || isLoadingCounts}
+            disabled={isExporting || isLoadingCounts || counts.invoiceCount > 25000}
             className="w-full gap-2 font-semibold shadow-sm"
           >
             {isExporting ? (

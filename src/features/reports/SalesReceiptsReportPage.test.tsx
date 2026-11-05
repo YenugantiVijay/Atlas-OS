@@ -11,6 +11,8 @@ import { Organization, Customer } from '@/types';
 vi.mock('@/services/customers.service', () => ({
   customersService: {
     getCustomers: vi.fn(),
+    getCustomersPaginated: vi.fn(),
+    getCustomerById: vi.fn(),
   },
 }));
 
@@ -19,6 +21,8 @@ vi.mock('@/services/reports.service', () => ({
     getMatchingCounts: vi.fn(),
     exportReport: vi.fn(),
   },
+  MAX_SAFE_EXPORT_INVOICES: 10000,
+  ExportIntegrityError: class ExportIntegrityError extends Error {},
 }));
 
 vi.mock('@/lib/excel', async (importOriginal) => {
@@ -124,6 +128,19 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
     vi.clearAllMocks();
     setupOrgMock();
     vi.mocked(customersService.getCustomers).mockResolvedValue(sampleCustomers);
+    vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({
+      data: sampleCustomers,
+      total: sampleCustomers.length,
+      totalCount: sampleCustomers.length,
+      page: 1,
+      pageSize: 25,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    });
+    vi.mocked(customersService.getCustomerById).mockImplementation((_orgId, id) => {
+      return Promise.resolve(sampleCustomers.find((c) => c.id === id) || null);
+    });
     vi.mocked(reportsService.getMatchingCounts).mockResolvedValue({
       invoiceCount: 42,
       paymentCount: 18,
@@ -134,7 +151,7 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
     render(<SalesReceiptsReportPage />);
 
     expect(screen.getByRole('heading', { name: /sales & receipts reports/i })).toBeInTheDocument();
-    expect(screen.getByText(/excel export engine/i)).toBeInTheDocument();
+    expect(screen.getByText(/one-click audit-ready Microsoft Excel/i)).toBeInTheDocument();
 
     // Check quick presets
     expect(screen.getByRole('button', { name: /current fy/i })).toBeInTheDocument();
@@ -161,7 +178,7 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
       expect(screen.getByText('42')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/demo mode — sample data only/i)).toBeInTheDocument();
+    expect(screen.getByText(/demo mode \(local storage data\)/i)).toBeInTheDocument();
   });
 
   it('switches between presets (Month, Today, Custom) and updates inputs', async () => {
@@ -177,12 +194,12 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
 
     // Click "Today"
     fireEvent.click(screen.getByRole('button', { name: /today/i }));
-    expect(screen.getByLabelText(/select single calendar date/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/select specific day/i)).toBeInTheDocument();
 
     // Click "Custom Date Range"
     fireEvent.click(screen.getByRole('button', { name: /custom date range/i }));
-    expect(screen.getByLabelText(/start date \(from\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/end date \(to\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/start date \(inclusive\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/end date \(inclusive\)/i)).toBeInTheDocument();
   });
 
   it('filters by customer and re-fetches counts', async () => {
@@ -192,6 +209,10 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
       expect(screen.getByText('42')).toBeInTheDocument();
       expect(screen.getByLabelText(/customer account/i)).toBeInTheDocument();
     });
+
+    // Wait for debounced customer search to populate options
+    const option = await screen.findByRole('option', { name: /Gayatri Electricals/i });
+    expect(option).toBeInTheDocument();
 
     // Select Gayatri Electricals
     fireEvent.change(screen.getByLabelText(/customer account/i), {
@@ -214,6 +235,9 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
       expect(screen.getByText('42')).toBeInTheDocument();
     });
 
+    // Wait for debounced customer search to populate options
+    await screen.findByRole('option', { name: /Gayatri Electricals/i });
+
     // Switch to month and choose a customer
     fireEvent.click(screen.getByRole('button', { name: /current month/i }));
     fireEvent.change(screen.getByLabelText(/customer account/i), {
@@ -226,6 +250,76 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
     // Should return to FY preset and empty customer
     expect(screen.getByLabelText(/indian financial year/i)).toBeInTheDocument();
     expect((screen.getByLabelText(/customer account/i) as HTMLSelectElement).value).toBe('');
+  });
+
+  it('searches customers via bounded server query and preserves selection', async () => {
+    render(<SalesReceiptsReportPage />);
+
+    await screen.findByRole('option', { name: /Gayatri Electricals/i });
+
+    // Select Gayatri Electricals
+    fireEvent.change(screen.getByLabelText(/customer account/i), {
+      target: { value: 'cust-1' },
+    });
+
+    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
+
+    // Mock search returning only Kavitha Controls
+    vi.mocked(customersService.getCustomersPaginated).mockResolvedValueOnce({
+      data: [sampleCustomers[1]],
+      total: 1,
+      totalCount: 1,
+      page: 1,
+      pageSize: 25,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    });
+
+    // Search for another customer "Kavitha"
+    const searchInput = screen.getByPlaceholderText(/search by name, company, phone/i);
+    fireEvent.change(searchInput, { target: { value: 'Kavitha' } });
+
+    await waitFor(() => {
+      expect(customersService.getCustomersPaginated).toHaveBeenCalledWith(
+        mockOrg.id,
+        expect.objectContaining({ search: 'Kavitha' }),
+        false
+      );
+    });
+
+    // Selected customer remains preserved in dropdown despite new search query results
+    expect(await screen.findByRole('option', { name: /Gayatri Electricals.*\[Selected\]/i })).toBeInTheDocument();
+    expect((screen.getByLabelText(/customer account/i) as HTMLSelectElement).value).toBe('cust-1');
+  });
+
+  it('toggles between 5 and 15 financial years in the dropdown', async () => {
+    render(<SalesReceiptsReportPage />);
+
+    const toggleBtn = screen.getByRole('button', { name: /show 15 years/i });
+    expect(toggleBtn).toBeInTheDocument();
+
+    // Initial FY select should have 5 options
+    const fySelect = screen.getByLabelText(/indian financial year/i);
+    expect(fySelect.children.length).toBe(5);
+
+    // Click toggle
+    fireEvent.click(toggleBtn);
+    expect(screen.getByRole('button', { name: /show 5 years/i })).toBeInTheDocument();
+    expect(fySelect.children.length).toBe(15);
+  });
+
+  it('displays large export warning banner when invoice count exceeds threshold', async () => {
+    vi.mocked(reportsService.getMatchingCounts).mockResolvedValue({
+      invoiceCount: 12500,
+      paymentCount: 8000,
+    });
+
+    render(<SalesReceiptsReportPage />);
+
+    expect(await screen.findByText('12500')).toBeInTheDocument();
+    expect(screen.getByText(/Large Export Safety Limit/i)).toBeInTheDocument();
+    expect(screen.getByText(/12,500 invoices/i)).toBeInTheDocument();
   });
 
   it('triggers exportReport and initiates download on button click', async () => {

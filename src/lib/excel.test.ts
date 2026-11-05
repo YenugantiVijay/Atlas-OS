@@ -288,7 +288,6 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       expect(buffer).toBeDefined();
       expect(buffer.byteLength).toBeGreaterThan(1000);
 
-      // Inspect using ExcelJS Workbook reader
       const reader = new ExcelJS.Workbook();
       await reader.xlsx.load(buffer);
 
@@ -326,7 +325,6 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       const reconSheet = reader.getWorksheet('Reconciliation');
       expect(reconSheet).toBeDefined();
 
-      // Check organization and disclosures
       const cellValues: string[] = [];
       reconSheet?.eachRow((row) => {
         row.eachCell((cell) => {
@@ -336,9 +334,10 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
 
       expect(cellValues).toContain('Sri Devi Electrical Distributors Private Limited');
       expect(cellValues).toContain('37AAAAA1234A1Z5');
-      expect(cellValues).toContain('Total Invoices Selected');
-      expect(cellValues).toContain('Total Payment Receipts Selected');
+      expect(cellValues).toContain('Total Recognized Invoices');
+      expect(cellValues).toContain('Total Payment Receipts in Selected Period');
       expect(cellValues).toContain('Period Isolation Notice');
+      expect(cellValues).toContain('Statutory GST Component Disclosure');
       expect(cellValues).toContain('Historical Snapshot Guarantee');
     });
 
@@ -376,7 +375,7 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       expect(headerRow?.getCell(4).value).toBe('Invoice Number');
       expect(headerRow?.getCell(16).value).toBe('Grand Total (₹)');
 
-      // Verify Row 5 (INV-2025-001)
+      // Verify Row 5 (INV-2025-001) - PAID
       const row1 = invSheet?.getRow(5);
       expect(row1?.getCell(4).value).toBe('INV-2025-001');
       expect(row1?.getCell(12).value).toBe('PAID');
@@ -384,7 +383,7 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       expect(row1?.getCell(17).value).toBe(11800);
       expect(row1?.getCell(18).value).toBe(0); // Outstanding = 0
 
-      // Verify Row 6 (INV-2025-002) - Partial payment
+      // Verify Row 6 (INV-2025-002) - PARTIALLY_PAID
       const row2 = invSheet?.getRow(6);
       expect(row2?.getCell(4).value).toBe('INV-2025-002');
       expect(row2?.getCell(12).value).toBe('PARTIALLY_PAID');
@@ -392,17 +391,18 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       expect(row2?.getCell(17).value).toBe(10000);
       expect(row2?.getCell(18).value).toBe(12420); // 22420 - 10000 = 12420
 
-      // Verify Row 7 (INV-2025-003) - Cancelled
+      // Verify Row 7 (INV-2025-003) - CANCELLED (Outstanding is 0, not added to receivables)
       const row3 = invSheet?.getRow(7);
       expect(row3?.getCell(4).value).toBe('INV-2025-003');
       expect(row3?.getCell(12).value).toBe('CANCELLED');
+      expect(row3?.getCell(18).value).toBe(0); // Cancelled balance is 0
 
       // Verify Total Row (Row 8)
       const totalRow = invSheet?.getRow(8);
       expect(totalRow?.getCell(1).value).toBe('TOTAL');
       expect(totalRow?.getCell(16).value).toBe(11800 + 22420 + 5900); // 40120
       expect(totalRow?.getCell(17).value).toBe(11800 + 10000); // 21800
-      expect(totalRow?.getCell(18).value).toBe(12420 + 5900); // 18320
+      expect(totalRow?.getCell(18).value).toBe(12420); // Outstanding strictly excludes cancelled invoice
     });
 
     it('validates Invoice Products worksheet lines, multi-item join and GST resolution', async () => {
@@ -432,32 +432,26 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       // Top 4 rows + 4 total line items across 3 invoices + 1 Total row = 9 rows
       expect(prodSheet?.rowCount).toBe(9);
 
-      // Verify line items
-      // Row 5: Item 1 of INV-001 (Intra-state AP to AP)
+      // Row 5: Item 1 of INV-001
       const r1 = prodSheet?.getRow(5);
       expect(r1?.getCell(1).value).toBe('INV-2025-001');
       expect(r1?.getCell(5).value).toBe('Polycab 2.5 sqmm FR PVC Copper Wire');
       expect(r1?.getCell(9).value).toBe(5); // Qty
       expect(r1?.getCell(10).value).toBe(2000); // Unit price
       expect(r1?.getCell(13).value).toBe(10000); // Line Subtotal
+      expect(r1?.getCell(14).value).toBe(0.18); // Tax rate 18%
+      expect(r1?.getCell(15).value).toBe(1800); // Tax amount 1800
       expect(r1?.getCell(16).value).toBe(11800); // Line Total
-      expect(r1?.getCell(17).value).toBe('Intra-State (CGST + SGST)');
-      expect(r1?.getCell(19).value).toBe(900); // CGST 900
-      expect(r1?.getCell(21).value).toBe(900); // SGST 900
-      expect(r1?.getCell(23).value).toBe(0);   // IGST 0
+      expect(r1?.getCell(17).value).toBe('Historical Component Split Not Stored');
+      expect(r1?.getCell(18).value).toBe('Not Stored'); // CGST
+      expect(r1?.getCell(19).value).toBe('Not Stored'); // SGST
+      expect(r1?.getCell(20).value).toBe('Not Stored'); // IGST
 
-      // Row 6: Item 1 of INV-002 (Inter-state AP to Telangana)
-      const r2 = prodSheet?.getRow(6);
-      expect(r2?.getCell(1).value).toBe('INV-2025-002');
-      expect(r2?.getCell(5).value).toBe('Schneider Acti9 32A TP MCB');
-      expect(r2?.getCell(17).value).toBe('Inter-State (IGST)');
-      expect(r2?.getCell(19).value).toBe(0);    // CGST 0
-      expect(r2?.getCell(21).value).toBe(0);    // SGST 0
-      expect(r2?.getCell(23).value).toBe(2052); // IGST 2052
-
-      // Sum of line totals on products sheet equals sum of invoice grand totals
+      // Summary row
       const totalRow = prodSheet?.getRow(9);
-      expect(totalRow?.getCell(16).value).toBe(40120);
+      expect(totalRow?.getCell(1).value).toBe('TOTAL');
+      expect(totalRow?.getCell(15).value).toBe(1800 + 2052 + 1368 + 900); // 6120 total tax
+      expect(totalRow?.getCell(16).value).toBe(11800 + 13452 + 8968 + 5900); // 40120 total
     });
 
     it('validates Payment Receipts and Payment Allocations worksheets', async () => {
@@ -483,33 +477,92 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
 
       const paySheet = reader.getWorksheet('Payment Receipts');
       expect(paySheet).toBeDefined();
-      // 4 header rows + 2 payments + 1 total row = 7 rows
       expect(paySheet?.rowCount).toBe(7);
 
       const r1 = paySheet?.getRow(5);
-      expect(r1?.getCell(3).value).toBe('REC-2025-001');
-      expect(r1?.getCell(7).value).toBe(11800);
-      expect(r1?.getCell(8).value).toBe('NEFT');
-      expect(r1?.getCell(10).value).toBe('Merchant Recorded Remittance');
-      expect(r1?.getCell(11).value).toBe(11800); // Allocated
-      expect(r1?.getCell(12).value).toBe(0);     // Unallocated
+      expect(r1?.getCell(1).value).toBe('REC-2025-001');
+      expect(r1?.getCell(3).value).toBe('pay-uuid-001');
+      expect(r1?.getCell(7).value).toBe('NEFT');
+      expect(r1?.getCell(9).value).toBe(11800);
+      expect(r1?.getCell(10).value).toBe(11800); // Allocated
+      expect(r1?.getCell(11).value).toBe(0);     // Unallocated
 
       const r2 = paySheet?.getRow(6);
-      expect(r2?.getCell(3).value).toBe('REC-2025-002');
-      expect(r2?.getCell(7).value).toBe(15000);
-      expect(r2?.getCell(8).value).toBe('UPI');
-      expect(r2?.getCell(11).value).toBe(10000); // Allocated
-      expect(r2?.getCell(12).value).toBe(5000);  // Unallocated advance
+      expect(r2?.getCell(1).value).toBe('REC-2025-002');
+      expect(r2?.getCell(7).value).toBe('UPI');
+      expect(r2?.getCell(9).value).toBe(15000);
+      expect(r2?.getCell(10).value).toBe(10000); // Allocated
+      expect(r2?.getCell(11).value).toBe(5000);  // Unallocated advance
 
       // Allocations sheet
       const allocSheet = reader.getWorksheet('Payment Allocations');
       expect(allocSheet).toBeDefined();
-      // 4 header rows + 2 allocations + 1 total row = 7 rows
       expect(allocSheet?.rowCount).toBe(7);
       const a1 = allocSheet?.getRow(5);
       expect(a1?.getCell(2).value).toBe('REC-2025-001');
       expect(a1?.getCell(6).value).toBe('INV-2025-001');
-      expect(a1?.getCell(9).value).toBe(11800);
+      expect(a1?.getCell(7).value).toBe('2025-05-10'); // Invoice Date
+      expect(a1?.getCell(10).value).toBe(11800);
+    });
+
+    it('resolves cross-period payment allocations via referencedInvoices', async () => {
+      const crossPeriodPayment: Payment = {
+        id: 'pay-cross-1',
+        organizationId: mockOrg.id,
+        paymentNumber: 'REC-2025-MAY-99',
+        customerId: mockCustomerIntra.id,
+        amount: 25000,
+        paymentMethod: 'RTGS',
+        paymentDate: '2025-05-18',
+        createdAt: '2025-05-18T10:00:00Z',
+        allocations: [
+          {
+            id: 'alloc-hist-1',
+            paymentId: 'pay-cross-1',
+            invoiceId: 'inv-historical-2023-999',
+            amountAllocated: 25000,
+            createdAt: '2025-05-18T10:00:00Z',
+          },
+        ],
+      };
+
+      const referencedMap = new Map([
+        [
+          'inv-historical-2023-999',
+          {
+            id: 'inv-historical-2023-999',
+            invoiceNumber: 'INV-HIST-2023-088',
+            invoiceDate: '2023-08-15',
+            status: 'PAID',
+          },
+        ],
+      ]);
+
+      const payload: WorkbookPayload = {
+        organization: mockOrg,
+        criteria: {
+          periodType: 'FY',
+          periodLabel: 'FY 2025–26',
+          startDate: '2025-04-01',
+          endDate: '2026-03-31',
+          documentType: 'PAYMENTS',
+          isDemoMode: false,
+        },
+        invoices: [],
+        payments: [crossPeriodPayment],
+        referencedInvoices: referencedMap,
+      };
+
+      const buffer = await generateSalesReceiptsWorkbook(payload);
+      const reader = new ExcelJS.Workbook();
+      await reader.xlsx.load(buffer);
+
+      const allocSheet = reader.getWorksheet('Payment Allocations');
+      const row = allocSheet?.getRow(5);
+      expect(row?.getCell(2).value).toBe('REC-2025-MAY-99');
+      expect(row?.getCell(6).value).toBe('INV-HIST-2023-088');
+      expect(row?.getCell(7).value).toBe('2023-08-15');
+      expect(row?.getCell(10).value).toBe(25000);
     });
 
     it('respects documentType: "INVOICES" and omits payment sheets', async () => {
@@ -566,10 +619,10 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
 
     it('handles empty periods gracefully with 0 rows and zeroed totals without crashing', async () => {
       const criteria: ReportCriteria = {
-        periodType: 'DAY',
-        periodLabel: '2025-04-01',
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
         startDate: '2025-04-01',
-        endDate: '2025-04-01',
+        endDate: '2026-03-31',
         documentType: 'ALL',
         isDemoMode: false,
       };
@@ -585,13 +638,12 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       const reader = new ExcelJS.Workbook();
       await reader.xlsx.load(buffer);
 
-      expect(reader.worksheets).toHaveLength(5);
       const invSheet = reader.getWorksheet('Invoice Summary');
-      // 4 header rows + 1 total row = 5 rows
-      expect(invSheet?.rowCount).toBe(5);
+      expect(invSheet?.rowCount).toBe(5); // Header (4) + Total row (1)
       const totalRow = invSheet?.getRow(5);
-      expect(totalRow?.getCell(1).value).toBe('TOTAL');
       expect(totalRow?.getCell(16).value).toBe(0);
+      expect(totalRow?.getCell(17).value).toBe(0);
+      expect(totalRow?.getCell(18).value).toBe(0);
     });
 
     it('flags DEMO MODE in Reconciliation worksheet when isDemoMode is true', async () => {
@@ -607,8 +659,8 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       const payload: WorkbookPayload = {
         organization: mockOrg,
         criteria,
-        invoices: mockInvoices,
-        payments: mockPayments,
+        invoices: [],
+        payments: [],
       };
 
       const buffer = await generateSalesReceiptsWorkbook(payload);
@@ -616,16 +668,108 @@ describe('Excel Financial Reporting & Workbook Engine', () => {
       await reader.xlsx.load(buffer);
 
       const reconSheet = reader.getWorksheet('Reconciliation');
-      let foundDemoText = false;
+      let foundDemoFlag = false;
       reconSheet?.eachRow((row) => {
         row.eachCell((cell) => {
-          if (String(cell.value).includes('DEMO MODE — SAMPLE DATA ONLY')) {
-            foundDemoText = true;
+          if (String(cell.value).includes('DEMO MODE')) {
+            foundDemoFlag = true;
           }
         });
       });
 
-      expect(foundDemoText).toBe(true);
+      expect(foundDemoFlag).toBe(true);
+    });
+
+    it('measures very large export memory behavior and performance (1,000 invoices)', async () => {
+      const largeInvoices: Invoice[] = [];
+      const largePayments: Payment[] = [];
+
+      for (let i = 1; i <= 1000; i++) {
+        largeInvoices.push({
+          id: `inv-large-${i}`,
+          organizationId: mockOrg.id,
+          invoiceNumber: `INV-LG-${String(i).padStart(5, '0')}`,
+          customerId: `cust-${i % 20}`,
+          status: i % 2 === 0 ? 'PAID' : 'ISSUED',
+          invoiceDate: '2025-06-15',
+          dueDate: '2025-07-15',
+          subtotal: 5000,
+          discountAmount: 250,
+          taxAmount: 855,
+          totalAmount: 5605,
+          totalPaid: i % 2 === 0 ? 5605 : 0,
+          createdAt: '2025-06-15T10:00:00Z',
+          updatedAt: '2025-06-15T10:00:00Z',
+          items: [
+            {
+              id: `item-lg-${i}-1`,
+              invoiceId: `inv-large-${i}`,
+              productName: 'Polycab 2.5mm Wire',
+              productSku: 'WIR-2.5',
+              hsnCode: '8544',
+              uom: 'Coils',
+              quantity: 2,
+              unitPrice: 2500,
+              discountPercent: 5,
+              taxRate: 18,
+              lineSubtotal: 4750,
+              lineTax: 855,
+              lineTotal: 5605,
+            },
+          ],
+        });
+
+        if (i % 2 === 0) {
+          largePayments.push({
+            id: `pay-lg-${i}`,
+            organizationId: mockOrg.id,
+            paymentNumber: `REC-LG-${String(i).padStart(5, '0')}`,
+            customerId: `cust-${i % 20}`,
+            amount: 5605,
+            paymentMethod: 'UPI',
+            paymentDate: '2025-06-20',
+            createdAt: '2025-06-20T10:00:00Z',
+            allocations: [
+              {
+                id: `alloc-lg-${i}`,
+                paymentId: `pay-lg-${i}`,
+                invoiceId: `inv-large-${i}`,
+                amountAllocated: 5605,
+                createdAt: '2025-06-20T10:00:00Z',
+              },
+            ],
+          });
+        }
+      }
+
+      const memBefore = process.memoryUsage().heapUsed;
+      const t0 = performance.now();
+
+      const buffer = await generateSalesReceiptsWorkbook({
+        organization: mockOrg,
+        criteria: {
+          periodType: 'FY',
+          periodLabel: 'FY 2025–26',
+          startDate: '2025-04-01',
+          endDate: '2026-03-31',
+          documentType: 'ALL',
+          isDemoMode: false,
+        },
+        invoices: largeInvoices,
+        payments: largePayments,
+      });
+
+      const t1 = performance.now();
+      const memAfter = process.memoryUsage().heapUsed;
+
+      const durationMs = t1 - t0;
+      const heapDeltaMb = (memAfter - memBefore) / 1024 / 1024;
+
+      expect(buffer).toBeDefined();
+      expect(buffer.byteLength).toBeGreaterThan(50000); // Over 50 KB binary Excel
+      expect(durationMs).toBeLessThan(5000); // Must generate in under 5 seconds
+      // Heap allocation for 1,000 invoices should remain under 150 MB
+      expect(heapDeltaMb).toBeLessThan(150);
     });
   });
 });

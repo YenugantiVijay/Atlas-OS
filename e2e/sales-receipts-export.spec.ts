@@ -30,8 +30,8 @@ test.describe('ATLAS OS — Sales & Receipts Excel Export (Phase B1)', () => {
 
     // Verify page title and badges
     await expect(page.getByRole('heading', { name: 'Sales & Receipts Reports' })).toBeVisible();
-    await expect(page.getByText('Excel Export Engine')).toBeVisible();
-    await expect(page.getByText(/Demo Mode — Sample Data Only/i)).toBeVisible();
+    await expect(page.getByText(/one-click audit-ready Microsoft Excel/i)).toBeVisible();
+    await expect(page.getByText(/DEMO MODE \(Local Storage Data\)/i)).toBeVisible();
 
     // Verify Quick Presets
     await expect(page.getByRole('button', { name: /Current FY/i })).toBeVisible();
@@ -56,12 +56,12 @@ test.describe('ATLAS OS — Sales & Receipts Excel Export (Phase B1)', () => {
 
     // 2. Day preset
     await page.getByRole('button', { name: 'Today' }).click();
-    await expect(page.getByLabel('Select Single Calendar Date')).toBeVisible();
+    await expect(page.getByLabel('Select Specific Day')).toBeVisible();
 
     // 3. Custom Date Range
     await page.getByRole('button', { name: 'Custom Date Range' }).click();
-    await expect(page.getByLabel('Start Date (From)')).toBeVisible();
-    await expect(page.getByLabel('End Date (To)')).toBeVisible();
+    await expect(page.getByLabel('Start Date (Inclusive)')).toBeVisible();
+    await expect(page.getByLabel('End Date (Inclusive)')).toBeVisible();
 
     // 4. Return to Current FY
     await page.getByRole('button', { name: /Current FY/i }).click();
