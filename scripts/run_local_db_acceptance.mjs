@@ -4411,18 +4411,15 @@ async function runAcceptance() {
               p_org_id := $1::uuid,
               p_customer_id := $2::uuid,
               p_amount := 100.00::numeric,
-              p_payment_method := 'bank_transfer',
-              p_reference_number := 'REF-COL-1',
+              p_payment_method := 'BANK_TRANSFER'::varchar,
+              p_reference_no := 'REF-COL-1'::varchar,
               p_payment_date := CURRENT_DATE,
-              p_allocations := $3::jsonb,
+              p_notes := 'Initial payment'::text,
+              p_invoice_id := $3::uuid,
+              p_allocated_amount := 100.00::numeric,
               p_idempotency_key := $4::uuid
             );`,
-            [
-              orgAId,
-              custAId,
-              JSON.stringify([{ invoiceId: invId, amount: 100.00 }]),
-              collisionKey
-            ]
+            [orgAId, custAId, invId, collisionKey]
           );
 
           // Second call with same idempotency key but different amount (200.00) must be rejected
@@ -4433,18 +4430,15 @@ async function runAcceptance() {
                 p_org_id := $1::uuid,
                 p_customer_id := $2::uuid,
                 p_amount := 200.00::numeric,
-                p_payment_method := 'bank_transfer',
-                p_reference_number := 'REF-COL-2',
+                p_payment_method := 'BANK_TRANSFER'::varchar,
+                p_reference_no := 'REF-COL-2'::varchar,
                 p_payment_date := CURRENT_DATE,
-                p_allocations := $3::jsonb,
+                p_notes := 'Modified payment'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 200.00::numeric,
                 p_idempotency_key := $4::uuid
               );`,
-              [
-                orgAId,
-                custAId,
-                JSON.stringify([{ invoiceId: invId, amount: 200.00 }]),
-                collisionKey
-              ]
+              [orgAId, custAId, invId, collisionKey]
             );
           } catch (err) {
             collisionBlocked =
@@ -4497,16 +4491,14 @@ async function runAcceptance() {
                 p_org_id := $1::uuid,
                 p_customer_id := $2::uuid,
                 p_amount := 500.00::numeric,
-                p_payment_method := 'upi',
-                p_reference_number := 'REF-OVERPAY',
+                p_payment_method := 'UPI'::varchar,
+                p_reference_no := 'REF-OVERPAY'::varchar,
                 p_payment_date := CURRENT_DATE,
-                p_allocations := $3::jsonb
+                p_notes := 'Overpayment test'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 500.00::numeric
               );`,
-              [
-                orgAId,
-                custAId,
-                JSON.stringify([{ invoiceId: invId, amount: 500.00 }])
-              ]
+              [orgAId, custAId, invId]
             );
           } catch (err) {
             overpaymentBlocked =
@@ -4516,13 +4508,12 @@ async function runAcceptance() {
           }
 
           // Attempt allocating to a foreign customer's invoice (cross-customer)
-          const { rows: cust2Rows } = await testClient.query(
-            `INSERT INTO public.customers (organization_id, name, phone, gstin, is_active)
-             VALUES ($1::uuid, 'Second Cust For Allocation Test', '9888877777', '29ABCDE1234F1Z8', true)
-             RETURNING id;`,
-            [orgAId]
+          const testForeignCustId = crypto.randomUUID();
+          await testClient.query(
+            `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+             VALUES ($1::uuid, $2::uuid, 'Foreign Customer Test', 50000, 30, true);`,
+            [testForeignCustId, orgAId]
           );
-          const cust2Id = cust2Rows[0].id;
 
           let crossCustomerBlocked = false;
           try {
@@ -4531,16 +4522,14 @@ async function runAcceptance() {
                 p_org_id := $1::uuid,
                 p_customer_id := $2::uuid,
                 p_amount := 50.00::numeric,
-                p_payment_method := 'upi',
-                p_reference_number := 'REF-CROSS-CUST',
+                p_payment_method := 'UPI'::varchar,
+                p_reference_no := 'REF-CROSS-CUST'::varchar,
                 p_payment_date := CURRENT_DATE,
-                p_allocations := $3::jsonb
+                p_notes := 'Cross-customer test'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 50.00::numeric
               );`,
-              [
-                orgAId,
-                cust2Id,
-                JSON.stringify([{ invoiceId: invId, amount: 50.00 }])
-              ]
+              [orgAId, testForeignCustId, invId]
             );
           } catch (err) {
             crossCustomerBlocked =
