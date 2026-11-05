@@ -641,6 +641,88 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
       expect(countCalls).toBe(2);
     });
 
+    it('includes allocations beyond the PostgREST embedded limit in payment-only exports', async () => {
+      const allAllocations = Array.from({ length: 1001 }, (_, index) => ({
+        id: `alloc-${index}`,
+        payment_id: 'pay-1',
+        invoice_id: 'inv-1',
+        amount_allocated: '1',
+        created_at: '2025-05-15T10:00:00Z',
+      }));
+      const payment = {
+        id: 'pay-1',
+        organization_id: orgAId,
+        payment_number: 'REC-1',
+        payment_date: '2025-05-15',
+        amount: 1001,
+        customer_id: 'cust-1',
+        allocations: allAllocations.slice(0, 1000),
+      };
+      (supabase!.from as any).mockImplementation((table: string) => {
+        if (table === 'payments') {
+          return {
+            select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
+              if (opts?.head) {
+                return {
+                  eq: vi.fn().mockReturnThis(),
+                  gte: vi.fn().mockReturnThis(),
+                  lte: vi.fn().mockResolvedValue({ count: 1, error: null }),
+                };
+              }
+              return {
+                eq: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockReturnThis(),
+                lte: vi.fn().mockReturnThis(),
+                order: vi.fn().mockReturnThis(),
+                range: vi.fn().mockResolvedValue({ data: [payment], error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'payment_allocations') {
+          return {
+            select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
+              if (opts?.head) {
+                return { eq: vi.fn().mockResolvedValue({ count: 1001, error: null }) };
+              }
+              return {
+                eq: vi.fn().mockReturnThis(),
+                order: vi.fn().mockReturnThis(),
+                range: vi.fn().mockImplementation((from: number, to: number) =>
+                  Promise.resolve({ data: allAllocations.slice(from, to + 1), error: null })
+                ),
+              };
+            }),
+          };
+        }
+        if (table === 'invoices') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({
+                  data: [{ id: 'inv-1', invoice_number: 'INV-1', invoice_date: '2025-05-15', status: 'PAID' }],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      });
+
+      const params: ReportFilterParams = {
+        periodType: 'MONTH',
+        periodLabel: 'May 2025',
+        startDate: '2025-05-01',
+        endDate: '2025-05-31',
+        documentType: 'PAYMENTS',
+      };
+      const result = await reportsService.fetchReportData(orgAId, params, false);
+      expect(result.payments).toHaveLength(1);
+      expect(result.payments[0].allocations).toHaveLength(1001);
+      expect(result.referencedInvoices.get('inv-1')?.invoiceNumber).toBe('INV-1');
+    });
+
     it('aborts on duplicate IDs in a paginated nested response', async () => {
       (supabase!.from as any).mockReturnValue({
         select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
