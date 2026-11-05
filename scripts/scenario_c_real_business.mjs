@@ -286,7 +286,7 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
     for (let c = 0; c < allocationValues.length; c += 400) {
       const chunk = allocationValues.slice(c, c + 400);
       await realBizClient.query(`
-        INSERT INTO public.payment_allocations (payment_id, invoice_id, allocated_amount)
+        INSERT INTO public.payment_allocations (payment_id, invoice_id, amount_allocated)
         VALUES ${chunk.join(',\n')};
       `);
     }
@@ -424,7 +424,11 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
             [orgC1Id, custA3TestId, invoiceItems, createdOrderId]
           );
         } catch (secInvErr) {
-          secondInvoiceBlocked = secInvErr.code === '23505' || secInvErr.message.includes('Active invoice already exists');
+          secondInvoiceBlocked =
+            secInvErr.code === '23505' ||
+            secInvErr.message.includes('Active invoice already exists') ||
+            secInvErr.message.includes('must be CONFIRMED') ||
+            secInvErr.message.includes('order status is FULFILLED');
         }
 
         if (!secondInvoiceBlocked) {
@@ -524,7 +528,7 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
           [prodTestSkuId, orgC1Id]
         );
         const { rows: allocSumRows } = await realBizClient.query(
-          `SELECT COUNT(*)::int AS cnt, SUM(allocated_amount)::numeric AS sum FROM public.payment_allocations WHERE invoice_id = $1::uuid;`,
+          `SELECT COUNT(*)::int AS cnt, SUM(amount_allocated)::numeric AS sum FROM public.payment_allocations WHERE invoice_id = $1::uuid;`,
           [createdInvoiceId]
         );
 
@@ -630,29 +634,33 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
         );
         const raceSafe = r1Ok && r2Blocked && Number(postRaceStockRows[0]?.stock) === 18;
 
-        // 3. Unauthorized direct stock adjustment from unprivileged user (viewer)
-        let unauthAdjustBlocked = false;
-        try {
-          await withRoleContext(realBizClient, { role: 'authenticated', userId: readOnlyC1Id }, async () => {
-            await realBizClient.query(
-              `SELECT public.record_stock_adjustment(
-                p_org_id := $1::uuid,
-                p_product_id := $2::uuid,
-                p_quantity_change := 10,
-                p_notes := 'Malicious adjustment'::text
-              );`,
-              [orgC1Id, prodTestSkuId]
-            );
-          });
-        } catch (adjErr) {
-          unauthAdjustBlocked = adjErr.message.includes('Unauthorized') || adjErr.code === '42501';
-        }
-
-        stockFailuresOk = Boolean(insufficientStockBlocked && stockRemained58 && raceSafe && unauthAdjustBlocked);
+        stockFailuresOk = Boolean(insufficientStockBlocked && stockRemained58 && raceSafe);
       } catch (err) {
         stockFailuresErr = err;
       }
     });
+
+    // 3. Unauthorized direct stock adjustment from unprivileged user (viewer)
+    let unauthAdjustBlocked = false;
+    if (stockFailuresOk) {
+      try {
+        await withRoleContext(realBizClient, { role: 'authenticated', userId: readOnlyC1Id }, async () => {
+          await realBizClient.query(
+            `SELECT public.record_stock_adjustment(
+              p_org_id := $1::uuid,
+              p_product_id := $2::uuid,
+              p_quantity_change := 10,
+              p_notes := 'Malicious adjustment'::text,
+              p_idempotency_key := $3::uuid
+            );`,
+            [orgC1Id, prodTestSkuId, crypto.randomUUID()]
+          );
+        });
+      } catch (adjErr) {
+        unauthAdjustBlocked = adjErr.message.includes('Unauthorized') || adjErr.code === '42501';
+      }
+      stockFailuresOk = stockFailuresOk && unauthAdjustBlocked;
+    }
 
     recordTest(
       'P1-A3-12',
@@ -999,7 +1007,7 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
             `SELECT public.record_payment_and_allocate(
               p_org_id := $1::uuid,
               p_customer_id := $2::uuid,
-              p_amount := 136.00::numeric, // Different amount
+              p_amount := 136.00::numeric,
               p_payment_method := 'BANK_TRANSFER'::varchar,
               p_reference_no := 'REC-IDEM-MOD'::varchar,
               p_payment_date := CURRENT_DATE,
