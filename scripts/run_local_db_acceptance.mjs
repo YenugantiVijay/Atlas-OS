@@ -22,6 +22,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import crypto from 'crypto';
+import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4558,6 +4559,18 @@ async function runAcceptance() {
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030
     // ------------------------------------------------------------------------
     await runUpgradeScenarioB(maintClient, runId);
+
+    // ------------------------------------------------------------------------
+    // Execute Scenario C: Real-Business Distributor Acceptance & Ledger Reconciliation
+    // ------------------------------------------------------------------------
+    await runRealBusinessScenarioC(maintClient, runId, {
+      recordTest,
+      withRoleContext,
+      bootstrapDisposableDatabase,
+      DATABASE_URL,
+      MIGRATIONS_DIR,
+      Client,
+    });
 
   } finally {
     // ------------------------------------------------------------------------
