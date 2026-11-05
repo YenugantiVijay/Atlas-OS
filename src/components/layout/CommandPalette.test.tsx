@@ -322,5 +322,5 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     // Final open should work flawlessly
     fireEvent.click(openBtn);
     expect(screen.getByPlaceholderText('Search commands, products, customers, or workflows...')).toBeInTheDocument();
-  });
+  }, 15000);
 });

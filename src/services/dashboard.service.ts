@@ -5,19 +5,58 @@ import { getBusinessDate } from '@/lib/dates';
 import { mapDbSalesOrder, mapDbSalesOrderItem } from './orders.service';
 import { mapDbPayment, mapDbPaymentAllocation } from './payments.service';
 
+export interface ParseMetricOptions {
+  allowNegative?: boolean;
+}
+
 /**
- * Validates and parses an authoritative metric value from PostgreSQL.
- * Strictly preserves valid 0 while safely defaulting null, undefined, or NaN values to 0.
+ * Validates and parses an authoritative financial metric value.
+ * Strictly preserves valid 0 while explicitly rejecting null, undefined, NaN,
+ * Infinity, empty/whitespace strings, and invalid financial values with descriptive errors.
  */
-export function parseMetricNumber(val: unknown, _metricName: string = 'metric'): number {
-  if (val === null || val === undefined) {
-    return 0;
+export function parseMetricNumber(
+  val: unknown,
+  metricName: string = 'metric',
+  options?: ParseMetricOptions
+): number {
+  if (val === null) {
+    throw new TypeError(`Missing required financial metric '${metricName}': value is null.`);
   }
-  const num = Number(val);
-  if (Number.isNaN(num) || num < 0) {
-    return 0;
+  if (val === undefined) {
+    throw new TypeError(`Missing required financial metric '${metricName}': value is undefined.`);
   }
-  return num;
+
+  let num: number;
+
+  if (typeof val === 'number') {
+    if (Number.isNaN(val)) {
+      throw new TypeError(`Invalid financial metric '${metricName}': value is NaN.`);
+    }
+    if (!Number.isFinite(val)) {
+      throw new TypeError(`Invalid financial metric '${metricName}': value is non-finite (${val}).`);
+    }
+    num = val;
+  } else if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed === '') {
+      throw new TypeError(`Missing required financial metric '${metricName}': string is empty or whitespace.`);
+    }
+    num = Number(trimmed);
+    if (Number.isNaN(num)) {
+      throw new TypeError(`Invalid financial metric '${metricName}': '${val}' is not a valid number.`);
+    }
+    if (!Number.isFinite(num)) {
+      throw new TypeError(`Invalid financial metric '${metricName}': value is non-finite (${val}).`);
+    }
+  } else {
+    throw new TypeError(`Invalid financial metric '${metricName}': unexpected type '${typeof val}'.`);
+  }
+
+  if (num < 0 && !options?.allowNegative) {
+    throw new RangeError(`Financial metric '${metricName}' cannot be negative (${num}).`);
+  }
+
+  return Object.is(num, -0) ? 0 : num;
 }
 
 export const dashboardService = {
@@ -175,7 +214,8 @@ export const dashboardService = {
       const todayStr = new Date().toISOString().split('T')[0];
 
       invoices.forEach((inv) => {
-        if (inv.status !== 'CANCELLED') {
+        // Strictly exclude DRAFT and CANCELLED invoices from issued commercial metrics
+        if (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID' || inv.status === 'PAID') {
           invoiced += inv.totalAmount;
           settled += inv.totalPaid || 0;
           if (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID') {

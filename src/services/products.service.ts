@@ -63,8 +63,11 @@ export const productsService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim();
-      query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%`);
+      // Sanitize search term to prevent PostgREST grammar breakage
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      if (s) {
+        query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%`);
+      }
     }
 
     if (params.category && params.category !== 'ALL') {
@@ -75,9 +78,21 @@ export const productsService = {
       query = query.eq('is_active', params.isActive);
     }
 
-    const sortBy = params.sortBy || 'name';
+    // Allowlisted sort fields to prevent invalid SQL column errors
+    const ALLOWED_PROD_SORT_FIELDS: Record<string, string> = {
+      name: 'name',
+      sku: 'sku',
+      category: 'category',
+      brand: 'brand',
+      purchasePrice: 'purchase_cost',
+      purchaseCost: 'purchase_cost',
+      createdAt: 'created_at',
+    };
+    const sortBy = ALLOWED_PROD_SORT_FIELDS[params.sortBy || 'name'] || 'name';
     const ascending = params.sortOrder === 'desc' ? false : true;
-    query = query.order(sortBy, { ascending }).range(from, to);
+
+    // Deterministic sorting with secondary tie-breaker by primary key id
+    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
 
     const { data: dbProducts, error: prodErr, count } = await query;
 
@@ -90,13 +105,26 @@ export const productsService = {
       return buildPaginatedResult([], totalCount, page, pageSize);
     }
 
-    // Fetch authoritative stock aggregations from database RPC
-    const { data: stockLevels, error: stockErr } = await supabase.rpc('get_product_stock_levels', {
+    // Page-scoped authoritative stock aggregations: only fetch stock for current page items
+    const pageProductIds = dbProducts.map((p) => p.id);
+    let stockLevels: unknown = null;
+
+    const { data: pageStock, error: pageStockErr } = await supabase.rpc('get_page_product_stock_levels', {
       p_org_id: orgId,
+      p_product_ids: pageProductIds,
     });
 
-    if (stockErr) {
-      throw new Error(`Failed to load stock totals from authoritative database: ${stockErr.message}`);
+    if (pageStockErr) {
+      // Resilient fallback to get_product_stock_levels if page RPC is unavailable
+      const { data: fallbackStock, error: fallbackErr } = await supabase.rpc('get_product_stock_levels', {
+        p_org_id: orgId,
+      });
+      if (fallbackErr) {
+        throw new Error(`Failed to load stock totals from authoritative database: ${fallbackErr.message}`);
+      }
+      stockLevels = fallbackStock;
+    } else {
+      stockLevels = pageStock;
     }
 
     const stockMap = new Map<string, number>();
@@ -108,7 +136,7 @@ export const productsService = {
     }
 
     const mappedProducts = dbProducts.map((row) => {
-      const stock = stockMap.has(row.id) ? stockMap.get(row.id)! : undefined;
+      const stock = stockMap.has(row.id) ? stockMap.get(row.id)! : 0;
       return mapDbProduct(row, stock);
     });
 

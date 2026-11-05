@@ -31,7 +31,8 @@ export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ in
     const todayStr = new Date().toISOString().split('T')[0];
 
     invoices.forEach((inv) => {
-      if (inv.status !== 'CANCELLED') {
+      // Strictly exclude DRAFT and CANCELLED invoices from issued commercial metrics
+      if (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID' || inv.status === 'PAID') {
         invoiced += inv.totalAmount;
         settled += inv.totalPaid || 0;
         // Strictly exclude DRAFT invoices from outstanding receivables

@@ -139,17 +139,26 @@ export const ordersService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim();
-      query = query.or(`order_number.ilike.%${s}%`);
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      if (s) {
+        query = query.or(`order_number.ilike.%${s}%`);
+      }
     }
 
     if (params.status && params.status !== 'ALL') {
       query = query.eq('status', params.status);
     }
 
-    const sortBy = params.sortBy || 'created_at';
+    const ALLOWED_ORDER_SORT_FIELDS: Record<string, string> = {
+      orderNumber: 'order_number',
+      orderDate: 'order_date',
+      totalAmount: 'total_amount',
+      status: 'status',
+      createdAt: 'created_at',
+    };
+    const sortBy = ALLOWED_ORDER_SORT_FIELDS[params.sortBy || 'createdAt'] || 'created_at';
     const ascending = params.sortOrder === 'asc' ? true : false;
-    query = query.order(sortBy, { ascending }).range(from, to);
+    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
 
     const { data: dbOrders, error: ordersErr, count } = await query;
 
