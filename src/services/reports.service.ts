@@ -400,7 +400,13 @@ export const reportsService = {
 
       // Re-verify snapshot consistency: check that count hasn't drifted mid-stream
       const { count: finalCount, error: recheckErr } = await buildInvoiceCountQuery();
-      if (!recheckErr && finalCount !== null && finalCount !== total) {
+      if (recheckErr || finalCount === null) {
+        throw new ExportIntegrityError(
+          `Invoice count recheck failed: ${recheckErr?.message || 'No count returned'}. Export aborted because completeness cannot be verified.`,
+          'COUNT_RECHECK_FAILED'
+        );
+      }
+      if (finalCount !== total) {
         throw new ExportIntegrityError(
           `Inconsistent database snapshot: Invoice count shifted from ${total} to ${finalCount} during retrieval. Concurrent modifications occurred. Please retry export.`,
           'SNAPSHOT_DRIFT'
@@ -481,7 +487,14 @@ export const reportsService = {
           }
           seenPaymentIds.add(row.id);
 
-          const allocations = (row.allocations || []).map(mapDbPaymentAllocation);
+          let allocations = (row.allocations || []).map(mapDbPaymentAllocation);
+
+          // PostgREST embedded arrays may stop at the server's row limit.
+          // Apply the same fail-closed completeness check as invoice line items.
+          if (allocations.length >= 1000) {
+            allocations = await this.fetchAllPaymentAllocationsIfTruncated(row.id, allocations);
+          }
+
           allPayments.push(mapDbPayment(row, allocations));
         }
 
@@ -498,7 +511,13 @@ export const reportsService = {
 
       // Re-verify payment count snapshot consistency
       const { count: finalPayCount, error: recheckPayErr } = await buildPaymentCountQuery();
-      if (!recheckPayErr && finalPayCount !== null && finalPayCount !== total) {
+      if (recheckPayErr || finalPayCount === null) {
+        throw new ExportIntegrityError(
+          `Payment count recheck failed: ${recheckPayErr?.message || 'No count returned'}. Export aborted because completeness cannot be verified.`,
+          'COUNT_RECHECK_FAILED'
+        );
+      }
+      if (finalPayCount !== total) {
         throw new ExportIntegrityError(
           `Inconsistent database snapshot: Payment count shifted from ${total} to ${finalPayCount} during retrieval. Concurrent modifications occurred. Please retry export.`,
           'SNAPSHOT_DRIFT'
@@ -567,47 +586,136 @@ export const reportsService = {
   },
 
   /**
-   * Helper to ensure invoices with >= 1,000 line items are never silently truncated by API limits.
+   * A PostgREST embedded relation can silently stop at 1,000 rows.
+   * Verify and reload large invoice item arrays rather than exporting partial data.
    */
   async fetchAllInvoiceItemsIfTruncated(invoiceId: string, currentItems: any[]): Promise<any[]> {
-    if (!supabase) return currentItems;
+    return this.fetchAllNestedRowsIfTruncated(
+      'invoice_items',
+      'invoice_id',
+      invoiceId,
+      currentItems,
+      mapDbInvoiceItem
+    );
+  },
 
-    const { count: itemCount, error: countErr } = await supabase
-      .from('invoice_items')
-      .select('*', { count: 'exact', head: true })
-      .eq('invoice_id', invoiceId);
+  /**
+   * Payment allocations are subject to the same embedded row limit as invoice items.
+   * An incomplete allocation list would misrepresent where a receipt was applied.
+   */
+  async fetchAllPaymentAllocationsIfTruncated(paymentId: string, currentAllocations: any[]): Promise<any[]> {
+    return this.fetchAllNestedRowsIfTruncated(
+      'payment_allocations',
+      'payment_id',
+      paymentId,
+      currentAllocations,
+      mapDbPaymentAllocation
+    );
+  },
 
-    if (countErr || itemCount === null || itemCount <= currentItems.length) {
-      return currentItems;
+  /**
+   * Fail-closed and deterministic nested-record pagination. The count check is
+   * mandatory: a network or authorization failure must never produce a partial
+   * financial export presented as complete.
+   */
+  async fetchAllNestedRowsIfTruncated(
+    table: 'invoice_items' | 'payment_allocations',
+    parentColumn: 'invoice_id' | 'payment_id',
+    parentId: string,
+    embeddedRows: Array<{ id: string }>,
+    mapRow: (row: any) => any
+  ): Promise<any[]> {
+    if (!supabase) {
+      throw new ExportIntegrityError('Cloud backend is not configured for nested export verification.', 'NESTED_COUNT_UNVERIFIED');
     }
 
-    const allItems: any[] = [];
-    let fetched = 0;
+    const { count, error } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true })
+      .eq(parentColumn, parentId);
+
+    if (error || count === null) {
+      throw new ExportIntegrityError(
+        `Could not verify complete ${table} for ${parentId}: ${error?.message || 'No count returned'}.`,
+        'NESTED_COUNT_UNVERIFIED'
+      );
+    }
+
+    // A count decrease during export is also a concurrency/integrity fault.
+    if (count < embeddedRows.length) {
+      throw new ExportIntegrityError(
+        `Inconsistent ${table} count for ${parentId}: embedded ${embeddedRows.length}, database ${count}.`,
+        'NESTED_SNAPSHOT_DRIFT'
+      );
+    }
+
+    const seenEmbeddedIds = new Set(embeddedRows.map((row) => row.id));
+    if (seenEmbeddedIds.size !== embeddedRows.length || embeddedRows.some((row) => !row.id)) {
+      throw new ExportIntegrityError(`Duplicate or missing ${table} IDs for ${parentId}.`, 'NESTED_DUPLICATE_ROW');
+    }
+
+    // The embedded relation is complete when its verified count matches.
+    if (count === embeddedRows.length) return embeddedRows;
+
+    const rows: any[] = [];
+    const seenIds = new Set<string>();
     const BATCH_SIZE = 250;
 
-    while (fetched < itemCount) {
-      const from = fetched;
-      const to = Math.min(fetched + BATCH_SIZE - 1, itemCount - 1);
-
-      const { data: itemRows, error: itemErr } = await supabase
-        .from('invoice_items')
+    while (rows.length < count) {
+      const from = rows.length;
+      const to = Math.min(from + BATCH_SIZE - 1, count - 1);
+      const { data, error: pageError } = await supabase
+        .from(table)
         .select('*')
-        .eq('invoice_id', invoiceId)
+        .eq(parentColumn, parentId)
         .order('id', { ascending: true })
         .range(from, to);
 
-      if (itemErr || !itemRows || itemRows.length === 0) {
+      if (pageError || !data?.length) {
         throw new ExportIntegrityError(
-          `Failed to fetch complete line items for invoice ${invoiceId}: expected ${itemCount}, retrieved ${allItems.length}.`,
-          'ITEM_TRUNCATION'
+          `Could not fetch complete ${table} for ${parentId}: expected ${count}, retrieved ${rows.length}. ${pageError?.message || ''}`,
+          'NESTED_INCOMPLETE_BATCH'
         );
       }
 
-      allItems.push(...itemRows.map(mapDbInvoiceItem));
-      fetched += itemRows.length;
+      for (const row of data) {
+        if (!row.id || row[parentColumn] !== parentId || seenIds.has(row.id)) {
+          throw new ExportIntegrityError(
+            `Duplicate, missing, or incorrect ${table} record while exporting ${parentId}.`,
+            'NESTED_DUPLICATE_ROW'
+          );
+        }
+        seenIds.add(row.id);
+        rows.push(mapRow(row));
+      }
     }
 
-    return allItems;
+    if (rows.length !== count) {
+      throw new ExportIntegrityError(
+        `Unexpected ${table} row count for ${parentId}: expected ${count}, got ${rows.length}.`,
+        'NESTED_COUNT_MISMATCH'
+      );
+    }
+
+    const { count: verifiedCount, error: verifyError } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true })
+      .eq(parentColumn, parentId);
+
+    if (verifyError || verifiedCount === null) {
+      throw new ExportIntegrityError(
+        `Unable to recheck ${table} for ${parentId}: ${verifyError?.message || 'No count returned'}.`,
+        'NESTED_COUNT_UNVERIFIED'
+      );
+    }
+    if (verifiedCount !== count) {
+      throw new ExportIntegrityError(
+        `Inconsistent ${table} count for ${parentId}: changed from ${count} to ${verifiedCount} during export.`,
+        'NESTED_SNAPSHOT_DRIFT'
+      );
+    }
+
+    return rows;
   },
 
   /**
