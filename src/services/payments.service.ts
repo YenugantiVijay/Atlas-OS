@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
-import { Payment, PaymentAllocation, PaymentMethod, Role } from '@/types';
+import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, PaginatedResult } from '@/types';
+import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
 
 export function mapDbPaymentAllocation(row: any): PaymentAllocation {
@@ -32,6 +33,67 @@ export function mapDbPayment(row: any, allocations: PaymentAllocation[] = []): P
 }
 
 export const paymentsService = {
+  async getPaymentsPaginated(
+    orgId: string,
+    params: PaginationParams = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<Payment>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const allPayments = await storage.getPayments(orgId);
+      return paginateArray(
+        allPayments,
+        params,
+        (p, s) =>
+          p.paymentNumber.toLowerCase().includes(s) ||
+          Boolean(p.customer?.name && p.customer.name.toLowerCase().includes(s)) ||
+          Boolean(p.referenceNumber && p.referenceNumber.toLowerCase().includes(s)) ||
+          p.paymentMethod.toLowerCase().includes(s),
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('payments')
+      .select('*, allocations:payment_allocations(*), customer:customers!fk_payments_customer_org(*)', { count: 'exact' })
+      .eq('organization_id', orgId);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim();
+      query = query.or(`payment_number.ilike.%${s}%,reference_number.ilike.%${s}%`);
+    }
+
+    if (params.paymentMethod) {
+      query = query.eq('payment_method', params.paymentMethod);
+    }
+
+    const sortBy = params.sortBy || 'created_at';
+    const ascending = params.sortOrder === 'asc' ? true : false;
+    query = query.order(sortBy, { ascending }).range(from, to);
+
+    const { data: dbPayments, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch payments: ${error.message}`);
+    }
+
+    const totalCount = count || 0;
+    const mapped = (dbPayments || []).map((row) => {
+      const allocations = (row.allocations || []).map(mapDbPaymentAllocation);
+      return mapDbPayment(row, allocations);
+    });
+
+    return buildPaginatedResult(mapped, totalCount, page, pageSize);
+  },
+
   async getPayments(orgId: string, isMockAuth: boolean = false): Promise<Payment[]> {
     if (isMockAuth) {
       return storage.getPayments(orgId);

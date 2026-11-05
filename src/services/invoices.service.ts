@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
-import { Invoice, InvoiceItem, InvoiceStatus, UOM } from '@/types';
+import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
 import { parseTaxRate, isExplicitTaxRate } from '@/lib/money';
+import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
 
 export function mapDbInvoiceItem(row: any): InvoiceItem {
@@ -71,6 +72,67 @@ export interface CreateInvoiceInput {
 }
 
 export const invoicesService = {
+  async getInvoicesPaginated(
+    orgId: string,
+    params: PaginationParams = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<Invoice>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const allInvoices = await storage.getInvoices(orgId);
+      return paginateArray(
+        allInvoices,
+        params,
+        (inv, s) =>
+          inv.invoiceNumber.toLowerCase().includes(s) ||
+          Boolean(inv.customer?.name && inv.customer.name.toLowerCase().includes(s)) ||
+          Boolean(inv.customer?.companyName && inv.customer.companyName.toLowerCase().includes(s)) ||
+          inv.status.toLowerCase().includes(s),
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('invoices')
+      .select('*, items:invoice_items(*), customer:customers!fk_invoices_customer_org(*)', { count: 'exact' })
+      .eq('organization_id', orgId);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim();
+      query = query.or(`invoice_number.ilike.%${s}%`);
+    }
+
+    if (params.status && params.status !== 'ALL') {
+      query = query.eq('status', params.status);
+    }
+
+    const sortBy = params.sortBy || 'created_at';
+    const ascending = params.sortOrder === 'asc' ? true : false;
+    query = query.order(sortBy, { ascending }).range(from, to);
+
+    const { data: dbInvoices, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch invoices: ${error.message}`);
+    }
+
+    const totalCount = count || 0;
+    const mapped = (dbInvoices || []).map((row) => {
+      const items = (row.items || []).map(mapDbInvoiceItem);
+      return mapDbInvoice(row, items);
+    });
+
+    return buildPaginatedResult(mapped, totalCount, page, pageSize);
+  },
+
   async getInvoices(orgId: string, isMockAuth: boolean = false): Promise<Invoice[]> {
     if (isMockAuth) {
       return storage.getInvoices(orgId);

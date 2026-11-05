@@ -292,6 +292,50 @@ export interface DashboardMetrics {
   lowStockProducts: Product[];
 }
 
+export interface SalesTrendPoint {
+  date: string;
+  amount: number;
+  label: string;
+}
+
+export interface ReceivablesSummary {
+  totalInvoiced: number;
+  totalSettled: number;
+  totalOutstanding: number;
+  overdueCount: number;
+  settledPct: number;
+}
+
+export interface BrandValuation {
+  brand: string;
+  totalValue: number;
+  skuCount: number;
+  totalUnits: number;
+}
+
+export interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  category?: string;
+  paymentMethod?: PaymentMethod;
+  isActive?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalCount: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 export interface ProposedAction {
   id: string;
   title: string;

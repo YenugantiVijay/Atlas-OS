@@ -8,9 +8,12 @@ import {
   OrderStatus,
   QuotationStatus,
   UOM,
+  PaginationParams,
+  PaginatedResult,
 } from '@/types';
 import { parseTaxRate } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
+import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
 
 export function mapDbSalesOrderItem(row: any): SalesOrderItem {
@@ -102,6 +105,67 @@ export const ordersService = {
   // --------------------------------------------------------------------------
   // SALES ORDERS
   // --------------------------------------------------------------------------
+  async getSalesOrdersPaginated(
+    orgId: string,
+    params: PaginationParams = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<SalesOrder>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const allOrders = await storage.getSalesOrders(orgId);
+      return paginateArray(
+        allOrders,
+        params,
+        (o, s) =>
+          o.orderNumber.toLowerCase().includes(s) ||
+          Boolean(o.customer?.name && o.customer.name.toLowerCase().includes(s)) ||
+          Boolean(o.customer?.companyName && o.customer.companyName.toLowerCase().includes(s)) ||
+          o.status.toLowerCase().includes(s),
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('sales_orders')
+      .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)', { count: 'exact' })
+      .eq('organization_id', orgId);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim();
+      query = query.or(`order_number.ilike.%${s}%`);
+    }
+
+    if (params.status && params.status !== 'ALL') {
+      query = query.eq('status', params.status);
+    }
+
+    const sortBy = params.sortBy || 'created_at';
+    const ascending = params.sortOrder === 'asc' ? true : false;
+    query = query.order(sortBy, { ascending }).range(from, to);
+
+    const { data: dbOrders, error: ordersErr, count } = await query;
+
+    if (ordersErr) {
+      throw new Error(`Failed to fetch sales orders: ${ordersErr.message}`);
+    }
+
+    const totalCount = count || 0;
+    const mapped = (dbOrders || []).map((row) => {
+      const items = (row.items || []).map(mapDbSalesOrderItem);
+      return mapDbSalesOrder(row, items);
+    });
+
+    return buildPaginatedResult(mapped, totalCount, page, pageSize);
+  },
+
   async getSalesOrders(orgId: string, isMockAuth: boolean = false): Promise<SalesOrder[]> {
     if (isMockAuth) {
       return storage.getSalesOrders(orgId);

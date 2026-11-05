@@ -1,14 +1,29 @@
 import React, { useMemo } from 'react';
-import { Invoice } from '@/types';
+import { Invoice, ReceivablesSummary } from '@/types';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 
 export interface ReceivablesDonutChartProps {
-  invoices: Invoice[];
+  invoices?: Invoice[];
+  summary?: ReceivablesSummary;
   className?: string;
 }
 
-export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ invoices, className = '' }) => {
+export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ invoices, summary, className = '' }) => {
   const { totalInvoiced, totalSettled, totalOutstanding, settledPct, overdueCount } = useMemo(() => {
+    if (summary) {
+      return summary;
+    }
+
+    if (!invoices || invoices.length === 0) {
+      return {
+        totalInvoiced: 0,
+        totalSettled: 0,
+        totalOutstanding: 0,
+        settledPct: 100,
+        overdueCount: 0,
+      };
+    }
+
     let invoiced = 0;
     let settled = 0;
     let outstanding = 0;
@@ -19,11 +34,14 @@ export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ in
       if (inv.status !== 'CANCELLED') {
         invoiced += inv.totalAmount;
         settled += inv.totalPaid || 0;
-        const bal = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid || 0);
-        if (bal > 0) {
-          outstanding += bal;
-          if (inv.dueDate && inv.dueDate < todayStr) {
-            overdue++;
+        // Strictly exclude DRAFT invoices from outstanding receivables
+        if (inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID') {
+          const bal = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid || 0);
+          if (bal > 0) {
+            outstanding += bal;
+            if (inv.dueDate && inv.dueDate < todayStr) {
+              overdue++;
+            }
           }
         }
       }
@@ -37,7 +55,7 @@ export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ in
       settledPct: pct,
       overdueCount: overdue,
     };
-  }, [invoices]);
+  }, [invoices, summary]);
 
   // Donut geometry constants
   const size = 180;

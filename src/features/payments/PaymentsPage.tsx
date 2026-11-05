@@ -24,6 +24,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
+import { Pagination } from '@/components/ui/Pagination';
+import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 
@@ -51,6 +53,10 @@ export const PaymentsPage: React.FC = () => {
   const [pendingOpenRecord, setPendingOpenRecord] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,17 +81,45 @@ export const PaymentsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadData = useCallback(async (): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
+  const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; invoices: Invoice[] } | null> => {
     if (!currentOrg) return null;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [payList, custList, invList] = await Promise.all([
-        paymentsService.getPayments(currentOrg.id, isMockAuth),
+      const payPromise = typeof paymentsService.getPaymentsPaginated === 'function'
+        ? paymentsService.getPaymentsPaginated(
+            currentOrg.id,
+            {
+              page: targetPage,
+              pageSize: targetPageSize,
+              search: searchQuery,
+            },
+            isMockAuth
+          )
+        : paymentsService.getPayments(currentOrg.id, isMockAuth).then((data) =>
+            paginateArray(
+              data,
+              {
+                page: targetPage,
+                pageSize: targetPageSize,
+                search: searchQuery,
+              },
+              (p, s) =>
+                p.paymentNumber.toLowerCase().includes(s) ||
+                Boolean(p.customer?.companyName && p.customer.companyName.toLowerCase().includes(s)) ||
+                Boolean(p.customer?.name && p.customer.name.toLowerCase().includes(s)) ||
+                Boolean(p.referenceNumber && p.referenceNumber.toLowerCase().includes(s))
+            )
+          );
+
+      const [payRes, custList, invList] = await Promise.all([
+        payPromise,
         customersService.getCustomers(currentOrg.id, isMockAuth),
         invoicesService.getInvoices(currentOrg.id, isMockAuth),
       ]);
-      setPayments(payList);
+      setPayments(payRes.data);
+      setTotalCount(payRes.totalCount);
+      setTotalPages(payRes.totalPages);
       setCustomers(custList);
       setInvoices(invList);
       return { customers: custList, invoices: invList };
@@ -97,7 +131,7 @@ export const PaymentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
   const initializeAndOpenRecord = useCallback((custList: Customer[], preselectedInvoice?: Invoice) => {
     const perm = check('payments:record');
@@ -378,7 +412,7 @@ export const PaymentsPage: React.FC = () => {
             {formatCurrency(totalCollected)}
           </div>
           <div className="text-xs text-content-muted mt-1">
-            {payments.length} verified payment receipts
+            {totalCount} verified payment receipts
           </div>
         </Card>
 
@@ -400,7 +434,10 @@ export const PaymentsPage: React.FC = () => {
         <Input
           placeholder="Search payments by receipt #, customer, or transaction reference (UTR / UPI)..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
           leftIcon={<Search className="w-4 h-4" />}
           aria-label="Search payment records"
         />
@@ -481,6 +518,22 @@ export const PaymentsPage: React.FC = () => {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredPayments.length > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+          }}
+        />
       )}
 
       {/* Record Payment Modal */}

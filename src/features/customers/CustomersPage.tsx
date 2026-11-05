@@ -24,6 +24,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { useToast } from '@/components/ui/Toast';
+import { Pagination } from '@/components/ui/Pagination';
+import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
 
 function getInitials(name: string): string {
@@ -45,6 +47,10 @@ export const CustomersPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,14 +78,43 @@ export const CustomersPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadCustomers = useCallback(async (): Promise<Customer[] | null> => {
+  const loadCustomers = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Customer[] | null> => {
     if (!currentOrg) return null;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const data = await customersService.getCustomers(currentOrg.id, isMockAuth);
-      setCustomers(data);
-      return data;
+      let res;
+      if (typeof customersService.getCustomersPaginated === 'function') {
+        res = await customersService.getCustomersPaginated(
+          currentOrg.id,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search: searchQuery,
+          },
+          isMockAuth
+        );
+      } else {
+        const data = await customersService.getCustomers(currentOrg.id, isMockAuth);
+        res = paginateArray(
+          data,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search: searchQuery,
+          },
+          (c, s) =>
+            c.name.toLowerCase().includes(s) ||
+            Boolean(c.companyName && c.companyName.toLowerCase().includes(s)) ||
+            Boolean(c.phone && c.phone.toLowerCase().includes(s)) ||
+            Boolean(c.email && c.email.toLowerCase().includes(s)) ||
+            Boolean(c.gstin && c.gstin.toLowerCase().includes(s))
+        );
+      }
+      setCustomers(res.data);
+      setTotalCount(res.totalCount);
+      setTotalPages(res.totalPages);
+      return res.data;
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Unable to load customers. Check your connection and try again.';
       setLoadError(msg);
@@ -88,7 +123,7 @@ export const CustomersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
   const handleOpenCreate = useCallback(() => {
     const perm = check('customers:manage');
@@ -260,7 +295,7 @@ export const CustomersPage: React.FC = () => {
               Customers & Contractors
             </h1>
             <Badge variant="teal" size="sm">
-              {customers.length} Accounts
+              {totalCount} Accounts
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
@@ -305,7 +340,10 @@ export const CustomersPage: React.FC = () => {
         <Input
           placeholder="Search customers by contractor name, firm name, phone, or GSTIN..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
           leftIcon={<Search className="w-4 h-4" />}
           aria-label="Search customers"
         />
@@ -452,6 +490,22 @@ export const CustomersPage: React.FC = () => {
             })}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredCustomers.length > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+          }}
+        />
       )}
 
       {/* Add / Edit Customer Modal */}

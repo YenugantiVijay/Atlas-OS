@@ -66,4 +66,20 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await approveBtn.click();
     await expect(page.getByRole('heading', { name: 'Requisition Proposal Approved' })).toBeVisible({ timeout: 5000 });
   });
+
+  test('verifies dashboard charts and server-side pagination controls across product catalog', async ({ page }) => {
+    // 1. Dashboard charts render
+    await expect(page.getByText('Sales Performance Over Time')).toBeVisible();
+    await expect(page.getByText('Receivables & Collections')).toBeVisible();
+    await expect(page.getByText('Top Brands by Stock Valuation')).toBeVisible();
+
+    // 2. Products pagination controls
+    await page.click('text=Products & SKUs');
+    await expect(page).toHaveURL(/.*#\/products/);
+    const pagination = page.getByTestId('pagination-control');
+    await expect(pagination).toBeVisible();
+    await expect(pagination.getByText(/Showing.*results/)).toBeVisible();
+    await expect(pagination.getByRole('button', { name: 'Previous' })).toBeVisible();
+    await expect(pagination.getByRole('button', { name: 'Next' })).toBeVisible();
+  });
 });

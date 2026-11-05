@@ -18,6 +18,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Pagination } from '@/components/ui/Pagination';
+import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateInvoiceBalance, resolveDocumentPresentation } from '@/lib/money';
 import { resolvePlaceOfSupply } from '@/lib/gst';
 
@@ -28,20 +30,47 @@ export const InvoicesPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const loadInvoices = useCallback(async () => {
+  const loadInvoices = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
     if (!currentOrg) return;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const data = await invoicesService.getInvoices(currentOrg.id, isMockAuth);
-      setInvoices(data);
+      let res;
+      if (typeof invoicesService.getInvoicesPaginated === 'function') {
+        res = await invoicesService.getInvoicesPaginated(
+          currentOrg.id,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search: searchQuery,
+          },
+          isMockAuth
+        );
+      } else {
+        const data = await invoicesService.getInvoices(currentOrg.id, isMockAuth);
+        res = paginateArray(
+          data,
+          { page: targetPage, pageSize: targetPageSize, search: searchQuery },
+          (inv, s) =>
+            inv.invoiceNumber.toLowerCase().includes(s) ||
+            Boolean(inv.customer?.companyName && inv.customer.companyName.toLowerCase().includes(s)) ||
+            Boolean(inv.customer?.name && inv.customer.name.toLowerCase().includes(s))
+        );
+      }
+      setInvoices(res.data);
+      setTotalCount(res.totalCount);
+      setTotalPages(res.totalPages);
     } catch (err: any) {
       setLoadError(err instanceof Error ? err.message : 'Invoices could not be loaded.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery]);
 
   useEffect(() => {
     loadInvoices();
@@ -81,7 +110,7 @@ export const InvoicesPage: React.FC = () => {
               Tax Invoices
             </h1>
             <Badge variant="teal" size="sm">
-              {invoices.length} Invoices
+              {totalCount} Invoices
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
@@ -95,7 +124,10 @@ export const InvoicesPage: React.FC = () => {
         <Input
           placeholder="Search invoices by invoice number or customer name..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
           leftIcon={<Search className="w-4 h-4" />}
           aria-label="Search tax invoices"
         />
@@ -190,6 +222,22 @@ export const InvoicesPage: React.FC = () => {
             })}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredInvoices.length > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+          }}
+        />
       )}
 
       {/* Invoice Document Modal */}

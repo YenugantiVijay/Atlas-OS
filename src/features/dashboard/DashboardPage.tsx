@@ -17,15 +17,12 @@ import {
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { dashboardService } from '@/services/dashboard.service';
-import { ordersService } from '@/services/orders.service';
-import { invoicesService } from '@/services/invoices.service';
-import { productsService } from '@/services/products.service';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/money';
-import { DashboardMetrics, SalesOrder, Invoice, Product } from '@/types';
+import { DashboardMetrics, SalesTrendPoint, ReceivablesSummary, BrandValuation } from '@/types';
 import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
 
 export const DashboardPage: React.FC = () => {
@@ -33,9 +30,10 @@ export const DashboardPage: React.FC = () => {
   const { check } = useActionPermission();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [orders, setOrders] = useState<SalesOrder[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [salesTrend, setSalesTrend] = useState<SalesTrendPoint[]>([]);
+  const [receivablesSummary, setReceivablesSummary] = useState<ReceivablesSummary | null>(null);
+  const [brandValuation, setBrandValuation] = useState<BrandValuation[]>([]);
+  const [trendRange, setTrendRange] = useState<'7D' | '30D' | '90D'>('30D');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -43,35 +41,50 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchDashboardData = async () => {
-      if (currentOrg) {
-        setIsLoading(true);
-        setLoadError(null);
-        try {
-          const [metricsData, ordersData, invoicesData, productsData] = await Promise.all([
-            dashboardService.getDashboardMetrics(currentOrg.id, isMockAuth),
-            ordersService.getSalesOrders(currentOrg.id, isMockAuth),
-            invoicesService.getInvoices(currentOrg.id, isMockAuth),
-            productsService.getProducts(currentOrg.id, isMockAuth),
-          ]);
+      if (!currentOrg) return;
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const days = trendRange === '7D' ? 7 : trendRange === '30D' ? 30 : 90;
+        const trendPromise = typeof dashboardService.getSalesTrend === 'function'
+          ? dashboardService.getSalesTrend(currentOrg.id, days, isMockAuth)
+          : Promise.resolve([]);
+        const recvPromise = typeof dashboardService.getReceivablesSummary === 'function'
+          ? dashboardService.getReceivablesSummary(currentOrg.id, isMockAuth)
+          : Promise.resolve(null);
+        const brandPromise = typeof dashboardService.getTopBrandValuation === 'function'
+          ? dashboardService.getTopBrandValuation(currentOrg.id, 5, isMockAuth)
+          : Promise.resolve([]);
 
-          if (isMounted) {
-            setMetrics(metricsData);
-            setOrders(ordersData);
-            setInvoices(invoicesData);
-            setProducts(productsData);
-          }
-        } catch (err) {
-          if (isMounted) setLoadError(err instanceof Error ? err.message : 'Dashboard data could not be loaded.');
-        } finally {
-          if (isMounted) setIsLoading(false);
+        const [metricsData, trendData, recvData, brandData] = await Promise.all([
+          dashboardService.getDashboardMetrics(currentOrg.id, isMockAuth),
+          trendPromise,
+          recvPromise,
+          brandPromise,
+        ]);
+
+        if (isMounted) {
+          setMetrics(metricsData);
+          setSalesTrend(trendData);
+          setReceivablesSummary(recvData);
+          setBrandValuation(brandData);
         }
+      } catch (err) {
+        if (isMounted) setLoadError(err instanceof Error ? err.message : 'Dashboard data could not be loaded.');
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
+
     fetchDashboardData();
     return () => {
       isMounted = false;
     };
-  }, [currentOrg, isMockAuth, retryCount]);
+  }, [currentOrg, isMockAuth, retryCount, trendRange]);
+
+  const handleRangeChange = (r: '7D' | '30D' | '90D') => {
+    setTrendRange(r);
+  };
 
   if (loadError) {
     return <LoadError message={loadError} onRetry={() => setRetryCount((count) => count + 1)} />;
@@ -288,12 +301,16 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sales Performance Area Chart (2 Cols) */}
         <Card className="lg:col-span-2">
-          <SalesTrendChart orders={orders} />
+          <SalesTrendChart
+            data={salesTrend}
+            selectedRange={trendRange}
+            onRangeChange={handleRangeChange}
+          />
         </Card>
 
         {/* Receivables & Collections Donut (1 Col) */}
         <Card>
-          <ReceivablesDonutChart invoices={invoices} />
+          <ReceivablesDonutChart summary={receivablesSummary || undefined} />
         </Card>
       </div>
 
@@ -301,7 +318,10 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Brand Stock Valuation Breakdown */}
         <Card>
-          <InventoryValuationBarChart products={products} />
+          <InventoryValuationBarChart
+            data={brandValuation}
+            totalCatalogValue={metrics.totalStockValue}
+          />
         </Card>
 
         {/* Recent Sales Orders Feed */}

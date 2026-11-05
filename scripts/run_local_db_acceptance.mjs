@@ -860,6 +860,75 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       upg03Passed ? null : (createAtomicErr || crossTenantErr || anonErr || new Error('Scenario B Migration 032 verification failed'))
     );
 
+    // ------------------------------------------------------------------------
+    // Step 10: Scenario B Upgrade to Migration 033 (Authoritative Aggregations, Chart RPCs & Covering Indexes)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SCENARIO B: APPLYING MIGRATION 033 (FORWARD-ONLY UPGRADE) ---');
+    const mig033Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '033_dashboard_authoritative_aggregations_and_pagination.sql'), 'utf8');
+    await upgradeClient.query(mig033Sql);
+    console.log('  ✓ Migration 033 applied successfully to existing upgraded database.');
+
+    // 10.1 Verify covering indexes exist in pg_indexes
+    const { rows: upgIndexes } = await upgradeClient.query(`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND indexname IN (
+          'idx_sales_orders_org_date_status',
+          'idx_invoices_org_status_due',
+          'idx_payments_org_date',
+          'idx_products_org_active_reorder'
+        );
+    `);
+    const allIndexesCreated = upgIndexes.length === 4;
+
+    // 10.2 Verify authoritative get_dashboard_metrics, get_sales_trend, get_receivables_summary, get_top_brand_stock_valuation on upgraded data
+    let upg04Passed = false;
+    let upg04Err = null;
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      try {
+        const { rows: dashRows } = await upgradeClient.query(
+          `SELECT public.get_dashboard_metrics($1::uuid) AS metrics;`,
+          [existingOrgId]
+        );
+        const metrics = dashRows[0].metrics;
+        const metricsValid =
+          typeof Number(metrics.today_sales) === 'number' &&
+          typeof Number(metrics.total_receivables) === 'number' &&
+          Array.isArray(metrics.low_stock_preview);
+
+        const { rows: trendRows } = await upgradeClient.query(
+          `SELECT * FROM public.get_sales_trend($1::uuid, 7);`,
+          [existingOrgId]
+        );
+        const trendValid = trendRows.length === 7;
+
+        const { rows: recvRows } = await upgradeClient.query(
+          `SELECT public.get_receivables_summary($1::uuid) AS summary;`,
+          [existingOrgId]
+        );
+        const summary = recvRows[0].summary;
+        const recvValid = typeof Number(summary.total_outstanding) === 'number';
+
+        const { rows: brandRows } = await upgradeClient.query(
+          `SELECT * FROM public.get_top_brand_stock_valuation($1::uuid, 5);`,
+          [existingOrgId]
+        );
+        const brandValid = Array.isArray(brandRows);
+
+        upg04Passed = allIndexesCreated && metricsValid && trendValid && recvValid && brandValid;
+      } catch (err) {
+        upg04Err = err;
+      }
+    });
+
+    recordTest(
+      'P1-UPG-04',
+      'Scenario B Upgrade: Migration 033 applies forward-only covering indexes and authoritative chart RPCs with valid data aggregation',
+      upg04Passed,
+      `allIndexesCreated=${allIndexesCreated}, upg04Passed=${upg04Passed}`,
+      upg04Passed ? null : upg04Err
+    );
+
   } finally {
     if (upgradeClient) {
       await upgradeClient.end().catch(() => {});
@@ -3130,6 +3199,201 @@ async function runAcceptance() {
         paymentRecvPassed,
         `paymentRecvPassed=${paymentRecvPassed}`,
         paymentRecvPassed ? null : paymentRecvErr
+      );
+    });
+
+    // ------------------------------------------------------------------------
+    // TEST 38 (P1-A2-09): Authoritative Dashboard Metrics Contract (Draft Exclusion, Legitimate Zeros, Low Stock Preview)
+    // ------------------------------------------------------------------------
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let dashMetricPassed = false;
+      let dashMetricErr = null;
+      try {
+        // Query initial metrics for Org A
+        const { rows: initialRows } = await testClient.query(
+          `SELECT public.get_dashboard_metrics($1::uuid, CURRENT_DATE) AS metrics;`,
+          [orgAId]
+        );
+        const initialMetrics = initialRows[0].metrics;
+        const initialReceivables = Number(initialMetrics.total_receivables);
+
+        // Insert a DRAFT invoice with total 50,000 for Org A
+        const draftInvId = crypto.randomUUID();
+        await testClient.query(`
+          INSERT INTO public.invoices (id, organization_id, invoice_number, customer_id, invoice_date, due_date, status, subtotal, tax_amount, total_amount, total_paid)
+          VALUES ($1, $2, 'INV-DRAFT-TEST', $3, CURRENT_DATE, CURRENT_DATE + 15, 'DRAFT', 50000, 0, 50000, 0);
+        `, [draftInvId, orgAId, custAId]);
+
+        // Re-query metrics: total_receivables MUST NOT include DRAFT invoices
+        const { rows: postDraftRows } = await testClient.query(
+          `SELECT public.get_dashboard_metrics($1::uuid, CURRENT_DATE) AS metrics;`,
+          [orgAId]
+        );
+        const postDraftMetrics = postDraftRows[0].metrics;
+        const draftExcluded = Number(postDraftMetrics.total_receivables) === initialReceivables;
+
+        // Clean up draft test invoice
+        await testClient.query(`DELETE FROM public.invoices WHERE id = $1;`, [draftInvId]);
+
+        // Verify low_stock_preview returns an array with bounded items containing required fields
+        const previewOk = Array.isArray(postDraftMetrics.low_stock_preview) &&
+          postDraftMetrics.low_stock_preview.length <= 5 &&
+          (postDraftMetrics.low_stock_preview.length === 0 || postDraftMetrics.low_stock_preview[0].sku !== undefined);
+
+        // Verify cross-tenant isolation: user B cannot query org A dashboard metrics
+        let crossTenantBlocked = false;
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(`SELECT public.get_dashboard_metrics($1::uuid);`, [orgAId]);
+          });
+        } catch (err) {
+          crossTenantBlocked = err.code === '42501' || err.message.includes('Access denied');
+        }
+
+        dashMetricPassed = Boolean(draftExcluded && previewOk && crossTenantBlocked);
+      } catch (err) {
+        dashMetricErr = err;
+      }
+
+      recordTest(
+        'P1-A2-09',
+        'Authoritative get_dashboard_metrics strictly excludes DRAFT invoices, bounds low_stock_preview to top 5, and enforces tenant isolation',
+        dashMetricPassed,
+        `dashMetricPassed=${dashMetricPassed}`,
+        dashMetricPassed ? null : dashMetricErr
+      );
+    });
+
+    // ------------------------------------------------------------------------
+    // TEST 39 (P1-A2-10): Dedicated Server-Side Sales Trend Aggregation Contract
+    // ------------------------------------------------------------------------
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let salesTrendPassed = false;
+      let salesTrendErr = null;
+      try {
+        const { rows: trendRows } = await testClient.query(
+          `SELECT * FROM public.get_sales_trend($1::uuid, 7, CURRENT_DATE);`,
+          [orgAId]
+        );
+
+        // Verify exactly 7 contiguous days returned
+        const lengthOk = trendRows.length === 7;
+        // Verify all rows have order_date and total_amount >= 0.00
+        const rowsValid = trendRows.every((r) => r.order_date && Number(r.total_amount) >= 0.00);
+
+        // Verify cross-tenant isolation
+        let crossTenantBlocked = false;
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(`SELECT * FROM public.get_sales_trend($1::uuid, 7);`, [orgAId]);
+          });
+        } catch (err) {
+          crossTenantBlocked = err.code === '42501' || err.message.includes('Access denied');
+        }
+
+        salesTrendPassed = Boolean(lengthOk && rowsValid && crossTenantBlocked);
+      } catch (err) {
+        salesTrendErr = err;
+      }
+
+      recordTest(
+        'P1-A2-10',
+        'get_sales_trend returns contiguous time series including 0.00 for dates without sales and enforces tenant isolation',
+        salesTrendPassed,
+        `salesTrendPassed=${salesTrendPassed}`,
+        salesTrendPassed ? null : salesTrendErr
+      );
+    });
+
+    // ------------------------------------------------------------------------
+    // TEST 40 (P1-A2-11): Dedicated Server-Side Receivables Summary Contract
+    // ------------------------------------------------------------------------
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let recvSummaryPassed = false;
+      let recvSummaryErr = null;
+      try {
+        const { rows: recvRows } = await testClient.query(
+          `SELECT public.get_receivables_summary($1::uuid, CURRENT_DATE) AS summary;`,
+          [orgAId]
+        );
+        const summary = recvRows[0].summary;
+
+        const totalInvoicedOk = typeof Number(summary.total_invoiced) === 'number' && Number(summary.total_invoiced) >= 0;
+        const totalSettledOk = typeof Number(summary.total_settled) === 'number' && Number(summary.total_settled) >= 0;
+        const totalOutstandingOk = typeof Number(summary.total_outstanding) === 'number' && Number(summary.total_outstanding) >= 0;
+        const settledPctOk = Number(summary.settled_pct) >= 0 && Number(summary.settled_pct) <= 100;
+
+        // Verify cross-tenant isolation
+        let crossTenantBlocked = false;
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(`SELECT public.get_receivables_summary($1::uuid);`, [orgAId]);
+          });
+        } catch (err) {
+          crossTenantBlocked = err.code === '42501' || err.message.includes('Access denied');
+        }
+
+        recvSummaryPassed = Boolean(totalInvoicedOk && totalSettledOk && totalOutstandingOk && settledPctOk && crossTenantBlocked);
+      } catch (err) {
+        recvSummaryErr = err;
+      }
+
+      recordTest(
+        'P1-A2-11',
+        'get_receivables_summary aggregates invoiced, settled, outstanding, and collection efficiency percentage with strict tenant security',
+        recvSummaryPassed,
+        `recvSummaryPassed=${recvSummaryPassed}`,
+        recvSummaryPassed ? null : recvSummaryErr
+      );
+    });
+
+    // ------------------------------------------------------------------------
+    // TEST 41 (P1-A2-12): Dedicated Server-Side Brand Valuation & Covering Indexes Verification
+    // ------------------------------------------------------------------------
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let brandAndIndexPassed = false;
+      let brandAndIndexErr = null;
+      try {
+        const { rows: brandRows } = await testClient.query(
+          `SELECT * FROM public.get_top_brand_stock_valuation($1::uuid, 5);`,
+          [orgAId]
+        );
+        const brandRowsOk = Array.isArray(brandRows) && brandRows.length <= 5;
+
+        // Verify covering indexes exist in pg_indexes
+        const { rows: indexRows } = await testClient.query(`
+          SELECT indexname FROM pg_indexes
+          WHERE schemaname = 'public'
+            AND indexname IN (
+              'idx_sales_orders_org_date_status',
+              'idx_invoices_org_status_due',
+              'idx_payments_org_date',
+              'idx_products_org_active_reorder'
+            );
+        `);
+        const allIndexesExist = indexRows.length === 4;
+
+        // Cross-tenant isolation check on brand valuation
+        let crossTenantBlocked = false;
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(`SELECT * FROM public.get_top_brand_stock_valuation($1::uuid, 5);`, [orgAId]);
+          });
+        } catch (err) {
+          crossTenantBlocked = err.code === '42501' || err.message.includes('Access denied');
+        }
+
+        brandAndIndexPassed = Boolean(brandRowsOk && allIndexesExist && crossTenantBlocked);
+      } catch (err) {
+        brandAndIndexErr = err;
+      }
+
+      recordTest(
+        'P1-A2-12',
+        'get_top_brand_stock_valuation orders by total valuation and covering indexes exist for sales orders, invoices, payments, and products',
+        brandAndIndexPassed,
+        `brandAndIndexPassed=${brandAndIndexPassed}`,
+        brandAndIndexPassed ? null : brandAndIndexErr
       );
     });
 

@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
-import { Customer } from '@/types';
+import { Customer, PaginationParams, PaginatedResult } from '@/types';
 import { roundMoney } from '@/lib/money';
+import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 
 export function mapDbCustomer(row: any, currentReceivable?: number): Customer {
   return {
@@ -26,6 +27,89 @@ export function mapDbCustomer(row: any, currentReceivable?: number): Customer {
 }
 
 export const customersService = {
+  async getCustomersPaginated(
+    orgId: string,
+    params: PaginationParams = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<Customer>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const allCustomers = await storage.getCustomers(orgId);
+      return paginateArray(
+        allCustomers,
+        params,
+        (c, s) =>
+          c.name.toLowerCase().includes(s) ||
+          Boolean(c.companyName && c.companyName.toLowerCase().includes(s)) ||
+          Boolean(c.phone && c.phone.toLowerCase().includes(s)) ||
+          Boolean(c.email && c.email.toLowerCase().includes(s)) ||
+          Boolean(c.gstin && c.gstin.toLowerCase().includes(s)),
+        (a, b) => a.name.localeCompare(b.name)
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('customers')
+      .select('*', { count: 'exact' })
+      .eq('organization_id', orgId);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim();
+      query = query.or(`name.ilike.%${s}%,company_name.ilike.%${s}%,phone.ilike.%${s}%,gstin.ilike.%${s}%`);
+    }
+
+    if (params.isActive !== undefined) {
+      query = query.eq('is_active', params.isActive);
+    }
+
+    const sortBy = params.sortBy || 'name';
+    const ascending = params.sortOrder === 'desc' ? false : true;
+    query = query.order(sortBy, { ascending }).range(from, to);
+
+    const { data: dbCustomers, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch customers: ${error.message}`);
+    }
+
+    const totalCount = count || 0;
+    if (!dbCustomers || dbCustomers.length === 0) {
+      return buildPaginatedResult([], totalCount, page, pageSize);
+    }
+
+    // Authoritative customer receivables calculated strictly in PostgreSQL engine
+    const { data: receivables, error: recvErr } = await supabase.rpc('get_customer_receivables', {
+      p_org_id: orgId,
+    });
+
+    if (recvErr) {
+      throw new Error(`Failed to load customer receivables: ${recvErr.message}`);
+    }
+
+    const receivableMap = new Map<string, number>();
+    if (Array.isArray(receivables)) {
+      for (const r of receivables as Array<{ customer_id: string; current_receivable: number | string }>) {
+        const parsed = Number(r.current_receivable);
+        receivableMap.set(r.customer_id, Number.isFinite(parsed) ? roundMoney(parsed) : 0);
+      }
+    }
+
+    const mappedCustomers = dbCustomers.map((c) => {
+      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : undefined;
+      return mapDbCustomer(c, receivable);
+    });
+
+    return buildPaginatedResult(mappedCustomers, totalCount, page, pageSize);
+  },
+
   async getCustomers(orgId: string, isMockAuth: boolean = false): Promise<Customer[]> {
     if (isMockAuth) {
       return storage.getCustomers(orgId);
