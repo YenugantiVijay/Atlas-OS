@@ -734,8 +734,8 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
             order: vi.fn().mockReturnThis(),
             range: vi.fn().mockResolvedValue({
               data: [
-                { id: 'duplicate', invoice_id: 'invoice-1' },
-                { id: 'duplicate', invoice_id: 'invoice-1' },
+                { id: 'duplicate', invoice_id: 'invoice-1', tax_rate: 18 },
+                { id: 'duplicate', invoice_id: 'invoice-1', tax_rate: 18 },
               ],
               error: null,
             }),
@@ -769,6 +769,7 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
                   id: `item-${from + index}`,
                   invoice_id: 'invoice-1',
                   product_name: 'Wire',
+                  tax_rate: 18,
                 })),
                 error: null,
               })
