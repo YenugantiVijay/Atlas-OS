@@ -5,6 +5,7 @@ import {
   Boxes,
   ClipboardList,
   FileText,
+  FileSpreadsheet,
   CreditCard,
   Users,
   Truck,
@@ -77,6 +78,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
         { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'data:read' },
+      ],
+    },
+    {
+      title: 'Reports',
+      items: [
+        { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
       ],
     },
     {
