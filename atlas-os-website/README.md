@@ -79,6 +79,17 @@ atlas-os-website/
 
 ---
 
+
+### Brand alignment and workflow visual
+
+The public website now follows the **actual ERP application's** brand tokens:
+primary teal `#0D9488`, deep navy `#142B4D`, and soft canvas `#F5F7FA`.
+The homepage includes a CSS-only *Connected Workflows* showcase with six labeled
+capability chips. The icons move in, hold position, and move out, but become
+static on smaller screens or when the user requests reduced motion. AI Insights
+is explicitly labeled **In development**. The ERP application's own styles,
+Supabase migrations, and business workflows are not changed.
+
 ## 4. Local Development
 
 ### Prerequisites
