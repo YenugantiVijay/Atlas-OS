@@ -1,0 +1,35 @@
+{
+  "name": "atlas-os-website",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/run-astro.mjs dev",
+    "start": "node scripts/run-astro.mjs dev",
+    "build": "node scripts/run-astro.mjs check && node scripts/run-astro.mjs build",
+    "preview": "node scripts/run-astro.mjs preview",
+    "astro": "node scripts/run-astro.mjs",
+    "check": "node scripts/run-astro.mjs check",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/patch-sitemap.mjs",
+    "verify": "node scripts/verify-website.mjs"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/react": "^3.6.3",
+    "@astrojs/sitemap": "^3.2.1",
+    "@astrojs/tailwind": "^5.1.4",
+    "astro": "^4.16.18",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "typescript": "^5.7.2"
+  }
+}

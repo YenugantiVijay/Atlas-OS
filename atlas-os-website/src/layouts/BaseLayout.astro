@@ -1,0 +1,124 @@
+---
+import Header from '../components/common/Header.astro';
+import Footer from '../components/common/Footer.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  canonicalUrl?: string;
+  type?: 'website' | 'article';
+}
+
+const {
+  title,
+  description = 'Atlas OS is the AI-native business operating system for electrical, electronics, and hardware distributors. One connected workspace for inventory, sales, invoicing, and reporting.',
+  ogImage = '/favicon.svg',
+  canonicalUrl = Astro.url.href,
+  type = 'website',
+} = Astro.props;
+
+const siteTitle = title.includes('Atlas OS') ? title : `${title} | Atlas OS — AI-Native Business Operating System`;
+const siteUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : canonicalUrl;
+
+// Structured data for Google Search (SoftwareApplication & Organization)
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${Astro.site || 'https://atlasos.business'}/#organization`,
+      name: 'Atlas OS Technologies',
+      url: Astro.site || 'https://atlasos.business',
+      logo: `${Astro.site || 'https://atlasos.business'}/favicon.svg`,
+      description: 'Modern AI-native business operating system for wholesale and retail distribution.',
+      sameAs: ['https://github.com/YenugantiVijay/Atlas-OS'],
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${Astro.site || 'https://atlasos.business'}/#software`,
+      name: 'Atlas OS',
+      operatingSystem: 'Windows 11, Windows 10, Web',
+      applicationCategory: 'BusinessApplication',
+      description: description,
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'INR',
+        description: '7-Day Free Commercial Trial',
+      },
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={siteUrl} />
+
+    <!-- Primary Meta Tags -->
+    <title>{siteTitle}</title>
+    <meta name="title" content={siteTitle} />
+    <meta name="description" content={description} />
+    <meta name="keywords" content="Atlas OS, electrical distributor software, hardware inventory management, wholesale billing software, GST invoicing, B2B ERP India" />
+    <meta name="author" content="Atlas OS Technologies" />
+    <meta name="theme-color" content="#6D28D9" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={siteUrl} />
+    <meta property="og:title" content={siteTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content="Atlas OS" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={siteUrl} />
+    <meta property="twitter:title" content={siteTitle} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={ogImage} />
+
+    <!-- Google Fonts: Inter & Manrope -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  </head>
+  <body class="min-h-screen flex flex-col bg-white text-content-primary selection:bg-brand-100 selection:text-brand-900">
+    <!-- Accessible Skip to Main Content Link -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 px-4 py-2 bg-brand-600 text-white rounded-lg shadow-lg font-medium text-sm focus:outline-none"
+    >
+      Skip to main content
+    </a>
+
+    <!-- Header Navigation -->
+    <Header currentPath={Astro.url.pathname} />
+
+    <!-- Main Page Content -->
+    <main id="main-content" class="flex-grow">
+      <slot />
+    </main>
+
+    <!-- Footer -->
+    <Footer />
+  </body>
+</html>

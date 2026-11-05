@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="atlas-grad" x1="6" y1="6" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="atlas-glow" x1="12" y1="12" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EDE9FE"/>
+      <stop offset="100%" stop-color="#C4B5FD"/>
+    </linearGradient>
+  </defs>
+  <!-- Geometric hexagonal navigational node -->
+  <rect x="4" y="4" width="40" height="40" rx="10" fill="#211B35"/>
+  <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" stroke="url(#atlas-grad)" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Central interconnected system nexus -->
+  <path d="M24 10V24L36 31" stroke="url(#atlas-grad)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M24 24L12 31" stroke="url(#atlas-grad)" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Operational core -->
+  <circle cx="24" cy="24" r="3.5" fill="url(#atlas-glow)"/>
+  <circle cx="24" cy="10" r="2" fill="#8B5CF6"/>
+  <circle cx="36" cy="17" r="2" fill="#8B5CF6"/>
+  <circle cx="36" cy="31" r="2" fill="#8B5CF6"/>
+  <circle cx="24" cy="38" r="2" fill="#8B5CF6"/>
+  <circle cx="12" cy="31" r="2" fill="#8B5CF6"/>
+  <circle cx="12" cy="17" r="2" fill="#8B5CF6"/>
+</svg>

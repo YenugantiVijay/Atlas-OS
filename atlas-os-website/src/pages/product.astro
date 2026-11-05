@@ -1,0 +1,216 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+import Button from '../components/common/Button.astro';
+import Badge from '../components/common/Badge.astro';
+import { ALL_FEATURES } from '../data/features';
+---
+
+<BaseLayout
+  title="Product Overview — Atlas OS Business Operating System"
+  description="Explore the architecture, core modules, and financial integrity of Atlas OS. Discover how Atlas OS unifies inventory, sales orders, GST invoices, and accounts receivable."
+>
+  {/* HERO */}
+  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
+    <Container size="default">
+      <div class="text-center max-w-3xl mx-auto space-y-4">
+        <Badge variant="violet" size="md">Architecture & Capabilities</Badge>
+        <h1 class="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-content-primary">
+          Business Software Re-engineered for <span class="text-gradient">Wholesale Velocity</span>
+        </h1>
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
+          Traditional ERPs force businesses to compromise between modern usability and deep financial rigor.
+          Atlas OS delivers both: an intuitive, high-speed interface backed by bank-grade PostgreSQL Row Level Security.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  {/* ARCHITECTURAL PILLARS */}
+  <section class="py-20 bg-white border-b border-border">
+    <Container size="default">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+            01
+          </div>
+          <h2 class="text-xl font-bold font-display text-content-primary">Operational Core</h2>
+          <p class="text-xs text-content-secondary leading-relaxed">
+            Fast catalog search across tens of thousands of electrical and hardware SKUs. Multi-UOM packaging logic (Coils,
+            Bundles, Meters, Nos) ensures physical yard counts and digital orders remain synchronized.
+          </p>
+          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Available vs. Committed stock validation</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Commercial sales order conversion</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Audited manual stock adjustments</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+            02
+          </div>
+          <h2 class="text-xl font-bold font-display text-content-primary">Financial Engine</h2>
+          <p class="text-xs text-content-secondary leading-relaxed">
+            Statutory GST invoicing with immutable rate snapshots. Customer credit limits prevent unauthorized sales, while
+            payment allocations resolve multi-invoice RTGS and NEFT bank settlements accurately.
+          </p>
+          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Interstate IGST vs. CGST+SGST logic</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Real-time debtor receivables ledger</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Cross-period settlement tracking</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+            03
+          </div>
+          <h2 class="text-xl font-bold font-display text-content-primary">Reporting & Governance</h2>
+          <p class="text-xs text-content-secondary leading-relaxed">
+            One-click Microsoft Excel export engine generating complete 5-sheet statutory workbooks for any Indian FY.
+            Enforced by PostgreSQL Row Level Security (RLS) across 6 granular role levels.
+          </p>
+          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>15-Year statutory FY selector (Apr 1–Mar 31)</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Revenue vs. non-revenue segregation</span>
+            </li>
+            <li class="flex items-center gap-2 text-content-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+              <span>Zero client data leakage across tenants</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  {/* COMPARISON TABLE: ATLAS OS VS LEGACY ACCOUNTING */}
+  <section class="py-20 bg-surface-secondary border-b border-border">
+    <Container size="default">
+      <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
+        <Badge variant="violet" size="sm">The Modern Difference</Badge>
+        <h2 class="text-3xl font-extrabold font-display text-content-primary">
+          Atlas OS vs. Traditional Accounting Software
+        </h2>
+        <p class="text-sm text-content-secondary leading-relaxed">
+          How Atlas OS compares to legacy desktop accounting packages widely used across India.
+        </p>
+      </div>
+
+      <div class="overflow-x-auto rounded-3xl border border-border bg-white shadow-md">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-surface-secondary border-b border-border text-content-primary font-display uppercase tracking-wider">
+            <tr>
+              <th class="px-6 py-4">Capability & Workflow</th>
+              <th class="px-6 py-4 text-brand-700 font-extrabold bg-brand-50/50">Atlas OS (Modern Cloud ERP)</th>
+              <th class="px-6 py-4 text-content-secondary">Legacy Accounting (BUSY / Tally Style)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border">
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">Physical UOM Handling</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                Native Coils, Bundles, Meters, Boxes, Nos built into item master.
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Complex alternate-unit setups often resulting in decimal rounding mismatch.
+              </td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">Contractor Credit Verification</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                Automatic pre-flight check blocks confirmation when limit is breached.
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Passive warnings that billing staff easily bypass with a keyboard tap.
+              </td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">Multi-Invoice Payment Matching</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                Interactive settlement allocations with cross-period reference resolution.
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Manual voucher adjustment screens requiring tedious voucher number entry.
+              </td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">Multi-Organization Branches</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                Instant branch switching with cryptographic Row Level Security (RLS).
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Separate local data files requiring manual backup, restore, and file sharing.
+              </td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">Audit-Ready Excel Exports</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                One-click 5-sheet workbook formatted specifically for chartered accountants.
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Raw CSV/TSV dumps requiring extensive manual Excel cleanup before audit.
+              </td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-bold text-content-primary">User Permissions & Roles</td>
+              <td class="px-6 py-4 font-semibold text-brand-900 bg-brand-50/20">
+                6 granular role levels (Owner, Admin, Sales, Inventory, Accounts, Viewer).
+              </td>
+              <td class="px-6 py-4 text-content-secondary">
+                Basic password locks with weak file-level security vulnerable to tampering.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Container>
+  </section>
+
+  {/* CTA */}
+  <section class="py-16 bg-white">
+    <Container size="default">
+      <div class="p-8 sm:p-12 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="space-y-2 text-center md:text-left">
+          <h3 class="text-2xl font-bold font-display text-content-primary">See Atlas OS in Action</h3>
+          <p class="text-xs sm:text-sm text-content-secondary max-w-xl">
+            Book a 20-minute product demonstration customized to your wholesale product catalog, tax structure, and billing workflow.
+          </p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          <Button href="/request-demo" variant="primary" size="md">
+            <span>Request Demo</span>
+          </Button>
+          <Button href="/features" variant="outline" size="md">
+            <span>Browse Features</span>
+          </Button>
+        </div>
+      </div>
+    </Container>
+  </section>
+</BaseLayout>
+
