@@ -67,17 +67,26 @@ export const paymentsService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim();
-      query = query.or(`payment_number.ilike.%${s}%,reference_number.ilike.%${s}%`);
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      if (s) {
+        query = query.or(`payment_number.ilike.%${s}%,reference_number.ilike.%${s}%`);
+      }
     }
 
     if (params.paymentMethod) {
       query = query.eq('payment_method', params.paymentMethod);
     }
 
-    const sortBy = params.sortBy || 'created_at';
+    const ALLOWED_PAY_SORT_FIELDS: Record<string, string> = {
+      paymentNumber: 'payment_number',
+      paymentDate: 'payment_date',
+      amount: 'amount',
+      paymentMethod: 'payment_method',
+      createdAt: 'created_at',
+    };
+    const sortBy = ALLOWED_PAY_SORT_FIELDS[params.sortBy || 'createdAt'] || 'created_at';
     const ascending = params.sortOrder === 'asc' ? true : false;
-    query = query.order(sortBy, { ascending }).range(from, to);
+    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
 
     const { data: dbPayments, error, count } = await query;
 

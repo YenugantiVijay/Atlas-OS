@@ -62,17 +62,31 @@ export const customersService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim();
-      query = query.or(`name.ilike.%${s}%,company_name.ilike.%${s}%,phone.ilike.%${s}%,gstin.ilike.%${s}%`);
+      // Sanitize search term to prevent PostgREST grammar breakage
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      if (s) {
+        query = query.or(`name.ilike.%${s}%,company_name.ilike.%${s}%,phone.ilike.%${s}%,gstin.ilike.%${s}%`);
+      }
     }
 
     if (params.isActive !== undefined) {
       query = query.eq('is_active', params.isActive);
     }
 
-    const sortBy = params.sortBy || 'name';
+    // Allowlisted sort fields to prevent invalid SQL column errors
+    const ALLOWED_CUST_SORT_FIELDS: Record<string, string> = {
+      name: 'name',
+      companyName: 'company_name',
+      phone: 'phone',
+      email: 'email',
+      gstin: 'gstin',
+      createdAt: 'created_at',
+    };
+    const sortBy = ALLOWED_CUST_SORT_FIELDS[params.sortBy || 'name'] || 'name';
     const ascending = params.sortOrder === 'desc' ? false : true;
-    query = query.order(sortBy, { ascending }).range(from, to);
+
+    // Deterministic sorting with secondary tie-breaker by primary key id
+    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
 
     const { data: dbCustomers, error, count } = await query;
 
@@ -85,13 +99,26 @@ export const customersService = {
       return buildPaginatedResult([], totalCount, page, pageSize);
     }
 
-    // Authoritative customer receivables calculated strictly in PostgreSQL engine
-    const { data: receivables, error: recvErr } = await supabase.rpc('get_customer_receivables', {
+    // Page-scoped authoritative customer receivables calculated strictly in PostgreSQL engine
+    const pageCustomerIds = dbCustomers.map((c) => c.id);
+    let receivables: unknown = null;
+
+    const { data: pageRecv, error: pageRecvErr } = await supabase.rpc('get_page_customer_receivables', {
       p_org_id: orgId,
+      p_customer_ids: pageCustomerIds,
     });
 
-    if (recvErr) {
-      throw new Error(`Failed to load customer receivables: ${recvErr.message}`);
+    if (pageRecvErr) {
+      // Resilient fallback to get_customer_receivables if page RPC is unavailable
+      const { data: fallbackRecv, error: fallbackErr } = await supabase.rpc('get_customer_receivables', {
+        p_org_id: orgId,
+      });
+      if (fallbackErr) {
+        throw new Error(`Failed to load customer receivables: ${fallbackErr.message}`);
+      }
+      receivables = fallbackRecv;
+    } else {
+      receivables = pageRecv;
     }
 
     const receivableMap = new Map<string, number>();
@@ -103,7 +130,7 @@ export const customersService = {
     }
 
     const mappedCustomers = dbCustomers.map((c) => {
-      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : undefined;
+      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : 0;
       return mapDbCustomer(c, receivable);
     });
 

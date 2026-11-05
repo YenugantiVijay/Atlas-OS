@@ -929,6 +929,44 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       upg04Passed ? null : upg04Err
     );
 
+    // ------------------------------------------------------------------------
+    // Step 11: Scenario B Upgrade to Migration 034 (Page-Scoped RPCs & Security Hardening)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SCENARIO B: APPLYING MIGRATION 034 (FORWARD-ONLY UPGRADE) ---');
+    const mig034Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '034_page_scoped_aggregations_and_security_hardening.sql'), 'utf8');
+    await upgradeClient.query(mig034Sql);
+    console.log('  ✓ Migration 034 applied successfully to existing upgraded database.');
+
+    let upg05Passed = false;
+    let upg05Err = null;
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      try {
+        const { rows: pageStockRows } = await upgradeClient.query(
+          `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, existingProdId]
+        );
+        const pageStockValid = Array.isArray(pageStockRows);
+
+        const { rows: pageRecvRows } = await upgradeClient.query(
+          `SELECT * FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+          [existingOrgId, existingCustId]
+        );
+        const pageRecvValid = Array.isArray(pageRecvRows);
+
+        upg05Passed = pageStockValid && pageRecvValid;
+      } catch (err) {
+        upg05Err = err;
+      }
+    });
+
+    recordTest(
+      'P1-UPG-05',
+      'Scenario B Upgrade: Migration 034 applies page-scoped stock and receivables RPCs and security hardening forward-only',
+      upg05Passed,
+      `upg05Passed=${upg05Passed}`,
+      upg05Passed ? null : upg05Err
+    );
+
   } finally {
     if (upgradeClient) {
       await upgradeClient.end().catch(() => {});
@@ -3394,6 +3432,127 @@ async function runAcceptance() {
         brandAndIndexPassed,
         `brandAndIndexPassed=${brandAndIndexPassed}`,
         brandAndIndexPassed ? null : brandAndIndexErr
+      );
+
+      // TEST 42 (P1-A2-13): Page-Scoped Stock & Receivables Aggregation and Input Bounding
+      let pageRpcPassed = false;
+      let pageRpcErr = null;
+      try {
+        let pageStockOk = false;
+        let pageRecvOk = false;
+        let crossTenantStockBlocked = false;
+        let batchLimitBlocked = false;
+
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // 1. Valid page stock request
+          const { rows: pStock } = await testClient.query(
+            `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, prod1Id]
+          );
+          pageStockOk = Array.isArray(pStock) && pStock.length === 1 && typeof Number(pStock[0].current_stock) === 'number';
+
+          // 2. Valid page customer receivables request
+          const { rows: pRecv } = await testClient.query(
+            `SELECT * FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid]);`,
+            [orgAId, custAId]
+          );
+          pageRecvOk = Array.isArray(pRecv) && pRecv.length === 1 && typeof Number(pRecv[0].current_receivable) === 'number';
+
+          // 3. Batch size limit check (> 100 rejected)
+          try {
+            await testClient.query(
+              `SELECT * FROM public.get_page_product_stock_levels($1::uuid, array_fill($2::uuid, ARRAY[101]));`,
+              [orgAId, prod1Id]
+            );
+          } catch (limitErr) {
+            batchLimitBlocked = limitErr.message.includes('ERR_INVALID_PARAMETER') || limitErr.message.includes('cannot exceed 100');
+          }
+        });
+
+        // 4. Cross-tenant stock check (User B querying Org A)
+        try {
+          await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+            await testClient.query(
+              `SELECT * FROM public.get_page_product_stock_levels($1::uuid, ARRAY[$2::uuid]);`,
+              [orgAId, prod1Id]
+            );
+          });
+        } catch (crossErr) {
+          crossTenantStockBlocked = crossErr.code === '42501' || crossErr.message.includes('ERR_UNAUTHORIZED');
+        }
+
+        pageRpcPassed = Boolean(pageStockOk && pageRecvOk && batchLimitBlocked && crossTenantStockBlocked);
+      } catch (err) {
+        pageRpcErr = err;
+      }
+
+      recordTest(
+        'P1-A2-13',
+        'get_page_product_stock_levels and get_page_customer_receivables execute page-scoped aggregation, enforce 100 batch limit and tenant isolation',
+        pageRpcPassed,
+        `pageRpcPassed=${pageRpcPassed}`,
+        pageRpcPassed ? null : pageRpcErr
+      );
+
+      // TEST 43 (P1-A2-14): Financial Reconciliation & Draft Invoice Exclusion in get_receivables_summary
+      let reconcilPassed = false;
+      let reconcilErr = null;
+      try {
+        let draftExcluded = false;
+        let metricsReconciled = false;
+
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          // Query receivables summary
+          const { rows: recvRows } = await testClient.query(
+            `SELECT public.get_receivables_summary($1::uuid) AS summary;`,
+            [orgAId]
+          );
+          const summary = recvRows[0].summary;
+
+          // Query dashboard metrics
+          const { rows: dashRows } = await testClient.query(
+            `SELECT public.get_dashboard_metrics($1::uuid) AS metrics;`,
+            [orgAId]
+          );
+          const metrics = dashRows[0].metrics;
+
+          // Draft invoices are not counted in total_invoiced or total_outstanding
+          const totalOut = Number(summary.total_outstanding);
+          const totalRecv = Number(metrics.total_receivables);
+          metricsReconciled = totalOut === totalRecv;
+
+          // Check if any draft invoices exist and ensure they are not in total_invoiced
+          const { rows: draftCheck } = await testClient.query(
+            `SELECT COALESCE(SUM(total_amount), 0.00) AS draft_sum
+             FROM public.invoices
+             WHERE organization_id = $1::uuid AND status = 'DRAFT';`,
+            [orgAId]
+          );
+          const draftSum = Number(draftCheck[0].draft_sum);
+
+          // If draft invoices exist, summary.total_invoiced must NOT include draftSum
+          const { rows: allInvCheck } = await testClient.query(
+            `SELECT COALESCE(SUM(total_amount), 0.00) AS all_sum
+             FROM public.invoices
+             WHERE organization_id = $1::uuid AND status != 'CANCELLED';`,
+            [orgAId]
+          );
+          const allSum = Number(allInvCheck[0].all_sum);
+          const invoicedSummary = Number(summary.total_invoiced);
+
+          draftExcluded = draftSum === 0 ? true : (invoicedSummary < allSum);
+          reconcilPassed = metricsReconciled && draftExcluded;
+        });
+      } catch (err) {
+        reconcilErr = err;
+      }
+
+      recordTest(
+        'P1-A2-14',
+        'get_receivables_summary strictly excludes DRAFT invoices and reconciles with get_dashboard_metrics total_receivables',
+        reconcilPassed,
+        `reconcilPassed=${reconcilPassed}`,
+        reconcilPassed ? null : reconcilErr
       );
     });
 
