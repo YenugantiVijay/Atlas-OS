@@ -1,18 +1,32 @@
 import React, { useMemo } from 'react';
-import { Product } from '@/types';
+import { Product, BrandValuation } from '@/types';
 import { formatCurrency } from '@/lib/money';
 
 export interface InventoryValuationBarChartProps {
-  products: Product[];
+  products?: Product[];
+  data?: BrandValuation[];
+  totalCatalogValue?: number;
+  totalActiveSkus?: number;
   className?: string;
 }
 
 export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProps> = ({
   products,
+  data,
+  totalCatalogValue: propTotalValue,
+  totalActiveSkus: propActiveSkus,
   className = '',
 }) => {
   // Aggregate real inventory value grouped by brand
   const brandData = useMemo(() => {
+    if (data && data.length > 0) {
+      return data;
+    }
+
+    if (!products || products.length === 0) {
+      return [];
+    }
+
     const map: Record<string, { brand: string; totalValue: number; skuCount: number; totalUnits: number }> = {};
 
     products.forEach((p) => {
@@ -30,15 +44,34 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
 
     const list = Object.values(map).sort((a, b) => b.totalValue - a.totalValue);
     return list.slice(0, 5);
-  }, [products]);
+  }, [data, products]);
 
   const maxVal = useMemo(() => {
     return Math.max(...brandData.map((b) => b.totalValue), 1);
   }, [brandData]);
 
   const totalCatalogValue = useMemo(() => {
-    return products.reduce((acc, p) => acc + (p.currentStock || 0) * (p.purchaseCost || 0), 0);
-  }, [products]);
+    if (propTotalValue !== undefined) {
+      return propTotalValue;
+    }
+    if (data && data.length > 0) {
+      return data.reduce((acc, b) => acc + b.totalValue, 0);
+    }
+    if (products && products.length > 0) {
+      return products.reduce((acc, p) => acc + (p.currentStock || 0) * (p.purchaseCost || 0), 0);
+    }
+    return 0;
+  }, [propTotalValue, data, products]);
+
+  const activeSkuCount = useMemo(() => {
+    if (propActiveSkus !== undefined) {
+      return propActiveSkus;
+    }
+    if (data && data.length > 0) {
+      return data.reduce((acc, b) => acc + b.skuCount, 0);
+    }
+    return products ? products.length : 0;
+  }, [propActiveSkus, data, products]);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -53,7 +86,7 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
           </div>
         </div>
         <span className="text-2xs font-semibold text-content-secondary px-2.5 py-1 bg-slate-100 rounded-lg">
-          {products.length} Active SKUs
+          {activeSkuCount} Active SKUs
         </span>
       </div>
 

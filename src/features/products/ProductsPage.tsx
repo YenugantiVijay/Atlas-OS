@@ -25,6 +25,8 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { useToast } from '@/components/ui/Toast';
+import { Pagination } from '@/components/ui/Pagination';
+import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
 
 const CATEGORIES = [
@@ -54,6 +56,10 @@ export const ProductsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -85,14 +91,44 @@ export const ProductsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadProducts = useCallback(async (): Promise<Product[] | null> => {
+  const loadProducts = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Product[] | null> => {
     if (!currentOrg) return null;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const data = await productsService.getProducts(currentOrg.id, isMockAuth);
-      setProducts(data);
-      return data;
+      let res;
+      if (typeof productsService.getProductsPaginated === 'function') {
+        res = await productsService.getProductsPaginated(
+          currentOrg.id,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search: searchQuery,
+            category: selectedCategory === 'All Categories' ? undefined : selectedCategory,
+          },
+          isMockAuth
+        );
+      } else {
+        const data = await productsService.getProducts(currentOrg.id, isMockAuth);
+        res = paginateArray(
+          data,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search: searchQuery,
+            category: selectedCategory === 'All Categories' ? undefined : selectedCategory,
+          },
+          (p, s) =>
+            p.name.toLowerCase().includes(s) ||
+            p.sku.toLowerCase().includes(s) ||
+            Boolean(p.brand && p.brand.toLowerCase().includes(s)) ||
+            p.category.toLowerCase().includes(s)
+        );
+      }
+      setProducts(res.data);
+      setTotalCount(res.totalCount);
+      setTotalPages(res.totalPages);
+      return res.data;
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Unable to load products. Check your connection and try again.';
       setLoadError(msg);
@@ -101,7 +137,7 @@ export const ProductsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, selectedCategory, showToast]);
 
   const handleOpenCreate = useCallback(() => {
     const perm = check('products:create');
@@ -297,7 +333,7 @@ export const ProductsPage: React.FC = () => {
               Products & Catalog
             </h1>
             <Badge variant="teal" size="sm">
-              {products.length} SKUs
+              {totalCount} SKUs
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
@@ -344,7 +380,10 @@ export const ProductsPage: React.FC = () => {
             <Input
               placeholder="Search by product name, SKU, or manufacturer brand..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               leftIcon={<Search className="w-4 h-4" />}
               aria-label="Search products"
             />
@@ -354,7 +393,10 @@ export const ProductsPage: React.FC = () => {
             <select
               aria-label="Filter by category"
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setPage(1);
+              }}
               className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
               {CATEGORIES.map((c) => (
@@ -515,6 +557,22 @@ export const ProductsPage: React.FC = () => {
             })}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredProducts.length > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+          }}
+        />
       )}
 
       {/* Add / Edit Product Modal */}

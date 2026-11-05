@@ -29,6 +29,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
+import { Pagination } from '@/components/ui/Pagination';
+import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 
@@ -57,6 +59,10 @@ export const OrdersPage: React.FC = () => {
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -83,17 +89,39 @@ export const OrdersPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadData = useCallback(async (): Promise<{ customers: Customer[]; products: Product[] } | null> => {
+  const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; products: Product[] } | null> => {
     if (!currentOrg) return null;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [ordList, custList, prodList] = await Promise.all([
-        ordersService.getSalesOrders(currentOrg.id, isMockAuth),
+      const ordPromise = typeof ordersService.getSalesOrdersPaginated === 'function'
+        ? ordersService.getSalesOrdersPaginated(
+            currentOrg.id,
+            {
+              page: targetPage,
+              pageSize: targetPageSize,
+              search: searchQuery,
+              status: statusFilter === 'ALL' ? undefined : statusFilter,
+            },
+            isMockAuth
+          )
+        : ordersService.getSalesOrders(currentOrg.id, isMockAuth).then((data) =>
+            paginateArray(data, {
+              page: targetPage,
+              pageSize: targetPageSize,
+              search: searchQuery,
+              status: statusFilter === 'ALL' ? undefined : statusFilter,
+            })
+          );
+
+      const [ordRes, custList, prodList] = await Promise.all([
+        ordPromise,
         customersService.getCustomers(currentOrg.id, isMockAuth),
         productsService.getProducts(currentOrg.id, isMockAuth),
       ]);
-      setOrders(ordList);
+      setOrders(ordRes.data);
+      setTotalCount(ordRes.totalCount);
+      setTotalPages(ordRes.totalPages);
       setCustomers(custList);
       setProducts(prodList);
       return { customers: custList, products: prodList };
@@ -105,7 +133,7 @@ export const OrdersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, statusFilter, showToast]);
 
   const initializeAndOpenCreate = useCallback((custList: Customer[], prodList: Product[]) => {
     const perm = check('orders:create');
@@ -418,7 +446,7 @@ export const OrdersPage: React.FC = () => {
               Sales Orders
             </h1>
             <Badge variant="teal" size="sm">
-              {orders.length} Orders
+              {totalCount} Orders
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
@@ -465,7 +493,10 @@ export const OrdersPage: React.FC = () => {
             <Input
               placeholder="Search orders by SO number or customer firm..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               leftIcon={<Search className="w-4 h-4" />}
               aria-label="Search sales orders"
             />
@@ -487,7 +518,10 @@ export const OrdersPage: React.FC = () => {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setStatusFilter(tab.id as any)}
+                  onClick={() => {
+                    setStatusFilter(tab.id as any);
+                    setPage(1);
+                  }}
                   className={`h-9 px-3.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all duration-150 select-none ${
                     active
                       ? 'bg-atlas-50 text-atlas-900 border border-atlas-300 font-semibold shadow-2xs'
@@ -627,6 +661,22 @@ export const OrdersPage: React.FC = () => {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredOrders.length > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+          }}
+        />
       )}
 
       {/* Create Order Modal */}

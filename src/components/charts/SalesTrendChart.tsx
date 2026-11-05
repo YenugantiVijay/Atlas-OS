@@ -1,20 +1,45 @@
 import React, { useState, useMemo } from 'react';
-import { SalesOrder } from '@/types';
+import { SalesOrder, SalesTrendPoint } from '@/types';
 import { formatCurrency } from '@/lib/money';
 
 export interface SalesTrendChartProps {
-  orders: SalesOrder[];
+  orders?: SalesOrder[];
+  data?: SalesTrendPoint[];
   className?: string;
+  onRangeChange?: (range: '7D' | '30D' | '90D') => void;
+  selectedRange?: '7D' | '30D' | '90D';
 }
 
 type TimeRange = '7D' | '30D' | '90D' | 'ALL';
 
-export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders, className = '' }) => {
-  const [range, setRange] = useState<TimeRange>('30D');
+export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({
+  orders,
+  data,
+  className = '',
+  onRangeChange,
+  selectedRange,
+}) => {
+  const [internalRange, setInternalRange] = useState<TimeRange>('30D');
+  const range = selectedRange || internalRange;
   const [hoveredPoint, setHoveredPoint] = useState<{ date: string; label: string; amount: number; x: number; y: number } | null>(null);
 
-  // Filter orders by time range and group by date
+  const handleRangeChange = (r: '7D' | '30D' | '90D') => {
+    setInternalRange(r);
+    if (onRangeChange) {
+      onRangeChange(r);
+    }
+  };
+
+  // Use server-aggregated data when available, or fall back to client orders
   const chartData = useMemo(() => {
+    if (data && data.length > 0) {
+      return data;
+    }
+
+    if (!orders || orders.length === 0) {
+      return [];
+    }
+
     const now = new Date();
     const days = range === '7D' ? 7 : range === '30D' ? 30 : range === '90D' ? 90 : 365;
     
@@ -41,7 +66,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders, classN
     }));
 
     return entries;
-  }, [orders, range]);
+  }, [data, orders, range]);
 
   const maxAmount = useMemo(() => {
     const max = Math.max(...chartData.map((d) => d.amount), 0);
@@ -108,7 +133,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders, classN
           {(['7D', '30D', '90D'] as TimeRange[]).map((r) => (
             <button
               key={r}
-              onClick={() => setRange(r)}
+              onClick={() => handleRangeChange(r as '7D' | '30D' | '90D')}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                 range === r
                   ? 'bg-teal-600 text-white shadow-2xs'

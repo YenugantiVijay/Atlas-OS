@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
-import { Product, UOM } from '@/types';
+import { Product, UOM, PaginationParams, PaginatedResult } from '@/types';
 import { parseTaxRate } from '@/lib/money';
+import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 
 // Helper to map snake_case Postgres row to camelCase Product model
 export function mapDbProduct(row: any, stock?: number): Product {
@@ -28,6 +29,92 @@ export function mapDbProduct(row: any, stock?: number): Product {
 }
 
 export const productsService = {
+  async getProductsPaginated(
+    orgId: string,
+    params: PaginationParams = {},
+    isMockAuth: boolean = false
+  ): Promise<PaginatedResult<Product>> {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    if (isMockAuth) {
+      const allProducts = await storage.getProducts(orgId);
+      return paginateArray(
+        allProducts,
+        params,
+        (p, s) =>
+          p.name.toLowerCase().includes(s) ||
+          p.sku.toLowerCase().includes(s) ||
+          Boolean(p.brand && p.brand.toLowerCase().includes(s)) ||
+          p.category.toLowerCase().includes(s),
+        (a, b) => a.name.localeCompare(b.name)
+      );
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    let query = supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .eq('organization_id', orgId);
+
+    if (params.search && params.search.trim()) {
+      const s = params.search.trim();
+      query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%`);
+    }
+
+    if (params.category && params.category !== 'ALL') {
+      query = query.eq('category', params.category);
+    }
+
+    if (params.isActive !== undefined) {
+      query = query.eq('is_active', params.isActive);
+    }
+
+    const sortBy = params.sortBy || 'name';
+    const ascending = params.sortOrder === 'desc' ? false : true;
+    query = query.order(sortBy, { ascending }).range(from, to);
+
+    const { data: dbProducts, error: prodErr, count } = await query;
+
+    if (prodErr) {
+      throw new Error(`Failed to fetch products: ${prodErr.message}`);
+    }
+
+    const totalCount = count || 0;
+    if (!dbProducts || dbProducts.length === 0) {
+      return buildPaginatedResult([], totalCount, page, pageSize);
+    }
+
+    // Fetch authoritative stock aggregations from database RPC
+    const { data: stockLevels, error: stockErr } = await supabase.rpc('get_product_stock_levels', {
+      p_org_id: orgId,
+    });
+
+    if (stockErr) {
+      throw new Error(`Failed to load stock totals from authoritative database: ${stockErr.message}`);
+    }
+
+    const stockMap = new Map<string, number>();
+    if (Array.isArray(stockLevels)) {
+      for (const item of stockLevels as Array<{ product_id: string; current_stock: number | string }>) {
+        const parsedStock = Number(item.current_stock);
+        stockMap.set(item.product_id, Number.isFinite(parsedStock) ? parsedStock : 0);
+      }
+    }
+
+    const mappedProducts = dbProducts.map((row) => {
+      const stock = stockMap.has(row.id) ? stockMap.get(row.id)! : undefined;
+      return mapDbProduct(row, stock);
+    });
+
+    return buildPaginatedResult(mappedProducts, totalCount, page, pageSize);
+  },
+
   async getProducts(orgId: string, isMockAuth: boolean = false): Promise<Product[]> {
     if (isMockAuth) {
       return storage.getProducts(orgId);

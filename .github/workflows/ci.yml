@@ -2,7 +2,7 @@ name: ATLAS OS CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, Vijay-Atlas ]
   pull_request:
     branches: [ main, master, Vijay-Atlas ]
 
