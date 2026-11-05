@@ -6,6 +6,7 @@ import {
   Boxes,
   ClipboardList,
   FileText,
+  FileSpreadsheet,
   Users,
   CreditCard,
   Truck,
@@ -85,11 +86,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Sales Orders', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/orders' },
     { label: 'Invoices', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/invoices' },
     { label: 'Payments & Receivables', icon: <CreditCard className="w-4 h-4 text-atlas-600" />, path: '/payments' },
+    { label: 'Sales & Receipts Reports', icon: <FileSpreadsheet className="w-4 h-4 text-atlas-600" />, path: '/reports/sales-receipts' },
     { label: 'Customers', icon: <Users className="w-4 h-4 text-atlas-600" />, path: '/customers' },
     { label: 'Suppliers', icon: <Truck className="w-4 h-4 text-atlas-600" />, path: '/suppliers' },
     { label: 'ATLAS AI Assistant', icon: <Sparkles className="w-4 h-4 text-atlas-600" />, path: '/ai' },
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
-  ].filter((item) => item.path === '/' || hasPermission(currentRole, item.path === '/audit' ? 'audit:read' : 'data:read'));
+  ].filter((item) => {
+    if (item.path === '/') return true;
+    if (item.path === '/reports/sales-receipts') return hasPermission(currentRole, 'reports:financial');
+    if (item.path === '/audit') return hasPermission(currentRole, 'audit:read');
+    return hasPermission(currentRole, 'data:read');
+  });
 
   const quickActions = [
     { label: 'New Product', type: 'product', action: 'products:create' as Action },

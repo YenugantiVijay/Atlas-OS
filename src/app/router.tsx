@@ -44,6 +44,9 @@ const TeamPage = React.lazy(() =>
 const AuditPage = React.lazy(() =>
   import('@/features/audit/AuditPage').then((m) => ({ default: m.AuditPage }))
 );
+const SalesReceiptsReportPage = React.lazy(() =>
+  import('@/features/reports/SalesReceiptsReportPage').then((m) => ({ default: m.SalesReceiptsReportPage }))
+);
 const SettingsPage = React.lazy(() =>
   import('@/features/organizations/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -100,6 +103,14 @@ export const router = createHashRouter([
         element: (
           <RequirePermission action="audit:read">
             <AuditPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'reports/sales-receipts',
+        element: (
+          <RequirePermission action="reports:financial">
+            <SalesReceiptsReportPage />
           </RequirePermission>
         ),
       },

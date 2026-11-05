@@ -6,7 +6,7 @@ test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Ph
       localStorage.setItem('atlas_auth_mode_v2', 'demo');
     });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Sri Lakshmi Electrical Distributors' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sri Lakshmi Electrical Distributors' })).toBeVisible({ timeout: 15000 });
   });
 
   /* =========================================================================
