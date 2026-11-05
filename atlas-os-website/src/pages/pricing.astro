@@ -1,0 +1,95 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+import Badge from '../components/common/Badge.astro';
+import Button from '../components/common/Button.astro';
+import PricingTable from '../components/pricing/PricingTable';
+import { FAQS } from '../data/faqs';
+
+const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
+---
+
+<BaseLayout
+  title="Pricing & SaaS Plans — Atlas OS Business Operating System"
+  description="Explore transparent SaaS subscription tiers for Atlas OS. Complimentary 7-day commercial trial on launch with zero credit card required."
+>
+  {/* HERO */}
+  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
+    <Container size="default">
+      <div class="text-center max-w-3xl mx-auto space-y-4">
+        <Badge variant="violet" size="md">Transparent Commercial Tiers</Badge>
+        <h1 class="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-content-primary">
+          Simple, Predictable <span class="text-gradient">Wholesale Pricing</span>
+        </h1>
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
+          No hidden implementation fees. No per-invoice surcharge. Choose the plan suited for your trade counter,
+          warehouse, or multi-branch distribution network.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  {/* PRICING TABLE COMPONENT */}
+  <section class="py-16 md:py-20 bg-white border-b border-border" id="tiers">
+    <Container size="default">
+      <PricingTable client:load />
+    </Container>
+  </section>
+
+  {/* PRICING FAQS */}
+  <section class="py-20 bg-surface-secondary border-b border-border" id="trial">
+    <Container size="narrow">
+      <div class="space-y-10">
+        <div class="text-center space-y-2">
+          <Badge variant="violet" size="sm">Commercial Questions</Badge>
+          <h2 class="text-2xl sm:text-3xl font-bold font-display text-content-primary">
+            Frequently Asked Pricing Questions
+          </h2>
+          <p class="text-xs sm:text-sm text-content-secondary">
+            Everything you need to know about our upcoming commercial launch, trial access, and subscription models.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          {pricingFaqs.map((faq) => (
+            <div class="p-6 rounded-2xl border border-border bg-white shadow-2xs space-y-2">
+              <h3 class="text-sm font-bold font-display text-content-primary">{faq.question}</h3>
+              <p class="text-xs text-content-secondary leading-relaxed">{faq.answer}</p>
+            </div>
+          ))}
+
+          <div class="p-6 rounded-2xl border border-border bg-white shadow-2xs space-y-2">
+            <h3 class="text-sm font-bold font-display text-content-primary">
+              Will existing legacy software data (BUSY / Tally) be migrated?
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              Yes. Our onboarding engineering team provides standardized Excel/CSV import templates for product masters,
+              opening stock levels, customer ledger balances, and vendor contact records so you can transition seamlessly
+              without losing customer transaction history.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  {/* CTA */}
+  <section class="py-16 bg-white">
+    <Container size="default">
+      <div class="text-center max-w-2xl mx-auto space-y-4">
+        <h3 class="text-2xl font-bold font-display text-content-primary">Have custom enterprise volume requirements?</h3>
+        <p class="text-xs sm:text-sm text-content-secondary leading-relaxed">
+          Speak with our founders and technical team regarding multi-state branches, dedicated cloud instances, or custom compliance workflows.
+        </p>
+        <div class="pt-2 flex justify-center gap-3">
+          <Button href="/request-demo" variant="primary" size="md">
+            <span>Contact Commercial Team</span>
+          </Button>
+          <Button href="/features" variant="outline" size="md">
+            <span>Review Full Module Directory</span>
+          </Button>
+        </div>
+      </div>
+    </Container>
+  </section>
+</BaseLayout>

@@ -1,0 +1,59 @@
+---
+interface Props {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  href?: string;
+  type?: 'button' | 'submit' | 'reset';
+  class?: string;
+  className?: string;
+  id?: string;
+  target?: string;
+  rel?: string;
+  'aria-label'?: string;
+}
+
+const {
+  variant = 'primary',
+  size = 'md',
+  href,
+  type = 'button',
+  class: propClass = '',
+  className: propClassName = '',
+  id,
+  target,
+  rel,
+  'aria-label': ariaLabel,
+  ...rest
+} = Astro.props;
+
+const className = propClass || propClassName;
+
+const baseClasses = 'inline-flex items-center justify-center font-display font-medium rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98]';
+
+const variantClasses = {
+  primary: 'bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-glow focus-visible:ring-brand-500 border border-brand-500',
+  secondary: 'bg-surface-secondary hover:bg-surface-tertiary text-content-primary border border-border focus-visible:ring-brand-500',
+  outline: 'bg-white hover:bg-brand-50 text-brand-700 border border-brand-200 hover:border-brand-300 focus-visible:ring-brand-500 shadow-2xs',
+  ghost: 'bg-transparent hover:bg-surface-secondary text-content-primary hover:text-brand-700 border border-transparent focus-visible:ring-brand-500',
+};
+
+const sizeClasses = {
+  sm: 'px-3.5 py-1.5 text-xs gap-1.5',
+  md: 'px-4 py-2.5 text-sm gap-2',
+  lg: 'px-6 py-3.5 text-base gap-2.5 shadow-sm',
+};
+
+const combinedClasses = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
+---
+
+{
+  href ? (
+    <a href={href} class={combinedClasses} id={id} target={target} rel={rel} aria-label={ariaLabel} {...rest}>
+      <slot />
+    </a>
+  ) : (
+    <button type={type} class={combinedClasses} id={id} aria-label={ariaLabel} {...rest}>
+      <slot />
+    </button>
+  )
+}

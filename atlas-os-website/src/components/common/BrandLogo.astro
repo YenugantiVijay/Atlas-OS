@@ -1,0 +1,58 @@
+---
+interface Props {
+  size?: 'sm' | 'md' | 'lg';
+  showText?: boolean;
+  class?: string;
+}
+
+const { size = 'md', showText = true, class: className = '' } = Astro.props;
+
+const iconSizes = {
+  sm: 'w-7 h-7',
+  md: 'w-9 h-9',
+  lg: 'w-11 h-11',
+};
+
+const textSizes = {
+  sm: 'text-lg',
+  md: 'text-xl',
+  lg: 'text-2xl',
+};
+---
+
+<a href="/" class={`inline-flex items-center gap-2.5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg p-0.5 ${className}`} aria-label="Atlas OS Home">
+  <div class={`${iconSizes[size]} transition-transform duration-200 group-hover:scale-105 shrink-0`}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" class="w-full h-full shadow-sm rounded-lg">
+      <defs>
+        <linearGradient id="atlas-logo-grad" x1="6" y1="6" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#8B5CF6"/>
+          <stop offset="100%" stop-color="#6D28D9"/>
+        </linearGradient>
+        <linearGradient id="atlas-logo-glow" x1="12" y1="12" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#EDE9FE"/>
+          <stop offset="100%" stop-color="#C4B5FD"/>
+        </linearGradient>
+      </defs>
+      <!-- Geometric hexagonal node -->
+      <rect x="4" y="4" width="40" height="40" rx="10" fill="#211B35"/>
+      <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" stroke="url(#atlas-logo-grad)" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- Interconnected system nexus -->
+      <path d="M24 10V24L36 31" stroke="url(#atlas-logo-grad)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M24 24L12 31" stroke="url(#atlas-logo-grad)" stroke-width="2" stroke-linejoin="round"/>
+      <!-- Operational core -->
+      <circle cx="24" cy="24" r="3.5" fill="url(#atlas-logo-glow)"/>
+      <circle cx="24" cy="10" r="2" fill="#8B5CF6"/>
+      <circle cx="36" cy="17" r="2" fill="#8B5CF6"/>
+      <circle cx="36" cy="31" r="2" fill="#8B5CF6"/>
+      <circle cx="24" cy="38" r="2" fill="#8B5CF6"/>
+      <circle cx="12" cy="31" r="2" fill="#8B5CF6"/>
+      <circle cx="12" cy="17" r="2" fill="#8B5CF6"/>
+    </svg>
+  </div>
+  {showText && (
+    <div class="flex items-baseline tracking-tight">
+      <span class={`${textSizes[size]} font-extrabold text-content-primary font-display`}>ATLAS</span>
+      <span class={`${textSizes[size]} font-extrabold text-brand-600 font-display ml-1`}>OS</span>
+    </div>
+  )}
+</a>

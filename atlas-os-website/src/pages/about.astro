@@ -1,0 +1,205 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+import Badge from '../components/common/Badge.astro';
+import Button from '../components/common/Button.astro';
+import { 
+  ShieldCheck, 
+  Zap, 
+  Target, 
+  CheckCircle2, 
+  Sparkles, 
+  ArrowRight,
+  Database
+} from 'lucide-react';
+---
+
+<BaseLayout 
+  title="About Us | Our Story & Engineering Philosophy | Atlas OS"
+  description="Learn why Atlas OS was founded to replace bloated, legacy ERPs with a lightning-fast, AI-native operating system designed specifically for electrical, electronics, and hardware enterprises."
+  canonicalUrl="https://atlas-os.web.app/about"
+>
+  <!-- Hero Section -->
+  <section class="pt-32 pb-20 bg-gradient-to-b from-brand-50/60 via-surface to-surface relative overflow-hidden border-b border-border-subtle">
+    <div class="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
+    <div class="absolute -top-24 right-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <Container>
+      <div class="max-w-3xl mx-auto text-center">
+        <Badge variant="brand" className="mb-4">
+          <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+          The Atlas OS Story
+        </Badge>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-text-primary tracking-tight font-display mb-6">
+          Rethinking ERP from first principles for <span class="bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">real business velocity</span>.
+        </h1>
+        <p class="text-lg sm:text-xl text-text-secondary leading-relaxed">
+          Wholesale distributors and retailers in electrical, electronics, and hardware deserve software engineered with the same precision, speed, and elegance as consumer technology.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <!-- Problem & Origin Story -->
+  <section class="py-20 bg-surface">
+    <Container>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+        <div class="lg:col-span-6 space-y-6">
+          <Badge variant="warning">The Industry Dilemma</Badge>
+          <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display tracking-tight">
+            Why are business owners still trapped in 1995 software?
+          </h2>
+          <div class="space-y-4 text-text-secondary leading-relaxed">
+            <p>
+              For decades, electrical distributors, hardware suppliers, and trade counter merchants have been forced into a frustrating compromise. On one side are thirty-year-old desktop accounting packages: rigid, complex to configure, fragile across networks, and requiring manual offline backups on USB drives.
+            </p>
+            <p>
+              On the other side are modern cloud SaaS tools designed for Silicon Valley tech startups—completely detached from the practical realities of high-volume counter sales, multi-unit conversions (boxes vs. meters), customer credit periods, and complex multi-rate GST compliance.
+            </p>
+            <p>
+              When a busy customer is standing at your trade counter at 10 AM demanding five spools of cable, two MCBs, and credit billing against a pending purchase order, you cannot afford a five-second spinning wheel or a convoluted ten-click modal.
+            </p>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6">
+          <div class="bg-gradient-to-br from-brand-950 to-slate-900 rounded-3xl p-8 sm:p-10 text-white shadow-2xl relative overflow-hidden">
+            <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-brand-500/20 rounded-full blur-2xl"></div>
+            <h3 class="text-xl font-bold font-display text-brand-300 mb-6 flex items-center gap-2">
+              <Target className="w-5 h-5 text-brand-400" />
+              Our Foundational Mission
+            </h3>
+            <blockquote class="text-lg sm:text-xl italic font-medium leading-relaxed text-slate-100 mb-6">
+              "To eliminate friction from everyday commerce by engineering the most dependable, lightning-fast, and intuitive operating system for wholesale trade."
+            </blockquote>
+            <div class="space-y-3 pt-4 border-t border-slate-800 text-sm text-slate-300">
+              <div class="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Zero unnecessary bloat: Only features that accelerate everyday workflows.</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Sub-second counter checkout with seamless keyboard navigation.</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Rock-solid financial accuracy with automated reconciliation.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <!-- Core Engineering Values -->
+  <section class="py-20 bg-white border-y border-border-subtle">
+    <Container>
+      <div class="max-w-3xl mx-auto text-center mb-16">
+        <Badge variant="brand" className="mb-3">Our Core Principles</Badge>
+        <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display">
+          Engineered on uncompromising standards
+        </h2>
+        <p class="text-text-secondary mt-3">
+          We treat business accounting and inventory management with mission-critical engineering rigor.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Principle 1 -->
+        <div class="p-8 rounded-3xl bg-surface border border-border-subtle hover:border-brand-300 transition-all shadow-sm group">
+          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <Database className="w-6 h-6" />
+          </div>
+          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Mathematical Ledger Integrity</h3>
+          <p class="text-text-secondary text-sm leading-relaxed">
+            Every invoice, receipt, and stock movement is backed by immutable database contracts and strict PostgreSQL transactions. Double-entry consistency is mathematically guaranteed, not approximated in JavaScript.
+          </p>
+        </div>
+
+        <!-- Principle 2 -->
+        <div class="p-8 rounded-3xl bg-surface border border-border-subtle hover:border-brand-300 transition-all shadow-sm group">
+          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <Zap className="w-6 h-6" />
+          </div>
+          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Extreme Keyboard Velocity</h3>
+          <p class="text-text-secondary text-sm leading-relaxed">
+            Speed is a feature. We design counter POS workflows so seasoned operators never have to touch a mouse. Rapid barcode scanning, fuzzy search, and keyboard shortcuts keep customer queues moving.
+          </p>
+        </div>
+
+        <!-- Principle 3 -->
+        <div class="p-8 rounded-3xl bg-surface border border-border-subtle hover:border-brand-300 transition-all shadow-sm group">
+          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Honest, Transparent Architecture</h3>
+          <p class="text-text-secondary text-sm leading-relaxed">
+            We never publish fake download buttons or exaggerate capabilities. Our release manifests, feature development roadmaps, and pricing terms are published openly for full stakeholder scrutiny.
+          </p>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <!-- Real Verification Metrics -->
+  <section class="py-20 bg-surface">
+    <Container>
+      <div class="bg-gradient-to-r from-brand-900 via-brand-800 to-slate-900 rounded-3xl p-10 sm:p-14 text-white shadow-xl relative overflow-hidden">
+        <div class="max-w-3xl">
+          <Badge variant="brand" className="mb-4 bg-brand-700/60 text-brand-100 border-brand-500/30">
+            Automated Quality Assurance
+          </Badge>
+          <h2 class="text-3xl sm:text-4xl font-black font-display mb-4">
+            Tested before every release. Guaranteed in production.
+          </h2>
+          <p class="text-slate-300 leading-relaxed mb-8">
+            Every feature update in Atlas OS passes through a comprehensive CI/CD verification matrix before reaching your warehouse or counter:
+          </p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+            <div class="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+              <div class="text-3xl font-black text-brand-300 font-display">82+</div>
+              <div class="text-xs text-slate-300 mt-1 uppercase tracking-wider font-semibold">PostgreSQL Contracts</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+              <div class="text-3xl font-black text-brand-300 font-display">540+</div>
+              <div class="text-xs text-slate-300 mt-1 uppercase tracking-wider font-semibold">Unit & Logic Tests</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+              <div class="text-3xl font-black text-brand-300 font-display">43+</div>
+              <div class="text-xs text-slate-300 mt-1 uppercase tracking-wider font-semibold">E2E Browser Scenarios</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+              <div class="text-3xl font-black text-brand-300 font-display">100%</div>
+              <div class="text-xs text-slate-300 mt-1 uppercase tracking-wider font-semibold">Row-Level Security</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-20 bg-white border-t border-border-subtle">
+    <Container>
+      <div class="max-w-3xl mx-auto text-center space-y-6">
+        <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display">
+          Ready to experience modern business velocity?
+        </h2>
+        <p class="text-text-secondary leading-relaxed">
+          See why electrical and hardware distributors are switching to Atlas OS. Request a personalized walkthrough or explore our transparent pricing.
+        </p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+          <Button href="/request-demo" variant="primary" size="lg" className="w-full sm:w-auto">
+            Schedule a Live Demo
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+          <Button href="/pricing" variant="outline" size="lg" className="w-full sm:w-auto">
+            View Pricing & Plans
+          </Button>
+        </div>
+      </div>
+    </Container>
+  </section>
+</BaseLayout>
