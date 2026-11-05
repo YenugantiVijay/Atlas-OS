@@ -563,6 +563,144 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
     });
   });
 
+  describe('Phase B1: Fail-Closed Nested Financial Export Verification', () => {
+    it.each(['invoice_items', 'payment_allocations'] as const)(
+      'rejects %s when the authoritative nested count request fails',
+      async (table) => {
+        (supabase!.from as any).mockImplementation((name: string) => {
+          expect(name).toBe(table);
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ count: null, error: { message: 'permission denied' } }),
+            }),
+          };
+        });
+
+        const records = Array.from({ length: 1000 }, (_, index) => ({ id: `child-${index}` }));
+        const check = table === 'invoice_items'
+          ? reportsService.fetchAllInvoiceItemsIfTruncated('parent-1', records)
+          : reportsService.fetchAllPaymentAllocationsIfTruncated('parent-1', records);
+
+        await expect(check).rejects.toMatchObject({
+          code: 'NESTED_COUNT_UNVERIFIED',
+        });
+      }
+    );
+
+    it('rejects nested records when the count decreases during the export', async () => {
+      (supabase!.from as any).mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ count: 999, error: null }),
+        }),
+      });
+
+      const records = Array.from({ length: 1000 }, (_, index) => ({ id: `item-${index}` }));
+      await expect(reportsService.fetchAllInvoiceItemsIfTruncated('inv-1', records)).rejects.toMatchObject({
+        code: 'NESTED_SNAPSHOT_DRIFT',
+      });
+    });
+
+    it('paginates all 1001 payment allocations, checks identifiers and rechecks the count', async () => {
+      const all = Array.from({ length: 1001 }, (_, index) => ({
+        id: `allocation-${index}`,
+        payment_id: 'payment-1',
+        invoice_id: 'invoice-1',
+        amount_allocated: '1.00',
+        created_at: '2025-05-15T10:00:00Z',
+      }));
+      let countCalls = 0;
+      const page = vi.fn().mockImplementation((from: number, to: number) => {
+        return Promise.resolve({ data: all.slice(from, to + 1), error: null });
+      });
+      (supabase!.from as any).mockImplementation((table: string) => {
+        expect(table).toBe('payment_allocations');
+        return {
+          select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
+            if (opts?.head) {
+              return {
+                eq: vi.fn().mockImplementation(() => {
+                  countCalls += 1;
+                  return Promise.resolve({ count: all.length, error: null });
+                }),
+              };
+            }
+            return {
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn().mockReturnThis(),
+              range: page,
+            };
+          }),
+        };
+      });
+
+      const embedded = all.slice(0, 1000).map((row) => ({ id: row.id }));
+      const result = await reportsService.fetchAllPaymentAllocationsIfTruncated('payment-1', embedded);
+      expect(result).toHaveLength(1001);
+      expect(result[1000]).toMatchObject({ id: 'allocation-1000', invoiceId: 'invoice-1' });
+      expect(page).toHaveBeenCalledTimes(5);
+      expect(countCalls).toBe(2);
+    });
+
+    it('aborts on duplicate IDs in a paginated nested response', async () => {
+      (supabase!.from as any).mockReturnValue({
+        select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
+          if (opts?.head) {
+            return { eq: vi.fn().mockResolvedValue({ count: 1001, error: null }) };
+          }
+          return {
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [
+                { id: 'duplicate', invoice_id: 'invoice-1' },
+                { id: 'duplicate', invoice_id: 'invoice-1' },
+              ],
+              error: null,
+            }),
+          };
+        }),
+      });
+      const embedded = Array.from({ length: 1000 }, (_, index) => ({ id: `item-${index}` }));
+      await expect(reportsService.fetchAllInvoiceItemsIfTruncated('invoice-1', embedded)).rejects.toMatchObject({
+        code: 'NESTED_DUPLICATE_ROW',
+      });
+    });
+
+    it('aborts if the nested post-fetch count drifts despite retrieving all expected rows', async () => {
+      let checks = 0;
+      (supabase!.from as any).mockReturnValue({
+        select: vi.fn().mockImplementation((_cols: string, opts?: { head?: boolean }) => {
+          if (opts?.head) {
+            return {
+              eq: vi.fn().mockImplementation(() => {
+                checks += 1;
+                return Promise.resolve({ count: checks === 1 ? 1001 : 1002, error: null });
+              }),
+            };
+          }
+          return {
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockImplementation((from: number, to: number) =>
+              Promise.resolve({
+                data: Array.from({ length: to - from + 1 }, (_, index) => ({
+                  id: `item-${from + index}`,
+                  invoice_id: 'invoice-1',
+                  product_name: 'Wire',
+                })),
+                error: null,
+              })
+            ),
+          };
+        }),
+      });
+      const embedded = Array.from({ length: 1000 }, (_, index) => ({ id: `item-${index}` }));
+      await expect(reportsService.fetchAllInvoiceItemsIfTruncated('invoice-1', embedded)).rejects.toMatchObject({
+        code: 'NESTED_SNAPSHOT_DRIFT',
+      });
+    });
+  });
+
   describe('Phase B1 Hardening & Data Completeness Guardrails (Task 1 & 8)', () => {
     it('throws ExportIntegrityError when an invoice batch returns 0 records prematurely', async () => {
       // Mock count = 500, but first batch returns empty
