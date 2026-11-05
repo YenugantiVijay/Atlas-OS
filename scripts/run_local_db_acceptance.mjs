@@ -3849,6 +3849,8 @@ async function runAcceptance() {
             blocked = payErr.message.includes('has no outstanding balance') ||
                       payErr.message.includes('already fully paid') ||
                       payErr.message.includes('exceeds remaining invoice balance') ||
+                      payErr.message.includes('is not eligible for payment allocation') ||
+                      payErr.message.includes('status "PAID"') ||
                       payErr.message.includes('ERR_OVERPAYMENT_NOT_ALLOWED');
             if (!blocked) zeroBalErr = payErr;
           }
