@@ -306,7 +306,7 @@ async function withRoleContext(client, { role = 'authenticated', userId = null }
  */
 async function runUpgradeScenarioB(maintClient, baseRunId) {
   console.log('\n' + '='.repeat(80));
-  console.log('SCENARIO B: EXISTING DATABASE UPGRADE (MIGRATION 029 -> 030)');
+  console.log('SCENARIO B: EXISTING DATABASE UPGRADE (MIGRATIONS 029 -> 030 -> 031 -> 032)');
   console.log('='.repeat(80));
 
   const upgradeRunId = 'upg_' + crypto.randomBytes(4).toString('hex');
@@ -656,6 +656,210 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       failureDiagnostic
     );
 
+    // ------------------------------------------------------------------------
+    // Step 9: Scenario B Upgrade to Migration 032 (Obsolete RPC Cleanup)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SCENARIO B: VERIFYING MIGRATION 031 STATE BEFORE MIGRATION 032 ---');
+
+    // 9.1 Verify both signatures exist in pg_proc before applying migration 032
+    const { rows: pre032Procs } = await upgradeClient.query(`
+      SELECT p.oid, pg_get_function_identity_arguments(p.oid) AS identity_args, pg_get_function_arguments(p.oid) AS full_args
+      FROM pg_proc p
+      JOIN pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'public' AND p.proname = 'create_product_atomic';
+    `);
+
+    const hasObsolete022 = pre032Procs.some((p) => p.full_args.includes('p_is_active') && !p.full_args.includes('p_image_url'));
+    const hasAuthoritative024 = pre032Procs.some((p) => p.full_args.includes('p_image_url'));
+    const bothSignaturesPreExist = pre032Procs.length === 2 && hasObsolete022 && hasAuthoritative024;
+    console.log(`  ✓ Checked pre-032 pg_proc: found ${pre032Procs.length} signatures (hasObsolete=${hasObsolete022}, hasAuthoritative=${hasAuthoritative024}).`);
+
+    // 9.2 Pre-seed existing business data (Products, Stock movements, Customers, Invoices) under existingOrgId
+    const preProdId = crypto.randomUUID();
+    const preCustId = crypto.randomUUID();
+    const preInvId = crypto.randomUUID();
+    const preProdSku = `PRE-UPG-SKU-${upgradeRunId}`;
+    const preInvNum = `INV-UPG-${upgradeRunId}`;
+
+    await upgradeClient.query(`
+      UPDATE public.organization_eligibility
+      SET status = 'approved'
+      WHERE organization_id = '${existingOrgId}';
+
+      INSERT INTO public.products (id, organization_id, name, sku, category, uom, purchase_cost, selling_price, tax_rate, is_active)
+      VALUES ('${preProdId}', '${existingOrgId}', 'Pre-upgrade Switchgear Master', '${preProdSku}', 'Switchgear', 'Nos', 450.00, 650.00, 18.00, true);
+
+      INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+      VALUES ('${existingOrgId}', '${preProdId}', 120, 'OPENING_STOCK', 'Pre-upgrade opening stock');
+
+      INSERT INTO public.customers (id, organization_id, name, phone, gstin, credit_limit, credit_days, is_active)
+      VALUES ('${preCustId}', '${existingOrgId}', 'Pre-upgrade Infrastructure Corp', '9811122233', '29AAACP9999A1Z9', 250000.00, 30, true);
+
+      SELECT set_config('app.authoritative_invoice_transition', 'true', false);
+
+      INSERT INTO public.invoices (id, organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+      VALUES ('${preInvId}', '${existingOrgId}', '${preCustId}', '${preInvNum}', 'ISSUED', CURRENT_DATE + interval '15 days', 1500.00, 1770.00, 0.00);
+
+      SELECT set_config('app.authoritative_invoice_transition', 'false', false);
+    `);
+    console.log('  ✓ Pre-seeded business records at Migration 031 state (products, stock movements, customers, invoices).');
+
+    // 9.3 Snapshot existing business records
+    const { rows: snapProd } = await upgradeClient.query(`SELECT * FROM public.products WHERE id = $1;`, [preProdId]);
+    const { rows: snapStock } = await upgradeClient.query(`SELECT count(*)::int AS cnt, sum(quantity_change)::numeric AS qty FROM public.stock_movements WHERE product_id = $1;`, [preProdId]);
+    const { rows: snapCust } = await upgradeClient.query(`SELECT * FROM public.customers WHERE id = $1;`, [preCustId]);
+    const { rows: snapInv } = await upgradeClient.query(`SELECT * FROM public.invoices WHERE id = $1;`, [preInvId]);
+
+    // 9.4 Apply Migration 032
+    console.log('\nApplying Migration 032 (cleanup obsolete product creation overload)...');
+    const mig032Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '032_cleanup_obsolete_product_creation_overload.sql'), 'utf8');
+    await upgradeClient.query(mig032Sql);
+    console.log('  ✓ Migration 032 applied successfully to existing upgraded database.');
+
+    // 9.5 Verify existing business data remains completely unchanged
+    const { rows: postProd } = await upgradeClient.query(`SELECT * FROM public.products WHERE id = $1;`, [preProdId]);
+    const { rows: postStock } = await upgradeClient.query(`SELECT count(*)::int AS cnt, sum(quantity_change)::numeric AS qty FROM public.stock_movements WHERE product_id = $1;`, [preProdId]);
+    const { rows: postCust } = await upgradeClient.query(`SELECT * FROM public.customers WHERE id = $1;`, [preCustId]);
+    const { rows: postInv } = await upgradeClient.query(`SELECT * FROM public.invoices WHERE id = $1;`, [preInvId]);
+
+    const prodPreserved = postProd[0]?.name === snapProd[0]?.name && postProd[0]?.sku === snapProd[0]?.sku && Number(postProd[0]?.selling_price) === Number(snapProd[0]?.selling_price);
+    const stockPreserved = postStock[0]?.cnt === snapStock[0]?.cnt && Number(postStock[0]?.qty) === Number(snapStock[0]?.qty);
+    const custPreserved = postCust[0]?.name === snapCust[0]?.name && postCust[0]?.gstin === snapCust[0]?.gstin;
+    const invPreserved = postInv[0]?.invoice_number === snapInv[0]?.invoice_number && postInv[0]?.status === snapInv[0]?.status && Number(postInv[0]?.total_amount) === Number(snapInv[0]?.total_amount);
+    const businessDataPreserved = Boolean(prodPreserved && stockPreserved && custPreserved && invPreserved);
+
+    // 9.6 Verify obsolete overload has been removed from pg_proc and authoritative signature remains
+    const { rows: post032Procs } = await upgradeClient.query(`
+      SELECT p.oid, pg_get_function_identity_arguments(p.oid) AS identity_args, pg_get_function_arguments(p.oid) AS full_args
+      FROM pg_proc p
+      JOIN pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'public' AND p.proname = 'create_product_atomic';
+    `);
+
+    const obsoleteRemoved = !post032Procs.some((p) => p.full_args.includes('p_is_active'));
+    const authoritativeRemains = post032Procs.length === 1 && post032Procs[0].full_args.includes('p_image_url');
+
+    // 9.7 Test atomic product creation under authenticated tenant context
+    let createAtomicPassed = false;
+    let createAtomicErr = null;
+    let newCreatedProdId = null;
+
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      try {
+        const postSku = `UPG-POST-SKU-${upgradeRunId}`;
+        const { rows: newProdRows } = await upgradeClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Post-Upgrade Atomic LED Panel'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 350.00::numeric,
+            p_selling_price := 520.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 40,
+            p_image_url := 'https://example.com/panel.jpg'::text
+          ) AS prod;
+        `, [existingOrgId, postSku]);
+
+        newCreatedProdId = newProdRows[0]?.prod?.id;
+
+        // Check stock movement and authoritative stock level
+        const { rows: stockRows } = await upgradeClient.query(`
+          SELECT public.get_product_stock($1::uuid, $2::uuid) AS stock;
+        `, [newCreatedProdId, existingOrgId]);
+
+        const stockAccurate = Number(stockRows[0]?.stock) === 40;
+
+        // Also test calling create_product_atomic omitting optional p_image_url (verifying unambiguous resolution)
+        const postSku2 = `UPG-POST-SKU2-${upgradeRunId}`;
+        const { rows: newProdRows2 } = await upgradeClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Post-Upgrade Atomic LED Bulb'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 80.00::numeric,
+            p_selling_price := 120.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 20
+          ) AS prod;
+        `, [existingOrgId, postSku2]);
+
+        const secondProdCreated = Boolean(newProdRows2[0]?.prod?.id);
+
+        createAtomicPassed = Boolean(newCreatedProdId && stockAccurate && secondProdCreated);
+      } catch (err) {
+        createAtomicErr = err;
+      }
+    });
+
+    // 9.8 Cross-tenant product creation rejected
+    let crossTenantBlocked = false;
+    let crossTenantErr = null;
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: unauthorizedUserId }, async () => {
+      try {
+        await upgradeClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := 'CROSS-TENANT-SKU'::varchar,
+            p_name := 'Cross Tenant Hijack'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 10.00::numeric,
+            p_selling_price := 20.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 10
+          );
+        `, [existingOrgId]);
+      } catch (err) {
+        crossTenantErr = err;
+        crossTenantBlocked = err.message.includes('ERR_UNAUTHORIZED') || err.message.includes('Unauthorized') || err.code === '42501';
+      }
+    });
+
+    // 9.9 Anonymous access rejected with 42501
+    let anonBlocked = false;
+    let anonErr = null;
+    await withRoleContext(upgradeClient, { role: 'anon' }, async () => {
+      try {
+        await upgradeClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := 'ANON-SKU'::varchar,
+            p_name := 'Anon Attempt'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 10.00::numeric,
+            p_selling_price := 20.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 10
+          );
+        `, [existingOrgId]);
+      } catch (err) {
+        anonErr = err;
+        anonBlocked = err.code === '42501' || err.message.includes('permission denied');
+      }
+    });
+
+    const upg03Passed =
+      bothSignaturesPreExist &&
+      businessDataPreserved &&
+      obsoleteRemoved &&
+      authoritativeRemains &&
+      createAtomicPassed &&
+      crossTenantBlocked &&
+      anonBlocked;
+
+    recordTest(
+      'P1-UPG-03',
+      'Scenario B Upgrade: Migration 032 removes obsolete overload from pg_proc, preserves business data, resolves signature ambiguity, and enforces authorization',
+      upg03Passed,
+      `preOverloadsExist=${bothSignaturesPreExist}, businessDataPreserved=${businessDataPreserved}, obsoleteRemoved=${obsoleteRemoved}, authoritativeRemains=${authoritativeRemains}, createAtomicPassed=${createAtomicPassed}, crossTenantBlocked=${crossTenantBlocked}, anonBlocked=${anonBlocked}`,
+      upg03Passed ? null : (createAtomicErr || crossTenantErr || anonErr || new Error('Scenario B Migration 032 verification failed'))
+    );
+
   } finally {
     if (upgradeClient) {
       await upgradeClient.end().catch(() => {});
@@ -757,9 +961,9 @@ async function runAcceptance() {
     console.log('  ✓ Roles, schemas, and auth functions bootstrapped successfully.');
 
     // ------------------------------------------------------------------------
-    // Step 2: Apply Migrations 001 - 030 in Strict Lexical Order (Scenario A: Fresh Installation)
+    // Step 2: Apply Migrations 001 - 032 in Strict Lexical Order (Scenario A: Fresh Installation)
     // ------------------------------------------------------------------------
-    console.log('\nStep 2: Applying migrations sequentially (001 -> 030) [Scenario A: Fresh Installation]...');
+    console.log('\nStep 2: Applying migrations sequentially (001 -> 032) [Scenario A: Fresh Installation]...');
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
@@ -2113,6 +2317,23 @@ async function runAcceptance() {
       );
     });
 
+    // Dedicated organization for TEST 27 (P1-A1-13) identity mutation & demotion test
+    // This preserves orgAId in an approved, active state for subsequent operational and financial tests
+    const panLifecycleOrgId = crypto.randomUUID();
+    await testClient.query(`
+      INSERT INTO organizations (id, name, currency, legal_name, pan, gstin, state) VALUES
+      ('${panLifecycleOrgId}', 'Lifecycle Isolation Org ${runId}', 'INR', 'Lifecycle Isolation Pvt Ltd', 'ABCDE1234F', '29ABCDE1234F1Z5', 'Karnataka');
+
+      INSERT INTO memberships (organization_id, user_id, role, is_active) VALUES
+      ('${panLifecycleOrgId}', '${userAId}', 'owner', true);
+
+      INSERT INTO organization_eligibility (organization_id, business_category, sells_electrical_products, status, declared_by) VALUES
+      ('${panLifecycleOrgId}', 'electrical_retail', true, 'approved', '${userAId}');
+
+      INSERT INTO organization_subscriptions (organization_id, plan_tier, status, current_period_ends_at) VALUES
+      ('${panLifecycleOrgId}', 'pro', 'active', now() + interval '30 days');
+    `);
+
     // TEST 27: Continuing identity enforcement on UPDATE
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       // Subtest A: Removing PAN from an approved organization is strictly rejected
@@ -2121,7 +2342,7 @@ async function runAcceptance() {
       try {
         await testClient.query(
           `UPDATE organizations SET pan = NULL WHERE id = $1::uuid;`,
-          [orgAId]
+          [panLifecycleOrgId]
         );
       } catch (err) {
         removePanErr = err;
@@ -2134,7 +2355,7 @@ async function runAcceptance() {
       try {
         await testClient.query(
           `UPDATE organizations SET pan = 'ZYXWV9876U' WHERE id = $1::uuid;`,
-          [orgAId]
+          [panLifecycleOrgId]
         );
       } catch (err) {
         mismatchErr = err;
@@ -2147,11 +2368,11 @@ async function runAcceptance() {
       try {
         await testClient.query(
           `UPDATE organizations SET pan = 'ZYXWV9876U', gstin = '29ZYXWV9876U1Z5' WHERE id = $1::uuid;`,
-          [orgAId]
+          [panLifecycleOrgId]
         );
         const { rows: elRows } = await testClient.query(
           `SELECT status, reviewer_notes FROM organization_eligibility WHERE organization_id = $1::uuid;`,
-          [orgAId]
+          [panLifecycleOrgId]
         );
         alterDemoted = elRows[0]?.status === 'review_required';
       } catch (err) {
@@ -2162,16 +2383,16 @@ async function runAcceptance() {
       let subIntact = false;
       const { rows: subRows } = await testClient.query(
         `SELECT status, current_period_ends_at FROM organization_subscriptions WHERE organization_id = $1::uuid;`,
-        [orgAId]
+        [panLifecycleOrgId]
       );
       subIntact = subRows[0]?.status === 'active';
 
-      // Subtest F: Unauthorized user (e.g. userB) cannot change orgA's business identity
+      // Subtest F: Unauthorized user (e.g. userB) cannot change panLifecycleOrg's business identity
       let unauthBlocked = false;
       await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
         const { rowCount } = await testClient.query(
           `UPDATE organizations SET name = 'Unauthorized Hijack' WHERE id = $1::uuid;`,
-          [orgAId]
+          [panLifecycleOrgId]
         );
         unauthBlocked = rowCount === 0;
       });
@@ -2257,33 +2478,127 @@ async function runAcceptance() {
     // PHASE A2.1: INVENTORY & RECEIVABLES ACCURACY TESTS
     // ========================================================================
 
+    // TEST (P0-PROD-SIG-01): Scenario A create_product_atomic signature uniqueness & unambiguous resolution
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      let sigTestPassed = false;
+      let sigTestErr = null;
+      try {
+        const { rows: procs } = await testClient.query(`
+          SELECT p.oid, pg_get_function_identity_arguments(p.oid) AS identity_args, pg_get_function_arguments(p.oid) AS full_args
+          FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace = n.oid
+          WHERE n.nspname = 'public' AND p.proname = 'create_product_atomic';
+        `);
+
+        const exactlyOneRpc = procs.length === 1;
+        const hasImageUrl = Boolean(procs[0]?.full_args.includes('p_image_url'));
+        const noIsActive = !procs[0]?.full_args.includes('p_is_active');
+
+        // Test invocation with both required and optional parameters
+        const skuWithImg = `SIG-IMG-${runId}`;
+        const { rows: r1 } = await testClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Signature Test With Image'::varchar,
+            p_category := 'Switchgear'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 100.00::numeric,
+            p_selling_price := 150.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 5,
+            p_brand := 'Havells'::varchar,
+            p_description := 'Test desc'::text,
+            p_hsn_code := '8536'::varchar,
+            p_reorder_threshold := 2,
+            p_notes := 'Opening note'::text,
+            p_image_url := 'https://example.com/switch.jpg'::text
+          ) AS prod;
+        `, [orgAId, skuWithImg]);
+
+        // Test invocation omitting optional p_image_url (proves unambiguous resolution)
+        const skuNoImg = `SIG-NOIMG-${runId}`;
+        const { rows: r2 } = await testClient.query(`
+          SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Signature Test Without Image'::varchar,
+            p_category := 'Switchgear'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 100.00::numeric,
+            p_selling_price := 150.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 0
+          ) AS prod;
+        `, [orgAId, skuNoImg]);
+
+        sigTestPassed = exactlyOneRpc && hasImageUrl && noIsActive && Boolean(r1[0]?.prod?.id) && Boolean(r2[0]?.prod?.id);
+      } catch (err) {
+        sigTestErr = err;
+      }
+
+      recordTest(
+        'P0-PROD-SIG-01',
+        'Scenario A Fresh Install: Exactly one authoritative create_product_atomic signature exists in pg_proc and resolves unambiguously',
+        sigTestPassed,
+        `sigTestPassed=${sigTestPassed}`,
+        sigTestPassed ? null : sigTestErr
+      );
+    });
+
     // TEST 30 (P1-A2-01): Legitimate zero stock & on-hand inventory accuracy
     await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
       let zeroStockPassed = false;
       let zeroStockErr = null;
       try {
-        // 1. Seed a product with 0 opening stock (no movements)
-        const prodZeroId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
-           VALUES ($1, $2, 'SKU-ZERO-01', 'Zero Stock Product', 'Lighting', 'Nos', 100.00, 150.00, 18.00, true);`,
-          [prodZeroId, orgAId]
+        // 1. Seed a product with 0 opening stock via authoritative create_product_atomic (no movements)
+        const skuZero = `SKU-ZERO-${runId}`;
+        const { rows: prodZeroRows } = await testClient.query(
+          `SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Zero Stock Product'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 100.00::numeric,
+            p_selling_price := 150.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 0,
+            p_image_url := NULL::text
+          ) AS prod;`,
+          [orgAId, skuZero]
         );
+        const prodZeroId = prodZeroRows[0]?.prod?.id;
 
-        // 2. Seed a product with 50 units received and 50 units dispatched (net 0)
-        const prodBalancedId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
-           VALUES ($1, $2, 'SKU-BALANCED-01', 'Net Zero Product', 'Lighting', 'Nos', 200.00, 250.00, 18.00, true);`,
-          [prodBalancedId, orgAId]
+        // 2. Seed a product with 50 units opening stock
+        const skuBalanced = `SKU-BALANCED-${runId}`;
+        const { rows: prodBalancedRows } = await testClient.query(
+          `SELECT create_product_atomic(
+            p_org_id := $1::uuid,
+            p_sku := $2::varchar,
+            p_name := 'Net Zero Product'::varchar,
+            p_category := 'Lighting'::varchar,
+            p_uom := 'Nos'::varchar,
+            p_purchase_cost := 200.00::numeric,
+            p_selling_price := 250.00::numeric,
+            p_tax_rate := 18.00::numeric,
+            p_opening_stock := 50,
+            p_image_url := NULL::text
+          ) AS prod;`,
+          [orgAId, skuBalanced]
         );
+        const prodBalancedId = prodBalancedRows[0]?.prod?.id;
 
+        // Dispatch 50 units through authoritative stock adjustment to reach net 0 balance
         await testClient.query(
-          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
-           VALUES
-            ($1, $2, 50, 'GOODS_RECEIVED', 'Initial receipt'),
-            ($1, $2, -50, 'SALES_DISPATCH', 'Full dispatch');`,
-          [orgAId, prodBalancedId]
+          `SELECT record_stock_adjustment(
+            p_org_id := $1::uuid,
+            p_product_id := $2::uuid,
+            p_quantity_change := -50,
+            p_notes := 'Full dispatch'::text,
+            p_idempotency_key := $3::uuid
+          );`,
+          [orgAId, prodBalancedId, crypto.randomUUID()]
         );
 
         // 3. Query get_product_stock_levels for orgAId
@@ -2327,32 +2642,36 @@ async function runAcceptance() {
     });
 
     // TEST 31 (P1-A2-02): High-volume inventory movements (> 2,500 transactions)
-    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-      let bulkStockPassed = false;
-      let bulkStockErr = null;
-      try {
-        const prodBulkId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
-           VALUES ($1, $2, 'SKU-BULK-01', 'High Volume Stock Product', 'Switchgear', 'Nos', 50.00, 75.00, 18.00, true);`,
-          [prodBulkId, orgAId]
-        );
+    let bulkStockPassed = false;
+    let bulkStockErr = null;
+    try {
+      const prodBulkId = crypto.randomUUID();
+      const skuBulk = `SKU-BULK-${runId}`;
 
-        // Insert 2,000 movements of +2 and 500 movements of -1 (Total: 2,500 movements, Net: 3,500)
-        await testClient.query(
-          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
-           SELECT $1::uuid, $2::uuid, 2, 'GOODS_RECEIVED', 'Bulk Inflow'
-           FROM generate_series(1, 2000);`,
-          [orgAId, prodBulkId]
-        );
+      // Administrative setup: insert high-volume ledger records as table owner
+      await testClient.query(
+        `INSERT INTO public.products (id, organization_id, sku, name, category, uom, purchase_cost, selling_price, tax_rate, is_active)
+         VALUES ($1, $2, $3, 'High Volume Stock Product', 'Switchgear', 'Nos', 50.00, 75.00, 18.00, true);`,
+        [prodBulkId, orgAId, skuBulk]
+      );
 
-        await testClient.query(
-          `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
-           SELECT $1::uuid, $2::uuid, -1, 'SALES_DISPATCH', 'Bulk Outflow'
-           FROM generate_series(1, 500);`,
-          [orgAId, prodBulkId]
-        );
+      // Insert 2,000 movements of +2 and 500 movements of -1 (Total: 2,500 movements, Net: 3,500)
+      await testClient.query(
+        `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+         SELECT $1::uuid, $2::uuid, 2, 'GOODS_RECEIVED', 'Bulk Inflow'
+         FROM generate_series(1, 2000);`,
+        [orgAId, prodBulkId]
+      );
 
+      await testClient.query(
+        `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+         SELECT $1::uuid, $2::uuid, -1, 'SALES_DISPATCH', 'Bulk Outflow'
+         FROM generate_series(1, 500);`,
+        [orgAId, prodBulkId]
+      );
+
+      // Verification under authenticated tenant context
+      await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
         // Aggregate through get_product_stock_levels
         const { rows: bulkRows } = await testClient.query(
           `SELECT current_stock FROM public.get_product_stock_levels($1::uuid) WHERE product_id = $2::uuid;`,
@@ -2370,18 +2689,18 @@ async function runAcceptance() {
         const dbCount = Number(sumRows[0]?.cnt);
 
         bulkStockPassed = (rpcStock === 3500 && dbTotal === 3500 && dbCount === 2500);
-      } catch (err) {
-        bulkStockErr = err;
-      }
+      });
+    } catch (err) {
+      bulkStockErr = err;
+    }
 
-      recordTest(
-        'P1-A2-02',
-        'Authoritative stock aggregation handles high-volume transaction history (2,500 movements) without silent truncation',
-        bulkStockPassed,
-        `rpcStock=3500, dbCount=2500, match=${bulkStockPassed}`,
-        bulkStockPassed ? null : bulkStockErr
-      );
-    });
+    recordTest(
+      'P1-A2-02',
+      'Authoritative stock aggregation handles high-volume transaction history (2,500 movements) without silent truncation',
+      bulkStockPassed,
+      `rpcStock=3500, dbCount=2500, match=${bulkStockPassed}`,
+      bulkStockPassed ? null : bulkStockErr
+    );
 
     // TEST 32 (P1-A2-03): Cross-tenant isolation & unauthorized access rejection on stock RPCs
     let isolationStockPassed = false;
@@ -2431,47 +2750,49 @@ async function runAcceptance() {
     );
 
     // TEST 33 (P1-A2-04): Customer receivables aggregation accurately handles zero-balance states
-    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-      let zeroRecvPassed = false;
-      let zeroRecvErr = null;
-      try {
-        // Customer 1: No invoices at all
-        const custZero1Id = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
-           VALUES ($1, $2, 'Zero Customer No Invoices', 50000, 30, true);`,
-          [custZero1Id, orgAId]
-        );
+    let zeroRecvPassed = false;
+    let zeroRecvErr = null;
+    try {
+      const custZero1Id = crypto.randomUUID();
+      const custZero2Id = crypto.randomUUID();
 
-        // Customer 2: Has PAID, CANCELLED, and DRAFT invoices (net 0 receivable)
-        const custZero2Id = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
-           VALUES ($1, $2, 'Zero Customer Settled Invoices', 50000, 30, true);`,
-          [custZero2Id, orgAId]
-        );
+      // Administrative setup: seed customers and historical lifecycle invoices
+      await testClient.query(
+        `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+         VALUES
+          ($1, $3, 'Zero Customer No Invoices', 50000, 30, true),
+          ($2, $3, 'Zero Customer Settled Invoices', 50000, 30, true);`,
+        [custZero1Id, custZero2Id, orgAId]
+      );
 
-        // Paid invoice (total_amount = total_paid = 500)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-Z2-PAID', 'PAID', CURRENT_DATE, 500.00, 500.00, 500.00);`,
-          [orgAId, custZero2Id]
-        );
+      // Set authoritative invoice transition flag for synthetic test fixture creation
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'true', false);`);
 
-        // Cancelled invoice
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-Z2-CANC', 'CANCELLED', CURRENT_DATE, 1000.00, 1000.00, 0.00);`,
-          [orgAId, custZero2Id]
-        );
+      // Paid invoice (total_amount = total_paid = 500)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-Z2-PAID', 'PAID', CURRENT_DATE, 500.00, 500.00, 500.00);`,
+        [orgAId, custZero2Id]
+      );
 
-        // Draft invoice (not issued)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-Z2-DRAFT', 'DRAFT', CURRENT_DATE, 750.00, 750.00, 0.00);`,
-          [orgAId, custZero2Id]
-        );
+      // Cancelled invoice
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-Z2-CANC', 'CANCELLED', CURRENT_DATE, 1000.00, 1000.00, 0.00);`,
+        [orgAId, custZero2Id]
+      );
 
+      // Draft invoice (not issued)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-Z2-DRAFT', 'DRAFT', CURRENT_DATE, 750.00, 750.00, 0.00);`,
+        [orgAId, custZero2Id]
+      );
+
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'false', false);`);
+
+      // Verification under authenticated tenant context
+      await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
         // Query get_customer_receivables
         const { rows: recvRows } = await testClient.query(
           `SELECT customer_id, current_receivable FROM public.get_customer_receivables($1::uuid)
@@ -2499,52 +2820,58 @@ async function runAcceptance() {
         const single2Zero = Number(singleR2[0]?.receivable) === 0.00;
 
         zeroRecvPassed = Boolean(cust1Zero && cust2Zero && single1Zero && single2Zero);
-      } catch (err) {
-        zeroRecvErr = err;
-      }
+      });
+    } catch (err) {
+      zeroRecvErr = err;
+    }
 
-      recordTest(
-        'P1-A2-04',
-        'Customer receivables aggregation accurately returns 0.00 for customers without invoices, settled, cancelled, and draft invoices',
-        zeroRecvPassed,
-        `zeroRecvPassed=${zeroRecvPassed}`,
-        zeroRecvPassed ? null : zeroRecvErr
-      );
-    });
+    recordTest(
+      'P1-A2-04',
+      'Customer receivables aggregation accurately returns 0.00 for customers without invoices, settled, cancelled, and draft invoices',
+      zeroRecvPassed,
+      `zeroRecvPassed=${zeroRecvPassed}`,
+      zeroRecvPassed ? null : zeroRecvErr
+    );
 
     // TEST 34 (P1-A2-05): Multiple invoices with partial payments and exact monetary rounding
-    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-      let multiInvoicePassed = false;
-      let multiInvoiceErr = null;
-      try {
-        const custMultiId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
-           VALUES ($1, $2, 'Multi Invoice Customer', 100000, 30, true);`,
-          [custMultiId, orgAId]
-        );
+    let multiInvoicePassed = false;
+    let multiInvoiceErr = null;
+    try {
+      const custMultiId = crypto.randomUUID();
 
-        // Invoice 1: PARTIALLY_PAID (1500.50 - 500.25 = 1000.25)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-M1', 'PARTIALLY_PAID', CURRENT_DATE, 1500.50, 1500.50, 500.25);`,
-          [orgAId, custMultiId]
-        );
+      await testClient.query(
+        `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+         VALUES ($1, $2, 'Multi Invoice Customer', 100000, 30, true);`,
+        [custMultiId, orgAId]
+      );
 
-        // Invoice 2: ISSUED (2500.75 - 0.00 = 2500.75)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-M2', 'ISSUED', CURRENT_DATE, 2500.75, 2500.75, 0.00);`,
-          [orgAId, custMultiId]
-        );
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'true', false);`);
 
-        // Invoice 3: PAID (800.00 - 800.00 = 0.00)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, 'INV-M3', 'PAID', CURRENT_DATE, 800.00, 800.00, 800.00);`,
-          [orgAId, custMultiId]
-        );
+      // Invoice 1: PARTIALLY_PAID (1500.50 - 500.25 = 1000.25)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-M1', 'PARTIALLY_PAID', CURRENT_DATE, 1500.50, 1500.50, 500.25);`,
+        [orgAId, custMultiId]
+      );
 
+      // Invoice 2: ISSUED (2500.75 - 0.00 = 2500.75)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-M2', 'ISSUED', CURRENT_DATE, 2500.75, 2500.75, 0.00);`,
+        [orgAId, custMultiId]
+      );
+
+      // Invoice 3: PAID (800.00 - 800.00 = 0.00)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         VALUES ($1, $2, 'INV-M3', 'PAID', CURRENT_DATE, 800.00, 800.00, 800.00);`,
+        [orgAId, custMultiId]
+      );
+
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'false', false);`);
+
+      // Verification under authenticated tenant context
+      await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
         // Expected balance: 1000.25 + 2500.75 = 3501.00
         const { rows: multiRecv } = await testClient.query(
           `SELECT current_receivable FROM public.get_customer_receivables($1::uuid) WHERE customer_id = $2::uuid;`,
@@ -2559,47 +2886,53 @@ async function runAcceptance() {
         const singleVal = Number(singleRecv[0]?.receivable);
 
         multiInvoicePassed = (rpcVal === 3501.00 && singleVal === 3501.00);
-      } catch (err) {
-        multiInvoiceErr = err;
-      }
+      });
+    } catch (err) {
+      multiInvoiceErr = err;
+    }
 
-      recordTest(
-        'P1-A2-05',
-        'Customer receivables aggregation accurately computes outstanding balances across multiple invoices with exact paise rounding',
-        multiInvoicePassed,
-        `expected=3501.00, actual=${multiInvoicePassed ? 3501.00 : 'mismatch'}`,
-        multiInvoicePassed ? null : multiInvoiceErr
-      );
-    });
+    recordTest(
+      'P1-A2-05',
+      'Customer receivables aggregation accurately computes outstanding balances across multiple invoices with exact paise rounding',
+      multiInvoicePassed,
+      `expected=3501.00, actual=${multiInvoicePassed ? 3501.00 : 'mismatch'}`,
+      multiInvoicePassed ? null : multiInvoiceErr
+    );
 
     // TEST 35 (P1-A2-06): High-volume invoice records (> 1,200 invoices)
-    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
-      let highVolumeInvPassed = false;
-      let highVolumeInvErr = null;
-      try {
-        const custBulkInvId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
-           VALUES ($1, $2, 'Bulk Invoice Customer', 500000, 60, true);`,
-          [custBulkInvId, orgAId]
-        );
+    let highVolumeInvPassed = false;
+    let highVolumeInvErr = null;
+    try {
+      const custBulkInvId = crypto.randomUUID();
 
-        // Insert 1,000 ISSUED invoices of 15.25 (Sum = 15,250.00)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           SELECT $1::uuid, $2::uuid, 'BULK-INV-IS-' || s, 'ISSUED', CURRENT_DATE, 15.25, 15.25, 0.00
-           FROM generate_series(1, 1000) AS s;`,
-          [orgAId, custBulkInvId]
-        );
+      await testClient.query(
+        `INSERT INTO public.customers (id, organization_id, name, credit_limit, credit_days, is_active)
+         VALUES ($1, $2, 'Bulk Invoice Customer', 500000, 60, true);`,
+        [custBulkInvId, orgAId]
+      );
 
-        // Insert 200 PAID invoices of 50.00 (Balance = 0.00)
-        await testClient.query(
-          `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           SELECT $1::uuid, $2::uuid, 'BULK-INV-PD-' || s, 'PAID', CURRENT_DATE, 50.00, 50.00, 50.00
-           FROM generate_series(1, 200) AS s;`,
-          [orgAId, custBulkInvId]
-        );
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'true', false);`);
 
+      // Insert 1,000 ISSUED invoices of 15.25 (Sum = 15,250.00)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         SELECT $1::uuid, $2::uuid, 'BULK-INV-IS-' || s, 'ISSUED', CURRENT_DATE, 15.25, 15.25, 0.00
+         FROM generate_series(1, 1000) AS s;`,
+        [orgAId, custBulkInvId]
+      );
+
+      // Insert 200 PAID invoices of 50.00 (Balance = 0.00)
+      await testClient.query(
+        `INSERT INTO public.invoices (organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
+         SELECT $1::uuid, $2::uuid, 'BULK-INV-PD-' || s, 'PAID', CURRENT_DATE, 50.00, 50.00, 50.00
+         FROM generate_series(1, 200) AS s;`,
+        [orgAId, custBulkInvId]
+      );
+
+      await testClient.query(`SELECT set_config('app.authoritative_invoice_transition', 'false', false);`);
+
+      // Verification under authenticated tenant context
+      await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
         const { rows: bulkRecvRows } = await testClient.query(
           `SELECT current_receivable FROM public.get_customer_receivables($1::uuid) WHERE customer_id = $2::uuid;`,
           [orgAId, custBulkInvId]
@@ -2615,18 +2948,18 @@ async function runAcceptance() {
 
         // 1,000 * 15.25 = 15,250.00
         highVolumeInvPassed = (bulkRpcTotal === 15250.00 && bulkSingleTotal === 15250.00);
-      } catch (err) {
-        highVolumeInvErr = err;
-      }
+      });
+    } catch (err) {
+      highVolumeInvErr = err;
+    }
 
-      recordTest(
-        'P1-A2-06',
-        'Customer receivables aggregation computes exact sum across 1,200 invoices without client-side pagination truncation',
-        highVolumeInvPassed,
-        `expected=15250.00, actual=${highVolumeInvPassed ? 15250.00 : 'mismatch'}`,
-        highVolumeInvPassed ? null : highVolumeInvErr
-      );
-    });
+    recordTest(
+      'P1-A2-06',
+      'Customer receivables aggregation computes exact sum across 1,200 invoices without client-side pagination truncation',
+      highVolumeInvPassed,
+      `expected=15250.00, actual=${highVolumeInvPassed ? 15250.00 : 'mismatch'}`,
+      highVolumeInvPassed ? null : highVolumeInvErr
+    );
 
     // TEST 36 (P1-A2-07): Cross-tenant isolation & unauthorized access on customer receivables RPCs
     let isolationRecvPassed = false;
@@ -2697,12 +3030,27 @@ async function runAcceptance() {
           [custPayId, orgAId]
         );
 
-        const invPayId = crypto.randomUUID();
-        await testClient.query(
-          `INSERT INTO public.invoices (id, organization_id, customer_id, invoice_number, status, due_date, subtotal, total_amount, total_paid)
-           VALUES ($1, $2, $3, 'INV-PAY-01', 'ISSUED', CURRENT_DATE, 6000.00, 6000.00, 0.00);`,
-          [invPayId, orgAId, custPayId]
+        // Create authoritative ISSUED invoice via create_invoice_atomic
+        const { rows: invRows } = await testClient.query(
+          `SELECT create_invoice_atomic(
+            p_org_id := $1::uuid,
+            p_customer_id := $2::uuid,
+            p_items := jsonb_build_array(
+              jsonb_build_object(
+                'productId', $3::uuid,
+                'quantity', 100,
+                'unitPrice', 60.00,
+                'taxRate', 0.00,
+                'discountPercent', 0
+              )
+            ),
+            p_status := 'ISSUED',
+            p_idempotency_key := $4::uuid
+          ) AS inv;`,
+          [orgAId, custPayId, prodA1Id, crypto.randomUUID()]
         );
+        const invPay = invRows[0]?.inv;
+        const invPayId = invPay?.id;
 
         // Initial receivable = 6000.00
         const { rows: initRecv } = await testClient.query(
