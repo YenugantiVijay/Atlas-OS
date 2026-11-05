@@ -7,7 +7,7 @@
     "dev": "node scripts/run-astro.mjs dev",
     "start": "node scripts/run-astro.mjs dev",
     "build": "node scripts/run-astro.mjs check && node scripts/run-astro.mjs build",
-    "preview": "node scripts/run-astro.mjs preview",
+    "preview": "node scripts/serve-preview.mjs",
     "astro": "node scripts/run-astro.mjs",
     "check": "node scripts/run-astro.mjs check",
     "typecheck": "tsc --noEmit",
