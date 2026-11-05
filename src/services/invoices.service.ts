@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
 import { parseTaxRate, isExplicitTaxRate } from '@/lib/money';
+import { getBusinessDate } from '@/lib/dates';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
 
@@ -192,6 +193,7 @@ export const invoicesService = {
     // Strict Tax Rate Verification on Final Issuance:
     // When issuing an invoice (status = 'ISSUED'), every line item must contain an explicit, verified tax rate.
     // Unverified or missing tax rates cannot be silently zero-rated or fabricated.
+    // Draft invoices (status = 'DRAFT') do not enforce tax rates prematurely.
     if (input.status === 'ISSUED') {
       input.items.forEach((it, idx) => {
         if (!isExplicitTaxRate(it.taxRate)) {
@@ -314,7 +316,7 @@ export const invoicesService = {
       {
         customerId: order.customer_id,
         salesOrderId: order.id,
-        invoiceDate: new Date().toISOString().split('T')[0],
+        invoiceDate: getBusinessDate(),
         dueDate,
         idempotencyKey,
         notes: `Generated from Sales Order ${order.order_number}`,

@@ -358,3 +358,145 @@ export const paymentRecordSchema = z.object({
   paymentDate: z.string().min(1, 'Payment date is required'),
   notes: z.string().optional(),
 });
+
+export interface NumericValidationResult {
+  valid: boolean;
+  value?: number;
+  error?: string;
+}
+
+export interface StrictNumberOptions {
+  fieldName: string;
+  min?: number;
+  max?: number;
+  integer?: boolean;
+  allowZero?: boolean;
+  required?: boolean;
+  maxDecimals?: number;
+  defaultValue?: number;
+}
+
+/**
+ * Validates and parses numeric form input without silently converting invalid strings to zero.
+ * Distinguishes valid zero, empty input, invalid characters, negative values, NaN, Infinity, and out-of-range values.
+ */
+export function parseStrictNumber(
+  input: string | number | undefined | null,
+  options: StrictNumberOptions = { fieldName: 'Value' }
+): NumericValidationResult {
+  const fieldName = options.fieldName || 'Value';
+
+  if (input === undefined || input === null) {
+    if (options.required) {
+      return { valid: false, error: `${fieldName} is required.` };
+    }
+    return { valid: true, value: options.defaultValue };
+  }
+
+  const strVal = typeof input === 'number' ? String(input) : String(input).trim();
+
+  if (strVal === '') {
+    if (options.required) {
+      return { valid: false, error: `${fieldName} is required.` };
+    }
+    return { valid: true, value: options.defaultValue };
+  }
+
+  // Ensure string represents a valid decimal or integer number (allows optional leading + or -)
+  if (!/^[+-]?\d+(\.\d+)?$/.test(strVal)) {
+    return { valid: false, error: `${fieldName} must be a valid number without invalid characters.` };
+  }
+
+  const num = Number(strVal);
+
+  if (!Number.isFinite(num)) {
+    return { valid: false, error: `${fieldName} must be a finite number.` };
+  }
+
+  if (options.integer && !Number.isInteger(num)) {
+    return { valid: false, error: `${fieldName} must be a whole number (no decimals).` };
+  }
+
+  if (options.maxDecimals !== undefined && options.maxDecimals >= 0) {
+    const parts = strVal.split('.');
+    if (parts[1] && parts[1].length > options.maxDecimals) {
+      return {
+        valid: false,
+        error: `${fieldName} cannot exceed ${options.maxDecimals} decimal places.`,
+      };
+    }
+  }
+
+  if (options.allowZero === false && num === 0) {
+    return { valid: false, error: `${fieldName} cannot be zero.` };
+  }
+
+  if (options.min !== undefined && num < options.min) {
+    return { valid: false, error: `${fieldName} cannot be less than ${options.min}.` };
+  }
+
+  if (options.max !== undefined && num > options.max) {
+    return { valid: false, error: `${fieldName} cannot exceed ${options.max}.` };
+  }
+
+  return { valid: true, value: num };
+}
+
+export function validateMoneyInput(
+  input: string | number | undefined | null,
+  fieldName: string,
+  options?: { required?: boolean; allowZero?: boolean; min?: number; max?: number }
+): NumericValidationResult {
+  return parseStrictNumber(input, {
+    fieldName,
+    required: options?.required !== false,
+    allowZero: options?.allowZero !== false,
+    min: options?.min !== undefined ? options.min : 0,
+    max: options?.max !== undefined ? options.max : 100_000_000,
+    maxDecimals: 2,
+  });
+}
+
+export function validateTaxRateInput(
+  input: string | number | undefined | null,
+  fieldName: string = 'Tax rate'
+): NumericValidationResult {
+  return parseStrictNumber(input, {
+    fieldName,
+    required: true,
+    allowZero: true,
+    min: 0,
+    max: 40,
+    maxDecimals: 2,
+  });
+}
+
+export function validateQuantityInput(
+  input: string | number | undefined | null,
+  fieldName: string = 'Quantity',
+  options?: { min?: number; max?: number; allowZero?: boolean }
+): NumericValidationResult {
+  return parseStrictNumber(input, {
+    fieldName,
+    required: true,
+    integer: true,
+    allowZero: options?.allowZero === true,
+    min: options?.min !== undefined ? options.min : 1,
+    max: options?.max !== undefined ? options.max : 1_000_000,
+  });
+}
+
+export function validateCreditDaysInput(
+  input: string | number | undefined | null,
+  fieldName: string = 'Credit days'
+): NumericValidationResult {
+  return parseStrictNumber(input, {
+    fieldName,
+    required: false,
+    integer: true,
+    allowZero: true,
+    defaultValue: 30,
+    min: 0,
+    max: 180,
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LoadError } from '@/components/ui/LoadError';
 import {
   Receipt,
@@ -35,8 +35,18 @@ export const InvoicesPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      setSelectedInvoice(null);
+      setPage(1);
+    }
+  }, [currentOrg?.id]);
+
   const loadInvoices = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
     if (!currentOrg) return;
+    const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -62,13 +72,17 @@ export const InvoicesPage: React.FC = () => {
             Boolean(inv.customer?.name && inv.customer.name.toLowerCase().includes(s))
         );
       }
+      if (activeOrgIdRef.current !== orgIdAtCall) return;
       setInvoices(res.data);
       setTotalCount(res.totalCount);
       setTotalPages(res.totalPages);
     } catch (err: any) {
+      if (activeOrgIdRef.current !== orgIdAtCall) return;
       setLoadError(err instanceof Error ? err.message : 'Invoices could not be loaded.');
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgIdAtCall) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery]);
 

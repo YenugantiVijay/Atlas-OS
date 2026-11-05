@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { PrerequisiteModal } from '@/components/ui/PrerequisiteModal';
 import { useToast } from '@/components/ui/Toast';
+import { parseStrictNumber } from '@/lib/validation';
 
 export const InventoryPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
@@ -48,6 +49,18 @@ export const InventoryPage: React.FC = () => {
   const [adjustReason, setAdjustReason] = useState('');
   const [adjustmentIdempotencyKey, setAdjustmentIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      setIsAdjustmentModalOpen(false);
+      setAdjustProductId('');
+      setAdjustQuantity('');
+      setAdjustReason('');
+      setAdjustmentIdempotencyKey('');
+    }
+  }, [currentOrg?.id]);
 
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
@@ -163,15 +176,23 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
-    const qty = parseInt(adjustQuantity, 10);
+    const qtyVal = parseStrictNumber(adjustQuantity, {
+      fieldName: 'Adjustment quantity',
+      integer: true,
+      allowZero: false,
+      required: true,
+      min: -1_000_000,
+      max: 1_000_000,
+    });
     if (!adjustProductId) {
       showToast('error', 'Product Required', 'Please select a product.');
       return;
     }
-    if (isNaN(qty) || qty === 0) {
-      showToast('error', 'Invalid Quantity', 'Adjustment quantity cannot be 0.');
+    if (!qtyVal.valid || qtyVal.value === undefined) {
+      showToast('error', 'Invalid Quantity', qtyVal.error || 'Adjustment quantity cannot be 0.');
       return;
     }
+    const qty = qtyVal.value;
     if (!adjustReason.trim()) {
       showToast('error', 'Reason Required', 'An audit note is required for all manual inventory adjustments.');
       return;

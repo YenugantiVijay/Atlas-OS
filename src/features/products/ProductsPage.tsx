@@ -28,6 +28,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
+import { validateMoneyInput, validateTaxRateInput, parseStrictNumber } from '@/lib/validation';
 
 const CATEGORIES = [
   'All Categories',
@@ -80,6 +81,27 @@ export const ProductsPage: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const activeOrgIdRef = useRef(currentOrg?.id);
+  useEffect(() => {
+    if (currentOrg?.id !== activeOrgIdRef.current) {
+      activeOrgIdRef.current = currentOrg?.id;
+      // Stale response guard and form reset on organization switch
+      setIsCreateModalOpen(false);
+      setEditingProduct(null);
+      setSku('');
+      setName('');
+      setBrand('');
+      setPurchaseCost('0');
+      setSellingPrice('0');
+      setTaxRate('18');
+      setHsnCode('');
+      setReorderThreshold('10');
+      setOpeningStock('0');
+      setImageUrl('');
+      setPage(1);
+    }
+  }, [currentOrg?.id]);
+
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -93,6 +115,7 @@ export const ProductsPage: React.FC = () => {
 
   const loadProducts = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Product[] | null> => {
     if (!currentOrg) return null;
+    const orgIdAtCall = currentOrg.id;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -125,17 +148,25 @@ export const ProductsPage: React.FC = () => {
             p.category.toLowerCase().includes(s)
         );
       }
+
+      if (activeOrgIdRef.current !== orgIdAtCall) {
+        return null;
+      }
+
       setProducts(res.data);
       setTotalCount(res.totalCount);
       setTotalPages(res.totalPages);
       return res.data;
     } catch (err: any) {
+      if (activeOrgIdRef.current !== orgIdAtCall) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load products. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load products', msg);
       return null;
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgIdAtCall) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, page, pageSize, searchQuery, selectedCategory, showToast]);
 
@@ -248,6 +279,52 @@ export const ProductsPage: React.FC = () => {
       return;
     }
 
+    const costVal = validateMoneyInput(purchaseCost, 'Purchase cost', { required: false, allowZero: true });
+    if (!costVal.valid) {
+      showToast('error', 'Validation Error', costVal.error || 'Invalid purchase cost.');
+      return;
+    }
+
+    const priceVal = validateMoneyInput(sellingPrice, 'Selling price', { required: false, allowZero: true });
+    if (!priceVal.valid) {
+      showToast('error', 'Validation Error', priceVal.error || 'Invalid selling price.');
+      return;
+    }
+
+    const taxVal = validateTaxRateInput(taxRate, 'Tax rate');
+    if (!taxVal.valid) {
+      showToast('error', 'Validation Error', taxVal.error || 'Invalid tax rate.');
+      return;
+    }
+
+    const thresholdVal = parseStrictNumber(reorderThreshold, {
+      fieldName: 'Reorder threshold',
+      integer: true,
+      min: 0,
+      required: false,
+      defaultValue: 10,
+    });
+    if (!thresholdVal.valid) {
+      showToast('error', 'Validation Error', thresholdVal.error || 'Invalid reorder threshold.');
+      return;
+    }
+
+    let parsedOpening = 0;
+    if (!editingProduct) {
+      const openingVal = parseStrictNumber(openingStock, {
+        fieldName: 'Opening stock',
+        integer: true,
+        min: 0,
+        required: false,
+        defaultValue: 0,
+      });
+      if (!openingVal.valid) {
+        showToast('error', 'Validation Error', openingVal.error || 'Invalid opening stock.');
+        return;
+      }
+      parsedOpening = openingVal.value ?? 0;
+    }
+
     if (!currentOrg) return;
 
     setIsSubmitting(true);
@@ -262,11 +339,11 @@ export const ProductsPage: React.FC = () => {
             brand: brand.trim() || undefined,
             category,
             uom,
-            purchaseCost: parseFloat(purchaseCost) || 0,
-            sellingPrice: parseFloat(sellingPrice) || 0,
-            taxRate: parseFloat(taxRate) || 0,
+            purchaseCost: costVal.value ?? 0,
+            sellingPrice: priceVal.value ?? 0,
+            taxRate: taxVal.value ?? 0,
             hsnCode: hsnCode.trim() || undefined,
-            reorderThreshold: parseInt(reorderThreshold, 10) || 0,
+            reorderThreshold: thresholdVal.value ?? 10,
             imageUrl: imageUrl || undefined,
           },
           isMockAuth
@@ -281,16 +358,16 @@ export const ProductsPage: React.FC = () => {
             brand: brand.trim() || undefined,
             category,
             uom,
-            purchaseCost: parseFloat(purchaseCost) || 0,
-            sellingPrice: parseFloat(sellingPrice) || 0,
-            taxRate: parseFloat(taxRate) || 0,
+            purchaseCost: costVal.value ?? 0,
+            sellingPrice: priceVal.value ?? 0,
+            taxRate: taxVal.value ?? 0,
             hsnCode: hsnCode.trim() || undefined,
-            reorderThreshold: parseInt(reorderThreshold, 10) || 0,
+            reorderThreshold: thresholdVal.value ?? 10,
             imageUrl: imageUrl || undefined,
             isActive: true,
           },
           isMockAuth,
-          parseInt(openingStock, 10) || 0
+          parsedOpening
         );
         showToast('success', 'Product Created', `Added ${name} to organization catalog.`);
       }

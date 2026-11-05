@@ -429,4 +429,222 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
       ).rejects.toThrow(/Payment was committed to the ledger \(Receipt REC-202610-9999\), but loading confirmation details failed.*Do NOT resubmit/);
     });
   });
+
+  describe('Authoritative Payments Summary & Workflow Integrity', () => {
+    it('returns authoritative payments summary via mock auth', async () => {
+      const summary = await paymentsService.getPaymentsSummary(orgId, true);
+      expect(summary).toHaveProperty('totalCollected');
+      expect(summary).toHaveProperty('paymentCount');
+      expect(summary).toHaveProperty('totalReceivables');
+      expect(summary).toHaveProperty('openInvoicesCount');
+      expect(typeof summary.totalCollected).toBe('number');
+      expect(typeof summary.paymentCount).toBe('number');
+    });
+
+    it('queries get_payments_summary RPC when using Supabase cloud backend', async () => {
+      mockSupabaseInstance = {
+        rpc: vi.fn().mockResolvedValue({
+          data: {
+            total_collected: '15000.50',
+            payment_count: 5,
+            total_receivables: '25000.00',
+            open_invoices_count: 8,
+          },
+          error: null,
+        }),
+      };
+
+      const summary = await paymentsService.getPaymentsSummary(orgId, false);
+      expect(mockSupabaseInstance.rpc).toHaveBeenCalledWith('get_payments_summary', { p_org_id: orgId });
+      expect(summary).toEqual({
+        totalCollected: 15000.5,
+        paymentCount: 5,
+        totalReceivables: 25000,
+        openInvoicesCount: 8,
+      });
+    });
+
+    it('rejects payment allocation to DRAFT invoice in storage layer', () => {
+      const testOrg = 'test-org-draft-chk';
+      const cust = storage.createCustomer(testOrg, {
+        name: 'Test Customer',
+        phone: '9845012345',
+      } as any);
+
+      const draftInv = storage.createInvoice(testOrg, {
+        customerId: cust.id,
+        status: 'DRAFT',
+        invoiceDate: '2026-11-05',
+        dueDate: '2026-12-05',
+        items: [
+          {
+            productId: 'prod-001',
+            productName: 'Switch',
+            productSku: 'SW-1',
+            uom: 'Nos',
+            quantity: 1,
+            unitPrice: 1000,
+            taxRate: 18,
+          },
+        ],
+      } as any);
+
+      expect(() =>
+        storage.recordPayment(
+          testOrg,
+          {
+            customerId: cust.id,
+            amount: 500,
+            paymentMethod: 'CASH',
+            paymentDate: '2026-11-05',
+            invoiceId: draftInv.id,
+          },
+          'admin'
+        )
+      ).toThrow(/Cannot allocate payment to draft invoice/);
+    });
+
+    it('rejects payment allocation to invoice with customer mismatch', () => {
+      const testOrg = 'test-org-mismatch-chk';
+      const custA = storage.createCustomer(testOrg, {
+        name: 'Cust A',
+        phone: '9845012345',
+      } as any);
+      const custB = storage.createCustomer(testOrg, {
+        name: 'Cust B',
+        phone: '9845012346',
+      } as any);
+
+      const invA = storage.createInvoice(testOrg, {
+        customerId: custA.id,
+        status: 'ISSUED',
+        invoiceDate: '2026-11-05',
+        dueDate: '2026-12-05',
+        items: [
+          {
+            productId: 'prod-001',
+            productName: 'Switch',
+            productSku: 'SW-1',
+            uom: 'Nos',
+            quantity: 1,
+            unitPrice: 1000,
+            taxRate: 18,
+          },
+        ],
+      } as any);
+
+      expect(() =>
+        storage.recordPayment(
+          testOrg,
+          {
+            customerId: custB.id,
+            amount: 500,
+            paymentMethod: 'CASH',
+            paymentDate: '2026-11-05',
+            invoiceId: invA.id,
+          },
+          'admin'
+        )
+      ).toThrow(/Customer mismatch/);
+    });
+
+    it('rejects payment allocation exceeding invoice balance', () => {
+      const testOrg = 'test-org-overpay-chk';
+      const cust = storage.createCustomer(testOrg, {
+        name: 'Cust Overpay',
+        phone: '9845012347',
+      } as any);
+
+      const inv = storage.createInvoice(testOrg, {
+        customerId: cust.id,
+        status: 'ISSUED',
+        invoiceDate: '2026-11-05',
+        dueDate: '2026-12-05',
+        items: [
+          {
+            productId: 'prod-001',
+            productName: 'Switch',
+            productSku: 'SW-1',
+            uom: 'Nos',
+            quantity: 1,
+            unitPrice: 100,
+            taxRate: 0,
+          },
+        ],
+      } as any);
+
+      expect(() =>
+        storage.recordPayment(
+          testOrg,
+          {
+            customerId: cust.id,
+            amount: 500, // exceeds total balance of 100
+            paymentMethod: 'CASH',
+            paymentDate: '2026-11-05',
+            invoiceId: inv.id,
+          },
+          'admin'
+        )
+      ).toThrow(/exceeds outstanding invoice balance/);
+    });
+
+    it('idempotently replays duplicate payment requests without double-allocation', () => {
+      const testOrg = 'test-org-idem-chk';
+      const cust = storage.createCustomer(testOrg, {
+        name: 'Cust Idem',
+        phone: '9845012348',
+      } as any);
+      const idempotencyKey = 'idem-unique-key-12345';
+
+      const inv = storage.createInvoice(testOrg, {
+        customerId: cust.id,
+        status: 'ISSUED',
+        invoiceDate: '2026-11-05',
+        dueDate: '2026-12-05',
+        items: [
+          {
+            productId: 'prod-001',
+            productName: 'Switch',
+            productSku: 'SW-1',
+            uom: 'Nos',
+            quantity: 1,
+            unitPrice: 500,
+            taxRate: 0,
+          },
+        ],
+      } as any);
+
+      const pay1 = storage.recordPayment(
+        testOrg,
+        {
+          customerId: cust.id,
+          amount: 200,
+          paymentMethod: 'BANK_TRANSFER',
+          paymentDate: '2026-11-05',
+          invoiceId: inv.id,
+          idempotencyKey,
+        },
+        'admin'
+      );
+
+      const pay2 = storage.recordPayment(
+        testOrg,
+        {
+          customerId: cust.id,
+          amount: 200,
+          paymentMethod: 'BANK_TRANSFER',
+          paymentDate: '2026-11-05',
+          invoiceId: inv.id,
+          idempotencyKey,
+        },
+        'admin'
+      );
+
+      expect(pay1.id).toBe(pay2.id);
+      expect(pay1.paymentNumber).toBe(pay2.paymentNumber);
+
+      const updatedInv = storage.getInvoices(testOrg).find((i) => i.id === inv.id);
+      expect(updatedInv?.totalPaid).toBe(200); // Not 400!
+    });
+  });
 });

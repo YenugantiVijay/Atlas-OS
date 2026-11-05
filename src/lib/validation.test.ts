@@ -12,6 +12,11 @@ import {
   maskPan,
   maskGstin,
   PAN_EXCEPTION_REASONS,
+  parseStrictNumber,
+  validateMoneyInput,
+  validateTaxRateInput,
+  validateQuantityInput,
+  validateCreditDaysInput,
 } from './validation';
 
 describe('Domain Input Validation Schemas', () => {
@@ -307,6 +312,138 @@ describe('Domain Input Validation Schemas', () => {
       if (!parsed.success) {
         expect(parsed.error.issues[0].message).toContain('does not match the PAN embedded within the GSTIN');
       }
+    });
+  });
+
+  describe('Strict Number and Form Input Validation', () => {
+    describe('parseStrictNumber', () => {
+      it('parses valid positive integer and float strings and numbers', () => {
+        expect(parseStrictNumber('100')).toEqual({ valid: true, value: 100 });
+        expect(parseStrictNumber('12.50')).toEqual({ valid: true, value: 12.5 });
+        expect(parseStrictNumber(42)).toEqual({ valid: true, value: 42 });
+        expect(parseStrictNumber(0)).toEqual({ valid: true, value: 0 });
+        expect(parseStrictNumber('0')).toEqual({ valid: true, value: 0 });
+        expect(parseStrictNumber('-15')).toEqual({ valid: true, value: -15 });
+      });
+
+      it('returns invalid for empty string, whitespace, null, or undefined when required', () => {
+        expect(parseStrictNumber('', { fieldName: 'Amount', required: true }).valid).toBe(false);
+        expect(parseStrictNumber('   ', { fieldName: 'Amount', required: true }).valid).toBe(false);
+        expect(parseStrictNumber(null, { fieldName: 'Amount', required: true }).valid).toBe(false);
+        expect(parseStrictNumber(undefined, { fieldName: 'Amount', required: true }).valid).toBe(false);
+      });
+
+      it('returns invalid for strings with letters, trailing non-digits, or multiple dots', () => {
+        expect(parseStrictNumber('100abc').valid).toBe(false);
+        expect(parseStrictNumber('abc').valid).toBe(false);
+        expect(parseStrictNumber('12.34.56').valid).toBe(false);
+        expect(parseStrictNumber('12,500').valid).toBe(false);
+        expect(parseStrictNumber('NaN').valid).toBe(false);
+        expect(parseStrictNumber('Infinity').valid).toBe(false);
+      });
+
+      it('returns invalid for numeric NaN and Infinity', () => {
+        expect(parseStrictNumber(NaN).valid).toBe(false);
+        expect(parseStrictNumber(Infinity).valid).toBe(false);
+        expect(parseStrictNumber(-Infinity).valid).toBe(false);
+      });
+    });
+
+    describe('validateMoneyInput', () => {
+      it('validates valid money amounts including zero', () => {
+        expect(validateMoneyInput('100', 'Selling Price')).toEqual({ valid: true, value: 100 });
+        expect(validateMoneyInput('0', 'Credit Limit', { required: false, allowZero: true })).toEqual({ valid: true, value: 0 });
+        expect(validateMoneyInput('1250.75', 'Amount')).toEqual({ valid: true, value: 1250.75 });
+      });
+
+      it('handles optional fields when empty or not required', () => {
+        expect(validateMoneyInput('', 'Credit Limit', { required: false })).toEqual({ valid: true, value: undefined });
+        expect(validateMoneyInput(undefined, 'Credit Limit', { required: false })).toEqual({ valid: true, value: undefined });
+      });
+
+      it('rejects empty input when required', () => {
+        const res = validateMoneyInput('', 'Selling Price', { required: true });
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('Selling Price is required');
+      });
+
+      it('rejects negative values and invalid formatting', () => {
+        const resNeg = validateMoneyInput('-50', 'Price');
+        expect(resNeg.valid).toBe(false);
+        expect(resNeg.error).toContain('cannot be less than 0');
+
+        const resInvalid = validateMoneyInput('foo', 'Price');
+        expect(resInvalid.valid).toBe(false);
+        expect(resInvalid.error).toContain('must be a valid number');
+      });
+
+      it('rejects more than 2 decimal places', () => {
+        const res = validateMoneyInput('10.999', 'Price');
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('cannot exceed 2 decimal places');
+      });
+
+      it('rejects zero when allowZero is false', () => {
+        const res = validateMoneyInput('0', 'Price', { allowZero: false });
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('cannot be zero');
+      });
+    });
+
+    describe('validateTaxRateInput', () => {
+      it('validates statutory GST tax rates (0, 5, 12, 18, 28, 40)', () => {
+        expect(validateTaxRateInput('18')).toEqual({ valid: true, value: 18 });
+        expect(validateTaxRateInput('0')).toEqual({ valid: true, value: 0 });
+        expect(validateTaxRateInput('28')).toEqual({ valid: true, value: 28 });
+        expect(validateTaxRateInput(5)).toEqual({ valid: true, value: 5 });
+      });
+
+      it('rejects empty input when required', () => {
+        expect(validateTaxRateInput('').valid).toBe(false);
+      });
+
+      it('rejects rates above 40% and negative rates', () => {
+        expect(validateTaxRateInput('50').valid).toBe(false);
+        expect(validateTaxRateInput('-5').valid).toBe(false);
+      });
+    });
+
+    describe('validateQuantityInput', () => {
+      it('validates positive integers for inventory/orders', () => {
+        expect(validateQuantityInput('10', 'Quantity')).toEqual({ valid: true, value: 10 });
+        expect(validateQuantityInput(5, 'Quantity')).toEqual({ valid: true, value: 5 });
+      });
+
+      it('allows negative values only when min allows it (e.g. stock adjustments)', () => {
+        expect(validateQuantityInput('-5', 'Stock Adjustment', { min: -1000000 })).toEqual({ valid: true, value: -5 });
+        expect(validateQuantityInput('-5', 'Order Quantity').valid).toBe(false);
+      });
+
+      it('rejects non-integers', () => {
+        const res = validateQuantityInput('10.5', 'Quantity');
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('must be a whole number');
+      });
+
+      it('rejects zero when default min is 1', () => {
+        const res = validateQuantityInput('0', 'Quantity');
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('cannot be zero');
+      });
+    });
+
+    describe('validateCreditDaysInput', () => {
+      it('validates 0 to 180 integer days and defaults empty to 30', () => {
+        expect(validateCreditDaysInput('30')).toEqual({ valid: true, value: 30 });
+        expect(validateCreditDaysInput('0')).toEqual({ valid: true, value: 0 });
+        expect(validateCreditDaysInput('')).toEqual({ valid: true, value: 30 });
+      });
+
+      it('rejects negative, non-integer, or >180 credit days', () => {
+        expect(validateCreditDaysInput('-5').valid).toBe(false);
+        expect(validateCreditDaysInput('200').valid).toBe(false);
+        expect(validateCreditDaysInput('15.5').valid).toBe(false);
+      });
     });
   });
 });

@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
-import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, PaginatedResult } from '@/types';
+import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, PaginatedResult, PaymentsSummary } from '@/types';
+import { roundMoney } from '@/lib/money';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
 
@@ -126,6 +127,54 @@ export const paymentsService = {
       const allocations = (row.allocations || []).map(mapDbPaymentAllocation);
       return mapDbPayment(row, allocations);
     });
+  },
+
+  async getPaymentsSummary(orgId: string, isMockAuth: boolean = false): Promise<PaymentsSummary> {
+    if (isMockAuth) {
+      return storage.getPaymentsSummary(orgId);
+    }
+
+    if (!supabase) {
+      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+    }
+
+    const { data, error } = await supabase.rpc('get_payments_summary', { p_org_id: orgId });
+
+    if (error) {
+      // Resilient fallback if RPC not yet deployed
+      const [payRes, invRes] = await Promise.all([
+        supabase.from('payments').select('amount', { count: 'exact' }).eq('organization_id', orgId),
+        supabase
+          .from('invoices')
+          .select('total_amount, total_paid')
+          .eq('organization_id', orgId)
+          .in('status', ['ISSUED', 'PARTIALLY_PAID']),
+      ]);
+
+      const totalCollected = (payRes.data || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const paymentCount = payRes.count || (payRes.data || []).length;
+      const openInvoices = (invRes.data || []).filter(
+        (i) => (Number(i.total_amount) || 0) - (Number(i.total_paid) || 0) > 0
+      );
+      const totalReceivables = openInvoices.reduce(
+        (s, i) => s + ((Number(i.total_amount) || 0) - (Number(i.total_paid) || 0)),
+        0
+      );
+
+      return {
+        totalCollected: roundMoney(totalCollected),
+        paymentCount,
+        totalReceivables: roundMoney(totalReceivables),
+        openInvoicesCount: openInvoices.length,
+      };
+    }
+
+    return {
+      totalCollected: Number(data?.total_collected) || 0,
+      paymentCount: Number(data?.payment_count) || 0,
+      totalReceivables: Number(data?.total_receivables) || 0,
+      openInvoicesCount: Number(data?.open_invoices_count) || 0,
+    };
   },
 
   /**

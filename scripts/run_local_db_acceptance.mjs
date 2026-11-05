@@ -1037,6 +1037,67 @@ async function runUpgradeScenarioB(maintClient, baseRunId) {
       upg05Passed ? null : upg05Err
     );
 
+    // ------------------------------------------------------------------------
+    // Step 12: Scenario B Upgrade to Migration 035 (Transaction Safety & Workflow Reliability)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SCENARIO B: APPLYING MIGRATION 035 (FORWARD-ONLY UPGRADE) ---');
+    const mig035Sql = fs.readFileSync(path.join(MIGRATIONS_DIR, '035_transaction_safety_and_workflow_reliability.sql'), 'utf8');
+    await upgradeClient.query(mig035Sql);
+    console.log('  ✓ Migration 035 applied successfully to existing upgraded database.');
+
+    let upg06Passed = false;
+    let upg06Err = null;
+    await withRoleContext(upgradeClient, { role: 'authenticated', userId: existingUserId }, async () => {
+      try {
+        // 1. Verify get_payments_summary works on upgraded database
+        const { rows: paySumRows } = await upgradeClient.query(
+          `SELECT public.get_payments_summary($1::uuid) AS summary;`,
+          [existingOrgId]
+        );
+        const sumValid =
+          paySumRows.length === 1 &&
+          Number.isFinite(Number(paySumRows[0].summary.total_collected)) &&
+          Number.isFinite(Number(paySumRows[0].summary.total_receivables));
+
+        // 2. Verify pre-existing business records remain unchanged after Migration 035
+        const { rows: post035Prod } = await upgradeClient.query(`SELECT * FROM public.products WHERE id = $1;`, [preProdId]);
+        const { rows: post035Stock } = await upgradeClient.query(`SELECT sum(quantity_change)::numeric AS qty FROM public.stock_movements WHERE product_id = $1;`, [preProdId]);
+        const { rows: post035Cust } = await upgradeClient.query(`SELECT * FROM public.customers WHERE id = $1;`, [preCustId]);
+        const { rows: post035Inv } = await upgradeClient.query(`SELECT * FROM public.invoices WHERE id = $1;`, [preInvId]);
+
+        const recordsUnchanged =
+          post035Prod[0]?.name === snapProd[0]?.name &&
+          Number(post035Stock[0]?.qty) === 120 &&
+          post035Cust[0]?.name === snapCust[0]?.name &&
+          Number(post035Inv[0]?.total_amount) === 1770.00;
+
+        // 3. Tenant isolation: cross-tenant access to get_payments_summary from unauthorized caller is rejected
+        let tenantIsolationOk = false;
+        try {
+          await withRoleContext(upgradeClient, { role: 'authenticated', userId: crypto.randomUUID() }, async () => {
+            await upgradeClient.query(
+              `SELECT public.get_payments_summary($1::uuid);`,
+              [existingOrgId]
+            );
+          });
+        } catch (tenantErr) {
+          tenantIsolationOk = tenantErr.code === '42501' || tenantErr.message.includes('ERR_UNAUTHORIZED');
+        }
+
+        upg06Passed = Boolean(sumValid && recordsUnchanged && tenantIsolationOk);
+      } catch (err) {
+        upg06Err = err;
+      }
+    });
+
+    recordTest(
+      'P1-UPG-06',
+      'Scenario B Upgrade: Migration 035 applies transaction safety & authoritative payments summary, preserves all pre-existing records and enforces tenant isolation',
+      upg06Passed,
+      `upg06Passed=${upg06Passed}`,
+      upg06Passed ? null : upg06Err
+    );
+
   } finally {
     if (upgradeClient) {
       await upgradeClient.end().catch(() => {});
@@ -3675,6 +3736,288 @@ async function runAcceptance() {
         reconcilPassed,
         `reconcilPassed=${reconcilPassed}`,
         reconcilPassed ? null : reconcilErr
+      );
+
+      // TEST 44 (P1-A3-01): Rejection of payment allocation to DRAFT invoice
+      let draftPayPassed = false;
+      let draftPayErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          const draftItems = JSON.stringify([
+            { productId: prodA1Id, quantity: 2, unitPrice: 100.00, discountPercent: 0, taxRate: 18 }
+          ]);
+          const { rows: draftRows } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'DRAFT'
+            ) AS invoice;`,
+            [orgAId, custAId, draftItems]
+          );
+          const draftInvId = draftRows[0].invoice.id;
+
+          let blocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.record_payment_and_allocate(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_amount := 50.00::numeric,
+                p_payment_method := 'CASH'::varchar,
+                p_reference_no := 'REC-DRAFT-TEST'::varchar,
+                p_payment_date := CURRENT_DATE,
+                p_notes := 'Draft payment attempt'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 50.00::numeric
+              );`,
+              [orgAId, custAId, draftInvId]
+            );
+          } catch (payErr) {
+            blocked = payErr.message.includes('Cannot allocate payment to draft invoice') ||
+                      payErr.message.includes('ERR_INVALID_INVOICE_STATUS');
+            if (!blocked) draftPayErr = payErr;
+          }
+          draftPayPassed = blocked;
+        });
+      } catch (err) {
+        draftPayErr = err;
+      }
+
+      recordTest(
+        'P1-A3-01',
+        'record_payment_and_allocate strictly rejects payment allocation to DRAFT invoices with ERR_INVALID_INVOICE_STATUS',
+        draftPayPassed,
+        `draftPayPassed=${draftPayPassed}`,
+        draftPayPassed ? null : draftPayErr
+      );
+
+      // TEST 45 (P1-A3-02): Rejection of payment allocation to zero/negative balance invoice
+      let zeroBalPassed = false;
+      let zeroBalErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          const issuedItems = JSON.stringify([
+            { productId: prodA1Id, quantity: 1, unitPrice: 100.00, discountPercent: 0, taxRate: 0 }
+          ]);
+          const { rows: invRows } = await testClient.query(
+            `SELECT public.create_invoice_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb,
+              p_status := 'ISSUED'
+            ) AS invoice;`,
+            [orgAId, custAId, issuedItems]
+          );
+          const issuedInvId = invRows[0].invoice.id;
+
+          await testClient.query(
+            `SELECT public.record_payment_and_allocate(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_amount := 100.00::numeric,
+              p_payment_method := 'CASH'::varchar,
+              p_reference_no := 'REC-FULL-PAY'::varchar,
+              p_payment_date := CURRENT_DATE,
+              p_notes := 'Full payment'::text,
+              p_invoice_id := $3::uuid,
+              p_allocated_amount := 100.00::numeric
+            );`,
+            [orgAId, custAId, issuedInvId]
+          );
+
+          let blocked = false;
+          try {
+            await testClient.query(
+              `SELECT public.record_payment_and_allocate(
+                p_org_id := $1::uuid,
+                p_customer_id := $2::uuid,
+                p_amount := 10.00::numeric,
+                p_payment_method := 'CASH'::varchar,
+                p_reference_no := 'REC-EXTRA-PAY'::varchar,
+                p_payment_date := CURRENT_DATE,
+                p_notes := 'Extra payment'::text,
+                p_invoice_id := $3::uuid,
+                p_allocated_amount := 10.00::numeric
+              );`,
+              [orgAId, custAId, issuedInvId]
+            );
+          } catch (payErr) {
+            blocked = payErr.message.includes('has no outstanding balance') ||
+                      payErr.message.includes('already fully paid') ||
+                      payErr.message.includes('exceeds remaining invoice balance') ||
+                      payErr.message.includes('ERR_OVERPAYMENT_NOT_ALLOWED');
+            if (!blocked) zeroBalErr = payErr;
+          }
+          zeroBalPassed = blocked;
+        });
+      } catch (err) {
+        zeroBalErr = err;
+      }
+
+      recordTest(
+        'P1-A3-02',
+        'record_payment_and_allocate strictly rejects payment allocation to zero-balance or fully-paid invoices',
+        zeroBalPassed,
+        `zeroBalPassed=${zeroBalPassed}`,
+        zeroBalPassed ? null : zeroBalErr
+      );
+
+      // TEST 46 (P1-A3-03): Authoritative get_payments_summary calculations & cross-tenant security
+      let paySummaryPassed = false;
+      let paySummaryErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          const { rows } = await testClient.query(
+            `SELECT public.get_payments_summary($1::uuid) AS summary;`,
+            [orgAId]
+          );
+          const summary = rows[0]?.summary;
+
+          const { rows: paySumCheck } = await testClient.query(
+            `SELECT COALESCE(SUM(amount), 0.00) AS total_paid, COUNT(*) AS count
+             FROM public.payments
+             WHERE organization_id = $1::uuid;`,
+            [orgAId]
+          );
+
+          const totalPaidMatch = Number(summary?.total_collected) === Number(paySumCheck[0].total_paid);
+          const countMatch = Number(summary?.payment_count) === Number(paySumCheck[0].count);
+
+          let crossTenantBlocked = false;
+          try {
+            await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
+              await testClient.query(
+                `SELECT public.get_payments_summary($1::uuid);`,
+                [orgAId]
+              );
+            });
+          } catch (ctErr) {
+            crossTenantBlocked = ctErr.code === '42501' || ctErr.message.includes('ERR_UNAUTHORIZED');
+          }
+
+          paySummaryPassed = Boolean(totalPaidMatch && countMatch && crossTenantBlocked);
+        });
+      } catch (err) {
+        paySummaryErr = err;
+      }
+
+      recordTest(
+        'P1-A3-03',
+        'get_payments_summary computes authoritative organization-wide totals and enforces cross-tenant isolation',
+        paySummaryPassed,
+        `paySummaryPassed=${paySummaryPassed}`,
+        paySummaryPassed ? null : paySummaryErr
+      );
+
+      // TEST 47 (P1-A3-04): Payment idempotency replay prevents duplicate ledger entry
+      let idemPayPassed = false;
+      let idemPayErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          const testIdemKey = crypto.randomUUID();
+          const { rows: r1 } = await testClient.query(
+            `SELECT public.record_payment_and_allocate(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_amount := 50.00::numeric,
+              p_payment_method := 'CASH'::varchar,
+              p_reference_no := 'REC-IDEM-01'::varchar,
+              p_payment_date := CURRENT_DATE,
+              p_notes := 'Idempotency test'::text,
+              p_invoice_id := NULL,
+              p_allocated_amount := NULL,
+              p_idempotency_key := $3::uuid
+            ) AS result;`,
+            [orgAId, custAId, testIdemKey]
+          );
+          const paymentId1 = r1[0]?.result?.payment_id;
+
+          const { rows: r2 } = await testClient.query(
+            `SELECT public.record_payment_and_allocate(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_amount := 50.00::numeric,
+              p_payment_method := 'CASH'::varchar,
+              p_reference_no := 'REC-IDEM-01'::varchar,
+              p_payment_date := CURRENT_DATE,
+              p_notes := 'Idempotency test'::text,
+              p_invoice_id := NULL,
+              p_allocated_amount := NULL,
+              p_idempotency_key := $3::uuid
+            ) AS result;`,
+            [orgAId, custAId, testIdemKey]
+          );
+          const paymentId2 = r2[0]?.result?.payment_id;
+
+          const { rows: countRows } = await testClient.query(
+            `SELECT COUNT(*) AS count FROM public.payments WHERE idempotency_key = $1::uuid;`,
+            [testIdemKey]
+          );
+
+          idemPayPassed = Boolean(paymentId1 && paymentId1 === paymentId2 && Number(countRows[0].count) === 1);
+        });
+      } catch (err) {
+        idemPayErr = err;
+      }
+
+      recordTest(
+        'P1-A3-04',
+        'record_payment_and_allocate idempotently replays duplicate requests with identical idempotency key without duplicate ledger entries',
+        idemPayPassed,
+        `idemPayPassed=${idemPayPassed}`,
+        idemPayPassed ? null : idemPayErr
+      );
+
+      // TEST 48 (P1-A3-05): Sales order confirmation idempotency & concurrency protection
+      let orderConfirmPassed = false;
+      let orderConfirmErr = null;
+      try {
+        await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+          const soItems = JSON.stringify([
+            { productId: prodA1Id, quantity: 2, unitPrice: 150.00, discountPercent: 0, taxRate: 18 }
+          ]);
+          const { rows: soRows } = await testClient.query(
+            `SELECT public.create_sales_order_atomic(
+              p_org_id := $1::uuid,
+              p_customer_id := $2::uuid,
+              p_items := $3::jsonb
+            ) AS order_data;`,
+            [orgAId, custAId, soItems]
+          );
+          const orderId = soRows[0].order_data.id;
+
+          const { rows: conf1 } = await testClient.query(
+            `SELECT public.confirm_sales_order(p_order_id := $1::uuid) AS result;`,
+            [orderId]
+          );
+
+          const { rows: conf2 } = await testClient.query(
+            `SELECT public.confirm_sales_order(p_order_id := $1::uuid) AS result;`,
+            [orderId]
+          );
+
+          const { rows: stockCount } = await testClient.query(
+            `SELECT COUNT(*) AS count FROM public.stock_movements WHERE reference_id = $1::uuid;`,
+            [orderId]
+          );
+
+          orderConfirmPassed = Boolean(
+            conf1[0]?.result?.success === true &&
+            conf2[0]?.result?.idempotent_replay === true &&
+            Number(stockCount[0].count) <= 1
+          );
+        });
+      } catch (err) {
+        orderConfirmErr = err;
+      }
+
+      recordTest(
+        'P1-A3-05',
+        'confirm_sales_order provides concurrency and double-click protection with idempotent_replay: true and no duplicate stock deductions',
+        orderConfirmPassed,
+        `orderConfirmPassed=${orderConfirmPassed}`,
+        orderConfirmPassed ? null : orderConfirmErr
       );
     });
 

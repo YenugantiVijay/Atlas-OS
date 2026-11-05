@@ -266,6 +266,14 @@ export interface Payment {
   createdAt: string;
   customer?: Customer;
   allocations?: PaymentAllocation[];
+  idempotencyKey?: string;
+}
+
+export interface PaymentsSummary {
+  totalCollected: number;
+  paymentCount: number;
+  totalReceivables: number;
+  openInvoicesCount: number;
 }
 
 export interface AuditEvent {
