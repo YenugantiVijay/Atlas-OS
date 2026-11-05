@@ -326,46 +326,14 @@ BEGIN
 END;
 $$;
 
--- Overload for backwards compatibility (9 parameters)
-CREATE OR REPLACE FUNCTION public.record_payment_and_allocate(
-    p_org_id UUID,
-    p_customer_id UUID,
-    p_amount NUMERIC(12, 2),
-    p_payment_method VARCHAR,
-    p_reference_no VARCHAR,
-    p_payment_date DATE,
-    p_notes TEXT,
-    p_invoice_id UUID,
-    p_allocated_amount NUMERIC(12, 2)
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-    RETURN public.record_payment_and_allocate(
-        p_org_id,
-        p_customer_id,
-        p_amount,
-        p_payment_method,
-        p_reference_no,
-        p_payment_date,
-        p_notes,
-        p_invoice_id,
-        p_allocated_amount,
-        NULL::UUID
-    );
-END;
-$$;
+-- Remove obsolete 9-parameter overload to eliminate signature ambiguity (PostgreSQL error 42725).
+-- The authoritative 10-parameter signature has p_idempotency_key UUID DEFAULT NULL,
+-- which natively supports both 9-parameter and 10-parameter invocations without collision.
+DROP FUNCTION IF EXISTS public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC);
 
 REVOKE ALL ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC, UUID) TO service_role;
-
-REVOKE ALL ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.record_payment_and_allocate(UUID, UUID, NUMERIC, VARCHAR, VARCHAR, DATE, TEXT, UUID, NUMERIC) TO service_role;
 
 -- ----------------------------------------------------------------------------
 -- 2. Authoritative get_payments_summary RPC

@@ -3769,7 +3769,8 @@ async function runAcceptance() {
                 p_payment_date := CURRENT_DATE,
                 p_notes := 'Draft payment attempt'::text,
                 p_invoice_id := $3::uuid,
-                p_allocated_amount := 50.00::numeric
+                p_allocated_amount := 50.00::numeric,
+                p_idempotency_key := NULL::uuid
               );`,
               [orgAId, custAId, draftInvId]
             );
@@ -3821,7 +3822,8 @@ async function runAcceptance() {
               p_payment_date := CURRENT_DATE,
               p_notes := 'Full payment'::text,
               p_invoice_id := $3::uuid,
-              p_allocated_amount := 100.00::numeric
+              p_allocated_amount := 100.00::numeric,
+              p_idempotency_key := NULL::uuid
             );`,
             [orgAId, custAId, issuedInvId]
           );
@@ -3838,7 +3840,8 @@ async function runAcceptance() {
                 p_payment_date := CURRENT_DATE,
                 p_notes := 'Extra payment'::text,
                 p_invoice_id := $3::uuid,
-                p_allocated_amount := 10.00::numeric
+                p_allocated_amount := 10.00::numeric,
+                p_idempotency_key := NULL::uuid
               );`,
               [orgAId, custAId, issuedInvId]
             );
@@ -3951,7 +3954,7 @@ async function runAcceptance() {
           const paymentId2 = r2[0]?.result?.payment_id;
 
           const { rows: countRows } = await testClient.query(
-            `SELECT COUNT(*) AS count FROM public.payments WHERE idempotency_key = $1::uuid;`,
+            `SELECT COUNT(*) AS count FROM public.payment_idempotency WHERE idempotency_key = $1::uuid;`,
             [testIdemKey]
           );
 
@@ -3988,13 +3991,13 @@ async function runAcceptance() {
           const orderId = soRows[0].order_data.id;
 
           const { rows: conf1 } = await testClient.query(
-            `SELECT public.confirm_sales_order(p_order_id := $1::uuid) AS result;`,
-            [orderId]
+            `SELECT public.confirm_sales_order(p_order_id := $1::uuid, p_org_id := $2::uuid) AS result;`,
+            [orderId, orgAId]
           );
 
           const { rows: conf2 } = await testClient.query(
-            `SELECT public.confirm_sales_order(p_order_id := $1::uuid) AS result;`,
-            [orderId]
+            `SELECT public.confirm_sales_order(p_order_id := $1::uuid, p_org_id := $2::uuid) AS result;`,
+            [orderId, orgAId]
           );
 
           const { rows: stockCount } = await testClient.query(
