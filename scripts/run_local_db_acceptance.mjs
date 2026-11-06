@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import crypto from 'crypto';
 import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
+import { runFinancialReportAccessAcceptance } from './b1_report_auth_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1379,6 +1380,18 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+    // B1.1 — Verify database authorization for financial reports using actual
+    // authenticated/anonymous database roles and independent tenant identities.
+    await runFinancialReportAccessAcceptance({
+      client: testClient,
+      orgAId,
+      orgBId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
 
     // ------------------------------------------------------------------------
     // Step 4: Security Assertions — Restricted Roles & Lifecycle Boundaries
