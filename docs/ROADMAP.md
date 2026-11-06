@@ -1,5 +1,7 @@
 # ATLAS OS — Implementation Roadmap
 
+> **Current feature source of truth:** [Atlas OS Master Feature Register](./ATLAS_OS_MASTER_FEATURE_REGISTER.md) — 140 discussed capabilities, implementation states, dependencies and release waves. This page is the **historical milestone checklist**, not a current product-completeness or launch-readiness claim.
+
 ## Current Phase: Phase 1 & 2 Execution
 
 ### Phase 1 — Foundation & Design System (IN PROGRESS)
