@@ -1,0 +1,50 @@
+name: ATLAS OS Website CI
+
+on:
+  push:
+    branches: [main, Vijay-Atlas]
+    paths:
+      - 'atlas-os-website/**'
+      - '.github/workflows/website-ci.yml'
+  pull_request:
+    branches: [main, Vijay-Atlas]
+    paths:
+      - 'atlas-os-website/**'
+      - '.github/workflows/website-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  website-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: atlas-os-website
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up compatible Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: atlas-os-website/package-lock.json
+
+      - name: Install locked website dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Check Astro project
+        run: npm run check
+
+      - name: Build production website
+        run: npm run build
+
+      - name: Verify built website
+        run: npm run verify
