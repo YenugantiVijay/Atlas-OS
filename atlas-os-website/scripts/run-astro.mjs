@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +22,16 @@ const env = {
 };
 
 const args = process.argv.slice(2);
-const astroBin = path.resolve(websiteDir, 'node_modules/astro/astro.js');
+const astroPkgPath = path.resolve(websiteDir, 'node_modules/astro/package.json');
+let astroBinRel = 'astro.js';
+if (fs.existsSync(astroPkgPath)) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(astroPkgPath, 'utf8'));
+    if (typeof pkg.bin === 'string') astroBinRel = pkg.bin;
+    else if (pkg.bin && pkg.bin.astro) astroBinRel = pkg.bin.astro;
+  } catch {}
+}
+const astroBin = path.resolve(websiteDir, 'node_modules/astro', astroBinRel);
 
 const result = spawnSync(process.execPath, [astroBin, ...args], {
   stdio: 'inherit',
