@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { SalesReceiptsReportPage } from './SalesReceiptsReportPage';
 import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { customersService } from '@/services/customers.service';
@@ -370,4 +370,74 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
     // Button should be re-enabled after failure
     expect(screen.getByRole('button', { name: /export excel \(\.xlsx\)/i })).not.toBeDisabled();
   });
+  it('ignores a late count response from an older filter selection', async () => {
+    let resolveFirst!: (value: { invoiceCount: number; paymentCount: number }) => void;
+    vi.mocked(reportsService.getMatchingCounts)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockResolvedValue({ invoiceCount: 7, paymentCount: 3 });
+
+    render(<SalesReceiptsReportPage />);
+    await waitFor(() => {
+      expect(reportsService.getMatchingCounts).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /current month/i }));
+    await waitFor(() => {
+      expect(reportsService.getMatchingCounts).toHaveBeenCalledTimes(2);
+    });
+
+    expect(await screen.findByText('7')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst({ invoiceCount: 9001, paymentCount: 9002 });
+    });
+
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.queryByText('9001')).not.toBeInTheDocument();
+    expect(screen.queryByText('9002')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export excel/i })).not.toBeDisabled();
+  });
+
+  it('clears previous preview totals, blocks export on count failure, and recovers after changing filters', async () => {
+    vi.mocked(reportsService.getMatchingCounts)
+      .mockResolvedValueOnce({ invoiceCount: 42, paymentCount: 18 })
+      .mockRejectedValueOnce(new Error('Network timeout verifying counts'))
+      .mockResolvedValue({ invoiceCount: 8, paymentCount: 2 });
+
+    render(<SalesReceiptsReportPage />);
+    expect(await screen.findByText('42')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /current month/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network timeout verifying counts');
+    expect(screen.queryByText('42')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /export excel/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /today/i }));
+    expect(await screen.findByText('8')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText('Network timeout verifying counts')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export excel/i })).not.toBeDisabled();
+  });
+
+  it('blocks exporting when the selected custom date range is invalid', async () => {
+    render(<SalesReceiptsReportPage />);
+    expect(await screen.findByText('42')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /custom date range/i }));
+    fireEvent.change(screen.getByLabelText(/start date \(inclusive\)/i), {
+      target: { value: '2026-10-30' },
+    });
+    fireEvent.change(screen.getByLabelText(/end date \(inclusive\)/i), {
+      target: { value: '2026-01-01' },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a valid custom date range');
+    expect(screen.getByRole('button', { name: /export excel/i })).toBeDisabled();
+    expect(screen.queryByText('42')).not.toBeInTheDocument();
+  });
+
 });
