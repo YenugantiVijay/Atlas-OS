@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
-import Badge from '../components/common/Badge.astro';
 import Button from '../components/common/Button.astro';
 import { 
   ShieldCheck, 
@@ -19,23 +18,20 @@ import {
 <BaseLayout 
   title="Security, Privacy & Data Architecture | Atlas OS"
   description="Explore the technical security controls, multi-tenant isolation, PostgreSQL Row-Level Security, and cryptographic protections engineered into Atlas OS."
-  canonicalUrl="https://atlas-os.web.app/security"
+  canonicalUrl="https://atlasos.business/security"
 >
   <!-- Hero Section -->
-  <section class="pt-32 pb-20 bg-gradient-to-b from-brand-50/60 via-surface to-surface relative overflow-hidden border-b border-border-subtle">
-    <div class="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
-    <div class="absolute -top-20 left-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50 relative overflow-hidden">
     <Container>
-      <div class="max-w-3xl mx-auto text-center">
-        <Badge variant="brand" className="mb-4">
-          <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+      <div class="max-w-3xl mx-auto text-center space-y-4">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          <ShieldCheck className="w-3.5 h-3.5 mr-1 text-brand-700" />
           Technical Security Architecture
-        </Badge>
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-text-primary tracking-tight font-display mb-6">
-          Enterprise-grade protection for <span class="bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">every business transaction</span>.
+        </span>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-primary tracking-tight font-heading leading-tight">
+          Enterprise-grade protection for <span class="text-gradient">every business transaction</span>.
         </h1>
-        <p class="text-lg sm:text-xl text-text-secondary leading-relaxed">
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           Your customer lists, purchase margins, bank receipts, and inventory records are safeguarded by cryptographic authentication, strict multi-tenant database isolation, and rigorous code audit standards.
         </p>
       </div>
@@ -43,84 +39,86 @@ import {
   </section>
 
   <!-- Technical Defense Pillars -->
-  <section class="py-20 bg-surface">
+  <section class="py-18 md:py-24 bg-white">
     <Container>
-      <div class="max-w-3xl mx-auto text-center mb-16">
-        <Badge variant="brand" className="mb-3">Architectural Controls</Badge>
-        <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display">
+      <div class="max-w-3xl mx-auto text-center mb-16 space-y-3">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-navy-100 text-navy-800">
+          Architectural Controls
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-content-primary font-heading">
           How Atlas OS protects your enterprise data
         </h2>
-        <p class="text-text-secondary mt-3">
+        <p class="text-content-secondary text-sm sm:text-base">
           We implement defense-in-depth across the application, database, and export layers.
         </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <!-- Control 1: RLS -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center mb-4">
             <Database className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">PostgreSQL Row-Level Security</h3>
-          <p class="text-text-secondary text-sm leading-relaxed mb-4">
+          <h3 class="text-xl font-bold text-content-primary font-heading">PostgreSQL Row-Level Security</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed mb-4">
             Multi-tenant boundary enforcement is hardwired directly into the database engine. Every single SQL query executes with authenticated tenant context:
           </p>
-          <div class="bg-slate-900 rounded-xl p-3 font-mono text-xs text-brand-300 border border-slate-800">
+          <div class="bg-surface-dark rounded-xl p-3 font-mono text-xs text-brand-300 border border-navy-700">
             <code>WHERE organization_id = auth.uid()</code>
           </div>
         </div>
 
         <!-- Control 2: 6 RBAC Tiers -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center mb-4">
             <UserCheck className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">6-Tier Granular RBAC</h3>
-          <p class="text-text-secondary text-sm leading-relaxed">
+          <h3 class="text-xl font-bold text-content-primary font-heading">6-Tier Granular RBAC</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
             Strict role-based access control segregates operations. Counter cashiers cannot view supplier purchase costs; inventory clerks cannot alter customer balances; only designated financial officers can approve write-offs.
           </p>
         </div>
 
         <!-- Control 3: Formula Injection Protection -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-lavender-100 text-lavender-700 flex items-center justify-center mb-4">
             <FileSpreadsheet className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Spreadsheet Formula Sanitization</h3>
-          <p class="text-text-secondary text-sm leading-relaxed">
+          <h3 class="text-xl font-bold text-content-primary font-heading">Spreadsheet Formula Sanitization</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
             All customer names, product descriptions, and remarks exported to Excel/CSV are sanitized against CSV Injection (Formula Injection). Characters like <code>=</code>, <code>+</code>, <code>-</code>, and <code>@</code> are safely escaped.
           </p>
         </div>
 
         <!-- Control 4: Encryption in Transit & Rest -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Cryptographic Encryption</h3>
-          <p class="text-text-secondary text-sm leading-relaxed">
+          <h3 class="text-xl font-bold text-content-primary font-heading">Cryptographic Encryption</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
             All communications are encrypted using TLS 1.3 in transit with strict HTTPS redirection and HSTS headers. Database storage volumes and automatic snapshots are protected using AES-256 encryption at rest.
           </p>
         </div>
 
         <!-- Control 5: Immutable Audit Ledger -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-4">
             <FileCheck2 className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Immutable Financial Audit Logs</h3>
-          <p class="text-text-secondary text-sm leading-relaxed">
+          <h3 class="text-xl font-bold text-content-primary font-heading">Immutable Financial Audit Logs</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
             Every finalized invoice, partial payment allocation, and inventory adjustment creates an append-only transaction record. Financial records cannot be secretly deleted or altered retroactively.
           </p>
         </div>
 
         <!-- Control 6: High Availability & Backups -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all">
-          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6">
+        <div class="p-8 rounded-3xl bg-surface-secondary/50 border border-border hover:border-brand-300 transition-all shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-700 flex items-center justify-center mb-4">
             <Server className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-text-primary mb-3 font-display">Continuous Cloud Backup</h3>
-          <p class="text-text-secondary text-sm leading-relaxed">
+          <h3 class="text-xl font-bold text-content-primary font-heading">Continuous Cloud Backup</h3>
+          <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
             Never risk losing your enterprise books to a damaged hard drive or stolen laptop. Atlas OS databases feature automated Point-in-Time Recovery (PITR) with continuous transactional write-ahead log archiving.
           </p>
         </div>
@@ -129,76 +127,78 @@ import {
   </section>
 
   <!-- Detailed RBAC Matrix Table -->
-  <section class="py-20 bg-white border-y border-border-subtle">
+  <section class="py-18 md:py-24 bg-surface-secondary border-y border-border">
     <Container>
-      <div class="max-w-3xl mx-auto text-center mb-16">
-        <Badge variant="brand" className="mb-3">Access Governance</Badge>
-        <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display">
+      <div class="max-w-3xl mx-auto text-center mb-16 space-y-3">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          Access Governance
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-content-primary font-heading">
           Granular Permission Roles Matrix
         </h2>
-        <p class="text-text-secondary mt-3">
+        <p class="text-content-secondary text-sm sm:text-base">
           Configure exact operational boundaries for every employee in your organization.
         </p>
       </div>
 
-      <div class="overflow-x-auto rounded-3xl border border-border-subtle shadow-sm">
-        <table class="w-full text-left border-collapse text-sm">
+      <div class="overflow-x-auto rounded-3xl border border-border bg-white shadow-sm">
+        <table class="w-full text-left border-collapse text-xs sm:text-sm">
           <thead>
-            <tr class="bg-surface border-b border-border-subtle">
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Role</th>
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Point of Sale / Billing</th>
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Customer Balances</th>
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Inventory Stock In</th>
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Supplier Costs</th>
-              <th class="p-4 sm:p-5 font-bold text-text-primary">Financial Exports</th>
+            <tr class="bg-surface-secondary border-b border-border">
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Role</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Point of Sale / Billing</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Customer Balances</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Inventory Stock In</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Supplier Costs</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Financial Exports</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-border-subtle">
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">Owner / Director</td>
+          <tbody class="divide-y divide-border">
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Owner / Director</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
             </tr>
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">General Manager</td>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">General Manager</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
             </tr>
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">Accountant</td>
-              <td class="p-4 sm:p-5 text-slate-500">Read-Only</td>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Accountant</td>
+              <td class="p-4 sm:p-5 text-content-secondary">Read-Only</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Reconcile / Edit</td>
-              <td class="p-4 sm:p-5 text-slate-500">Read-Only</td>
+              <td class="p-4 sm:p-5 text-content-secondary">Read-Only</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">View / Verify</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
             </tr>
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">Counter Cashier</td>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Counter Cashier</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create Invoices</td>
-              <td class="p-4 sm:p-5 text-slate-500">View Due Only</td>
+              <td class="p-4 sm:p-5 text-content-secondary">View Due Only</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
             </tr>
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">Warehouse Clerk</td>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Warehouse Clerk</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Record GRN</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
             </tr>
-            <tr class="hover:bg-slate-50/50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-text-primary">Sales Representative</td>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Sales Representative</td>
               <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Draft Estimates</td>
-              <td class="p-4 sm:p-5 text-slate-500">Assigned Accounts</td>
-              <td class="p-4 sm:p-5 text-slate-500">Stock Availability</td>
+              <td class="p-4 sm:p-5 text-content-secondary">Assigned Accounts</td>
+              <td class="p-4 sm:p-5 text-content-secondary">Stock Availability</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
               <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
             </tr>
@@ -208,61 +208,23 @@ import {
     </Container>
   </section>
 
-  <!-- Transparent Security Disclosure -->
-  <section class="py-20 bg-surface">
-    <Container>
-      <div class="max-w-4xl mx-auto bg-white rounded-3xl p-8 sm:p-12 border border-border-subtle shadow-sm space-y-6">
-        <div class="flex items-center gap-3 text-text-primary">
-          <ShieldCheck className="w-7 h-7 text-brand-600" />
-          <h2 class="text-2xl font-black font-display">Our Commitment to Transparent Standards</h2>
-        </div>
-        <p class="text-text-secondary leading-relaxed">
-          Many software companies display generic badges without substantiation. At Atlas OS, we believe enterprise trust is earned through verifiable technical controls rather than marketing slogans.
-        </p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-          <div class="p-5 rounded-2xl bg-surface border border-border-subtle">
-            <h3 class="font-bold text-text-primary mb-2 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Verified Architecture
-            </h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              Our code undergoes automated static analysis (ESLint, strict TypeScript), 82+ database acceptance contract tests, and Playwright browser integration testing before every release deployment.
-            </p>
-          </div>
-          <div class="p-5 rounded-2xl bg-surface border border-border-subtle">
-            <h3 class="font-bold text-text-primary mb-2 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Data Ownership Guarantee
-            </h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              You maintain 100% ownership of your business records. You can export complete financial year data, product masters, and customer ledgers to standard Excel spreadsheets at any time.
-            </p>
-          </div>
-        </div>
-        <div class="pt-4 border-t border-border-subtle text-xs text-text-muted">
-          Have security questions or need to report a vulnerability? Contact our engineering security desk at <a href="mailto:security@atlas-os.web.app" class="text-brand-600 font-medium hover:underline">security@atlas-os.web.app</a>.
-        </div>
-      </div>
-    </Container>
-  </section>
-
   <!-- CTA -->
-  <section class="py-16 bg-white border-t border-border-subtle">
+  <section class="py-16 bg-white border-t border-border">
     <Container>
       <div class="max-w-3xl mx-auto text-center space-y-6">
-        <h2 class="text-2xl sm:text-3xl font-black text-text-primary font-display">
+        <h2 class="text-2xl sm:text-3xl font-bold font-heading text-content-primary">
           Experience secure, reliable business operations
         </h2>
-        <p class="text-text-secondary">
+        <p class="text-content-secondary text-sm sm:text-base">
           Schedule a personalized live demo or speak with our product architects today.
         </p>
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button href="/request-demo" variant="primary" size="lg">
-            Schedule a Live Demo
+          <Button href="/request-demo" variant="primary" size="lg" class="font-bold">
+            <span>Schedule a Live Demo</span>
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
-          <Button href="/contact" variant="outline" size="lg">
-            Contact Security Desk
+          <Button href="/contact" variant="outline" size="lg" class="font-semibold">
+            <span>Contact Security Desk</span>
           </Button>
         </div>
       </div>

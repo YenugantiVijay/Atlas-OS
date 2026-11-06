@@ -90,18 +90,18 @@ const structuredData = {
     <meta property="twitter:description" content={description} />
     <meta property="twitter:image" content={ogImage} />
 
-    <!-- Google Fonts: Inter & Manrope -->
+    <!-- Google Fonts: Poppins (Headings) & Inter (Body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
 
     <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>
-  <body class="min-h-screen flex flex-col bg-white text-content-primary selection:bg-brand-100 selection:text-brand-900">
+  <body class="min-h-screen flex flex-col bg-white text-content-primary selection:bg-brand-100 selection:text-brand-900 font-sans">
     <!-- Accessible Skip to Main Content Link -->
     <a
       href="#main-content"

@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
-import Badge from '../components/common/Badge.astro';
 import Button from '../components/common/Button.astro';
 import FaqAccordion from '../components/support/FaqAccordion';
 import { 
@@ -20,23 +19,20 @@ import {
 <BaseLayout 
   title="Help Center, Documentation & Technical Support | Atlas OS"
   description="Access official documentation, frequently asked questions, staff training resources, and direct technical support for Atlas OS."
-  canonicalUrl="https://atlas-os.web.app/support"
+  canonicalUrl="https://atlasos.business/support"
 >
   <!-- Hero Section -->
-  <section class="pt-32 pb-20 bg-gradient-to-b from-brand-50/60 via-surface to-surface relative overflow-hidden border-b border-border-subtle">
-    <div class="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
-    <div class="absolute top-1/3 right-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50 relative overflow-hidden">
     <Container>
-      <div class="max-w-3xl mx-auto text-center">
-        <Badge variant="brand" className="mb-4">
-          <Headphones className="w-3.5 h-3.5 mr-1.5" />
+      <div class="max-w-3xl mx-auto text-center space-y-4">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          <Headphones className="w-3.5 h-3.5 mr-1 text-brand-700" />
           Customer Success & Help Center
-        </Badge>
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-text-primary tracking-tight font-display mb-6">
-          We are here to help your <span class="bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">business thrive</span>.
+        </span>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-primary tracking-tight font-heading leading-tight">
+          We are here to help your <span class="text-gradient">business thrive</span>.
         </h1>
-        <p class="text-lg sm:text-xl text-text-secondary leading-relaxed">
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           From initial product setup and historic Excel data migration to everyday counter billing assistance, our dedicated support team has you covered.
         </p>
       </div>
@@ -44,66 +40,66 @@ import {
   </section>
 
   <!-- Support Channels Grid -->
-  <section class="py-20 bg-surface">
+  <section class="py-18 md:py-24 bg-white">
     <Container>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-        <!-- Channel 1: Documentation & Guides -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all group flex flex-col justify-between">
-          <div>
-            <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+        <!-- Channel 1: Documentation & Guides (Sky) -->
+        <div class="p-8 rounded-3xl bg-sky-50/40 border border-sky-200 shadow-sm hover:border-sky-300 transition-all group flex flex-col justify-between space-y-6">
+          <div class="space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
               <BookOpen className="w-6 h-6" />
             </div>
-            <h3 class="text-xl font-bold text-text-primary mb-2 font-display">Workflow Guides</h3>
-            <p class="text-text-secondary text-sm leading-relaxed mb-6">
+            <h3 class="text-xl font-bold text-content-primary font-heading">Workflow Guides</h3>
+            <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
               Step-by-step documentation covering rapid GST billing, multi-UOM inventory configurations, ledger allocation, and fiscal year exports.
             </p>
           </div>
-          <Button href="/features" variant="outline" size="sm" className="w-full justify-center">
-            Explore Feature Guides
+          <Button href="/features" variant="outline" size="sm" class="w-full justify-center font-semibold text-sky-700 border-sky-300 hover:bg-sky-50">
+            <span>Explore Feature Guides</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
           </Button>
         </div>
 
-        <!-- Channel 2: Direct Helpdesk -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all group flex flex-col justify-between">
-          <div>
-            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+        <!-- Channel 2: Direct Helpdesk (Mint) -->
+        <div class="p-8 rounded-3xl bg-mint-50/40 border border-mint-200 shadow-sm hover:border-mint-300 transition-all group flex flex-col justify-between space-y-6">
+          <div class="space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
               <MessageSquare className="w-6 h-6" />
             </div>
-            <h3 class="text-xl font-bold text-text-primary mb-2 font-display">Priority Support Desk</h3>
-            <p class="text-text-secondary text-sm leading-relaxed mb-6">
+            <h3 class="text-xl font-bold text-content-primary font-heading">Priority Support Desk</h3>
+            <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
               Speak directly with product engineers via WhatsApp, phone, or email. Professional and Enterprise tiers include priority response SLA.
             </p>
           </div>
-          <Button href="/contact" variant="outline" size="sm" className="w-full justify-center">
-            Contact Helpdesk
+          <Button href="/contact" variant="outline" size="sm" class="w-full justify-center font-semibold text-mint-700 border-mint-300 hover:bg-mint-50">
+            <span>Contact Helpdesk</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
           </Button>
         </div>
 
-        <!-- Channel 3: Video Walkthroughs & Training -->
-        <div class="p-8 rounded-3xl bg-white border border-border-subtle shadow-sm hover:border-brand-300 transition-all group flex flex-col justify-between">
-          <div>
-            <div class="w-12 h-12 rounded-2xl bg-violet-50 text-brand-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+        <!-- Channel 3: Video Walkthroughs & Training (Lavender) -->
+        <div class="p-8 rounded-3xl bg-lavender-50/40 border border-lavender-200 shadow-sm hover:border-lavender-300 transition-all group flex flex-col justify-between space-y-6">
+          <div class="space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-lavender-100 text-lavender-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
               <Video className="w-6 h-6" />
             </div>
-            <h3 class="text-xl font-bold text-text-primary mb-2 font-display">Live 1-on-1 Onboarding</h3>
-            <p class="text-text-secondary text-sm leading-relaxed mb-6">
+            <h3 class="text-xl font-bold text-content-primary font-heading">Live 1-on-1 Onboarding</h3>
+            <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
               Schedule guided onboarding sessions for your counter cashiers, warehouse clerks, and accounting personnel to get up to speed fast.
             </p>
           </div>
-          <Button href="/request-demo" variant="primary" size="sm" className="w-full justify-center">
-            Book Staff Training
+          <Button href="/request-demo" variant="primary" size="sm" class="w-full justify-center font-semibold">
+            <span>Book Staff Training</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
           </Button>
         </div>
       </div>
 
       <!-- Quick Contact Strip -->
-      <div class="bg-gradient-to-r from-brand-900 to-slate-900 rounded-3xl p-8 sm:p-10 text-white shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
+      <div class="bg-surface-dark rounded-3xl p-8 sm:p-10 text-white shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8 border border-brand-500/20">
         <div>
-          <h3 class="text-2xl font-bold font-display mb-2">Need immediate assistance?</h3>
-          <p class="text-slate-300 text-sm max-w-xl">
+          <h3 class="text-2xl font-bold font-heading mb-2">Need immediate assistance?</h3>
+          <p class="text-content-muted text-sm max-w-xl">
             Our technical support desk operates Monday through Saturday from 9:00 AM to 8:00 PM IST to align with trading counter hours.
           </p>
         </div>
@@ -116,11 +112,11 @@ import {
             <span>+91 (800) 000-0000</span>
           </a>
           <a 
-            href="mailto:support@atlas-os.web.app" 
+            href="mailto:support@atlasos.business" 
             class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 transition-colors text-white font-semibold text-sm shadow-md"
           >
             <Mail className="w-4 h-4" />
-            <span>support@atlas-os.web.app</span>
+            <span>support@atlasos.business</span>
           </a>
         </div>
       </div>
@@ -128,17 +124,17 @@ import {
   </section>
 
   <!-- Comprehensive FAQ Section -->
-  <section class="py-20 bg-white border-t border-border-subtle">
+  <section class="py-18 md:py-24 bg-surface-secondary border-t border-border">
     <Container>
-      <div class="max-w-3xl mx-auto text-center mb-12">
-        <Badge variant="brand" className="mb-3">
-          <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
+      <div class="max-w-3xl mx-auto text-center mb-12 space-y-3">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          <HelpCircle className="w-3.5 h-3.5 mr-1 text-brand-700" />
           Frequently Asked Questions
-        </Badge>
-        <h2 class="text-3xl sm:text-4xl font-black text-text-primary font-display">
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-content-primary font-heading">
           Everything you need to know
         </h2>
-        <p class="text-text-secondary mt-3">
+        <p class="text-content-secondary text-sm sm:text-base">
           Filter by category or search for specific questions regarding migration, billing, and technical architecture.
         </p>
       </div>
@@ -151,22 +147,22 @@ import {
   </section>
 
   <!-- Download CTA -->
-  <section class="py-16 bg-surface border-t border-border-subtle">
+  <section class="py-16 bg-white border-t border-border">
     <Container>
       <div class="max-w-3xl mx-auto text-center space-y-6">
-        <h2 class="text-2xl sm:text-3xl font-black text-text-primary font-display">
+        <h2 class="text-2xl sm:text-3xl font-bold text-content-primary font-heading">
           Ready to set up your business?
         </h2>
-        <p class="text-text-secondary">
+        <p class="text-content-secondary text-sm sm:text-base">
           Visit our official download center for system requirements and upcoming desktop installer previews.
         </p>
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button href="/download" variant="primary" size="lg">
+          <Button href="/download" variant="primary" size="lg" class="font-bold">
             <Download className="w-4 h-4 mr-2" />
-            Official Download Center
+            <span>Official Download Center</span>
           </Button>
-          <Button href="/request-demo" variant="outline" size="lg">
-            Schedule a Product Tour
+          <Button href="/request-demo" variant="outline" size="lg" class="font-semibold">
+            <span>Schedule a Product Tour</span>
           </Button>
         </div>
       </div>

@@ -2,8 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
-import Badge from '../components/common/Badge.astro';
-import { ALL_FEATURES } from '../data/features';
 ---
 
 <BaseLayout
@@ -14,8 +12,10 @@ import { ALL_FEATURES } from '../data/features';
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-4">
-        <Badge variant="violet" size="md">Architecture & Capabilities</Badge>
-        <h1 class="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-content-primary">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          Architecture & Capabilities
+        </span>
+        <h1 class="text-4xl sm:text-5xl font-extrabold font-heading tracking-tight text-content-primary">
           Business Software Re-engineered for <span class="text-gradient">Wholesale Velocity</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
@@ -27,79 +27,82 @@ import { ALL_FEATURES } from '../data/features';
   </section>
 
   {/* ARCHITECTURAL PILLARS */}
-  <section class="py-20 bg-white border-b border-border">
+  <section class="py-18 md:py-24 bg-white border-b border-border">
     <Container size="default">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
-          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+        <!-- Pillar 1: Mint -->
+        <div class="p-8 rounded-3xl border border-mint-200 bg-mint-50/30 hover:bg-white hover:border-mint-300 transition-all duration-200 space-y-4 shadow-sm hover:shadow-md">
+          <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-700 flex items-center justify-center font-bold text-lg font-heading">
             01
           </div>
-          <h2 class="text-xl font-bold font-display text-content-primary">Operational Core</h2>
-          <p class="text-xs text-content-secondary leading-relaxed">
+          <h2 class="text-xl font-bold font-heading text-content-primary">Operational Core</h2>
+          <p class="text-sm text-content-secondary leading-relaxed">
             Fast catalog search across tens of thousands of electrical and hardware SKUs. Multi-UOM packaging logic (Coils,
             Bundles, Meters, Nos) ensures physical yard counts and digital orders remain synchronized.
           </p>
-          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+          <ul class="space-y-2 text-xs pt-3 border-t border-mint-200/80">
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
               <span>Available vs. Committed stock validation</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
               <span>Commercial sales order conversion</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
               <span>Audited manual stock adjustments</span>
             </li>
           </ul>
         </div>
 
-        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
-          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+        <!-- Pillar 2: Sky -->
+        <div class="p-8 rounded-3xl border border-sky-200 bg-sky-50/30 hover:bg-white hover:border-sky-300 transition-all duration-200 space-y-4 shadow-sm hover:shadow-md">
+          <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-lg font-heading">
             02
           </div>
-          <h2 class="text-xl font-bold font-display text-content-primary">Financial Engine</h2>
-          <p class="text-xs text-content-secondary leading-relaxed">
+          <h2 class="text-xl font-bold font-heading text-content-primary">Financial Engine</h2>
+          <p class="text-sm text-content-secondary leading-relaxed">
             Statutory GST invoicing with immutable rate snapshots. Customer credit limits prevent unauthorized sales, while
             payment allocations resolve multi-invoice RTGS and NEFT bank settlements accurately.
           </p>
-          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+          <ul class="space-y-2 text-xs pt-3 border-t border-sky-200/80">
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
               <span>Interstate IGST vs. CGST+SGST logic</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
               <span>Real-time debtor receivables ledger</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
               <span>Cross-period settlement tracking</span>
             </li>
           </ul>
         </div>
 
-        <div class="p-8 rounded-3xl border border-border bg-surface-secondary/40 space-y-4">
-          <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+        <!-- Pillar 3: Lavender -->
+        <div class="p-8 rounded-3xl border border-lavender-200 bg-lavender-50/30 hover:bg-white hover:border-lavender-300 transition-all duration-200 space-y-4 shadow-sm hover:shadow-md">
+          <div class="w-12 h-12 rounded-2xl bg-lavender-100 text-lavender-700 flex items-center justify-center font-bold text-lg font-heading">
             03
           </div>
-          <h2 class="text-xl font-bold font-display text-content-primary">Reporting & Governance</h2>
-          <p class="text-xs text-content-secondary leading-relaxed">
+          <h2 class="text-xl font-bold font-heading text-content-primary">Reporting & Governance</h2>
+          <p class="text-sm text-content-secondary leading-relaxed">
             One-click Microsoft Excel export engine generating complete 5-sheet statutory workbooks for any Indian FY.
             Enforced by PostgreSQL Row Level Security (RLS) across 6 granular role levels.
           </p>
-          <ul class="space-y-2 text-xs pt-2 border-t border-border/60">
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+          <ul class="space-y-2 text-xs pt-3 border-t border-lavender-200/80">
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-lavender-600"></span>
               <span>15-Year statutory FY selector (Apr 1–Mar 31)</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-lavender-600"></span>
               <span>Revenue vs. non-revenue segregation</span>
             </li>
-            <li class="flex items-center gap-2 text-content-primary">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
+            <li class="flex items-center gap-2 text-content-primary font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-lavender-600"></span>
               <span>Zero client data leakage across tenants</span>
             </li>
           </ul>
@@ -109,11 +112,13 @@ import { ALL_FEATURES } from '../data/features';
   </section>
 
   {/* COMPARISON TABLE: ATLAS OS VS LEGACY ACCOUNTING */}
-  <section class="py-20 bg-surface-secondary border-b border-border">
+  <section class="py-18 md:py-24 bg-surface-secondary border-b border-border">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
-        <Badge variant="violet" size="sm">The Modern Difference</Badge>
-        <h2 class="text-3xl font-extrabold font-display text-content-primary">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          The Modern Difference
+        </span>
+        <h2 class="text-3xl font-extrabold font-heading text-content-primary">
           Atlas OS vs. Traditional Accounting Software
         </h2>
         <p class="text-sm text-content-secondary leading-relaxed">
@@ -121,12 +126,12 @@ import { ALL_FEATURES } from '../data/features';
         </p>
       </div>
 
-      <div class="overflow-x-auto rounded-3xl border border-border bg-white shadow-md">
-        <table class="w-full text-left text-xs">
-          <thead class="bg-surface-secondary border-b border-border text-content-primary font-display uppercase tracking-wider">
+      <div class="overflow-x-auto rounded-3xl border border-border bg-white shadow-sm">
+        <table class="w-full text-left text-xs sm:text-sm">
+          <thead class="bg-surface-secondary border-b border-border text-content-primary font-heading uppercase tracking-wider">
             <tr>
               <th class="px-6 py-4">Capability & Workflow</th>
-              <th class="px-6 py-4 text-brand-700 font-extrabold bg-brand-50/50">Atlas OS (Modern Cloud ERP)</th>
+              <th class="px-6 py-4 text-brand-800 font-extrabold bg-brand-50/60">Atlas OS (Modern Cloud ERP)</th>
               <th class="px-6 py-4 text-content-secondary">Legacy Accounting (BUSY / Tally Style)</th>
             </tr>
           </thead>
@@ -194,18 +199,18 @@ import { ALL_FEATURES } from '../data/features';
   {/* CTA */}
   <section class="py-16 bg-white">
     <Container size="default">
-      <div class="p-8 sm:p-12 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="p-8 sm:p-12 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
         <div class="space-y-2 text-center md:text-left">
-          <h3 class="text-2xl font-bold font-display text-content-primary">See Atlas OS in Action</h3>
-          <p class="text-xs sm:text-sm text-content-secondary max-w-xl">
+          <h3 class="text-2xl font-bold font-heading text-content-primary">See Atlas OS in Action</h3>
+          <p class="text-sm text-content-secondary max-w-xl">
             Book a 20-minute product demonstration customized to your wholesale product catalog, tax structure, and billing workflow.
           </p>
         </div>
         <div class="flex items-center gap-3 shrink-0">
-          <Button href="/request-demo" variant="primary" size="md">
+          <Button href="/request-demo" variant="primary" size="md" class="font-semibold">
             <span>Request Demo</span>
           </Button>
-          <Button href="/features" variant="outline" size="md">
+          <Button href="/features" variant="outline" size="md" class="font-semibold">
             <span>Browse Features</span>
           </Button>
         </div>
@@ -213,4 +218,3 @@ import { ALL_FEATURES } from '../data/features';
     </Container>
   </section>
 </BaseLayout>
-

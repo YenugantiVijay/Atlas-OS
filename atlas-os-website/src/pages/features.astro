@@ -2,20 +2,21 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
-import Badge from '../components/common/Badge.astro';
 import { ALL_FEATURES } from '../data/features';
 ---
 
 <BaseLayout
   title="Features & Capabilities — Atlas OS Business Operating System"
-  description="Explore the complete module directory of Atlas OS: Inventory Control, Commercial Invoicing, Customer Receivables, Payment Allocations, and 1-Click Excel Reporting."
+  description="Explore the complete module directory of Atlas OS: Inventory Control, Commercial Invoicing, Customer Receivables, Payment Allocations, and 1-Click Excel Reporting capabilities."
 >
   {/* HERO */}
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-4">
-        <Badge variant="violet" size="md">Module & Feature Directory</Badge>
-        <h1 class="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-content-primary">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-lavender-100 text-lavender-700">
+          Module & Feature Directory
+        </span>
+        <h1 class="text-4xl sm:text-5xl font-extrabold font-heading tracking-tight text-content-primary">
           Every Feature Engineered for <span class="text-gradient">Real Operations</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
@@ -27,11 +28,10 @@ import { ALL_FEATURES } from '../data/features';
   </section>
 
   {/* FEATURES DIRECTORY */}
-  <section class="py-20 bg-white">
+  <section class="py-18 md:py-24 bg-white">
     <Container size="default">
-      <div class="space-y-16">
+      <div class="space-y-12">
         {ALL_FEATURES.map((feat, index) => {
-          const isEven = index % 2 === 0;
           const statusBg =
             feat.status === 'production'
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -42,9 +42,7 @@ import { ALL_FEATURES } from '../data/features';
           return (
             <div
               id={feat.id}
-              class={`p-8 sm:p-10 rounded-3xl border border-border bg-surface-secondary/40 shadow-sm flex flex-col lg:flex-row items-start justify-between gap-10 scroll-mt-28 ${
-                feat.status === 'production' ? 'hover:border-brand-300' : 'opacity-95'
-              }`}
+              class="p-7 sm:p-9 rounded-3xl border border-border bg-surface-secondary/40 shadow-sm flex flex-col lg:flex-row items-start justify-between gap-8 scroll-mt-28 hover:bg-white hover:border-brand-300 transition-all duration-200"
             >
               {/* Feature Info */}
               <div class="space-y-4 max-w-2xl">
@@ -59,20 +57,20 @@ import { ALL_FEATURES } from '../data/features';
                   )}
                 </div>
 
-                <h2 class="text-2xl sm:text-3xl font-bold font-display text-content-primary">{feat.title}</h2>
+                <h2 class="text-2xl sm:text-3xl font-bold font-heading text-content-primary">{feat.title}</h2>
                 <p class="text-sm text-content-secondary leading-relaxed">{feat.description}</p>
 
                 <div class="pt-2">
-                  <h3 class="text-xs font-bold uppercase tracking-wider text-content-primary font-display mb-3">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading mb-3">
                     Core Operational Capabilities:
                   </h3>
                   <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                     {feat.highlights.map((hl) => (
-                      <li class="flex items-start gap-2 p-2 rounded-xl bg-white border border-border/70 text-content-primary">
+                      <li class="flex items-start gap-2 p-2.5 rounded-xl bg-white border border-border/70 text-content-primary shadow-2xs">
                         <svg class="w-4 h-4 text-brand-600 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
                         </svg>
-                        <span class="leading-relaxed">{hl}</span>
+                        <span class="leading-relaxed font-medium">{hl}</span>
                       </li>
                     ))}
                   </ul>
@@ -80,29 +78,29 @@ import { ALL_FEATURES } from '../data/features';
               </div>
 
               {/* Action / Context Badge Box */}
-              <div class="w-full lg:w-72 p-5 rounded-2xl bg-white border border-border shadow-2xs space-y-3 shrink-0">
-                <p class="text-xs font-bold uppercase tracking-wider text-content-secondary font-display">
+              <div class="w-full lg:w-72 p-5 rounded-2xl bg-white border border-border shadow-sm space-y-3 shrink-0">
+                <p class="text-xs font-bold uppercase tracking-wider text-content-secondary font-heading">
                   System Context
                 </p>
-                <div class="text-xs space-y-1.5 text-content-secondary">
+                <div class="text-xs space-y-2 text-content-secondary">
                   <div class="flex items-center justify-between">
                     <span>Database Engine:</span>
-                    <span class="font-mono text-content-primary font-medium">PostgreSQL RLS</span>
+                    <span class="font-mono text-content-primary font-semibold">PostgreSQL RLS</span>
                   </div>
                   <div class="flex items-center justify-between">
                     <span>Audit Level:</span>
-                    <span class="font-medium text-emerald-600">Full Audit Log</span>
+                    <span class="font-semibold text-emerald-600">Full Audit Log</span>
                   </div>
                   <div class="flex items-center justify-between">
                     <span>Role Access:</span>
-                    <span class="font-medium text-content-primary">6 Tiers</span>
+                    <span class="font-semibold text-content-primary">6 Tiers</span>
                   </div>
                 </div>
 
-                <div class="pt-2 border-t border-border/60">
+                <div class="pt-3 border-t border-border/60">
                   <a
                     href="/request-demo"
-                    class="block w-full py-2 text-center text-xs font-bold font-display rounded-lg bg-surface-secondary hover:bg-brand-50 hover:text-brand-700 text-content-primary border border-border transition-colors"
+                    class="block w-full py-2.5 text-center text-xs font-bold font-heading rounded-xl bg-surface-secondary hover:bg-brand-50 hover:text-brand-800 text-content-primary border border-border transition-colors"
                   >
                     Request Demo for This Feature
                   </a>
@@ -119,15 +117,15 @@ import { ALL_FEATURES } from '../data/features';
   <section class="py-16 bg-surface-secondary border-t border-border">
     <Container size="default">
       <div class="text-center max-w-2xl mx-auto space-y-4">
-        <h3 class="text-2xl font-bold font-display text-content-primary">Want to test these features with your real data?</h3>
-        <p class="text-xs sm:text-sm text-content-secondary leading-relaxed">
+        <h3 class="text-2xl font-bold font-heading text-content-primary">Want to test these features with your real data?</h3>
+        <p class="text-sm text-content-secondary leading-relaxed">
           Schedule a live demonstration where our engineers demonstrate Atlas OS using your electrical brand SKUs and tax settings.
         </p>
         <div class="pt-2 flex justify-center gap-3">
-          <Button href="/request-demo" variant="primary" size="md">
+          <Button href="/request-demo" variant="primary" size="md" class="font-semibold">
             <span>Request a Demo</span>
           </Button>
-          <Button href="/download" variant="outline" size="md">
+          <Button href="/download" variant="outline" size="md" class="font-semibold">
             <span>Download Desktop App Preview</span>
           </Button>
         </div>
@@ -135,4 +133,3 @@ import { ALL_FEATURES } from '../data/features';
     </Container>
   </section>
 </BaseLayout>
-

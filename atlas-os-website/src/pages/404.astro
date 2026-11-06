@@ -1,63 +1,59 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
-import Badge from '../components/common/Badge.astro';
 import Button from '../components/common/Button.astro';
 import { Home, FileQuestion, HelpCircle, Download } from 'lucide-react';
 ---
 
 <BaseLayout 
   title="404 — Page Not Found | Atlas OS"
-  description="The page you requested could not be found. Explore Atlas OS features, solutions, download center, or request a live demonstration."
+  description="The page you requested could not be found (Error 404). Explore Atlas OS features, solutions, download center, or request a live demonstration."
 >
-  <section class="min-h-[75vh] flex items-center justify-center pt-32 pb-20 bg-surface relative overflow-hidden">
-    <div class="absolute inset-0 bg-grid-pattern opacity-50 pointer-events-none"></div>
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+  <section class="min-h-[75vh] flex items-center justify-center py-20 bg-radial-glow relative overflow-hidden">
     <Container>
       <div class="max-w-xl mx-auto text-center relative z-10 space-y-6">
-        <Badge variant="warning" className="mx-auto">
-          <FileQuestion className="w-3.5 h-3.5 mr-1.5" />
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+          <FileQuestion className="w-3.5 h-3.5 mr-1" />
           Error 404: Resource Relocated or Missing
-        </Badge>
+        </span>
         
-        <h1 class="text-6xl sm:text-7xl font-black font-display text-text-primary tracking-tight">
+        <h1 class="text-5xl sm:text-6xl md:text-7xl font-extrabold font-heading text-content-primary tracking-tight">
           Page Not Found
         </h1>
         
-        <p class="text-base sm:text-lg text-text-secondary leading-relaxed">
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           The page or documentation file you were searching for does not exist, has been reorganized, or was entered incorrectly.
         </p>
 
         <!-- Quick Route Navigation -->
         <div class="pt-4 flex flex-wrap items-center justify-center gap-3">
-          <Button href="/" variant="primary" size="md">
+          <Button href="/" variant="primary" size="md" class="font-bold">
             <Home className="w-4 h-4 mr-2" />
-            Return to Homepage
+            <span>Return to Homepage</span>
           </Button>
-          <Button href="/download" variant="outline" size="md">
+          <Button href="/download" variant="outline" size="md" class="font-semibold">
             <Download className="w-4 h-4 mr-2" />
-            Download Center
+            <span>Download Center</span>
           </Button>
-          <Button href="/support" variant="ghost" size="md">
+          <Button href="/support" variant="secondary" size="md" class="font-semibold">
             <HelpCircle className="w-4 h-4 mr-2" />
-            Help & FAQs
+            <span>Help & FAQs</span>
           </Button>
         </div>
 
         <!-- Helpful directory links -->
-        <div class="pt-8 border-t border-border-subtle text-xs text-text-muted">
-          <p class="font-semibold text-text-secondary mb-3 uppercase tracking-wider">Helpful Navigation Links</p>
+        <div class="pt-8 border-t border-border text-xs text-content-muted">
+          <p class="font-bold font-heading text-content-secondary mb-3 uppercase tracking-wider">Helpful Navigation Links</p>
           <div class="flex flex-wrap items-center justify-center gap-4">
-            <a href="/product" class="hover:text-brand-600 transition-colors">Product Overview</a>
+            <a href="/product" class="hover:text-brand-700 transition-colors">Product Overview</a>
             <span>•</span>
-            <a href="/features" class="hover:text-brand-600 transition-colors">Features Directory</a>
+            <a href="/features" class="hover:text-brand-700 transition-colors">Features Directory</a>
             <span>•</span>
-            <a href="/solutions" class="hover:text-brand-600 transition-colors">Industry Solutions</a>
+            <a href="/solutions" class="hover:text-brand-700 transition-colors">Industry Solutions</a>
             <span>•</span>
-            <a href="/pricing" class="hover:text-brand-600 transition-colors">Pricing & Plans</a>
+            <a href="/pricing" class="hover:text-brand-700 transition-colors">Pricing & Plans</a>
             <span>•</span>
-            <a href="/request-demo" class="hover:text-brand-600 transition-colors">Book a Demo</a>
+            <a href="/request-demo" class="hover:text-brand-700 transition-colors">Book a Demo</a>
           </div>
         </div>
       </div>
