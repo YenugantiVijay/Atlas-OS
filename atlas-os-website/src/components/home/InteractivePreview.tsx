@@ -542,7 +542,7 @@ export default function InteractivePreview() {
                   One-Click Statutory Export Engine
                 </p>
                 <p className="text-sm font-semibold text-content-primary">
-                  Indian Financial Year: FY 2026–27 (April 1 to March 31)
+                  Indian Financial Year: FY 2026-27 (April 1 to March 31)
                 </p>
               </div>
               <div className="flex items-center gap-2">

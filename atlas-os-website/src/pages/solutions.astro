@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
-import Badge from '../components/common/Badge.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
 ---
 
@@ -14,8 +13,10 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-4">
-        <Badge variant="violet" size="md">Tailored Industry Solutions</Badge>
-        <h1 class="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-content-primary">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cream-200 text-cream-700">
+          Tailored Industry Solutions
+        </span>
+        <h1 class="text-4xl sm:text-5xl font-extrabold font-heading tracking-tight text-content-primary">
           Engineered for the Specific Needs of <span class="text-gradient">Wholesale Trade</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
@@ -27,34 +28,34 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   </section>
 
   {/* INDUSTRY SECTIONS */}
-  <section class="py-20 bg-white">
+  <section class="py-18 md:py-24 bg-white">
     <Container size="default">
-      <div class="space-y-24">
-        {INDUSTRY_SOLUTIONS.map((industry, index) => (
+      <div class="space-y-20">
+        {INDUSTRY_SOLUTIONS.map((industry) => (
           <div id={industry.id} class="space-y-8 scroll-mt-28">
             <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-6 border-b border-border">
               <div class="space-y-2">
                 <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
                   {industry.badge}
                 </span>
-                <h2 class="text-3xl font-extrabold font-display text-content-primary">{industry.title}</h2>
+                <h2 class="text-3xl font-extrabold font-heading text-content-primary">{industry.title}</h2>
                 <p class="text-sm font-semibold text-brand-700">{industry.tagline}</p>
               </div>
 
-              <Button href="/request-demo" variant="outline" size="sm">
+              <Button href="/request-demo" variant="outline" size="sm" class="font-semibold text-brand-700 border-brand-300 hover:bg-brand-50">
                 <span>Request {industry.title.split(' ')[0]} Demo</span>
               </Button>
             </div>
 
-            <p class="text-sm text-content-secondary leading-relaxed max-w-3xl">
+            <p class="text-sm sm:text-base text-content-secondary leading-relaxed max-w-3xl">
               {industry.description}
             </p>
 
             {/* Challenges vs Atlas Solutions Grid */}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Challenges */}
-              <div class="p-6 sm:p-8 rounded-3xl border border-red-100 bg-red-50/20 space-y-4">
-                <h3 class="text-sm font-bold uppercase tracking-wider text-red-900 font-display flex items-center gap-2">
+              <div class="p-6 sm:p-8 rounded-3xl border border-red-200 bg-red-50/20 space-y-4">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-red-900 font-heading flex items-center gap-2">
                   <svg class="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <circle cx="12" cy="12" r="10" stroke-width="2"/>
                     <line x1="12" y1="8" x2="12" y2="12" stroke-width="2"/>
@@ -62,7 +63,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
                   </svg>
                   <span>Common Operational Friction Points</span>
                 </h3>
-                <ul class="space-y-3 text-xs text-content-secondary">
+                <ul class="space-y-3 text-xs sm:text-sm text-content-secondary">
                   {industry.commonChallenges.map((ch) => (
                     <li class="flex items-start gap-2.5">
                       <span class="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0"></span>
@@ -74,13 +75,13 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 
               {/* Atlas OS Solution */}
               <div class="p-6 sm:p-8 rounded-3xl border border-brand-200 bg-brand-50/20 space-y-4">
-                <h3 class="text-sm font-bold uppercase tracking-wider text-brand-900 font-display flex items-center gap-2">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-brand-900 font-heading flex items-center gap-2">
                   <svg class="w-4 h-4 text-brand-600" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
                   </svg>
                   <span>How Atlas OS Solves Them</span>
                 </h3>
-                <ul class="space-y-3 text-xs text-content-primary">
+                <ul class="space-y-3 text-xs sm:text-sm text-content-primary">
                   {industry.howAtlasSolves.map((soln) => (
                     <li class="flex items-start gap-2.5">
                       <svg class="w-4 h-4 text-brand-600 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
@@ -95,14 +96,14 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 
             {/* Workflow Progression Steps */}
             <div class="p-6 rounded-2xl border border-border bg-surface-secondary/40 space-y-4">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-content-primary font-display">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading">
                 Typical Daily Operational Cycle:
               </h3>
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {industry.workflowHighlights.map((wf) => (
-                  <div class="p-4 rounded-xl bg-white border border-border space-y-1">
-                    <p class="text-xs font-bold font-display text-brand-700">{wf.step}</p>
-                    <p class="text-[11px] text-content-secondary leading-relaxed">{wf.description}</p>
+                  <div class="p-4 rounded-xl bg-white border border-border space-y-1 shadow-2xs">
+                    <p class="text-xs font-bold font-heading text-brand-700">{wf.step}</p>
+                    <p class="text-xs text-content-secondary leading-relaxed">{wf.description}</p>
                   </div>
                 ))}
               </div>
@@ -128,15 +129,15 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   <section class="py-16 bg-surface-secondary border-t border-border">
     <Container size="default">
       <div class="text-center max-w-2xl mx-auto space-y-4">
-        <h3 class="text-2xl font-bold font-display text-content-primary">Schedule a Sector-Specific Walkthrough</h3>
+        <h3 class="text-2xl font-bold font-heading text-content-primary">Schedule a Sector-Specific Walkthrough</h3>
         <p class="text-xs sm:text-sm text-content-secondary leading-relaxed">
           Tell us about your inventory size and current billing software. Our engineers will show you exactly how Atlas OS handles your day-to-day work.
         </p>
         <div class="pt-2 flex justify-center gap-3">
-          <Button href="/request-demo" variant="primary" size="md">
+          <Button href="/request-demo" variant="primary" size="md" class="font-semibold">
             <span>Request Demo</span>
           </Button>
-          <Button href="/pricing" variant="outline" size="md">
+          <Button href="/pricing" variant="outline" size="md" class="font-semibold">
             <span>Review Pricing</span>
           </Button>
         </div>
@@ -144,4 +145,3 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
     </Container>
   </section>
 </BaseLayout>
-

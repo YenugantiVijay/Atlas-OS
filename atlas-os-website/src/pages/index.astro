@@ -4,54 +4,53 @@ import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import Badge from '../components/common/Badge.astro';
 import InteractivePreview from '../components/home/InteractivePreview';
+import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
-import { ALL_FEATURES } from '../data/features';
 ---
 
 <BaseLayout
-  title="Atlas OS — The AI-Native Business Operating System for Distributors"
-  description="Manage multi-brand inventory, sales orders, statutory GST invoices, customer credit limits, and payment allocations from one connected workspace. Built for electrical, electronics, and hardware distributors."
+  title="Atlas OS — Run Your Business Without the Complications"
+  description="Manage multi-brand inventory, sales orders, GST invoices, and customer payments in one simple place. Engineered for electrical, electronics, and hardware businesses."
 >
-  {/* HERO SECTION */}
-  <section class="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden bg-radial-glow border-b border-border/50">
+  {/* SECTION 1: HERO */}
+  <section class="relative pt-12 pb-16 md:pt-18 md:pb-24 overflow-hidden bg-radial-glow border-b border-border/50">
     <Container size="default">
       <div class="flex flex-col items-center text-center space-y-6 max-w-4xl mx-auto">
         <!-- Top Announcement Badge -->
         <div class="animate-fade-in">
-          <Badge variant="violet" size="md" class="gap-1.5 py-1 px-3.5">
+          <span class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full text-xs font-semibold bg-brand-50 text-brand-800 border border-brand-200 shadow-sm">
             <span class="w-2 h-2 rounded-full bg-brand-600 animate-pulse"></span>
-            <span>AI-Native Business Operating System for Distributors</span>
-          </Badge>
+            <span>Modern Business Operating System for Distributors</span>
+          </span>
         </div>
 
-        <!-- Hero Headline -->
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold font-display tracking-tight text-content-primary leading-[1.12] animate-fade-up">
-          Your Business. One <span class="text-gradient">Intelligent</span> Operating System.
+        <!-- Main Headline -->
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-content-primary leading-[1.14] animate-fade-up">
+          Run Your Business. <span class="text-gradient">Without the Complications.</span>
         </h1>
 
-        <!-- Hero Subhead -->
+        <!-- Supporting Text -->
         <p class="text-base sm:text-lg md:text-xl text-content-secondary leading-relaxed max-w-3xl animate-fade-up font-normal">
-          Manage multi-brand inventory, sales orders, statutory GST tax invoices, customer receivables ledgers, and
-          multi-invoice payment allocations from one connected, high-speed workspace. Engineered specifically for
-          modern electrical, electronics, and hardware businesses.
+          Manage your stock, sales, invoices, and customer payments in one simple place.
+          Atlas OS helps electrical, electronics, and hardware businesses stay organized and work faster.
         </p>
 
         <!-- Call to Action Buttons -->
         <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 animate-fade-up">
-          <Button href="/request-demo" variant="primary" size="lg" class="shadow-glow">
-            <span>Request a Demo</span>
-            <svg class="w-4 h-4 ml-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <Button href="/product" variant="primary" size="lg" class="shadow-glow font-semibold">
+            <span>Explore Atlas OS</span>
+            <svg class="w-4 h-4 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
             </svg>
           </Button>
 
-          <Button href="/product" variant="outline" size="lg">
-            <span>Explore Atlas OS</span>
+          <Button href="/request-demo" variant="outline" size="lg" class="font-semibold border-brand-600/30 text-brand-700 hover:bg-brand-50">
+            <span>Request a Demo</span>
           </Button>
 
-          <Button href="/download" variant="secondary" size="lg" class="gap-2">
-            <svg class="w-4 h-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <Button href="/download" variant="secondary" size="lg" class="gap-2 font-medium bg-surface-secondary hover:bg-surface-tertiary">
+            <svg class="w-4 h-4 text-brand-700" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" x2="12" y1="15" y2="3"/>
@@ -60,120 +59,210 @@ import { ALL_FEATURES } from '../data/features';
           </Button>
         </div>
 
-        <!-- Social Proof Micro-Bar -->
-        <div class="pt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-content-secondary font-medium border-t border-border/40 w-full">
+        <!-- 3 Concise Capability Highlights -->
+        <div class="pt-6 flex flex-wrap items-center justify-center gap-8 text-xs sm:text-sm text-content-secondary font-medium border-t border-border/40 w-full">
           <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
-            </svg>
-            <span>Statutory Indian GST Compliant</span>
+            <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+            </span>
+            <span class="text-content-primary font-semibold">Live Stock Availability</span>
           </div>
           <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
-            </svg>
-            <span>Multi-UOM Physical Packaging</span>
+            <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+            </span>
+            <span class="text-content-primary font-semibold">Clear GST Invoicing</span>
           </div>
           <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
-            </svg>
-            <span>1-Click 15-Year Excel Exports</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
-            </svg>
-            <span>PostgreSQL Row Level Security</span>
+            <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+            </span>
+            <span class="text-content-primary font-semibold">Instant Customer Balances</span>
           </div>
         </div>
       </div>
 
-      <!-- INTERACTIVE PRODUCT PREVIEW -->
+      <!-- SIGNATURE ANIMATION: THE CONNECTED BUSINESS ECOSYSTEM -->
       <div class="mt-12 md:mt-16 max-w-6xl mx-auto">
-        <InteractivePreview client:load />
+        <CapabilityOrbit />
       </div>
     </Container>
   </section>
 
-  {/* SECTION 2: VALUE PROPOSITIONS */}
-  <section class="py-20 bg-surface-secondary border-b border-border">
+  {/* SECTION 2: PRODUCT STORYTELLING — ONE PLACE FOR YOUR DAILY BUSINESS */}
+  <section class="py-16 md:py-24 bg-mint-50/60 border-b border-mint-200/60 relative overflow-hidden">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
-        <Badge variant="violet" size="sm">Operational Architecture</Badge>
-        <h2 class="text-3xl font-extrabold font-display text-content-primary">
-          Engineered for Real-World Wholesale Velocity
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-mint-200 text-mint-700">
+          Connected Business Workflow
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold font-heading text-content-primary">
+          One Place for Your Daily Business
         </h2>
-        <p class="text-sm text-content-secondary leading-relaxed">
-          Legacy software burdens electrical and hardware distributors with fragile local files, awkward hotkeys,
-          and slow screen updates. Atlas OS delivers instantaneous modern clarity without sacrificing financial rigor.
+        <p class="text-base text-content-secondary leading-relaxed">
+          From incoming stock to customer payment reconciliation, every step connects seamlessly so you never lose track of money or materials.
         </p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="p-6 rounded-2xl border border-border bg-white shadow-card hover:shadow-card-hover transition-all duration-200 space-y-3">
-          <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
-            01
+      <!-- 5-Step Connected Workflow Journey -->
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+        <!-- Step 1 -->
+        <div class="p-5 rounded-2xl bg-white border border-mint-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-mint-100 text-mint-700 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
+              01
+            </div>
+            <h3 class="text-base font-bold font-heading text-content-primary mb-1">
+              Keep Track of Your Stock
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              See what products you have and record stock movements without unnecessary paperwork.
+            </p>
           </div>
-          <h3 class="text-base font-bold font-display text-content-primary">Zero Redundant Queries</h3>
-          <p class="text-xs text-content-secondary leading-relaxed">
-            High-speed, page-scoped database aggregations ensure live sales, dues, and stock valuations load
-            instantaneously even when managing tens of thousands of customer invoices.
-          </p>
+          <div class="pt-2 text-[11px] font-semibold text-mint-700 flex items-center gap-1">
+            <span>Stock Arrives</span>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </div>
 
-        <div class="p-6 rounded-2xl border border-border bg-white shadow-card hover:shadow-card-hover transition-all duration-200 space-y-3">
-          <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
-            02
+        <!-- Step 2 -->
+        <div class="p-5 rounded-2xl bg-white border border-sky-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
+              02
+            </div>
+            <h3 class="text-base font-bold font-heading text-content-primary mb-1">
+              Manage Customer Orders
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              Keep customer orders organized and track their progress before confirming delivery.
+            </p>
           </div>
-          <h3 class="text-base font-bold font-display text-content-primary">Contractor Credit Protection</h3>
-          <p class="text-xs text-content-secondary leading-relaxed">
-            Automatic credit limit verification prevents unauthorized dispatch to over-limit accounts before sales orders
-            can be confirmed into delivery challans.
-          </p>
+          <div class="pt-2 text-[11px] font-semibold text-sky-700 flex items-center gap-1">
+            <span>Customer Orders</span>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </div>
 
-        <div class="p-6 rounded-2xl border border-border bg-white shadow-card hover:shadow-card-hover transition-all duration-200 space-y-3">
-          <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
-            03
+        <!-- Step 3 -->
+        <div class="p-5 rounded-2xl bg-white border border-coral-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-coral-100 text-coral-700 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
+              03
+            </div>
+            <h3 class="text-base font-bold font-heading text-content-primary mb-1">
+              Handle Your Invoices
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              Create GST invoices and maintain clear, permanent records of every commercial sale.
+            </p>
           </div>
-          <h3 class="text-base font-bold font-display text-content-primary">Statutory Excel Engine</h3>
-          <p class="text-xs text-content-secondary leading-relaxed">
-            One-click audit-ready Microsoft Excel workbooks for any Indian Financial Year (April 1 to March 31) with
-            immutable GST snapshots and revenue segregation.
-          </p>
+          <div class="pt-2 text-[11px] font-semibold text-coral-700 flex items-center gap-1">
+            <span>Invoice Created</span>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </div>
 
-        <div class="p-6 rounded-2xl border border-border bg-white shadow-card hover:shadow-card-hover transition-all duration-200 space-y-3">
-          <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
-            04
+        <!-- Step 4 -->
+        <div class="p-5 rounded-2xl bg-white border border-cream-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-cream-200 text-cream-700 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
+              04
+            </div>
+            <h3 class="text-base font-bold font-heading text-content-primary mb-1">
+              Track Customer Payments
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              Know what money you have received and exactly which customers still owe.
+            </p>
           </div>
-          <h3 class="text-base font-bold font-display text-content-primary">Multi-Tenant Isolation</h3>
-          <p class="text-xs text-content-secondary leading-relaxed">
-            Bank-grade PostgreSQL Row Level Security (RLS) guaranteeing that separate branches, warehouses, or partner firms
-            maintain 100% cryptographic data segregation.
-          </p>
+          <div class="pt-2 text-[11px] font-semibold text-cream-700 flex items-center gap-1">
+            <span>Payment Recorded</span>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="p-5 rounded-2xl bg-white border border-lavender-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-lavender-100 text-lavender-700 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
+              05
+            </div>
+            <h3 class="text-base font-bold font-heading text-content-primary mb-1">
+              Understand Your Business
+            </h3>
+            <p class="text-xs text-content-secondary leading-relaxed">
+              View sales, stock, and payment information in one place with one-click Excel exports.
+            </p>
+          </div>
+          <div class="pt-2 text-[11px] font-semibold text-lavender-700 flex items-center gap-1">
+            <span>Reports Updated</span>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+            </svg>
+          </div>
         </div>
       </div>
     </Container>
   </section>
 
-  {/* SECTION 3: CORE CAPABILITIES DIRECTORY */}
-  <section class="py-20 bg-white border-b border-border">
+  {/* SECTION 3: PRODUCT SHOWCASE — SHOW THE REAL TOOL */}
+  <section class="py-16 md:py-24 bg-white border-b border-border">
+    <Container size="default">
+      <div class="text-center max-w-3xl mx-auto space-y-3 mb-12">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-100 text-sky-700">
+          Interactive Product Showcase
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold font-heading text-content-primary">
+          Experience Atlas OS in Action
+        </h2>
+        <p class="text-base text-content-secondary leading-relaxed">
+          Explore realistic concepts modeled directly on our high-performance desktop and web application architecture.
+        </p>
+      </div>
+
+      <!-- INTERACTIVE PREVIEW WRAPPER -->
+      <div class="max-w-6xl mx-auto">
+        <InteractivePreview client:load />
+      </div>
+
+      <p class="text-center text-xs text-content-muted mt-5">
+        * Interactive concept demonstration illustrating genuine software data structures and workflow capabilities.
+      </p>
+    </Container>
+  </section>
+
+  {/* SECTION 4: FEATURES SECTION — SIMPLE, COLORFUL & BENEFIT-DRIVEN */}
+  <section class="py-16 md:py-24 bg-surface-secondary/60 border-b border-border">
     <Container size="default">
       <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div class="space-y-2 max-w-2xl">
-          <Badge variant="violet" size="sm">Core Product Modules</Badge>
-          <h2 class="text-3xl font-extrabold font-display text-content-primary">
-            Connected Business Modules. No Siloed Spreadsheets.
+          <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-lavender-100 text-lavender-700">
+            Core Business Capabilities
+          </span>
+          <h2 class="text-3xl sm:text-4xl font-extrabold font-heading text-content-primary">
+            Built to Make Everyday Work Easier
           </h2>
-          <p class="text-sm text-content-secondary leading-relaxed">
-            Every transaction automatically reconciles across stock availability, customer ledgers, commercial invoices,
-            and executive reports.
+          <p class="text-base text-content-secondary leading-relaxed">
+            Every feature is designed to save hours of manual paperwork, reduce billing mistakes, and protect your cash flow.
           </p>
         </div>
 
-        <Button href="/features" variant="outline" size="md">
+        <Button href="/features" variant="outline" size="md" class="font-semibold text-brand-700 border-brand-300 hover:bg-brand-50">
           <span>View All Features</span>
           <svg class="w-4 h-4 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
@@ -181,52 +270,185 @@ import { ALL_FEATURES } from '../data/features';
         </Button>
       </div>
 
+      <!-- Feature Grid with Pastel Accents -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {ALL_FEATURES.slice(0, 6).map((feat) => (
-          <div class="p-6 rounded-2xl border border-border bg-surface-secondary/40 hover:bg-white hover:border-brand-300 transition-all duration-200 space-y-4 shadow-card hover:shadow-card-hover flex flex-col justify-between">
-            <div class="space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
-                  {feat.statusLabel}
-                </span>
-                {feat.metrics && <span class="text-[11px] text-content-muted font-mono">{feat.metrics}</span>}
-              </div>
-
-              <h3 class="text-lg font-bold font-display text-content-primary">{feat.title}</h3>
-              <p class="text-xs text-content-secondary leading-relaxed">{feat.description}</p>
+        <!-- 1. Inventory Accuracy (Mint) -->
+        <div class="p-6 rounded-2xl border border-mint-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-mint-100 text-mint-700">
+                Inventory
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">Real-Time</span>
             </div>
-
-            <ul class="space-y-1.5 pt-2 border-t border-border/50 text-xs">
-              {feat.highlights.slice(0, 3).map((hl) => (
-                <li class="flex items-start gap-2 text-content-primary">
-                  <span class="w-1.5 h-1.5 rounded-full bg-brand-600 mt-1.5 shrink-0"></span>
-                  <span>{hl}</span>
-                </li>
-              ))}
-            </ul>
+            <h3 class="text-lg font-bold font-heading text-content-primary">Keep Your Stock Accurate</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Track stock changes and maintain a clear record of what comes in and goes out across coils, meters, bundles, and boxes.
+            </p>
           </div>
-        ))}
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
+              <span>Available vs. committed quantity verification</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
+              <span>Audited manual stock adjustments</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 2. Sales Orders (Sky) -->
+        <div class="p-6 rounded-2xl border border-sky-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-100 text-sky-700">
+                Sales Orders
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">High Velocity</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-content-primary">Fast Sales Ordering</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Confirm customer orders quickly, prevent accidental overselling, and convert confirmed orders into invoices with one click.
+            </p>
+          </div>
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
+              <span>Pre-flight customer credit limit verification</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
+              <span>Transparent item-level discount shares</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 3. GST Invoicing (Coral) -->
+        <div class="p-6 rounded-2xl border border-coral-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-coral-100 text-coral-700">
+                GST Billing
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">Statutory</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-content-primary">Clear GST-Ready Invoicing</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Generate commercial tax invoices with verified Interstate IGST vs. CGST+SGST calculations and clean printable formatting.
+            </p>
+          </div>
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-coral-600"></span>
+              <span>Permanent historical tax rate snapshots</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-coral-600"></span>
+              <span>Multi-status invoice tracking (Issued, Paid, Due)</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 4. Receivables & Balances (Cream) -->
+        <div class="p-6 rounded-2xl border border-cream-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-cream-200 text-cream-700">
+                Customer Balances
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">Credit Control</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-content-primary">Know What Customers Owe</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Maintain transparent contractor accounts with live outstanding balance tracking, credit limits, and complete transaction histories.
+            </p>
+          </div>
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-cream-600"></span>
+              <span>Real-time receivables linked to invoices</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-cream-600"></span>
+              <span>Automated overdue aging awareness</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 5. Payment Receipts (Peach) -->
+        <div class="p-6 rounded-2xl border border-peach-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-peach-100 text-peach-700">
+                Receipts & Payments
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">Settlements</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-content-primary">Track Customer Payments</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Record RTGS, NEFT, UPI, Cheque, and Cash collections and easily allocate payments across single or multiple invoices.
+            </p>
+          </div>
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-peach-600"></span>
+              <span>Partial and multi-invoice settlement allocations</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-peach-600"></span>
+              <span>Clear receipt numbers and audit records</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 6. Excel Reporting (Lavender) -->
+        <div class="p-6 rounded-2xl border border-lavender-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-lavender-100 text-lavender-700">
+                Reporting
+              </span>
+              <span class="text-[11px] text-content-muted font-mono">1-Click Excel</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-content-primary">One-Click Financial Reports</h3>
+            <p class="text-sm text-content-secondary leading-relaxed">
+              Export comprehensive, multi-sheet Microsoft Excel workbooks for any statutory Indian Financial Year or calendar month in seconds.
+            </p>
+          </div>
+          <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-lavender-600"></span>
+              <span>5 structured sheets including Invoices & Products</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-lavender-600"></span>
+              <span>Data completeness verification</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </Container>
   </section>
 
-  {/* SECTION 4: INDUSTRY SPOTLIGHT */}
-  <section class="py-20 bg-surface-secondary border-b border-border">
+  {/* SECTION 5: INDUSTRY SOLUTIONS — WARM NEUTRAL & RELATABLE */}
+  <section class="py-16 md:py-24 bg-cream-50/70 border-b border-cream-200">
     <Container size="default">
       <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
-        <Badge variant="violet" size="sm">Targeted Distribution</Badge>
-        <h2 class="text-3xl font-extrabold font-display text-content-primary">
-          Built For Real Distribution Workflows
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cream-200 text-cream-700">
+          Targeted Distribution
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold font-heading text-content-primary">
+          Built for Businesses Like Yours
         </h2>
-        <p class="text-sm text-content-secondary leading-relaxed">
-          From coil packaging conversions to multi-month contractor credit ledgers, Atlas OS is architected around the
-          daily operational realities of trade distribution.
+        <p class="text-base text-content-secondary leading-relaxed">
+          From coil packaging conversions to contractor credit aging, Atlas OS is architected around your specific trade operations.
         </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         {INDUSTRY_SOLUTIONS.map((sol) => (
-          <div class="p-6 sm:p-8 rounded-3xl border border-border bg-white shadow-md hover:shadow-lg transition-all duration-200 space-y-6 flex flex-col justify-between">
+          <div class="p-6 sm:p-8 rounded-3xl border border-cream-200/90 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-6 flex flex-col justify-between">
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
@@ -234,12 +456,12 @@ import { ALL_FEATURES } from '../data/features';
                 </span>
               </div>
 
-              <h3 class="text-xl font-bold font-display text-content-primary">{sol.title}</h3>
+              <h3 class="text-xl font-bold font-heading text-content-primary">{sol.title}</h3>
               <p class="text-xs text-brand-700 font-semibold">{sol.tagline}</p>
-              <p class="text-xs text-content-secondary leading-relaxed">{sol.description}</p>
+              <p class="text-sm text-content-secondary leading-relaxed">{sol.description}</p>
 
               <div class="space-y-2 pt-2 border-t border-border/60">
-                <p class="text-xs font-bold uppercase tracking-wider text-content-primary font-display">
+                <p class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading">
                   Key Solved Challenges:
                 </p>
                 <ul class="space-y-1.5 text-xs">
@@ -262,7 +484,7 @@ import { ALL_FEATURES } from '../data/features';
               >
                 <span>Read Full Industry Workflow</span>
                 <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                  <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                 </svg>
               </a>
             </div>
@@ -272,34 +494,89 @@ import { ALL_FEATURES } from '../data/features';
     </Container>
   </section>
 
-  {/* SECTION 5: FINAL CTA BANNER */}
-  <section class="py-20 bg-surface-dark text-white relative overflow-hidden">
+  {/* SECTION 6: SECURITY ARCHITECTURE — DEEP NAVY CONTRAST SECTION */}
+  <section class="py-18 md:py-24 bg-surface-dark text-white relative overflow-hidden border-b border-navy-800">
     <div class="absolute inset-0 bg-radial-glow-dark opacity-60 pointer-events-none"></div>
     <Container size="default">
-      <div class="relative z-10 flex flex-col items-center text-center space-y-6 max-w-3xl mx-auto">
-        <Badge variant="violet" size="sm" class="bg-brand-500/20 text-brand-300 border-brand-500/30">
-          Ready to Modernize Your Wholesale Workflows?
-        </Badge>
+      <div class="relative z-10 flex flex-col items-center text-center space-y-4 max-w-3xl mx-auto mb-14">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-500/20 text-brand-300 border border-brand-500/30">
+          Enterprise Security & Data Isolation
+        </span>
+        <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold font-heading text-white">
+          Your Business Data. Strictly Isolated & Protected.
+        </h2>
+        <p class="text-sm sm:text-base text-content-muted leading-relaxed">
+          Engineered on PostgreSQL with database-enforced Row Level Security (RLS) so your organization's prices, customer lists, and financial books remain 100% private.
+        </p>
+      </div>
 
-        <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold font-display tracking-tight text-white leading-tight">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+        <div class="p-6 rounded-2xl bg-navy-800/80 border border-brand-500/20 space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-300 flex items-center justify-center font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold font-heading text-white">Multi-Tenant Isolation</h3>
+          <p class="text-xs text-content-muted leading-relaxed">
+            Every transaction is bounded to your organization ID at the database layer. No user or branch can ever access another company's records.
+          </p>
+        </div>
+
+        <div class="p-6 rounded-2xl bg-navy-800/80 border border-brand-500/20 space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-300 flex items-center justify-center font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold font-heading text-white">Role-Based Controls</h3>
+          <p class="text-xs text-content-muted leading-relaxed">
+            Granular permissions for Owners, Sales Staff, Inventory Managers, and Accountants prevent unauthorized price changes or inventory writes.
+          </p>
+        </div>
+
+        <div class="p-6 rounded-2xl bg-navy-800/80 border border-brand-500/20 space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-300 flex items-center justify-center font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold font-heading text-white">Permanent Audit Trails</h3>
+          <p class="text-xs text-content-muted leading-relaxed">
+            Every stock movement, invoice creation, and payment receipt maintains an unalterable audit log with timestamp and user attribution.
+          </p>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  {/* SECTION 7: FINAL CTA BANNER — VIBRANT TEAL GRADIENT */}
+  <section class="py-18 md:py-24 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-800 text-white relative overflow-hidden">
+    <div class="absolute inset-0 bg-radial-glow opacity-30 pointer-events-none"></div>
+    <Container size="default">
+      <div class="relative z-10 flex flex-col items-center text-center space-y-6 max-w-3xl mx-auto">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 text-white border border-white/30 backdrop-blur-sm">
+          Get Started with Atlas OS
+        </span>
+
+        <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold font-heading tracking-tight text-white leading-tight">
           Bring Your Inventory, Orders & Financials Into One Intelligent System.
         </h2>
 
-        <p class="text-sm sm:text-base text-content-muted leading-relaxed max-w-2xl">
-          Schedule a personalized demonstration with our technical solutions team to explore how Atlas OS can
-          streamline your specific product catalog and billing operations.
+        <p class="text-sm sm:text-base text-brand-100 leading-relaxed max-w-2xl">
+          Schedule a personalized demonstration to see how Atlas OS streamlines your specific product catalog and wholesale billing operations.
         </p>
 
         <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
-          <Button href="/request-demo" variant="primary" size="lg" class="shadow-glow">
+          <Button href="/request-demo" variant="primary" size="lg" class="bg-white text-brand-900 hover:bg-brand-50 shadow-lg font-bold">
             <span>Request a Guided Demo</span>
-            <svg class="w-4 h-4 ml-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="w-4 h-4 ml-1 text-brand-800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
             </svg>
           </Button>
 
-          <Button href="/download" variant="outline" size="lg" class="bg-white/10 hover:bg-white/20 text-white border-white/20">
+          <Button href="/download" variant="outline" size="lg" class="bg-brand-800/40 hover:bg-brand-800/60 text-white border-white/30 font-semibold">
             <span>Download Desktop App Preview</span>
           </Button>
         </div>

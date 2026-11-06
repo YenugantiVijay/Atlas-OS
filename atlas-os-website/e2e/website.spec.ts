@@ -189,4 +189,54 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.click('a:has-text("Return to Homepage")');
     await expect(page).toHaveURL('http://127.0.0.1:4321/');
   });
+  test('8. Brand workflow showcase appears and respects reduced-motion preferences', async ({ page }) => {
+    await page.goto('/');
+    const orbit = page.locator('.capability-orbit');
+    await expect(orbit).toBeVisible();
+    await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
+    for (const capability of ['Inventory', 'Sales Orders', 'Invoices', 'Payments', 'Reports', 'AI Insights']) {
+      await expect(orbit.getByText(capability, { exact: true })).toBeVisible();
+    }
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const animationName = await orbit.locator('.orbit-chip').first().evaluate((element) =>
+      getComputedStyle(element).animationName
+    );
+    expect(animationName).toBe('none');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(orbit).toBeVisible();
+    await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
+  });
+
+  test('9. Product storytelling section displays all 5 connected workflow steps', async ({ page }) => {
+    await page.goto('/');
+
+    const storytelling = page.locator('section:has-text("One Place for Your Daily Business")');
+    await expect(storytelling).toBeVisible();
+    await expect(storytelling.getByRole('heading', { name: 'Keep Track of Your Stock' })).toBeVisible();
+    await expect(storytelling.getByRole('heading', { name: 'Manage Customer Orders' })).toBeVisible();
+    await expect(storytelling.getByRole('heading', { name: 'Handle Your Invoices' })).toBeVisible();
+    await expect(storytelling.getByRole('heading', { name: 'Track Customer Payments' })).toBeVisible();
+    await expect(storytelling.getByRole('heading', { name: 'Understand Your Business' })).toBeVisible();
+  });
+
+  test('10. Mobile and tablet viewports render without horizontal scroll overflow', async ({ page }) => {
+    const viewports = [
+      { width: 390, height: 844 }, // Mobile
+      { width: 768, height: 1024 }, // Tablet
+      { width: 1280, height: 800 }, // Desktop
+    ];
+
+    for (const vp of viewports) {
+      await page.setViewportSize(vp);
+      await page.goto('/');
+
+      const isOverflowing = await page.evaluate(() => {
+        return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+      });
+      expect(isOverflowing).toBe(false);
+    }
+  });
+
 });

@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
-import Badge from '../components/common/Badge.astro';
 import RequestDemoForm from '../components/demo/RequestDemoForm';
 import { 
   CheckCircle2, 
@@ -16,20 +15,17 @@ import {
   canonicalUrl="https://atlas-os.web.app/request-demo"
 >
   <!-- Hero Section -->
-  <section class="pt-32 pb-16 bg-gradient-to-b from-brand-50/60 via-surface to-surface relative overflow-hidden border-b border-border-subtle">
-    <div class="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
-    <div class="absolute top-1/4 right-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50 relative overflow-hidden">
     <Container>
-      <div class="max-w-3xl mx-auto text-center">
-        <Badge variant="brand" className="mb-4">
-          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+      <div class="max-w-3xl mx-auto text-center space-y-4">
+        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+          <Calendar className="w-3.5 h-3.5 mr-1 text-brand-700" />
           Live 1-on-1 Product Walkthrough
-        </Badge>
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-text-primary tracking-tight font-display mb-6">
-          See Atlas OS in action on <span class="bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">your business terms</span>.
+        </span>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-primary tracking-tight font-heading leading-tight">
+          See Atlas OS in action on <span class="text-gradient">your business terms</span>.
         </h1>
-        <p class="text-lg sm:text-xl text-text-secondary leading-relaxed">
+        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           Book a focused 30-minute demonstration tailored specifically to your trade — electrical distribution, electronics wholesale, or retail-wholesale counters. No high-pressure sales pitch.
         </p>
       </div>
@@ -37,65 +33,65 @@ import {
   </section>
 
   <!-- Main Content & Form Grid -->
-  <section class="py-16 sm:py-24 bg-surface">
+  <section class="py-16 sm:py-24 bg-surface-secondary/40">
     <Container>
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
         <!-- Left Column: What to Expect & Value Props -->
         <div class="lg:col-span-5 space-y-8">
           <div>
-            <h2 class="text-2xl sm:text-3xl font-black text-text-primary font-display mb-4">
+            <h2 class="text-2xl sm:text-3xl font-bold text-content-primary font-heading mb-4">
               What happens during the demo?
             </h2>
-            <p class="text-text-secondary leading-relaxed mb-6">
+            <p class="text-sm sm:text-base text-content-secondary leading-relaxed mb-6">
               Our engineering specialists walk you through a live, working environment pre-populated with realistic hardware & distribution data, or customized to sample items you share.
             </p>
           </div>
 
           <!-- Feature Breakdown Steps -->
-          <div class="space-y-6">
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border-subtle shadow-sm hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 font-bold">
+          <div class="space-y-4">
+            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
+              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
                 1
               </div>
               <div>
-                <h3 class="font-bold text-text-primary mb-1">Workflow Diagnostic</h3>
-                <p class="text-sm text-text-secondary leading-relaxed">
+                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Workflow Diagnostic</h3>
+                <p class="text-xs text-content-secondary leading-relaxed">
                   We review your current billing speed bottlenecks, multi-rate GST complexities, ledger reconciliation pain points, or stock discrepancy challenges.
                 </p>
               </div>
             </div>
 
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border-subtle shadow-sm hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 font-bold">
+            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
+              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
                 2
               </div>
               <div>
-                <h3 class="font-bold text-text-primary mb-1">Live Product Simulation</h3>
-                <p class="text-sm text-text-secondary leading-relaxed">
+                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Live Product Simulation</h3>
+                <p class="text-xs text-content-secondary leading-relaxed">
                   Watch multi-UOM inventory conversion (boxes to meters), rapid counter POS keyboard entry, customer credit limit enforcement, and instantaneous invoice generation.
                 </p>
               </div>
             </div>
 
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border-subtle shadow-sm hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 font-bold">
+            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
+              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
                 3
               </div>
               <div>
-                <h3 class="font-bold text-text-primary mb-1">Financial Reconciliation Walkthrough</h3>
-                <p class="text-sm text-text-secondary leading-relaxed">
+                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Financial Reconciliation Walkthrough</h3>
+                <p class="text-xs text-content-secondary leading-relaxed">
                   See how partial customer receipts allocate accurately across oldest pending invoices with automated unapplied balance tracking and one-click Excel audit exports.
                 </p>
               </div>
             </div>
 
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border-subtle shadow-sm hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 font-bold">
+            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
+              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
                 4
               </div>
               <div>
-                <h3 class="font-bold text-text-primary mb-1">Clear Q&A & Migration Assessment</h3>
-                <p class="text-sm text-text-secondary leading-relaxed">
+                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Clear Q&A & Migration Assessment</h3>
+                <p class="text-xs text-content-secondary leading-relaxed">
                   Ask every technical, hardware compatibility, and data migration question directly. We provide a transparent assessment of fit and timeline.
                 </p>
               </div>
@@ -103,8 +99,8 @@ import {
           </div>
 
           <!-- Trust Badges -->
-          <div class="p-6 rounded-2xl bg-gradient-to-br from-brand-900 to-slate-900 text-white space-y-4">
-            <div class="flex items-center gap-2 text-brand-300 font-semibold text-sm">
+          <div class="p-6 rounded-2xl bg-surface-dark text-white space-y-4 border border-brand-500/20 shadow-sm">
+            <div class="flex items-center gap-2 text-brand-300 font-bold text-sm font-heading">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
               <span>Atlas OS Demonstration Guarantee</span>
             </div>
@@ -125,19 +121,19 @@ import {
           </div>
 
           <!-- Quick Contact -->
-          <div class="pt-4 border-t border-border-subtle">
-            <p class="text-xs text-text-muted">
-              Prefer an immediate conversation? Reach our sales engineering desk directly at <a href="mailto:demo@atlas-os.web.app" class="text-brand-600 font-medium hover:underline">demo@atlas-os.web.app</a> or call <a href="tel:+918000000000" class="text-brand-600 font-medium hover:underline">+91 (800) 000-0000</a>.
+          <div class="pt-4 border-t border-border">
+            <p class="text-xs text-content-secondary">
+              Prefer an immediate conversation? Reach our sales engineering desk directly at <a href="mailto:demo@atlasos.business" class="text-brand-700 font-semibold hover:underline">demo@atlasos.business</a>.
             </p>
           </div>
         </div>
 
         <!-- Right Column: Interactive Demo Form -->
         <div class="lg:col-span-7">
-          <div class="bg-white rounded-3xl p-8 sm:p-10 border border-border-subtle shadow-xl shadow-brand-500/5 relative">
-            <div class="mb-8">
-              <h3 class="text-2xl font-black text-text-primary font-display">Schedule Your Walkthrough</h3>
-              <p class="text-sm text-text-secondary mt-1">
+          <div class="bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-md relative">
+            <div class="mb-8 space-y-1">
+              <h3 class="text-2xl font-bold text-content-primary font-heading">Schedule Your Walkthrough</h3>
+              <p class="text-sm text-content-secondary">
                 Fill in your details below and our team will confirm your preferred session time within 4 business hours.
               </p>
             </div>
