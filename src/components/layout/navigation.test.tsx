@@ -128,6 +128,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
+      // The full navigation is intentionally opt-in; verify legacy role rules there.
+      fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
+
       // Verify "Activity Feed" is completely removed
       expect(screen.queryByText('Activity Feed')).toBeNull();
 
@@ -151,6 +154,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
+
+      // The full navigation is intentionally opt-in; verify legacy role rules there.
+      fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
 
       const dashboardLink = screen.getByRole('link', { name: /dashboard/i });
       const auditLink = screen.getByRole('link', { name: /audit trail/i });
@@ -418,6 +424,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
+      // The full navigation is intentionally opt-in; verify legacy role rules there.
+      fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
+
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();
       expect(screen.getByText('Audit Trail')).toBeInTheDocument();
@@ -435,6 +444,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
+
+      // The full navigation is intentionally opt-in; verify legacy role rules there.
+      fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();
@@ -458,6 +470,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           </MemoryRouter>
         );
 
+        // The full navigation is intentionally opt-in; verify legacy role rules there.
+        fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
+
         expect(screen.queryByText('Administration')).toBeNull();
         expect(screen.queryByText('Team & Access')).toBeNull();
         expect(screen.queryByText('Audit Trail')).toBeNull();
@@ -478,6 +493,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
+
+      // The full navigation is intentionally opt-in; verify legacy role rules there.
+      fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
 
       // Only items without required actions (Dashboard) are shown
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
