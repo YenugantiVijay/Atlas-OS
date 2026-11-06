@@ -138,8 +138,6 @@ export const reportsService = {
 
     await assertCloudFinancialReportAccess(orgId);
 
-    await assertCloudFinancialReportAccess(orgId);
-
     let invoiceCount = 0;
     let paymentCount = 0;
 
@@ -305,6 +303,8 @@ export const reportsService = {
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
+
+    await assertCloudFinancialReportAccess(orgId);
 
     const BATCH_SIZE = 250;
     const allInvoices: Invoice[] = [];
