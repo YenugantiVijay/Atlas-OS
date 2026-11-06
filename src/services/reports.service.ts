@@ -58,6 +58,31 @@ export interface ReportDataResult {
   referencedInvoices: Map<string, ReferencedInvoiceMeta>;
 }
 
+/**
+ * The browser role is presentation state, not authority. PostgreSQL verifies
+ * authenticated membership and role before any financial report is fetched.
+ *
+ * This is a report-operation gate, not a substitute for narrow table SELECT
+ * policies; the latter are intentionally preserved for other ERP workflows.
+ */
+async function assertCloudFinancialReportAccess(orgId: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+  }
+
+  const { data, error } = await supabase.rpc('assert_financial_report_access', {
+    p_org_id: orgId,
+  });
+
+  // Fail closed on unavailable/misconfigured RPC, revoked membership, or
+  // unexpected response shape. No financial query should execute afterward.
+  if (error || data !== true) {
+    throw new Error(
+      `Unauthorized: Database could not verify financial reporting permission. ${error?.message || 'Access was not granted.'}`
+    );
+  }
+}
+
 export const reportsService = {
   /**
    * Authoritatively retrieves exact record counts matching current criteria
@@ -110,6 +135,10 @@ export const reportsService = {
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
+
+    await assertCloudFinancialReportAccess(orgId);
+
+    await assertCloudFinancialReportAccess(orgId);
 
     let invoiceCount = 0;
     let paymentCount = 0;
