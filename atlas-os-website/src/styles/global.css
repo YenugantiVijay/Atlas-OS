@@ -65,10 +65,59 @@
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(45, 212, 191, 0.15);
   }
+
+  /* Signature Button Shimmer / Light-Sweep Hover Animation */
+  .btn-shimmer {
+    position: relative;
+    overflow: hidden !important;
+    isolation: isolate;
+  }
+
+  .btn-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -140%;
+    width: 70%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.65) 50%,
+      rgba(255, 255, 255, 0.08) 80%,
+      transparent 100%
+    );
+    transform: skewX(-22deg);
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.48s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+    z-index: 10;
+  }
+
+  .btn-shimmer:hover:not(:disabled)::after {
+    opacity: 1;
+    transform: translateX(400%) skewX(-22deg);
+  }
+
+  /* Teal / contrasting light-sweep for white and light buttons */
+  .btn-shimmer-teal::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(13, 148, 136, 0.08) 20%,
+      rgba(13, 148, 136, 0.45) 50%,
+      rgba(13, 148, 136, 0.08) 80%,
+      transparent 100%
+    );
+  }
 }
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
+  .btn-shimmer::after {
+    display: none !important;
+  }
   *,
   ::before,
   ::after {

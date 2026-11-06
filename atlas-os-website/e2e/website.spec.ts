@@ -85,8 +85,24 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
   test('2. Interactive Concept Preview on Homepage switches tabs and displays realistic data', async ({ page }) => {
     await page.goto('/');
 
-    // Verify initial dashboard tab is rendered
+    // Verify top window chrome and badges
+    await expect(page.locator('text=Bharat Electricals & Hardware Ltd.')).toBeVisible();
+    await expect(page.locator('text=Atlas OS Desktop Edition Preview')).toBeVisible();
+
+    // Verify initial dashboard tab is rendered with KPI cards and ₹ amounts
     await expect(page.locator('text=Executive Dashboard').first()).toBeVisible();
+    await expect(page.locator('text=₹48,24,500')).toBeVisible();
+    await expect(page.locator('text=₹12,40,250')).toBeVisible();
+    await expect(page.locator('text=₹36,18,900')).toBeVisible();
+    await expect(page.locator('text=₹14,92,000')).toBeVisible();
+
+    // Verify monthly revenue progression chartlet
+    await expect(page.locator('text=Revenue Progression (FY 26-27)')).toBeVisible();
+
+    // Verify recent commercial transactions and status badges
+    await expect(page.locator('text=Gayatri Electrical Contractors').first()).toBeVisible();
+    await expect(page.locator('text=Paid in Full').first()).toBeVisible();
+    await expect(page.locator('text=Partially Paid (₹1.5L Rec.)').first()).toBeVisible();
 
     // Click on Commercial Invoicing tab
     await page.click('button:has-text("Commercial Invoicing")');
@@ -97,6 +113,11 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.click('button:has-text("Multi-UOM Inventory")');
     await expect(page.locator('text=Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
     await expect(page.locator('text=Schneider Acti9 32A 3-Pole MCB')).toBeVisible();
+
+    // Click on Customer Receivables tab
+    await page.click('button:has-text("Customer Receivables")');
+    await expect(page.locator('text=Total Active Debtors')).toBeVisible();
+    await expect(page.locator('text=32 Accounts')).toBeVisible();
 
     // Click on 1-Click Excel Exports tab
     await page.click('button:has-text("1-Click Excel Exports")');
@@ -189,21 +210,41 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.click('a:has-text("Return to Homepage")');
     await expect(page).toHaveURL('http://127.0.0.1:4321/');
   });
-  test('8. Brand workflow showcase appears and respects reduced-motion preferences', async ({ page }) => {
+
+  test('8. Brand workflow showcase animation continues on hover and respects container height', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     const orbit = page.locator('.capability-orbit');
     await expect(orbit).toBeVisible();
+
+    // Check desktop container min-height is within 540px - 580px (560px)
+    const minHeight = await orbit.evaluate((el) => {
+      return parseInt(getComputedStyle(el).minHeight, 10);
+    });
+    expect(minHeight).toBeGreaterThanOrEqual(540);
+    expect(minHeight).toBeLessThanOrEqual(580);
+
+    // Verify all 6 chips
     await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
     for (const capability of ['Inventory', 'Sales Orders', 'Invoices', 'Payments', 'Reports', 'AI Insights']) {
       await expect(orbit.getByText(capability, { exact: true })).toBeVisible();
     }
 
+    // Verify animation does NOT pause on hover
+    await orbit.hover();
+    const playState = await orbit.locator('.orbit-chip').first().evaluate((el) => {
+      return getComputedStyle(el).animationPlayState;
+    });
+    expect(playState).not.toBe('paused');
+
+    // Reduced motion check
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const animationName = await orbit.locator('.orbit-chip').first().evaluate((element) =>
       getComputedStyle(element).animationName
     );
     expect(animationName).toBe('none');
 
+    // Mobile layout check
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(orbit).toBeVisible();
     await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
@@ -239,4 +280,81 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     }
   });
 
+  test('11. Final CTA banner displays high-contrast buttons and updated headline copy', async ({ page }) => {
+    await page.goto('/');
+
+    const ctaSection = page.locator('section:has-text("Your Business Deserves a Smarter Way to Work.")');
+    await expect(ctaSection).toBeVisible();
+
+    // Check headline and subtitle copy
+    await expect(ctaSection.locator('text=Your Business Deserves a Smarter Way to Work.')).toBeVisible();
+    await expect(ctaSection.locator('text=Bring stock, sales, invoices, and payments together with Atlas OS. See how it can simplify your daily business.')).toBeVisible();
+
+    // Check Primary Button (Request a Demo)
+    const primaryBtn = ctaSection.locator('a:has-text("Request a Demo")');
+    await expect(primaryBtn).toBeVisible();
+    await expect(primaryBtn).toHaveAttribute('href', '/request-demo');
+
+    // Contrast check: primary button must have dark text on light background (not white on white)
+    const primaryColors = await primaryBtn.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        color: style.color,
+        backgroundColor: style.backgroundColor,
+      };
+    });
+    // Color should NOT be white rgb(255, 255, 255)
+    expect(primaryColors.color).not.toBe('rgb(255, 255, 255)');
+
+    // Check Secondary Button (Explore Atlas OS)
+    const secondaryBtn = ctaSection.locator('a:has-text("Explore Atlas OS")');
+    await expect(secondaryBtn).toBeVisible();
+    await expect(secondaryBtn).toHaveAttribute('href', '/product');
+  });
+
+  test('12. Global button shimmer animation classes are applied properly', async ({ page }) => {
+    await page.goto('/');
+
+    // Primary CTA button has shimmer class
+    const ctaSection = page.locator('section:has-text("Your Business Deserves a Smarter Way to Work.")');
+    const primaryBtn = ctaSection.locator('a:has-text("Request a Demo")');
+    const classes = await primaryBtn.getAttribute('class');
+    expect(classes).toContain('btn-shimmer');
+    expect(classes).toContain('btn-shimmer-teal');
+
+    // Hero button has shimmer class
+    const heroBtn = page.locator('a:has-text("Explore Atlas OS")').first();
+    const heroClasses = await heroBtn.getAttribute('class');
+    expect(heroClasses).toContain('btn-shimmer');
+  });
+
+  test('13. Footer typography displays prominent headings and distinct links', async ({ page }) => {
+    await page.goto('/');
+
+    const footerHeading = page.locator('.footer-heading').first();
+    await expect(footerHeading).toBeVisible();
+
+    const headingStyles = await footerHeading.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        fontSize: parseFloat(style.fontSize),
+        fontWeight: parseInt(style.fontWeight, 10),
+      };
+    });
+    // Heading must be >= 17px and bold (>= 600)
+    expect(headingStyles.fontSize).toBeGreaterThanOrEqual(17);
+    expect(headingStyles.fontWeight).toBeGreaterThanOrEqual(600);
+
+    const footerLink = page.locator('.footer-link').first();
+    await expect(footerLink).toBeVisible();
+
+    const linkStyles = await footerLink.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        fontSize: parseFloat(style.fontSize),
+      };
+    });
+    // Link must be >= 14px
+    expect(linkStyles.fontSize).toBeGreaterThanOrEqual(14);
+  });
 });
