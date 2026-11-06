@@ -12,6 +12,7 @@ import { hasPermission } from '@/lib/permissions';
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
   },
   getSupabaseStatus: vi.fn(() => ({ isConfigured: true, isConnected: true })),
 }));
@@ -34,6 +35,7 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(supabase!.rpc).mockResolvedValue({ data: true, error: null } as any);
     localStorage.clear();
     localStorage.setItem('atlas_organizations_v1', JSON.stringify([mockOrg]));
   });
@@ -1045,5 +1047,64 @@ describe('reportsService — Financial Reporting & Scalability Suite', () => {
         /Unauthorized/i
       );
     });
+    it('requires the database authorization gate before querying cloud report counts', async () => {
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'ALL',
+        userRole: 'owner',
+      };
+
+      vi.mocked(supabase!.rpc).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Financial report access denied', code: '42501' },
+      } as any);
+
+      await expect(reportsService.getMatchingCounts(orgAId, params, false)).rejects.toThrow(
+        /Unauthorized: Database could not verify/i
+      );
+      expect(supabase!.rpc).toHaveBeenCalledWith('assert_financial_report_access', {
+        p_org_id: orgAId,
+      });
+      expect(supabase!.from).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when a cloud user cannot be authorized for export even if the supplied role claims owner', async () => {
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'INVOICES',
+        userRole: 'owner',
+      };
+
+      vi.mocked(supabase!.rpc).mockResolvedValueOnce({ data: false, error: null } as any);
+
+      await expect(reportsService.fetchReportData(orgAId, params, false)).rejects.toThrow(
+        /Unauthorized: Database could not verify/i
+      );
+      expect(supabase!.from).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the financial-report authorization RPC is unavailable', async () => {
+      const params: ReportFilterParams = {
+        periodType: 'FY',
+        periodLabel: 'FY 2025–26',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        documentType: 'ALL',
+      };
+
+      vi.mocked(supabase!.rpc).mockRejectedValueOnce(new Error('Network unavailable'));
+
+      await expect(reportsService.getMatchingCounts(orgAId, params, false)).rejects.toThrow(
+        /Network unavailable/i
+      );
+      expect(supabase!.from).not.toHaveBeenCalled();
+    });
+
   });
 });
