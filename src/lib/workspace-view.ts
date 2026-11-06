@@ -10,18 +10,11 @@ export const ESSENTIAL_WORKSPACE_GROUPS: ReadonlyArray<{
   title: string;
   paths: readonly string[];
 }> = [
-  {
-    title: 'Daily Work',
-    paths: ['/', '/orders', '/invoices', '/payments', '/customers', '/products'],
-  },
-  {
-    title: 'Stock & Reports',
-    paths: ['/inventory', '/reports/sales-receipts', '/suppliers'],
-  },
-  {
-    title: 'Business Settings',
-    paths: ['/settings'],
-  },
+  { title: 'Dashboard', paths: ['/'] },
+  { title: 'Sales', paths: ['/orders', '/invoices', '/customers'] },
+  { title: 'Inventory', paths: ['/products', '/inventory', '/suppliers'] },
+  { title: 'Finance', paths: ['/payments', '/reports/sales-receipts'] },
+  { title: 'Settings', paths: ['/settings'] },
 ];
 
 export function getWorkspaceViewStorageKey(
