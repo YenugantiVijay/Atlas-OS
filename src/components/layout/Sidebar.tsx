@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,12 +16,20 @@ import {
   ChevronRight,
   TrendingUp,
   X,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
+import {
+  ESSENTIAL_WORKSPACE_GROUPS,
+  getWorkspaceViewStorageKey,
+  loadWorkspaceView,
+  saveWorkspaceView,
+  WorkspaceView,
+} from '@/lib/workspace-view';
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -48,8 +56,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
 }) => {
-  const { currentOrg, currentRole } = useOrg();
+  const { currentOrg, currentRole, currentUser, isDemoMode } = useOrg();
   const supabaseStatus = getSupabaseStatus();
+
+  const preferenceKey = useMemo(
+    () => getWorkspaceViewStorageKey(currentOrg?.id, currentUser?.id, isDemoMode),
+    [currentOrg?.id, currentUser?.id, isDemoMode]
+  );
+  const [savedPreference, setSavedPreference] = useState<{
+    key: string;
+    view: WorkspaceView;
+  } | null>(null);
+  // When organization or user changes, immediately use that identity's own
+  // preference; no previous tenant's UI preference is carried across.
+  const workspaceView = savedPreference?.key === preferenceKey
+    ? savedPreference.view
+    : loadWorkspaceView(preferenceKey);
+
+  const updateWorkspaceView = (view: WorkspaceView) => {
+    saveWorkspaceView(preferenceKey, view);
+    setSavedPreference({ key: preferenceKey, view });
+  };
 
   const rawNavGroups: NavGroup[] = [
     {
@@ -108,12 +135,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const navGroups = rawNavGroups
+  // Authorization always comes first; neither view introduces new access.
+  const authorizedGroups = rawNavGroups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
     }))
     .filter((group) => group.items.length > 0);
+
+  const authorizedItems = new Map(
+    authorizedGroups.flatMap((group) => group.items.map((item) => [item.path, item] as const))
+  );
+  const essentialGroups: NavGroup[] = ESSENTIAL_WORKSPACE_GROUPS
+    .map((group) => ({
+      title: group.title,
+      items: group.paths
+        .map((path) => authorizedItems.get(path))
+        .filter((item): item is NavItem => item !== undefined),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  const navGroups = workspaceView === 'essentials' ? essentialGroups : authorizedGroups;
 
   return (
     <>
@@ -177,6 +219,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
         )}
+
+        {/* Optional simplified navigation; permissions and workflows are unchanged. */}
+        <div className="shrink-0 px-3.5 pt-3">
+          {(!collapsed || isMobileOpen) ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-1">
+              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Workspace navigation view">
+                {([
+                  ['essentials', 'Essentials'],
+                  ['all', 'All Tools'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => updateWorkspaceView(value)}
+                    aria-pressed={workspaceView === value}
+                    className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${
+                      workspaceView === value
+                        ? 'bg-teal-50 text-teal-900 shadow-sm'
+                        : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="px-2 pt-2 pb-1 text-[11px] leading-4 text-slate-300" aria-live="polite">
+                {workspaceView === 'essentials'
+                  ? 'Your everyday tools. Switch to All Tools anytime.'
+                  : 'Every tool your role can access. Your permissions stay the same.'}
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => updateWorkspaceView(workspaceView === 'essentials' ? 'all' : 'essentials')}
+              aria-label={workspaceView === 'essentials' ? 'Show all tools' : 'Show essentials'}
+              title={workspaceView === 'essentials' ? 'Show all tools' : 'Show essentials'}
+              className="flex w-full justify-center rounded-lg p-2.5 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+            >
+              <SlidersHorizontal className="w-[18px] h-[18px]" />
+            </button>
+          )}
+        </div>
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
