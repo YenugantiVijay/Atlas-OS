@@ -90,36 +90,56 @@ static on smaller screens or when the user requests reduced motion. AI Insights
 is explicitly labeled **In development**. The ERP application's own styles,
 Supabase migrations, and business workflows are not changed.
 
-## 4. Local Development
+## 4. How to Preview the Website
+
+### Option 1: One-Click Launcher (Windows)
+Double-click `preview-website.cmd` inside the `atlas-os-website/` directory (or run it from PowerShell/CMD):
+```cmd
+.\preview-website.cmd
+```
+This automated launcher:
+1. Checks for Node.js in your PATH.
+2. Tests whether port `4321` is already in use (avoids spawning duplicate background processes).
+3. Compiles a fresh static production build (`npm run build`) if `dist/` is missing.
+4. Starts the local static preview server (`scripts/serve-preview.mjs`).
+5. Automatically opens `http://localhost:4321/` in your default web browser.
+
+### Option 2: Command-Line Development & Preview
+From the `atlas-os-website/` folder:
+```bash
+# Live development server with hot module reloading:
+npm run dev
+
+# Or build and serve the optimized static production release:
+npm run build
+npm run preview
+```
+Visit `http://localhost:4321/` in any browser.
+
+### Option 3: VS Code Live Server / Static Hosting
+1. Run `npm run build` to generate the static files in `atlas-os-website/dist/`.
+2. Right-click `dist/index.html` in VS Code and select **Open with Live Server**, or run `npx serve dist`.
+
+---
+
+## 5. Local Development & Verification
 
 ### Prerequisites
 - Node.js >= 18.18.0
 - npm >= 9.0.0
 
-### Installation
-From the website directory:
+### Quality Verification Suite
 ```bash
 cd atlas-os-website
-npm install
-```
-
-### Running Locally
-```bash
-npm run dev
-```
-The development server will launch at `http://localhost:4321`.
-
-### Typechecking & Production Build
-```bash
-npm run typecheck    # Runs tsc --noEmit
-npm run check        # Runs astro check (validates Astro templates & scripts)
-npm run build        # Generates production static output in ./dist
-npm run preview      # Serves the static ./dist build locally
+npm run typecheck    # Strict TypeScript validation
+npm run check        # Astro template and diagnostic check
+npm run build        # Production static build to ./dist
+npm test             # Playwright end-to-end regression tests
 ```
 
 ---
 
-## 5. Deployment to Firebase Hosting
+## 6. Deployment to Firebase Hosting
 
 ### Initial Setup
 1. Install Firebase CLI globally if not already present:

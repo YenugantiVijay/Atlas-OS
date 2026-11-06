@@ -177,7 +177,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
                 />
                 <button
                   type="submit"
-                  className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0"
+                  className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 btn-shimmer"
                 >
                   <Bell className="w-3.5 h-3.5" />
                   <span>Notify Me</span>

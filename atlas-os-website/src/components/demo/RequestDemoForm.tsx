@@ -416,7 +416,7 @@ export default function RequestDemoForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full h-12 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-display font-semibold text-sm shadow-md hover:shadow-glow transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:scale-[0.99]"
+        className="w-full h-12 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-display font-semibold text-sm shadow-md hover:shadow-glow transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:scale-[0.99] btn-shimmer"
       >
         {isSubmitting ? (
           <>

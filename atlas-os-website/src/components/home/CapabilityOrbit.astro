@@ -123,7 +123,7 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    min-height: 440px;
+    min-height: 560px;
     border: 1px solid #d5e7e6;
     border-radius: 28px;
     background: radial-gradient(circle at 50% 50%, #e6faf5 0%, #f4fbfa 38%, #f8fafc 72%, #f0f4f8 100%);
@@ -152,13 +152,13 @@
   }
 
   .orbit-ring-inner {
-    width: 380px;
-    height: 250px;
+    width: 460px;
+    height: 290px;
   }
 
   .orbit-ring-outer {
-    width: 720px;
-    height: 360px;
+    width: 820px;
+    height: 430px;
     border-color: rgba(20, 43, 77, 0.12);
   }
 
@@ -241,13 +241,14 @@
     backdrop-filter: blur(8px);
     animation: gather-hold 12s ease-in-out infinite;
     cursor: default;
-    transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
   }
 
+  /* Hover highlight maintains keyframe motion without freeze or transform conflict */
   .orbit-chip:hover {
-    box-shadow: 0 16px 36px -10px rgba(13, 148, 136, 0.28);
+    box-shadow: 0 16px 36px -10px rgba(13, 148, 136, 0.35), 0 0 0 2px rgba(13, 148, 136, 0.18);
     border-color: #0d9488;
-    transform: scale(1.05) !important;
+    background: #ffffff;
   }
 
   .chip-icon {
@@ -311,49 +312,49 @@
 
   /* Node Coordinates & Path Directions */
   .chip-inventory {
-    left: 6%;
-    top: 12%;
-    --dx: -110px;
-    --dy: -25px;
+    left: 7%;
+    top: 14%;
+    --dx: -80px;
+    --dy: -30px;
   }
 
   .chip-orders {
-    right: 6%;
-    top: 12%;
-    --dx: 110px;
-    --dy: -25px;
+    right: 7%;
+    top: 14%;
+    --dx: 80px;
+    --dy: -30px;
     animation-delay: -0.7s;
   }
 
   .chip-invoices {
-    left: 2.5%;
-    top: 45%;
-    --dx: -130px;
+    left: 3.5%;
+    top: 48%;
+    --dx: -90px;
     --dy: 0px;
     animation-delay: -1.4s;
   }
 
   .chip-payments {
-    right: 2.5%;
-    top: 45%;
-    --dx: 130px;
+    right: 3.5%;
+    top: 48%;
+    --dx: 90px;
     --dy: 0px;
     animation-delay: -2.1s;
   }
 
   .chip-reports {
-    left: 10%;
-    bottom: 11%;
-    --dx: -100px;
-    --dy: 65px;
+    left: 9%;
+    bottom: 12%;
+    --dx: -80px;
+    --dy: 35px;
     animation-delay: -2.8s;
   }
 
   .chip-ai {
-    right: 10%;
-    bottom: 11%;
-    --dx: 100px;
-    --dy: 65px;
+    right: 9%;
+    bottom: 12%;
+    --dx: 80px;
+    --dy: 35px;
     animation-delay: -3.5s;
   }
 
@@ -383,10 +384,10 @@
     }
   }
 
-  /* Pause on hover */
+  /* Motion continues uninterrupted on hover */
   .capability-orbit:hover .orbit-chip,
   .capability-orbit:focus-within .orbit-chip {
-    animation-play-state: paused;
+    animation-play-state: running;
   }
 
   /* Mobile / Small Viewport Fallback */

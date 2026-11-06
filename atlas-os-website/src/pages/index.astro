@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
-import Badge from '../components/common/Badge.astro';
 import InteractivePreview from '../components/home/InteractivePreview';
 import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
@@ -560,24 +559,38 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
         </span>
 
         <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold font-heading tracking-tight text-white leading-tight">
-          Bring Your Inventory, Orders & Financials Into One Intelligent System.
+          Your Business Deserves a Smarter Way to Work.
         </h2>
 
         <p class="text-sm sm:text-base text-brand-100 leading-relaxed max-w-2xl">
-          Schedule a personalized demonstration to see how Atlas OS streamlines your specific product catalog and wholesale billing operations.
+          Bring stock, sales, invoices, and payments together with Atlas OS. See how it can simplify your daily business.
         </p>
 
         <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
-          <Button href="/request-demo" variant="primary" size="lg" class="bg-white text-brand-900 hover:bg-brand-50 shadow-lg font-bold">
-            <span>Request a Guided Demo</span>
-            <svg class="w-4 h-4 ml-1 text-brand-800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <Button
+            href="/request-demo"
+            variant="white"
+            size="lg"
+            class="shadow-xl px-7 py-3.5 text-base font-bold !text-[#142B4D] hover:bg-slate-100 transition-all hover:scale-[1.02]"
+          >
+            <span class="!text-[#142B4D]">Request a Demo</span>
+            <svg class="w-4 h-4 ml-1.5 text-[#142B4D]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
             </svg>
           </Button>
 
-          <Button href="/download" variant="outline" size="lg" class="bg-brand-800/40 hover:bg-brand-800/60 text-white border-white/30 font-semibold">
-            <span>Download Desktop App Preview</span>
+          <Button
+            href="/product"
+            variant="ghost"
+            size="lg"
+            class="bg-white/10 hover:bg-white/20 !text-white border border-white/40 shadow-sm px-7 py-3.5 text-base font-semibold transition-all hover:scale-[1.02]"
+          >
+            <span class="!text-white">Explore Atlas OS</span>
+            <svg class="w-4 h-4 ml-1.5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
           </Button>
         </div>
       </div>
