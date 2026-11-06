@@ -244,6 +244,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                 ))}
               </div>
+              <p className="px-2 pt-2 pb-1 text-[11px] leading-4 text-slate-300" aria-live="polite">
+                {workspaceView === 'essentials'
+                  ? 'Your everyday tools. Switch to All Tools anytime.'
+                  : 'Every tool your role can access. Your permissions stay the same.'}
+              </p>
             </div>
           ) : (
             <button
