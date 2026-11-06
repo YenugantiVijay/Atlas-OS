@@ -60,7 +60,7 @@ Status classifications reflect a repository-level review and conversation recove
 | Slice | Status | Code evidence | Acceptance boundary |
 |---|---|---|---|
 | **W0-01: Financial report preview count integrity** | **Implemented and verified in GitHub CI #42281903266** | `src/features/reports/SalesReceiptsReportPage.tsx` and its unit tests | Older filter/organization requests cannot overwrite the latest counts; failed/invalid previews show no misleading numbers, visibly report errors, and block the export button; export success no longer states potentially stale preview totals. GitHub Actions [run #42281903266](https://github.com/YenugantiVijay/Atlas-OS/actions/runs/42281903266) passed ESLint, TypeScript, PostgreSQL acceptance, Vitest, build, and Playwright. |
-| **SEC-01: Direct financial-table read policies** | **Not yet resolved** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
+| **SEC-01: Direct financial-table read policies** | **Reviewed; fix pending** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
 | **FIN-01: Consistent multi-query export snapshot** | **Not yet resolved** | `src/services/reports.service.ts` has count and nested-row checks | Count rechecks are not a PostgreSQL transactional snapshot; do not claim fully consistent exports yet. |
 
 ## Edition and navigation decision log
@@ -71,6 +71,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 - **UX-01: Compact navigation** — Simple View and Full Navigation remain preferences only. Simple View now groups authorized tools into Dashboard, Sales, Inventory, Finance, Settings. Subscription access is unchanged.
 - **COM-02: Proposed editions** — website presents Atlas Essentials and Professional honestly without unapproved pricing, guarantees or payment links. Paid entitlements, billing and module enforcement are **not yet implemented**.
 - **Order preserved** — after website compatibility, continue **SEC-01** least-privilege direct financial reads, **FIN-01** snapshot export, then **B2** Universal Search. The 140-feature register remains authoritative.
+
+**SEC-01 first review:** [Financial read-access audit](./SEC_01_FINANCIAL_READ_ACCESS_AUDIT.md) maps the broad raw table SELECT policies, user-role mismatch, and required migration/test approach. This is a review milestone, **not** an RLS fix.
 
 ## Feature inventory
 
