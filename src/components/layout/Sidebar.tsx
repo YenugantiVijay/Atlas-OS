@@ -290,6 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ) : null}
                 <ul
                   id={expandable ? `simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}` : undefined}
+                  hidden={expandable && !expanded}
                   className={`space-y-1 ${expandable && !expanded ? 'hidden' : ''} ${expandable ? 'pl-2' : ''}`}
                 >
                   {group.items.map((item) => (
