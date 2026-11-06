@@ -1,180 +1,104 @@
-import { useState } from "react";
-import { Check, X, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { Check, ArrowRight, Sparkles, Info } from "lucide-react";
 import { PRICING_TIERS } from "../../data/pricing";
 
+/**
+ * Informational edition comparison. No purchase is possible until server-side
+ * subscription entitlements, billing and approved prices are implemented.
+ */
 export default function PricingTable() {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
-    "monthly",
-  );
-
   return (
-    <div className="space-y-12">
-      {/* Billing Interval Selector */}
-      <div className="flex flex-col items-center justify-center space-y-3">
-        <div className="p-1 rounded-2xl bg-surface-secondary border border-border inline-flex items-center gap-1 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setBillingCycle("monthly")}
-            className={`px-5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
-              billingCycle === "monthly"
-                ? "bg-brand-600 text-white shadow-sm"
-                : "text-content-secondary hover:text-content-primary"
-            }`}
-          >
-            Monthly Billing
-          </button>
-          <button
-            type="button"
-            onClick={() => setBillingCycle("annual")}
-            className={`px-5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
-              billingCycle === "annual"
-                ? "bg-brand-600 text-white shadow-sm"
-                : "text-content-secondary hover:text-content-primary"
-            }`}
-          >
-            <span>Annual Billing</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              Save 20% on Launch
-            </span>
-          </button>
-        </div>
-
-        <p className="text-xs text-content-secondary text-center">
-          Transparent wholesale pricing • 7-day complimentary commercial trial •
-          Zero initial credit card required
+    <div className="space-y-10">
+      <div className="mx-auto max-w-2xl text-center space-y-3">
+        <h2 className="text-2xl sm:text-3xl font-bold font-heading text-content-primary">
+          Choose the way you want to work
+        </h2>
+        <p className="text-sm sm:text-base text-content-secondary leading-relaxed">
+          Start with everyday business tasks or explore additional distributor workflows.
+          Both editions are being prepared for commercial release.
         </p>
       </div>
 
-      {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto items-stretch">
         {PRICING_TIERS.map((tier) => (
-          <div
+          <article
             key={tier.id}
-            className={`rounded-3xl flex flex-col justify-between transition-all duration-200 relative ${
-              tier.isFeatured
-                ? "border-2 border-brand-500 bg-white shadow-glow-lg -translate-y-1"
-                : "border border-border bg-white shadow-md hover:shadow-lg"
+            className={`relative rounded-3xl border bg-white shadow-card flex flex-col overflow-hidden ${
+              tier.isFeatured ? "border-brand-500 ring-1 ring-brand-100" : "border-border"
             }`}
           >
-            {tier.isFeatured && (
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-brand-600 text-white text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{tier.badge}</span>
+            <div className="p-6 sm:p-8 flex-1 space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-brand-50 border border-brand-100 px-3 py-1 text-[11px] font-bold text-brand-800">
+                  {tier.badge}
+                </span>
+                {tier.isFeatured && <Sparkles aria-hidden="true" className="w-4 h-4 text-brand-600" />}
               </div>
-            )}
 
-            <div className="p-6 sm:p-8 space-y-6">
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold font-display text-content-primary">
-                    {tier.name}
-                  </h3>
-                  {!tier.isFeatured && tier.badge && (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-surface-secondary text-content-secondary border border-border">
-                      {tier.badge}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-content-secondary leading-relaxed min-h-[36px]">
-                  {tier.tagline}
-                </p>
+                <h3 className="text-2xl font-bold font-heading text-content-primary">{tier.name}</h3>
+                <p className="text-base font-semibold text-brand-700">{tier.tagline}</p>
+                <p className="text-sm leading-relaxed text-content-secondary">{tier.description}</p>
               </div>
 
-              {/* Price Display */}
-              <div className="p-4 rounded-2xl bg-surface-secondary border border-border space-y-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-700 font-display">
+              <div className="rounded-2xl bg-surface-secondary border border-border px-5 py-4 space-y-1">
+                <span className="text-xs uppercase tracking-wide font-bold text-brand-700">
                   {tier.statusText}
                 </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-extrabold font-display text-content-primary">
-                    {tier.priceDisplay}
-                  </span>
-                </div>
-                <span className="text-[11px] text-content-muted block">
-                  {tier.billingPeriod}
-                </span>
+                <p className="text-lg font-bold text-content-primary">{tier.priceDisplay}</p>
+                <p className="text-sm text-content-secondary">{tier.billingPeriod}</p>
               </div>
 
-              {/* Features List */}
-              <div className="space-y-3 pt-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-content-primary font-display">
-                  Included Capabilities:
-                </p>
-                <ul className="space-y-2.5 text-xs">
-                  {tier.features.map((feat, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5">
-                      {feat.included ? (
-                        <div className="w-4 h-4 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center shrink-0 mt-0.5">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        </div>
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-surface-secondary text-content-muted flex items-center justify-center shrink-0 mt-0.5">
-                          <X className="w-3 h-3" />
-                        </div>
+              <h4 className="text-sm font-bold text-content-primary">What this edition is designed for</h4>
+              <ul className="space-y-3">
+                {tier.features.map((feature) => (
+                  <li key={feature.name} className="flex items-start gap-3 text-sm leading-relaxed">
+                    <span className={`mt-0.5 rounded-full p-1 shrink-0 ${
+                      feature.included ? "bg-brand-50 text-brand-700" : "bg-amber-50 text-amber-700"
+                    }`}>
+                      {feature.included
+                        ? <Check aria-hidden="true" className="w-3.5 h-3.5" />
+                        : <Info aria-hidden="true" className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="text-content-primary">
+                      {feature.name}
+                      {feature.note && (
+                        <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          {feature.note}
+                        </span>
                       )}
-                      <span
-                        className={
-                          feat.included
-                            ? "text-content-primary"
-                            : "text-content-muted line-through"
-                        }
-                      >
-                        {feat.name}
-                        {feat.note && (
-                          <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                            {feat.note}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            {/* Card CTA Footer */}
-            <div className="p-6 sm:p-8 pt-0 border-t border-border/50 mt-6">
+            <div className="p-6 sm:p-8 pt-0">
               <a
                 href={tier.ctaHref}
-                className={`w-full h-11 rounded-xl text-xs font-bold font-display flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-sm ${
+                className={`inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
                   tier.isFeatured
-                    ? "bg-brand-600 hover:bg-brand-700 text-white shadow-glow"
-                    : "bg-surface-secondary hover:bg-surface-tertiary text-content-primary border border-border"
+                    ? "bg-brand-600 hover:bg-brand-700 text-white"
+                    : "bg-surface-secondary hover:bg-brand-50 text-content-primary border border-border"
                 }`}
               >
-                <span>{tier.ctaText}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {tier.ctaText}
+                <ArrowRight aria-hidden="true" className="w-4 h-4" />
               </a>
             </div>
-          </div>
+          </article>
         ))}
       </div>
-
-      {/* Trial & Guarantee Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl border border-border bg-surface-secondary flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-2xl bg-brand-100 text-brand-700 shrink-0">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-base font-bold font-display text-content-primary">
-              Our 7-Day Commercial Integrity Promise
-            </h4>
-            <p className="text-xs text-content-secondary leading-relaxed max-w-2xl">
-              Distributors operate on trust. When Atlas OS launches publicly,
-              your business receives a 7-day full-access trial to verify
-              inventory accuracy, contractor receivables, and Excel reporting
-              with zero card details required.
-            </p>
-          </div>
+      <div className="max-w-5xl mx-auto rounded-2xl border border-brand-200 bg-brand-50 px-5 py-5 text-sm text-content-primary leading-relaxed">
+        <strong>Important:</strong> Edition names describe our planned product packaging. Actual pricing, account limits
+        and paid feature access are not active yet. The Simple View / Full Navigation switch inside Atlas OS
+        changes only the menu layout, not your subscription or permissions.
+      </div>
+      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-border bg-surface-secondary p-6">
+        <div>
+          <h3 className="text-base font-bold text-content-primary">Managing multiple branches or complex operations?</h3>
+          <p className="text-sm text-content-secondary mt-1">Tell us what you need. Enterprise capabilities are being planned separately.</p>
         </div>
-
-        <a
-          href="/request-demo"
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white border border-brand-200 text-brand-700 text-xs font-bold font-display hover:bg-brand-50 transition-colors shadow-2xs shrink-0"
-        >
-          <span>Schedule Demo Today</span>
-          <ArrowRight className="w-3.5 h-3.5" />
+        <a className="inline-flex items-center gap-2 font-semibold text-brand-700 hover:text-brand-800" href="/request-demo?tier=enterprise">
+          Discuss Your Business <ArrowRight aria-hidden="true" className="w-4 h-4" />
         </a>
       </div>
     </div>
