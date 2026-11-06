@@ -129,6 +129,27 @@ if (fakeInstallerRegex.test(downloadHtml)) {
   console.log('[PASS] Packaging honesty verified: Zero fake .exe or .msi binaries linked.');
 }
 
+// 6. Verify the public edition presentation is readable and truthful.
+const pricingHtml = fs.readFileSync(path.join(distDir, 'pricing/index.html'), 'utf8');
+for (const edition of ['Atlas Essentials', 'Atlas Professional']) {
+  if (!pricingHtml.includes(edition)) {
+    console.error(`[FAIL] Pricing page missing edition: ${edition}`);
+    failedChecks++;
+  }
+}
+for (const prematureClaim of ['Save 20% on Launch', '99.9% uptime SLA', 'Unlimited SKUs, branches']) {
+  if (pricingHtml.includes(prematureClaim)) {
+    console.error(`[FAIL] Pricing page contains unapproved commercial claim: ${prematureClaim}`);
+    failedChecks++;
+  }
+}
+if (!pricingHtml.includes('Pricing to be announced')) {
+  console.error('[FAIL] Pricing page does not clearly state commercial prices are not yet available');
+  failedChecks++;
+} else {
+  console.log('[PASS] Honest two-edition pricing presentation verified.');
+}
+
 console.log('----------------------------------------------------');
 if (failedChecks > 0) {
   console.error(`Verification FAILED with ${failedChecks} errors.`);

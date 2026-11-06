@@ -291,6 +291,10 @@ These are design goals and implementation requirements, not a claim that every c
 
 ## 🗺️ Roadmap
 
+> **Follow the active feature plan:** [Atlas OS Master Feature Register](docs/ATLAS_OS_MASTER_FEATURE_REGISTER.md) — the 140 discussed capabilities, status, delivery waves, and market-readiness dependencies. The older checklist below records historic milestones and is not proof of production certification.
+
+
+
 ### Phase 1 — Core operations
 - [x] Initial React/TypeScript application
 - [x] Initial feature-oriented UI

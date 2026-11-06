@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Boxes,
@@ -17,6 +17,7 @@ import {
   TrendingUp,
   X,
   SlidersHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useOrg } from '@/features/organizations/OrgContext';
@@ -58,6 +59,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentOrg, currentRole, currentUser, isDemoMode } = useOrg();
   const supabaseStatus = getSupabaseStatus();
+  const { pathname } = useLocation();
+  const [expandedSimpleSections, setExpandedSimpleSections] = useState<Record<string, boolean>>({});
 
   const preferenceKey = useMemo(
     () => getWorkspaceViewStorageKey(currentOrg?.id, currentUser?.id, isDemoMode),
@@ -157,6 +160,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navGroups = workspaceView === 'essentials' ? essentialGroups : authorizedGroups;
 
+  // Keep the active route discoverable when users navigate via a deep link
+  // or universal command palette. This changes no authorization.
+  useEffect(() => {
+    const active = ESSENTIAL_WORKSPACE_GROUPS.find((group) => group.paths.includes(pathname));
+    if (active && active.paths.length > 1) {
+      setExpandedSimpleSections((prev) =>
+        prev[active.title] === true ? prev : { ...prev, [active.title]: true }
+      );
+    }
+  }, [pathname]);
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -220,42 +234,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Optional simplified navigation; permissions and workflows are unchanged. */}
+        {/* Navigation density is independent of subscriptions and permissions. */}
         <div className="shrink-0 px-3.5 pt-3">
           {(!collapsed || isMobileOpen) ? (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-1">
-              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Workspace navigation view">
-                {([
-                  ['essentials', 'Essentials'],
-                  ['all', 'All Tools'],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => updateWorkspaceView(value)}
-                    aria-pressed={workspaceView === value}
-                    className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${
-                      workspaceView === value
-                        ? 'bg-teal-50 text-teal-900 shadow-sm'
-                        : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="px-2 pt-2 pb-1 text-[11px] leading-4 text-slate-300" aria-live="polite">
-                {workspaceView === 'essentials'
-                  ? 'Your everyday tools. Switch to All Tools anytime.'
-                  : 'Every tool your role can access. Your permissions stay the same.'}
-              </p>
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
+              <SlidersHorizontal className="w-4 h-4 shrink-0 text-teal-200" aria-hidden="true" />
+              <label htmlFor="atlas-navigation-layout" className="sr-only">Navigation layout</label>
+              <select
+                id="atlas-navigation-layout"
+                value={workspaceView}
+                onChange={(event) => updateWorkspaceView(event.target.value as WorkspaceView)}
+                title="Change the menu layout; subscription and permissions stay the same"
+                className="w-full min-w-0 cursor-pointer rounded-md bg-[#243B53] px-2 py-1.5 text-xs font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+              >
+                <option value="essentials">Simple View</option>
+                <option value="all">Full Navigation</option>
+              </select>
             </div>
           ) : (
             <button
               type="button"
               onClick={() => updateWorkspaceView(workspaceView === 'essentials' ? 'all' : 'essentials')}
-              aria-label={workspaceView === 'essentials' ? 'Show all tools' : 'Show essentials'}
-              title={workspaceView === 'essentials' ? 'Show all tools' : 'Show essentials'}
+              aria-label={workspaceView === 'essentials' ? 'Show full navigation' : 'Show simple navigation'}
+              title={workspaceView === 'essentials' ? 'Full Navigation' : 'Simple View'}
               className="flex w-full justify-center rounded-lg p-2.5 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
             >
               <SlidersHorizontal className="w-[18px] h-[18px]" />
@@ -265,53 +266,71 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
-          {navGroups.map((group) => (
-            <div key={group.title}>
-              {(!collapsed || isMobileOpen) && (
-                <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
-                  {group.title}
-                </h5>
-              )}
-              <ul className="space-y-1">
-                {group.items.map((item) => (
-                  <li key={item.path}>
-                    <NavLink
-                      to={item.path}
-                      end={item.path === '/'}
-                      onClick={() => {
-                        if (isMobileOpen && onCloseMobile) {
-                          onCloseMobile();
+          {navGroups.map((group) => {
+            const simple = workspaceView === 'essentials' && (!collapsed || isMobileOpen);
+            const expandable = simple && group.items.length > 1;
+            const expanded = expandedSimpleSections[group.title] ?? group.items.some((item) => item.path === pathname);
+            return (
+              <div key={group.title}>
+                {expandable ? (
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={`simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+                    onClick={() => setExpandedSimpleSections((prev) => ({ ...prev, [group.title]: !expanded }))}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                  >
+                    <span>{group.title}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                  </button>
+                ) : (!collapsed || isMobileOpen) && !simple ? (
+                  <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
+                    {group.title}
+                  </h5>
+                ) : null}
+                <ul
+                  id={expandable ? `simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}` : undefined}
+                  hidden={expandable && !expanded}
+                  className={`space-y-1 ${expandable && !expanded ? 'hidden' : ''} ${expandable ? 'pl-2' : ''}`}
+                >
+                  {group.items.map((item) => (
+                    <li key={item.path}>
+                      <NavLink
+                        to={item.path}
+                        end={item.path === '/'}
+                        onClick={() => {
+                          if (isMobileOpen && onCloseMobile) {
+                            onCloseMobile();
+                          }
+                        }}
+                        title={collapsed && !isMobileOpen ? item.label : undefined}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
+                            isActive
+                              ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
+                              : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
+                          } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
                         }
-                      }}
-                      title={collapsed && !isMobileOpen ? item.label : undefined}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
-                          isActive
-                            ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
-                            : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
-                        } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <span
-                            className={`shrink-0 transition-colors ${
-                              isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
-                            }`}
-                          >
-                            {item.icon}
-                          </span>
-                          {(!collapsed || isMobileOpen) && (
-                            <span className="truncate">{item.label}</span>
-                          )}
-                        </>
-                      )}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className={`shrink-0 transition-colors ${
+                                isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
+                              }`}
+                            >
+                              {item.icon}
+                            </span>
+                            {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
+                          </>
+                        )}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </div>
 
         {/* Bottom status */}

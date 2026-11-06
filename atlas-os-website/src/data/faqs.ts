@@ -16,7 +16,7 @@ export const FAQS: FaqItem[] = [
   {
     id: 'wholesale-and-retail',
     question: 'Can I use Atlas OS for both wholesale and retail operations?',
-    answer: 'Yes. Atlas OS supports both formal B2B wholesale workflows (credit limits, sales orders, contractor accounts, multi-invoice RTGS allocations) and high-speed trade counter billing (immediate cash/UPI receipts, walk-in customers). Role-based permissions allow you to give counter staff billing access while protecting cost prices and sensitive accounting records.',
+    answer: 'Atlas OS currently provides sales orders, customer accounts, invoices, inventory and payment tracking for distributor workflows. A dedicated fast retail counter, walk-in checkout and advanced credit policies are planned, and are not yet part of a verified retail release.',
     category: 'Product & Features',
   },
   {
@@ -58,7 +58,7 @@ export const FAQS: FaqItem[] = [
   {
     id: 'pricing-structure',
     question: 'How will Atlas OS be priced?',
-    answer: 'Atlas OS is designed as a transparent SaaS product with tiers suited for growing trade counters, established wholesale distributors, and multi-branch enterprises. Final commercial pricing will be announced ahead of our general public launch. You can review our planned tier capabilities on the Pricing page.',
+    answer: 'We are preparing Atlas Essentials for everyday shop workflows and Atlas Professional for more involved distribution workflows. Pricing, commercial entitlements and purchase options are not live yet. The current Simple View / Full Navigation selector changes menu layout only, not subscription access.',
     category: 'Pricing & Trials',
   },
 ];

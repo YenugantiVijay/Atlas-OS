@@ -28,48 +28,55 @@ function setup(role: 'owner' | 'viewer' | 'sales' = 'owner') {
   );
 }
 
-describe('Sidebar Essentials and All Tools navigation', () => {
+describe('Sidebar Simple View and Full Navigation', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.resetAllMocks();
   });
 
-  it('defaults to Essentials while retaining core business navigation', () => {
+  it('defaults to a compact five-section navigation without changing access', () => {
     setup();
-    expect(screen.getByRole('button', { name: 'Essentials' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('Your everyday tools. Switch to All Tools anytime.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Sales Orders/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Products & SKUs/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Tax Invoices/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Payments & Ledger/ })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: /Quotations/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /ATLAS AI Assistant/ })).toBeNull();
+    const picker = screen.getByRole('combobox', { name: 'Navigation layout' }) as HTMLSelectElement;
+    expect(picker.value).toBe('essentials');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sales' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Inventory' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Finance' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('link', { name: 'Org Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Quotations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ATLAS AI Assistant' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sales' }));
+    expect(screen.getByRole('link', { name: 'Sales Orders' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tax Invoices' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }));
+    expect(screen.getByRole('link', { name: 'Products & SKUs' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(screen.getByRole('link', { name: 'Payments & Ledger' })).toBeInTheDocument();
   });
 
-  it('shows all permission-allowed navigation when selected and saves the choice', () => {
+  it('shows only permission-allowed tools in Full Navigation and saves layout choice', () => {
     setup();
-    fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
-    expect(screen.getByRole('link', { name: /Quotations/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /ATLAS AI Assistant/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'All Tools' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('Every tool your role can access. Your permissions stay the same.')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
+    expect(screen.getByRole('link', { name: 'Quotations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ATLAS AI Assistant' })).toBeInTheDocument();
+    expect((screen.getByRole('combobox', { name: 'Navigation layout' }) as HTMLSelectElement).value).toBe('all');
     expect(window.localStorage.getItem('atlas_workspace_view_v1:cloud:user-a:org-a')).toBe('all');
-    fireEvent.click(screen.getByRole('button', { name: 'Essentials' }));
-    expect(screen.queryByRole('link', { name: /ATLAS AI Assistant/ })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'essentials' } });
+    expect(screen.queryByRole('link', { name: 'ATLAS AI Assistant' })).not.toBeInTheDocument();
   });
 
-  it('does not reveal unauthorized functionality through All Tools', () => {
+  it('does not grant an unauthorized role more access through Full Navigation', () => {
     setup('viewer');
-    fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
-    expect(screen.queryByRole('link', { name: /Sales & Receipts/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Team & Access/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Org Settings/ })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
+    expect(screen.queryByRole('link', { name: 'Sales & Receipts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Team & Access' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Org Settings' })).not.toBeInTheDocument();
   });
 
-  it('shows the right saved preference when the active organization changes', () => {
+  it('does not carry navigation preferences across organizations', () => {
     const view = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'All Tools' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
     vi.mocked(useOrg).mockReturnValue({
       currentOrg: { ...currentOrg, id: 'org-b' },
       currentUser,
@@ -81,6 +88,6 @@ describe('Sidebar Essentials and All Tools navigation', () => {
         <Sidebar collapsed={false} onToggle={() => {}} />
       </MemoryRouter>
     );
-    expect(screen.getByRole('button', { name: 'Essentials' }).getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByRole('combobox', { name: 'Navigation layout' }) as HTMLSelectElement).value).toBe('essentials');
   });
 });
