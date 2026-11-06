@@ -37,6 +37,7 @@ describe('Sidebar Essentials and All Tools navigation', () => {
   it('defaults to Essentials while retaining core business navigation', () => {
     setup();
     expect(screen.getByRole('button', { name: 'Essentials' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Your everyday tools. Switch to All Tools anytime.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Dashboard/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Sales Orders/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Products & SKUs/ })).toBeTruthy();
@@ -52,6 +53,7 @@ describe('Sidebar Essentials and All Tools navigation', () => {
     expect(screen.getByRole('link', { name: /Quotations/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /ATLAS AI Assistant/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'All Tools' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Every tool your role can access. Your permissions stay the same.')).toBeInTheDocument();
     expect(window.localStorage.getItem('atlas_workspace_view_v1:cloud:user-a:org-a')).toBe('all');
     fireEvent.click(screen.getByRole('button', { name: 'Essentials' }));
     expect(screen.queryByRole('link', { name: /ATLAS AI Assistant/ })).toBeNull();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   FileSpreadsheet,
   Download,
@@ -75,7 +75,11 @@ export const SalesReceiptsReportPage: React.FC = () => {
     invoiceCount: 0,
     paymentCount: 0,
   });
-  const [isLoadingCounts, setIsLoadingCounts] = useState(false);
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const [hasVerifiedCounts, setHasVerifiedCounts] = useState(false);
+  const [countsError, setCountsError] = useState<string | null>(null);
+  // Only the latest active filter/organization request can update preview data.
+  const countRequestIdRef = useRef(0);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<ReportProgress | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -163,10 +167,22 @@ export const SalesReceiptsReportPage: React.FC = () => {
     }
   }, [selectedCustomerId, customerResults, currentOrg?.id, isMockAuth, selectedCustomer]);
 
-  // Fetch preview counts when filters change
+  // Fetch preview counts when filters change. A stale request must never
+  // display totals or re-enable export for a different set of filters.
   const fetchCounts = useCallback(async () => {
-    if (!currentOrg?.id) return;
+    const requestId = ++countRequestIdRef.current;
+    setHasVerifiedCounts(false);
+    setCounts({ invoiceCount: 0, paymentCount: 0 });
+    setCountsError(null);
+
+    if (!currentOrg?.id) {
+      setIsLoadingCounts(false);
+      setCountsError('Select a business before viewing financial report counts.');
+      return;
+    }
     if (periodType === 'CUSTOM' && !isValidDateRange(customStartDate, customEndDate)) {
+      setIsLoadingCounts(false);
+      setCountsError('Choose a valid custom date range before previewing or exporting.');
       return;
     }
 
@@ -184,12 +200,20 @@ export const SalesReceiptsReportPage: React.FC = () => {
         userRole: currentRole || undefined,
       };
 
-      const res = await reportsService.getMatchingCounts(currentOrg.id, filterParams, isMockAuth);
-      setCounts(res);
-    } catch (err: any) {
+      const result = await reportsService.getMatchingCounts(currentOrg.id, filterParams, isMockAuth);
+      if (countRequestIdRef.current !== requestId) return;
+      setCounts(result);
+      setHasVerifiedCounts(true);
+    } catch (err: unknown) {
+      if (countRequestIdRef.current !== requestId) return;
       console.error('Failed to fetch report preview counts:', err);
+      setCountsError(
+        err instanceof Error ? err.message : 'Unable to verify report counts. Please retry.'
+      );
     } finally {
-      setIsLoadingCounts(false);
+      if (countRequestIdRef.current === requestId) {
+        setIsLoadingCounts(false);
+      }
     }
   }, [
     currentOrg?.id,
@@ -206,7 +230,11 @@ export const SalesReceiptsReportPage: React.FC = () => {
   ]);
 
   useEffect(() => {
-    fetchCounts();
+    void fetchCounts();
+    return () => {
+      // Invalidate in-flight requests on every filter change and unmount.
+      countRequestIdRef.current += 1;
+    };
   }, [fetchCounts]);
 
   // Handle Preset Clicks
@@ -257,6 +285,11 @@ export const SalesReceiptsReportPage: React.FC = () => {
       return;
     }
 
+    if (!hasVerifiedCounts || isLoadingCounts) {
+      setExportError('Report counts are not verified for these filters. Resolve the preview error and retry.');
+      return;
+    }
+
     if (counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES) {
       setExportError(
         `Selection contains ${counts.invoiceCount.toLocaleString()} invoices, exceeding the maximum allowable browser export of ${MAX_SAFE_EXPORT_INVOICES.toLocaleString()} records. Please refine by month, quarter, or customer.`
@@ -297,7 +330,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
       triggerExcelDownload(result.buffer, result.filename);
 
       setExportSuccessMessage(
-        `Successfully exported ${result.filename} (${counts.invoiceCount} invoices, ${counts.paymentCount} receipts).`
+        `Successfully exported ${result.filename}.`
       );
     } catch (err: any) {
       console.error('Excel Export Error:', err);
@@ -644,6 +677,14 @@ export const SalesReceiptsReportPage: React.FC = () => {
         </div>
       )}
 
+      {/* Never represent failed or stale preview counts as verified totals. */}
+      {countsError && (
+        <div role="alert" className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 text-sm flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <p>Unable to verify report counts: {countsError}</p>
+        </div>
+      )}
+
       {/* Live Preview & Action Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Preview Card 1: Invoices */}
@@ -658,7 +699,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight text-content-primary">
-              {isLoadingCounts ? '—' : counts.invoiceCount}
+              {isLoadingCounts || !hasVerifiedCounts ? '—' : counts.invoiceCount}
             </span>
             <span className="text-xs text-content-secondary">invoices</span>
           </div>
@@ -679,7 +720,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight text-content-primary">
-              {isLoadingCounts ? '—' : counts.paymentCount}
+              {isLoadingCounts || !hasVerifiedCounts ? '—' : counts.paymentCount}
             </span>
             <span className="text-xs text-content-secondary">receipts</span>
           </div>
@@ -704,7 +745,7 @@ export const SalesReceiptsReportPage: React.FC = () => {
             variant="primary"
             size="lg"
             onClick={handleExportExcel}
-            disabled={isExporting || isLoadingCounts || counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES}
+            disabled={isExporting || isLoadingCounts || !hasVerifiedCounts || counts.invoiceCount > MAX_SAFE_EXPORT_INVOICES}
             className="w-full gap-2 font-semibold shadow-sm"
           >
             {isExporting ? (

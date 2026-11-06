@@ -1,0 +1,276 @@
+# Atlas OS — Master Feature Register (Single Source of Truth)
+
+> **Owner:** Atlas OS product development | **Tracking branch:** `Vijay-Atlas` | **Last reconciled:** 2026-11-07
+>
+> **Purpose:** Make every previously discussed feature visible in one place; prevent chat-history loss and roadmap drift. This register covers the **140-item working inventory** assembled from the original Atlas OS discussions, Atlas OS 2, repository code, and design documents. It is a *planning inventory*, not a declaration that all 140 items are complete, independently audited, or equally necessary for initial launch.
+>
+> **Important:** Some entries are capabilities inside larger features (e.g. product search), and others are multi-year program areas. The numbers are permanent identifiers, **not 140 standalone pull requests**.
+
+## One engineering strategy: all features tracked, controlled implementation batches
+
+**All features remain in scope for product review, but not all should be coded in the same change.** A single unbounded implementation introduces database dependencies, merge conflicts, hard-to-isolate regressions, and costly rework in tax, finance, inventory and authentication.
+
+Develop **vertical slices**, such as "purchase order → authorized goods receipt → stock ledger → invoice → reversal/tests". Each slice includes UI + database + permissions + audit + failure/retry + migration + tests + operational notes. Dependencies and completeness travel together.
+
+**Branch workflow:** `Vijay-Atlas` (the user's only ongoing development branch) → review PR → `main` (merged and tested). After merging, fast-forward/rebase the development branch as appropriate, without losing local work. Avoid extra branches unless necessary for a risky hotfix.
+
+## Status legend
+
+- **I — Implemented foundation:** matching production-source code/migrations exist; *not* a claim of certified readiness.
+- **P — Partial:** some code exists, but major behavior or end-to-end verification is incomplete.
+- **D — Design only:** documented as an intended architecture/decision; do not call it a shipped feature.
+- **N — Not implemented:** discussed or planned, no verified full implementation found.
+- **F — Deferred:** consciously held for a later industry, integration, or program phase.
+
+Status classifications reflect a repository-level review and conversation recovery; **re-audit code and tests before promoting any item to verified**. When evidence conflicts, prefer actual tests + live code over historic roadmap checkboxes.
+
+## Waves and release gates
+
+| Wave | Purpose | Boundary |
+|---|---|---|
+| **W0 — Integrity & launch blockers** | Close direct financial read exposure, make historical export coherent, verify core access, functional website lead delivery, release/security checks | Must not regress existing invoicing and ledger behavior |
+| **W1 — Distributor operating MVP** | Universal search; retail/POS; configurable credit/payment; product variants and UOM; returns/credit notes; purchase/GRN; quick stock intake | Must have transactional, permission, inventory and accounting tests |
+| **W2 — Commercial readiness** | Subscription payment lifecycle, proven onboarding and trials, desktop packaging, customer support, import/export, real pilots | Public claims must match actual tested capabilities |
+| **W3 — Advanced operations & automation** | Branches and owner governance; advanced approvals; sophisticated AI; WhatsApp; integrations | Requires domain contracts and operational evidence |
+| **W4 — Industry expansion/network** | Optional business modules, non-distributor industries, lot/expiry intelligence, supplier/buyer network | No universal-sector claims without dedicated workflow validation |
+
+### Non-negotiable cross-cutting work (not counted among the original 140)
+
+- **SEC-01**: Least-privilege direct financial-table access; database-checked report gate is already present but broad table SELECT needs mapping.
+- **FIN-01**: Consistent snapshot financial exports; count consistency alone is not full transactional consistency.
+- **QA-01**: Authenticated end-to-end cloud tests, concurrency, negative paths, and performance/backup restoration.
+- **WEB-01**: Replace demo/contact/notification browser-local "success" behavior with real server delivery and clear failure states.
+- **OPS-01**: Rehearsed backup/recovery, monitoring, rollback and support before accepting real business workloads.
+- **COM-01**: Qualified tax/legal review where relevant, evidence-backed product claims, and supervised first-customer pilots.
+- **PILOT-01**: The separate 200-entry Demo Mode industrial test **remains paused until development is complete**.
+
+### Current near-term sequence
+
+1. Reconcile and test PR #34's Essentials / All Tools implementation (now merged into `main`).
+2. B1.2 direct financial data authorization and consistent export snapshot design/implementation.
+3. B2 permission-safe Universal Search.
+4. W1 end-to-end retail + payment/credit policies + purchase/GRN + quick entry + product variants/units + returns in dependency-aware batches.
+5. Website real lead delivery, release distribution, paid-plan lifecycle, recovery and supervised pilot readiness.
+6. Advanced approved architecture (multi-branch, co-owners, approvals), automation, and later-sector extensions.
+
+**Feature completion contract:** A feature is only "Verified" when corresponding UI/API/RPC/RLS paths, audit, data migration, concurrency and negative tests, authorized & unauthorized roles, error recovery, accessibility, and realistic operator usage have been checked as applicable. "Implemented foundation" is not enough for production.
+
+## Wave W0 implementation log
+
+| Slice | Status | Code evidence | Acceptance boundary |
+|---|---|---|---|
+| **W0-01: Financial report preview count integrity** | **Implemented and verified in GitHub CI #42281903266** | `src/features/reports/SalesReceiptsReportPage.tsx` and its unit tests | Older filter/organization requests cannot overwrite the latest counts; failed/invalid previews show no misleading numbers, visibly report errors, and block the export button; export success no longer states potentially stale preview totals. GitHub Actions [run #42281903266](https://github.com/YenugantiVijay/Atlas-OS/actions/runs/42281903266) passed ESLint, TypeScript, PostgreSQL acceptance, Vitest, build, and Playwright. |
+| **SEC-01: Direct financial-table read policies** | **Not yet resolved** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
+| **FIN-01: Consistent multi-query export snapshot** | **Not yet resolved** | `src/services/reports.service.ts` has count and nested-row checks | Count rechecks are not a PostgreSQL transactional snapshot; do not claim fully consistent exports yet. |
+
+## Feature inventory
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+
+### Core ERP
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-001 | Business dashboard | I | W0 |
+| F-002 | Product management | I | W0 |
+| F-003 | SKU management | I | W0 |
+| F-004 | Product categories | I | W0 |
+| F-005 | Product brands | I | W0 |
+| F-006 | Product images | P | W1 |
+| F-007 | HSN code fields | I | W0 |
+| F-008 | Basic product units of measurement | P | W1 |
+| F-009 | Inventory movement ledger | I | W0 |
+| F-010 | Opening stock recording | I | W0 |
+| F-011 | Stock availability checks | I | W0 |
+| F-012 | Negative-stock prevention | I | W0 |
+| F-013 | Low-stock alerts | I | W0 |
+| F-014 | Customer management | I | W0 |
+| F-015 | Supplier management | I | W0 |
+| F-016 | Quotations | I | W0 |
+| F-017 | Sales orders | I | W0 |
+| F-018 | Sales-order invoicing | I | W0 |
+| F-019 | GST-aware invoices | I | W0 |
+| F-020 | Invoice numbering | I | W0 |
+| F-021 | Customer payment records | I | W0 |
+| F-022 | Outstanding receivables | I | W0 |
+| F-023 | Sales and receipts Excel reports | I | W0 |
+| F-024 | Team membership management | I | W0 |
+| F-025 | Audit events | I | W0 |
+
+### Inventory & Procurement
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-026 | Quick inventory spreadsheet-style entry | N | W1 |
+| F-027 | Complete bulk stock receiving workflow | P | W1 |
+| F-028 | Purchase orders | N | W1 |
+| F-029 | Goods receipt note (GRN) | N | W1 |
+| F-030 | Supplier invoice/PO/GRN matching | N | W1 |
+| F-031 | Duplicate supplier bill prevention | N | W1 |
+| F-032 | Barcode scanning | N | W2 |
+| F-033 | Product variants | N | W1 |
+| F-034 | Advanced unit conversions | N | W1 |
+| F-035 | Comprehensive stock reservations | P | W1 |
+| F-036 | Multi-warehouse inventory | D | W3 |
+| F-037 | Inter-branch stock transfers | D | W3 |
+| F-038 | Physical inventory reconciliation | P | W1 |
+| F-039 | Damaged/quarantined stock | N | W1 |
+| F-040 | Purchase returns | N | W2 |
+| F-041 | Customer sales returns | N | W1 |
+| F-042 | Lot/batch tracking | F | W4 |
+| F-043 | Expiry-date management | F | W4 |
+| F-044 | FEFO stock allocation | F | W4 |
+| F-045 | Expiry-risk dashboard | F | W4 |
+
+### Wholesale, Retail, Payments
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-046 | Wholesale order processing end-to-end | P | W1 |
+| F-047 | Single-item retail selling | N | W1 |
+| F-048 | Retail counter/POS billing | N | W1 |
+| F-049 | Walk-in customer checkout | N | W1 |
+| F-050 | Retail vs wholesale price levels | N | W1 |
+| F-051 | Customer-specific price lists | N | W2 |
+| F-052 | Quantity-based tiered discounts | P | W1 |
+| F-053 | Credit limit enforcement | P | W1 |
+| F-054 | Credit days and terms enforcement | P | W1 |
+| F-055 | Full Payment Required policy | N | W1 |
+| F-056 | Credit Allowed policy | N | W1 |
+| F-057 | Split/mixed payment methods per bill | N | W1 |
+| F-058 | Partial invoice payments | I | W0 |
+| F-059 | Remote payment requests | N | W2 |
+| F-060 | Payment QR generation | N | W2 |
+| F-061 | Payment settlement verification | N | W1 |
+| F-062 | Invoice print/presentation | I | W0 |
+| F-063 | Receipt generation and delivery | P | W1 |
+| F-064 | GST credit notes | N | W1 |
+| F-065 | Refund management | N | W2 |
+
+### Search & AI
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-066 | Ctrl+K command palette | I | W0 |
+| F-067 | Product search | I | W0 |
+| F-068 | Customer search | I | W0 |
+| F-069 | Atlas Universal Search | P | W1 |
+| F-070 | Search invoices by number from anywhere | P | W1 |
+| F-071 | Global receipt/payment search | N | W1 |
+| F-072 | Customer phone lookup globally | N | W1 |
+| F-073 | Permission-aware global search | P | W1 |
+| F-074 | Rule-based business summaries | I | W0 |
+| F-075 | Low-stock recommendations | I | W0 |
+| F-076 | Overdue receivables insights | I | W0 |
+| F-077 | AI requisition proposal approval | P | W2 |
+| F-078 | Generative AI provider integration | N | W3 |
+| F-079 | Demand/stock forecasting | N | W3 |
+| F-080 | AI WhatsApp order interpretation | F | W3 |
+| F-081 | General human approval framework for AI actions | P | W3 |
+
+### Organization, Security, Enterprise Governance
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-082 | Multi-organization support | I | W0 |
+| F-083 | Existing six-role RBAC | I | W0 |
+| F-084 | Custom organization roles | D | W3 |
+| F-085 | Separate Primary Owner governance | D | W3 |
+| F-086 | Co-Owners | D | W3 |
+| F-087 | Ownership transfer | D | W3 |
+| F-088 | Verified owner recovery | D | W3 |
+| F-089 | Co-Owner recovery quorum | D | W3 |
+| F-090 | Multi-branch structure | D | W3 |
+| F-091 | Branch-scoped employee permissions | D | W3 |
+| F-092 | Regional management | D | W3 |
+| F-093 | Branch-specific stock balances | D | W3 |
+| F-094 | Central customer master plus branch masking | P | W3 |
+| F-095 | Branch-specific invoices | D | W3 |
+| F-096 | General approval workflows | D | W3 |
+| F-097 | Organization-defined approval thresholds | D | W3 |
+| F-098 | Two-person high-risk approvals | D | W3 |
+| F-099 | Separation of duties on approvals | D | W3 |
+| F-100 | Approval expiration/resubmission | D | W3 |
+| F-101 | Advanced employee deprovisioning | P | W3 |
+| F-102 | Fraud/dispute holds | D | W3 |
+| F-103 | Category-specific retention/archival | D | W3 |
+| F-104 | Account recovery notices | D | W3 |
+
+### SaaS & Cross-Industry
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-105 | Supabase user authentication | I | W0 |
+| F-106 | Business onboarding | I | W0 |
+| F-107 | PAN/GSTIN field validation | I | W0 |
+| F-108 | Industry eligibility declaration/review controls | I | W0 |
+| F-109 | Automated supported-business eligibility decision | I | W0 |
+| F-110 | End-to-end human eligibility review operations | P | W2 |
+| F-111 | Server-calculated seven-day trial | I | W0 |
+| F-112 | Subscription state and access checks | P | W2 |
+| F-113 | Subscription payment gateway and renewals | N | W2 |
+| F-114 | Customer plan entitlements and commercial tiers | P | W2 |
+| F-115 | Essentials workspace navigation | I | W0 |
+| F-116 | All Tools workspace navigation | I | W0 |
+| F-117 | Organization-selectable business modules | D | W4 |
+| F-118 | Industry capability profiles | D | W4 |
+| F-119 | Generic cross-industry ERP | F | W4 |
+| F-120 | Upgrade/downgrade handling | N | W2 |
+| F-121 | Customer subscription billing portal | N | W2 |
+
+### Website, Desktop, Integrations, Network
+
+| ID | Feature | Status | Wave |
+|---:|---|:---:|:---:|
+| F-122 | Atlas OS marketing website | I | W0 |
+| F-123 | Interactive marketing product preview | I | W0 |
+| F-124 | Public pricing presentation | I | W0 |
+| F-125 | Public desktop download center | I | W0 |
+| F-126 | Verified Windows desktop installer | N | W2 |
+| F-127 | Electron/Tauri desktop packaging | N | W2 |
+| F-128 | Desktop auto-updates | N | W2 |
+| F-129 | Backend-delivered demo requests | P | W0 |
+| F-130 | Backend-delivered contact enquiries | N | W0 |
+| F-131 | Backend-delivered download release notifications | N | W2 |
+| F-132 | WhatsApp inbound customer orders | F | W3 |
+| F-133 | WhatsApp order stock checks | F | W3 |
+| F-134 | WhatsApp order employee approval | F | W3 |
+| F-135 | Automated WhatsApp order/receipt messages | F | W3 |
+| F-136 | WhatsApp payment requests | F | W3 |
+| F-137 | General CSV import and accounting export | P | W2 |
+| F-138 | BUSY/Tally interoperability | N | W3 |
+| F-139 | Supplier-buyer discovery network | D | W4 |
+| F-140 | Automated buyer/supplier procurement coordination | D | W4 |
+
+## Evidence map (starting points, not certification)
+
+| Domain | Main sources to re-check when implementing |
+|---|---|
+| Business application & routes | `src/features/`, `src/services/`, `src/app/router.tsx`, `src/types/index.ts` |
+| Stock, orders, invoices, money & security | `supabase/migrations/001-037`, `scripts/run_local_db_acceptance.mjs`, `src/services/*test.ts` |
+| Search | `src/components/layout/CommandPalette.tsx`; cross-module search remains to be expanded |
+| AI | `src/features/ai/AIPage.tsx`; rule-based assistant/proposals, not proven generative production AI |
+| Workspace | `src/lib/workspace-view.ts`, `src/components/layout/Sidebar.tsx`, PR #34 |
+| Website | `atlas-os-website/`, especially demo/contact/download components |
+| Advanced ownership/branch/approval architecture | `docs/PHASE_5_0B_2_APPROVED_PRODUCT_DECISIONS.md`, `docs/PHASE_5_0C_MASTER_ARCHITECTURE_SPECIFICATION.md` |
+| Original roadmap | `docs/ROADMAP.md` (historical checklist, not the current authoritative completion source) |
+| This inventory's product provenance | Prior Atlas OS and Atlas OS 2 discussions; statuses represent the best available reconstruction, and unverified details must remain tentative |
+
+## Working with this register
+
+For every development task:
+1. Identify one or more **F-IDs** and any **SEC/FIN/QA/WEB/OPS** dependencies.
+2. Update status, supporting commit/PR/test evidence, and any revised release wave **in the same PR as the implementation**.
+3. Record new feature ideas here when discussed, before implementation; never rely on a pinned chat as the sole record.
+4. Never mark a feature complete solely because its page exists or a document calls it "designed".
+5. Do not remove a deferred feature without an explicit product decision. Track its revisit trigger.
+6. Keep this file current and avoid competing "master" lists that become inconsistent.
+7. Maintain no more than one main active workstream on `Vijay-Atlas` at a time unless an urgent security fix requires isolation.
+
+## Follow-up register improvements (optional, not blockers)
+
+- Add per-feature **acceptance checklists, test evidence, owner, last reviewed date and dependency IDs** as implementation starts. Avoid inventing evidence on 140 entries.
+- Use one linked GitHub issue per **work package**, not 140 automatically generated issues. Link issues to F-IDs.
+- Once a week, reconcile current PRs, open blockers, and planned work with this file.
+- Mark W1/W2 release-cut inclusions explicitly after user/customer prioritization; do not silently promise every program area for v1.
