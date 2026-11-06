@@ -63,6 +63,15 @@ Status classifications reflect a repository-level review and conversation recove
 | **SEC-01: Direct financial-table read policies** | **Not yet resolved** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
 | **FIN-01: Consistent multi-query export snapshot** | **Not yet resolved** | `src/services/reports.service.ts` has count and nested-row checks | Count rechecks are not a PostgreSQL transactional snapshot; do not claim fully consistent exports yet. |
 
+## Edition and navigation decision log
+
+See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
+
+- **W0-02: Website dependency compatibility** — restored the compatible Astro 4 / @astrojs/react 3 / @astrojs/tailwind 5 locked baseline, rather than forcing peer installation; independent website CI has passed this baseline.
+- **UX-01: Compact navigation** — Simple View and Full Navigation remain preferences only. Simple View now groups authorized tools into Dashboard, Sales, Inventory, Finance, Settings. Subscription access is unchanged.
+- **COM-02: Proposed editions** — website presents Atlas Essentials and Professional honestly without unapproved pricing, guarantees or payment links. Paid entitlements, billing and module enforcement are **not yet implemented**.
+- **Order preserved** — after website compatibility, continue **SEC-01** least-privilege direct financial reads, **FIN-01** snapshot export, then **B2** Universal Search. The 140-feature register remains authoritative.
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
