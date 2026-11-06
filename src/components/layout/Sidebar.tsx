@@ -267,71 +267,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
           {navGroups.map((group) => {
-            const isCompact = workspaceView === 'essentials' && (!collapsed || isMobileOpen);
-            const isExpandable = isCompact && group.items.length > 1;
+            const simple = workspaceView === 'essentials' && (!collapsed || isMobileOpen);
+            const expandable = simple && group.items.length > 1;
             const expanded = expandedSimpleSections[group.title] ?? group.items.some((item) => item.path === pathname);
             return (
-            <div key={group.title}>
-              {isExpandable ? (
-                <button
-                  type="button"
-                  aria-expanded={expanded}
-                  aria-controls={`simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}`}
-                  onClick={() => setExpandedSimpleSections((prev) => ({ ...prev, [group.title]: !expanded }))}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+              <div key={group.title}>
+                {expandable ? (
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={`simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+                    onClick={() => setExpandedSimpleSections((prev) => ({ ...prev, [group.title]: !expanded }))}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                  >
+                    <span>{group.title}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                  </button>
+                ) : (!collapsed || isMobileOpen) && !simple ? (
+                  <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
+                    {group.title}
+                  </h5>
+                ) : null}
+                <ul
+                  id={expandable ? `simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}` : undefined}
+                  className={`space-y-1 ${expandable && !expanded ? 'hidden' : ''} ${expandable ? 'pl-2' : ''}`}
                 >
-                  <span>{group.title}</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
-                </button>
-              ) : (!collapsed || isMobileOpen) && !isCompact ? (
-                <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
-                  {group.title}
-                </h5>
-              ) : null}
-              <ul
-                id={isExpandable ? `simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}` : undefined}
-                className={`space-y-1 ${isExpandable && !expanded ? 'hidden' : ''} ${isExpandable ? 'pl-2' : ''}`}
-              >
-                {group.items.map((item) => (
-                  <li key={item.path}>
-                    <NavLink
-                      to={item.path}
-                      end={item.path === '/'}
-                      onClick={() => {
-                        if (isMobileOpen && onCloseMobile) {
-                          onCloseMobile();
+                  {group.items.map((item) => (
+                    <li key={item.path}>
+                      <NavLink
+                        to={item.path}
+                        end={item.path === '/'}
+                        onClick={() => {
+                          if (isMobileOpen && onCloseMobile) {
+                            onCloseMobile();
+                          }
+                        }}
+                        title={collapsed && !isMobileOpen ? item.label : undefined}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
+                            isActive
+                              ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
+                              : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
+                          } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
                         }
-                      }}
-                      title={collapsed && !isMobileOpen ? item.label : undefined}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
-                          isActive
-                            ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
-                            : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
-                        } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <span
-                            className={`shrink-0 transition-colors ${
-                              isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
-                            }`}
-                          >
-                            {item.icon}
-                          </span>
-                          {(!collapsed || isMobileOpen) && (
-                            <span className="truncate">{item.label}</span>
-                          )}
-                        </>
-                      )}
-                    </NavLink>
-                  </li>
-                  );
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className={`shrink-0 transition-colors ${
+                                isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
+                              }`}
+                            >
+                              {item.icon}
+                            </span>
+                            {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
+                          </>
+                        )}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
           })}
-              </ul>
-            </div>
-          ))}
         </div>
 
         {/* Bottom status */}
