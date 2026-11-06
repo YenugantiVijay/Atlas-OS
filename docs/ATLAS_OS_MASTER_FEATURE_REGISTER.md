@@ -55,6 +55,14 @@ Status classifications reflect a repository-level review and conversation recove
 
 **Feature completion contract:** A feature is only "Verified" when corresponding UI/API/RPC/RLS paths, audit, data migration, concurrency and negative tests, authorized & unauthorized roles, error recovery, accessibility, and realistic operator usage have been checked as applicable. "Implemented foundation" is not enough for production.
 
+## Wave W0 implementation log
+
+| Slice | Status | Code evidence | Acceptance boundary |
+|---|---|---|---|
+| **W0-01: Financial report preview count integrity** | **Implemented on `Vijay-Atlas`; CI pending** | `src/features/reports/SalesReceiptsReportPage.tsx` and its unit tests | Older filter/organization requests cannot overwrite the latest counts; failed/invalid previews show no misleading numbers, visibly report errors, and block the export button; export success no longer states potentially stale preview totals. |
+| **SEC-01: Direct financial-table read policies** | **Not yet resolved** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
+| **FIN-01: Consistent multi-query export snapshot** | **Not yet resolved** | `src/services/reports.service.ts` has count and nested-row checks | Count rechecks are not a PostgreSQL transactional snapshot; do not claim fully consistent exports yet. |
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
