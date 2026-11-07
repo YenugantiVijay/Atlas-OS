@@ -87,8 +87,8 @@ export const router = createHashRouter([
       { path: 'suppliers', element: <SuppliersPage /> },
       { path: 'quotations', element: <QuotationsPage /> },
       { path: 'orders', element: <OrdersPage /> },
-      { path: 'invoices', element: <InvoicesPage /> },
-      { path: 'payments', element: <PaymentsPage /> },
+      { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
+      { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
       { path: 'ai', element: <AIPage /> },
       {
         path: 'team',
