@@ -65,6 +65,12 @@ CREATE POLICY sec01_payment_allocations_finance_read_guard
 ALTER FUNCTION public.get_eligible_payment_invoices(UUID, UUID, TEXT, INTEGER, INTEGER, UUID)
     SECURITY INVOKER;
 
+-- The payment-ledger summary RPC also used SECURITY DEFINER and relied
+-- only on broad organization membership. It is used by the finance screen;
+-- execute it as the invoker so row-level finance restrictions apply.
+ALTER FUNCTION public.get_payments_summary(UUID)
+    SECURITY INVOKER;
+
 COMMENT ON POLICY sec01_invoices_finance_read_guard ON public.invoices IS
     'SEC-01: Raw invoice details require active owner/admin/accounts membership.';
 COMMENT ON POLICY sec01_payments_finance_read_guard ON public.payments IS
