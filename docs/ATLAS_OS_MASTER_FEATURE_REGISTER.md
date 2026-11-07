@@ -60,7 +60,7 @@ Status classifications reflect a repository-level review and conversation recove
 | Slice | Status | Code evidence | Acceptance boundary |
 |---|---|---|---|
 | **W0-01: Financial report preview count integrity** | **Implemented and verified in GitHub CI #42281903266** | `src/features/reports/SalesReceiptsReportPage.tsx` and its unit tests | Older filter/organization requests cannot overwrite the latest counts; failed/invalid previews show no misleading numbers, visibly report errors, and block the export button; export success no longer states potentially stale preview totals. GitHub Actions [run #42281903266](https://github.com/YenugantiVijay/Atlas-OS/actions/runs/42281903266) passed ESLint, TypeScript, PostgreSQL acceptance, Vitest, build, and Playwright. |
-| **SEC-01: Direct financial-table read policies** | **Reviewed; fix pending** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
+| **SEC-01: Direct financial-table read policies** | **Raw-table restrictions implemented; security validation and RPC/aggregate audit pending** | Existing `invoices_select` and `payments_select` in migration `014` allow broad active-organization reads; reporting RPC in migration `037` is only an entry gate | Must map sales/accounts/inventory read needs before narrowing RLS or introducing scoped views. |
 | **FIN-01: Consistent multi-query export snapshot** | **Not yet resolved** | `src/services/reports.service.ts` has count and nested-row checks | Count rechecks are not a PostgreSQL transactional snapshot; do not claim fully consistent exports yet. |
 
 ## Edition and navigation decision log
@@ -73,6 +73,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 - **Order preserved** — after website compatibility, continue **SEC-01** least-privilege direct financial reads, **FIN-01** snapshot export, then **B2** Universal Search. The 140-feature register remains authoritative.
 
 **SEC-01 first review:** [Financial read-access audit](./SEC_01_FINANCIAL_READ_ACCESS_AUDIT.md) maps the broad raw table SELECT policies, user-role mismatch, and required migration/test approach. This is a review milestone, **not** an RLS fix.
+
+**SEC-01 security change (W0):** Migration `038_restrict_raw_financial_reads.sql` now adds restrictive `SELECT` policies for invoice/payment parents and children, and changes the payment-eligible-invoice lookup to run as SQL invoker so RLS cannot be bypassed. UI finance routes are limited to owner/admin/accounts. `scripts/sec01_financial_raw_read_acceptance.mjs` exercises real PostgreSQL roles and direct RPC/row reads. **CI and deeper aggregate/RPC access review remain required; no production database migration was applied.**
 
 ## Feature inventory
 
