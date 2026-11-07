@@ -25,6 +25,7 @@ import crypto from 'crypto';
 import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
 import { runFinancialReportAccessAcceptance } from './b1_report_auth_acceptance.mjs';
 import { runFinancialRawReadAcceptance } from './sec01_financial_raw_read_acceptance.mjs';
+import { runFin01SnapshotAcceptance } from './fin01_snapshot_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4572,6 +4573,17 @@ async function runAcceptance() {
     // SEC-01: Exercise direct raw financial table SELECT policies only after
     // operational RPC tests have produced authentic invoice/payment fixtures.
     await runFinancialRawReadAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    // FIN-01: Test true one-statement export snapshot and finance-only RPC
+    // access using genuinely issued invoices and recorded payments.
+    await runFin01SnapshotAcceptance({
       client: testClient,
       orgAId,
       ownerAId: userAId,
