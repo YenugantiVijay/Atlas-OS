@@ -77,6 +77,11 @@ export async function runFinancialRawReadAcceptance({
             ) AS value`,
           [orgAId, customerId, invoiceId]
         );
+        const summaryResult = await client.query(
+          'SELECT public.get_payments_summary($1::uuid) AS value',
+          [orgAId]
+        );
+        results.summary_payments = Number(summaryResult.rows[0]?.value?.payment_count ?? -1);
         const payload = rpcResult.rows[0]?.value;
         rpcInvoiceVisible = Array.isArray(payload?.data)
           && payload.data.some(item => item.id === invoiceId);
@@ -88,9 +93,9 @@ export async function runFinancialRawReadAcceptance({
     // A hard privilege denial is at least as strict as returning zero rows.
     const deniedBySqlPrivilege = !tc.allowed && error?.code === '42501'
       && entries.every(n => n === 0)
-      && (tc.sqlRole === 'anon' || entries.length === 4);
+      && (tc.sqlRole === 'anon' || entries.length === 5);
     const passed = deniedBySqlPrivilege || (
-      !error && entries.length === 4 &&
+      !error && entries.length === 5 &&
       (tc.allowed
         ? entries.every(n => n > 0) && rpcInvoiceVisible === true
         : entries.every(n => n === 0) && rpcInvoiceVisible === false)
