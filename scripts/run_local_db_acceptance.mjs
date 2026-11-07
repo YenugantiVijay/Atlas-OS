@@ -24,6 +24,7 @@ import pg from 'pg';
 import crypto from 'crypto';
 import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
 import { runFinancialReportAccessAcceptance } from './b1_report_auth_acceptance.mjs';
+import { runFinancialRawReadAcceptance } from './sec01_financial_raw_read_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4566,6 +4567,17 @@ async function runAcceptance() {
         `overpaymentPassed=${overpaymentPassed}`,
         overpaymentPassed ? null : overpaymentErr
       );
+    });
+
+    // SEC-01: Exercise direct raw financial table SELECT policies only after
+    // operational RPC tests have produced authentic invoice/payment fixtures.
+    await runFinancialRawReadAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
     });
 
     // ------------------------------------------------------------------------
