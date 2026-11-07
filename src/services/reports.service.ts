@@ -668,15 +668,19 @@ export const reportsService = {
 
     const validCount = (value: unknown): value is number =>
       typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-    if (![payload.invoice_count, payload.payment_count,
-          payload.invoice_item_count, payload.payment_allocation_count].every(validCount)) {
+    const invoiceCount = payload.invoice_count;
+    const paymentCount = payload.payment_count;
+    const invoiceItemTotal = payload.invoice_item_count;
+    const paymentAllocationTotal = payload.payment_allocation_count;
+    if (!validCount(invoiceCount) || !validCount(paymentCount) ||
+        !validCount(invoiceItemTotal) || !validCount(paymentAllocationTotal)) {
       throw new ExportIntegrityError('Financial snapshot counts are missing or invalid.', 'SNAPSHOT_INVALID');
     }
-    if (payload.invoices.length !== payload.invoice_count ||
-        payload.payments.length !== payload.payment_count ||
-        payload.invoice_count > MAX_SAFE_EXPORT_INVOICES ||
-        payload.payment_count > 10000 ||
-        payload.invoice_item_count + payload.payment_allocation_count > 100000) {
+    if (payload.invoices.length !== invoiceCount ||
+        payload.payments.length !== paymentCount ||
+        invoiceCount > MAX_SAFE_EXPORT_INVOICES ||
+        paymentCount > 10000 ||
+        invoiceItemTotal + paymentAllocationTotal > 100000) {
       throw new ExportIntegrityError('Financial snapshot count or safe size mismatch.', 'SNAPSHOT_COUNT_MISMATCH');
     }
 
@@ -731,8 +735,8 @@ export const reportsService = {
       return mapDbPayment(row, allocations);
     });
 
-    if (invoiceItemCount !== payload.invoice_item_count ||
-        paymentAllocationCount !== payload.payment_allocation_count) {
+    if (invoiceItemCount !== invoiceItemTotal ||
+        paymentAllocationCount !== paymentAllocationTotal) {
       throw new ExportIntegrityError(
         'Financial snapshot is missing invoice line items or payment allocations.',
         'SNAPSHOT_COUNT_MISMATCH'
