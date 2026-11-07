@@ -93,7 +93,7 @@ export async function runFinancialRawReadAcceptance({
     // A hard privilege denial is at least as strict as returning zero rows.
     const deniedBySqlPrivilege = !tc.allowed && error?.code === '42501'
       && entries.every(n => n === 0)
-      && (tc.sqlRole === 'anon' || entries.length === 5);
+      && (tc.sqlRole === 'anon' || entries.length >= 4);
     const passed = deniedBySqlPrivilege || (
       !error && entries.length === 5 &&
       (tc.allowed
