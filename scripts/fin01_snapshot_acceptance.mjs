@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 /**
  * FIN-01 — Disposable-Postgres acceptance of an atomic financial export RPC.
  * The STABLE RPC observes the calling statement's MVCC snapshot for all
@@ -64,12 +66,22 @@ export async function runFin01SnapshotAcceptance({
   ];
   for (const tc of blocked) {
     let succeeded = false, code = null;
-    // Existing SECURITY tests have fixtures for these roles; supply explicit
-    // sales/inventory/viewer memberships through the roles created below.
+    let userId = tc.userId;
+    if (!userId && ['sales', 'inventory', 'viewer'].includes(tc.role)) {
+      userId = crypto.randomUUID();
+      await client.query(
+        'INSERT INTO auth.users (id, email) VALUES ($1::uuid, $2::text)',
+        [userId, `fin01_${tc.role}_${userId.slice(0, 8)}@example.test`]
+      );
+      await client.query(
+        'INSERT INTO public.memberships (organization_id, user_id, role, is_active) VALUES ($1::uuid, $2::uuid, $3::text, true)',
+        [orgAId, userId, tc.role]
+      );
+    }
     try {
       await withRoleContext(client, {
         role: tc.role === 'anon' ? 'anon' : 'authenticated',
-        userId: tc.userId ?? (tc.role === 'anon' ? null : ownerBId),
+        userId: userId ?? null,
       }, async () => {
         await client.query(
           'SELECT public.get_financial_export_snapshot($1::uuid,$2::date,$3::date,$4::text,$5::uuid,$6::text)',
