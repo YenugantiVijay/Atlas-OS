@@ -84,10 +84,15 @@ export async function runFinancialRawReadAcceptance({
     } catch (e) { error = e; }
 
     const entries = Object.values(results);
-    const passed = !error && entries.length === 4 &&
+    // Anon may be blocked by table GRANT before RLS runs (SQLSTATE 42501).
+    // A hard privilege denial is at least as strict as returning zero rows.
+    const deniedBySqlPrivilege = tc.sqlRole === 'anon' && error?.code === '42501';
+    const passed = deniedBySqlPrivilege || (
+      !error && entries.length === 4 &&
       (tc.allowed
         ? entries.every(n => n > 0) && rpcInvoiceVisible === true
-        : entries.every(n => n === 0) && rpcInvoiceVisible === false);
+        : entries.every(n => n === 0) && rpcInvoiceVisible === false)
+    );
 
     recordTest(
       `SEC-01-DIRECT-${index}`,
