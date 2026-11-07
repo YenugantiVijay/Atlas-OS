@@ -76,6 +76,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **SEC-01 security change (W0):** Migration `038_restrict_raw_financial_reads.sql` now adds restrictive `SELECT` policies for invoice/payment parents and children, and changes the payment-eligible-invoice lookup to run as SQL invoker so RLS cannot be bypassed. UI finance routes are limited to owner/admin/accounts. `scripts/sec01_financial_raw_read_acceptance.mjs` exercises real PostgreSQL roles and direct RPC/row reads. **CI and deeper aggregate/RPC access review remain required; no production database migration was applied.**
 
+**SEC-01 phase 2 (2026-11-07; pending CI):** Migration `039_financial_aggregate_role_gates.sql` gates four customer-receivable/summary RPCs by real finance membership and redacts private receivables totals from the general dashboard for non-financial roles. Customer listing now preserves access without substituting false zero balances. Added restricted-role PostgreSQL assertions to `scripts/sec01_financial_raw_read_acceptance.mjs`. Review [SEC-01 audit](./SEC_01_FINANCIAL_READ_ACCESS_AUDIT.md). **Other aggregate/privileged-function audits remain open; FIN-01 export snapshots and B2 Universal Search are still next, in order.**
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
