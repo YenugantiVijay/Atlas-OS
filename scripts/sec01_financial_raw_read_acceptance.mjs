@@ -10,7 +10,7 @@ export async function runFinancialRawReadAcceptance({
   // Reuse legitimate invoice/payment documents created by the operational RPC
   // acceptance tests. No direct inserts into immutable ledgers.
   const invoiceFixture = await client.query(
-    `SELECT i.id FROM public.invoices AS i
+    `SELECT i.id, i.customer_id FROM public.invoices AS i
      JOIN public.invoice_items AS ii ON ii.invoice_id = i.id
      WHERE i.organization_id = $1::uuid ORDER BY i.created_at LIMIT 1`,
     [orgAId]
@@ -23,6 +23,7 @@ export async function runFinancialRawReadAcceptance({
   );
 
   const invoiceId = invoiceFixture.rows[0]?.id;
+  const customerId = invoiceFixture.rows[0]?.customer_id;
   const paymentId = paymentFixture.rows[0]?.id;
   if (!invoiceId || !paymentId) {
     recordTest('SEC-01-FIXTURE', 'SEC-01 requires legitimately issued invoice and allocated payment fixtures',
@@ -54,6 +55,7 @@ export async function runFinancialRawReadAcceptance({
     }
 
     const results = {};
+    let rpcInvoiceVisible = null;
     let error = null;
     try {
       await withRoleContext(client, { role: tc.sqlRole || 'authenticated', userId }, async () => {
@@ -67,17 +69,30 @@ export async function runFinancialRawReadAcceptance({
           const { rows } = await client.query(sql, args);
           results[table] = rows[0]?.n ?? 0;
         }
+        // This RPC was SECURITY DEFINER in migration 036, so raw RLS
+        // protections alone were insufficient to block direct calls.
+        const rpcResult = await client.query(
+          `SELECT public.get_eligible_payment_invoices(
+              $1::uuid, $2::uuid, NULL::text, 25, 0, $3::uuid
+            ) AS value`,
+          [orgAId, customerId, invoiceId]
+        );
+        const payload = rpcResult.rows[0]?.value;
+        rpcInvoiceVisible = Array.isArray(payload?.data)
+          && payload.data.some(item => item.id === invoiceId);
       });
     } catch (e) { error = e; }
 
     const entries = Object.values(results);
     const passed = !error && entries.length === 4 &&
-      (tc.allowed ? entries.every(n => n > 0) : entries.every(n => n === 0));
+      (tc.allowed
+        ? entries.every(n => n > 0) && rpcInvoiceVisible === true
+        : entries.every(n => n === 0) && rpcInvoiceVisible === false);
 
     recordTest(
       `SEC-01-DIRECT-${index}`,
       `Direct financial table reads for ${tc.role} are ${tc.allowed ? 'allowed within tenant' : 'denied'}`,
-      passed, `counts=${JSON.stringify(results)}, error=${error?.message || 'none'}`, passed ? null : error
+      passed, `counts=${JSON.stringify(results)}, rpcInvoiceVisible=${rpcInvoiceVisible}, error=${error?.message || 'none'}`, passed ? null : error
     );
   }
 
