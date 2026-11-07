@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
+import { hasPermission } from '@/lib/permissions';
 import { dashboardService } from '@/services/dashboard.service';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +27,8 @@ import { DashboardMetrics, SalesTrendPoint, ReceivablesSummary, BrandValuation }
 import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
 
 export const DashboardPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, currentRole } = useOrg();
+  const canSeeFinancialBalances = hasPermission(currentRole, 'reports:financial');
   const { check } = useActionPermission();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -49,7 +51,7 @@ export const DashboardPage: React.FC = () => {
         const trendPromise = typeof dashboardService.getSalesTrend === 'function'
           ? dashboardService.getSalesTrend(currentOrg.id, days, isMockAuth)
           : Promise.resolve([]);
-        const recvPromise = typeof dashboardService.getReceivablesSummary === 'function'
+        const recvPromise = canSeeFinancialBalances && typeof dashboardService.getReceivablesSummary === 'function'
           ? dashboardService.getReceivablesSummary(currentOrg.id, isMockAuth)
           : Promise.resolve(null);
         const brandPromise = typeof dashboardService.getTopBrandValuation === 'function'
@@ -80,7 +82,7 @@ export const DashboardPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentOrg, isMockAuth, retryCount, trendRange]);
+  }, [currentOrg, isMockAuth, retryCount, trendRange, canSeeFinancialBalances]);
 
   const handleRangeChange = (r: '7D' | '30D' | '90D') => {
     setTrendRange(r);
@@ -225,7 +227,8 @@ export const DashboardPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Metric 2: Total Receivables */}
+        {/* Financial balances are not shown to non-financial operational roles. */}
+        {canSeeFinancialBalances && (
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
@@ -254,6 +257,8 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
         </Card>
+
+        )}
 
         {/* Metric 3: Total Orders */}
         <Card hover className="flex flex-col justify-between">
@@ -308,10 +313,12 @@ export const DashboardPage: React.FC = () => {
           />
         </Card>
 
-        {/* Receivables & Collections Donut (1 Col) */}
-        <Card>
-          <ReceivablesDonutChart summary={receivablesSummary || undefined} />
-        </Card>
+        {/* A restricted role must not see a misleading zero-collections chart. */}
+        {canSeeFinancialBalances && (
+          <Card>
+            <ReceivablesDonutChart summary={receivablesSummary || undefined} />
+          </Card>
+        )}
       </div>
 
       {/* Secondary Analytics Section: Inventory Breakdown & Recent Transactions */}
