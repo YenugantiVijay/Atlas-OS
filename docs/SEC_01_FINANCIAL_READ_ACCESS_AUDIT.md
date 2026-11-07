@@ -1,6 +1,6 @@
 # SEC-01 — Financial Table Read Authorization Audit
 
-Status: **Initial repository-level review completed; access restriction NOT yet implemented**.
+Status: **Phase 1 raw-record restriction implemented on `Vijay-Atlas`; regression CI and further RPC audit pending**.
 Linked roadmap: `docs/ATLAS_OS_MASTER_FEATURE_REGISTER.md`.
 Date: 2026-11-07
 
@@ -14,6 +14,19 @@ Date: 2026-11-07
 ### Meaning
 
 An active same-organization employee who lacks financial-report access can potentially query the raw underlying financial tables through a direct authorized Supabase client connection, depending on the effective SQL grants and all live RLS policies. This should be validated in disposable PostgreSQL as restricted roles and against the current migration set. **Do not describe the RPC gate as complete least-privilege protection.**
+
+
+## Phase 1 implementation (migration 038)
+
+- Restrictive `SELECT` policies have been added for all four raw financial tables; unlike an additional permissive policy, these cannot be bypassed by an existing broad organization-member `SELECT` policy.
+- Only active `owner`, `admin`, `accounts` members of the organization with eligible read status may see raw invoice/payment rows.
+- `sales`, `inventory`, `viewer`, inactive, anonymous and cross-tenant users cannot SELECT the protected records.
+- Financial pages and navigation now use the existing `reports:financial` role permission, matching the database boundary. A later permission design could add explicitly scoped sales-invoice previews without reopening full ledgers.
+- New `scripts/sec01_financial_raw_read_acceptance.mjs` verifies the four tables for owner/admin/accounts/sales/inventory/viewer/inactive/cross-tenant/anonymous, using actual transaction fixtures created by prior operational acceptance tests, not fabricated raw ledger writes.
+- The same test checks sales can still read the ordinary product catalog.
+- No production migration is applied by writing this file. Verify CI and deployment ordering first.
+
+**Remaining review:** SECURITY DEFINER function return shapes, dashboard aggregate visibility, other read endpoints and legacy integrations must be audited separately. SEC-01 is not fully closed merely by protecting the four raw tables.
 
 ## Operational dependencies to map before RLS changes
 

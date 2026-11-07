@@ -106,8 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Finance & Accounts',
       items: [
-        { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'data:read' },
+        { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+        { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'reports:financial' },
       ],
     },
     {

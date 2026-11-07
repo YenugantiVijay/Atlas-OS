@@ -90,4 +90,19 @@ describe('Sidebar Simple View and Full Navigation', () => {
     );
     expect((screen.getByRole('combobox', { name: 'Navigation layout' }) as HTMLSelectElement).value).toBe('essentials');
   });
+  it('hides raw financial invoices and payment ledgers from sales and viewer roles', () => {
+    for (const role of ['sales', 'viewer'] as const) {
+      const view = setup(role);
+      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), {
+        target: { value: 'all' },
+      });
+      expect(screen.queryByRole('link', { name: 'Tax Invoices' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Payments & Ledger' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Sales & Receipts' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+      view.unmount();
+      window.localStorage.clear();
+    }
+  });
+
 });
