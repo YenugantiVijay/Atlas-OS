@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 import { isInvoiceOverdue } from '@/lib/dates';
+import { hasPermission } from '@/lib/permissions';
 
 interface ReplenishmentItem {
   productId: string;
@@ -50,6 +51,7 @@ interface Message {
 export const AIPage: React.FC = () => {
   const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { showToast } = useToast();
+  const canReadFinancialLedgers = hasPermission(currentRole, 'reports:financial');
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [messages, setMessages] = useState<Message[]>([
@@ -78,7 +80,9 @@ export const AIPage: React.FC = () => {
   const sampleQueries = [
     { label: "Summarize today's sales & orders", query: "Summarize today's orders and sales." },
     { label: 'Low-stock reorder suggestions', query: 'Which electrical SKUs are below their reorder threshold?' },
-    { label: 'Customers with overdue receivables', query: 'Show customers with overdue receivables and balances.' },
+    ...(canReadFinancialLedgers
+      ? [{ label: 'Customers with overdue receivables', query: 'Show customers with overdue receivables and balances.' }]
+      : []),
     { label: 'Inventory valuation breakdown', query: 'What is our total inventory valuation and stock health?' },
   ];
 
@@ -168,6 +172,14 @@ export const AIPage: React.FC = () => {
     }
 
     if (q.includes('receivable') || q.includes('overdue') || q.includes('customer') || q.includes('balance')) {
+      if (!canReadFinancialLedgers) {
+        return {
+          id: 'ai-' + Date.now(),
+          sender: 'assistant',
+          content: 'Detailed customer receivables and invoice balances require an Owner, Admin, or Accounts role. Ask an authorized member for access.',
+          timestamp,
+        };
+      }
       const [invoices, customers] = await Promise.all([
         invoicesService.getInvoices(orgId, isMockAuth),
         customersService.getCustomers(orgId, isMockAuth),
