@@ -106,6 +106,64 @@ export async function runFinancialRawReadAcceptance({
       `Direct financial table reads for ${tc.role} are ${tc.allowed ? 'allowed within tenant' : 'denied'}`,
       passed, `counts=${JSON.stringify(results)}, rpcInvoiceVisible=${rpcInvoiceVisible}, error=${error?.message || 'none'}`, passed ? null : error
     );
+
+    // SEC-01.2: Explicitly exercise privileged aggregate entrypoints.
+    // These previously only checked active organization membership and could
+    // bypass the restricted invoice SELECT policies via SECURITY DEFINER.
+    const financeRpcCases = [
+      ['customer_receivables', 'SELECT COUNT(*)::integer AS v FROM public.get_customer_receivables($1::uuid)', [orgAId]],
+      ['one_customer_receivable', 'SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS v', [customerId, orgAId]],
+      ['page_customer_receivables', 'SELECT COUNT(*)::integer AS v FROM public.get_page_customer_receivables($1::uuid, ARRAY[$2::uuid])', [orgAId, customerId]],
+      ['receivables_summary', 'SELECT public.get_receivables_summary($1::uuid, CURRENT_DATE) AS v', [orgAId]],
+    ];
+    for (const [name, statement, args] of financeRpcCases) {
+      let succeeded = false;
+      let denied = false;
+      let failure = null;
+      try {
+        await withRoleContext(client, { role: tc.sqlRole || 'authenticated', userId }, async () => {
+          const out = await client.query(statement, args);
+          if (out.rows.length !== 1) throw new Error('Finance RPC returned no result');
+          succeeded = true;
+        });
+      } catch (e) {
+        failure = e;
+        denied = e.code === '42501';
+      }
+      const ok = tc.allowed ? succeeded && !failure : denied && !succeeded;
+      recordTest(`SEC-01-RPC-${name}-${index}`,
+        `Finance aggregate ${name}: ${tc.role} ${tc.allowed ? 'allowed' : 'blocked'}`,
+        ok, `success=${succeeded}; sqlstate=${failure?.code || 'none'}`,
+        ok ? null : failure
+      );
+    }
+
+    // The main dashboard is useful to nonfinance roles, but financial figures
+    // must be redacted at the database (not merely hidden in React).
+    let dashboardFinance = null;
+    let dashboardErr = null;
+    try {
+      await withRoleContext(client, { role: tc.sqlRole || 'authenticated', userId }, async () => {
+        const { rows } = await client.query(
+          'SELECT public.get_dashboard_metrics($1::uuid, CURRENT_DATE) AS data',
+          [orgAId]
+        );
+        dashboardFinance = rows[0]?.data || null;
+      });
+    } catch (e) { dashboardErr = e; }
+    const dashboardPass = tc.allowed
+      ? dashboardErr === null && dashboardFinance !== null
+      : (tc.role === 'sales' || tc.role === 'inventory' || tc.role === 'viewer')
+        ? dashboardErr === null &&
+          Number(dashboardFinance?.total_receivables) === 0 &&
+          Number(dashboardFinance?.overdue_invoices_count) === 0
+        : dashboardErr?.code === '42501';
+    recordTest(`SEC-01-DASHBOARD-${index}`,
+      `Dashboard financial balances: ${tc.role} is ${tc.allowed ? 'authorized' : 'redacted or denied'}`,
+      dashboardPass,
+      `receivables=${dashboardFinance?.total_receivables ?? 'none'}; overdue=${dashboardFinance?.overdue_invoices_count ?? 'none'}; state=${dashboardErr?.code || 'none'}`,
+      dashboardPass ? null : dashboardErr
+    );
   }
 
   // A legitimate non-financial workflow must still read product catalog data.

@@ -1,6 +1,6 @@
 # SEC-01 — Financial Table Read Authorization Audit
 
-Status: **Phase 1 raw-record restriction implemented on `Vijay-Atlas`; regression CI and further RPC audit pending**.
+Status: **Phase 1 merged; Phase 2 aggregate hardening implemented on `Vijay-Atlas`, CI pending. Additional operational aggregate policy decisions remain.**
 Linked roadmap: `docs/ATLAS_OS_MASTER_FEATURE_REGISTER.md`.
 Date: 2026-11-07
 
@@ -27,6 +27,16 @@ An active same-organization employee who lacks financial-report access can poten
 - No production migration is applied by writing this file. Verify CI and deployment ordering first.
 
 **Remaining review:** SECURITY DEFINER function return shapes, dashboard aggregate visibility, other read endpoints and legacy integrations must be audited separately. SEC-01 is not fully closed merely by protecting the four raw tables.
+
+## Phase 2 implementation — Financial aggregate RPC audit
+
+- Migration `039_financial_aggregate_role_gates.sql` explicitly validates Owner/Admin/Accounts membership for `get_customer_receivables`, `get_customer_receivable`, `get_page_customer_receivables`, and `get_receivables_summary`. A direct RPC request no longer bypasses raw invoice read restrictions through a SECURITY DEFINER aggregate.
+- `get_dashboard_metrics` remains available for normal operational dashboards, but returns **zero values for the two financial-only fields** (`total_receivables` and `overdue_invoices_count`) to non-finance active members. The client hides those financial UI widgets so the redacted zeros are not misrepresented as settled accounts.
+- `customers.service.ts` interprets PostgreSQL SQLSTATE `42501` only as finance-read denial: it returns the customer directory with **undefined balances**, never fictitious zero balances. Unrelated technical errors are not silently swallowed.
+- Disposable PostgreSQL role acceptance checks each aggregate RPC and dashboard redaction across financial and operational roles, inactive users, other tenants and anonymous callers.
+- Security decision: the narrow finance permission remains **Owner/Admin/Accounts**. A separate controlled sales-credit/status API should be developed before allowing Sales users to inspect individual customer account balances.
+
+**Further review still open:** `get_sales_trend` exposes aggregate sales orders to any organization reader; `get_top_brand_stock_valuation` exposes stock purchase-cost valuation; `get_customer_receivables` and customer basic records still expose customer credit limits. Define their role policy explicitly rather than assuming all aggregate data is public. Audit any additional privileged functions added in future migrations. **Do not claim blanket RPC least privilege is proven.**
 
 ## Operational dependencies to map before RLS changes
 
