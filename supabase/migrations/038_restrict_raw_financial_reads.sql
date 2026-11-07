@@ -58,6 +58,13 @@ CREATE POLICY sec01_payment_allocations_finance_read_guard
         )
     );
 
+-- Migration 036 defines this READ-ONLY invoice lookup as SECURITY DEFINER.
+-- That bypasses table RLS and originally checked only organization membership.
+-- It MUST run as the invoker so migration 038's restrictive invoice policy
+-- applies even to direct RPC calls with forged customer/exact invoice IDs.
+ALTER FUNCTION public.get_eligible_payment_invoices(UUID, UUID, TEXT, INTEGER, INTEGER, UUID)
+    SECURITY INVOKER;
+
 COMMENT ON POLICY sec01_invoices_finance_read_guard ON public.invoices IS
     'SEC-01: Raw invoice details require active owner/admin/accounts membership.';
 COMMENT ON POLICY sec01_payments_finance_read_guard ON public.payments IS
