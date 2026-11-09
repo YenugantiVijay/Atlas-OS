@@ -92,22 +92,31 @@ Supabase migrations, and business workflows are not changed.
 
 ## 4. How to Preview the Website
 
-The official website is an **Astro multi-page site**, not a standalone hand-authored HTML page. A regular browser or VS Code Live Server **cannot** render `src/pages/*.astro` directly. The real homepage is automatically generated at `dist/index.html` when you build.
+### Option A — Open `index.html` directly (no server required)
 
-### Easiest: One-click live preview (Windows)
-Double-click `atlas-os-website/preview-website.cmd`. It checks Node/npm, installs dependencies if needed, runs Astro in **live development / hot-reload mode**, then opens **http://localhost:4321/**. Changes to the website update in the browser without another build.
+**Right-click `atlas-os-website/index.html` → Open with Live Server** in VS Code, or double-click it in File Explorer. It now shows the **Atlas OS homepage immediately**, rather than the old placeholder card with the broken “Open Live Website” button.
 
-### VS Code Live Server entry
-Open `atlas-os-website/index.html` with Live Server to see the simple **preview launcher page**. Click **Open Live Website** after starting `preview-website.cmd` or `npm run dev`. This HTML entry is an informative launcher, **not** a duplicate of the Astro website and **not** its production source.
+This file is a **self-contained, responsive HTML homepage preview** with working anchor navigation and an interactive sample workspace. It is intentionally distinct from the full multi-page Astro application; changes to `src/pages/*.astro` will **not** automatically update this standalone preview.
 
-### Terminal preview
+### Option B — Open the complete official website (recommended for design/development)
+
+**Double-click `atlas-os-website/preview-website.cmd` on Windows.** It installs missing dependencies, starts the real Astro dev server, waits until the Atlas OS homepage is reachable, and only then opens the browser directly at **http://127.0.0.1:4321/**. No intermediate card or “Open Website” click is necessary.
+
+The complete website is authored in `src/pages/*.astro` and supports all its actual pages, components and live reload. If it cannot start, the script reports an error rather than opening a dead link. Keep the server console open while previewing; close it to stop the server.
+
+Equivalent terminal commands:
+
 ```bash
 cd atlas-os-website
 npm ci
-npm run dev  # live editing at http://localhost:4321
+npm run dev
 ```
 
-For a compiled production preview, run `npm run build` then `npm run preview`. This serves `dist/`; rebuilding is required after edits.
+### Production-style preview
+
+Run `npm run build` followed by `npm run preview` from the website directory. The generated `dist/index.html` is the real compiled Astro homepage for hosting.
+
+**Why there are two entrypoints:** VS Code Live Server only serves static HTML, CSS and JavaScript; it cannot compile `.astro` components or launch Node processes. The root `index.html` is therefore a working standalone homepage preview, while `preview-website.cmd` opens the actual complete website.
 
 ## 5. Local Development & Verification
 
