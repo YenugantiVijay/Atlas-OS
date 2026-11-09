@@ -36,6 +36,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenQuickCreate,
 }) => {
   const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
   const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { check: checkActionPermission } = useActionPermission();
@@ -51,7 +52,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const orgId = currentOrg?.id;
 
   useEffect(() => {
-    if (isOpen) setQuery('');
+    if (isOpen) { setQuery(''); setSelectedIndex(0); }
   }, [isOpen, orgId]);
 
   // Demo keeps its small in-memory catalog; cloud searches use bounded
@@ -169,6 +170,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     )
     .slice(0, 3);
 
+  const resultCount = quickActions.length + filteredNav.length + financialResults.length +
+    (query.trim() ? filteredProducts.length + filteredCustomers.length : 0);
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (resultCount === 0) return;
+      setSelectedIndex((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + resultCount) % resultCount);
+    } else if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+      const results = dialogRef.current?.querySelectorAll<HTMLButtonElement>('[data-command-result]');
+      const selected = results?.[Math.min(selectedIndex, (results?.length ?? 1) - 1)];
+      if (selected) { event.preventDefault(); selected.click(); }
+    }
+  };
+
   const handleSelectNav = (path: string) => {
     navigate(path);
     onClose();
@@ -202,7 +218,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
+            onKeyDown={handleSearchKeyDown}
             placeholder="Search commands, products, customers, or workflows..."
             className="w-full bg-transparent text-sm text-content-primary placeholder-content-muted focus:outline-none"
             aria-label="Search Atlas OS"
@@ -228,9 +245,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               {quickActions.map((act) => (
                 <button
                   key={act.type}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.indexOf(act)}
                   type="button"
                   onClick={() => handleSelectCreate(act.type)}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-content-primary hover:bg-atlas-50 hover:text-atlas-800 transition-colors text-left"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 hover:text-atlas-800 transition-colors text-left"
                 >
                   <PlusCircle className="w-4 h-4 text-atlas-500" />
                   <span>{act.label}</span>
@@ -248,9 +267,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               {filteredNav.map((item) => (
                 <button
                   key={item.path}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.length + filteredNav.indexOf(item)}
                   type="button"
                   onClick={() => handleSelectNav(item.path)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2.5">
                     {item.icon}
@@ -274,8 +295,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 {financialResults.map((result) => (
                   <button
                     key={`${result.record_type}-${result.record_id}`}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.indexOf(result)}
                     type="button"
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50 data-[active=true]:bg-atlas-100"
                     onClick={() => handleSelectNav(`/${result.record_type === 'invoice' ? 'invoices' : 'payments'}?search=${encodeURIComponent(result.document_number)}`)}
                   >
                     <span className="font-semibold text-content-primary">{result.document_number}</span>
@@ -307,9 +330,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 {filteredProducts.map((p) => (
                   <button
                     key={p.id}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.indexOf(p)}
                     type="button"
                     onClick={() => handleSelectNav(`/products?search=${encodeURIComponent(p.sku)}`)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
                   >
                     <div>
                       <div className="font-semibold text-content-primary">{p.name}</div>
@@ -334,9 +359,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 {filteredCustomers.map((c) => (
                   <button
                     key={c.id}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
                     type="button"
                     onClick={() => handleSelectNav(`/customers?search=${encodeURIComponent(c.name)}`)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
                   >
                     <div>
                       <div className="font-semibold text-content-primary">{c.companyName || c.name}</div>
@@ -352,7 +379,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Footer Shortcut hint */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-border text-xs text-content-muted">
-          <span>Navigate with mouse or keyboard</span>
+          <span>↑ ↓ select · Enter open · Esc close</span>
           <div className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono text-xs">
               ESC
