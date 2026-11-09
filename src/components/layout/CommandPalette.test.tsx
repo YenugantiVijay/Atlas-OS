@@ -357,18 +357,23 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(searchFinancialDocuments).not.toHaveBeenCalled();
   });
 
-  // Test 11: Search data load failure and retry behavior
-  it('offers retry after a search request fails and successfully reloads on retry', async () => {
-    vi.mocked(productsService.getProducts).mockRejectedValueOnce(new Error('Offline'));
+  // Test 11: Cloud search failure and retry after a typed, debounced query.
+  it('offers retry after a bounded cloud search fails and successfully reloads on retry', async () => {
+    vi.mocked(productsService.getProductsPaginated).mockRejectedValueOnce(new Error('Offline'));
     render(
       <MemoryRouter>
         <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
       </MemoryRouter>
     );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'wire' } });
     expect(await screen.findByRole('alert')).toHaveTextContent('Search data could not be loaded');
+    expect(productsService.getProductsPaginated).toHaveBeenCalledWith(
+      'cloud-org', { page: 1, pageSize: 4, search: 'wire' }, false
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
-    expect(productsService.getProducts).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(productsService.getProductsPaginated).toHaveBeenCalledTimes(2));
+    expect(productsService.getProducts).not.toHaveBeenCalled();
   });
 
   // Test 12: Rapid repeated open/close cycles without React crashing
