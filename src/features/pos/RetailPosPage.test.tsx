@@ -71,7 +71,7 @@ describe('Retail Counter — safe draft order workflow', () => {
   it('builds single-item checkout through existing authoritative draft RPC, without stock or payment writes', async () => {
     mount();
     await fillCart();
-    expect(screen.getByText(/Stock is checked authoritatively/i)).toBeInTheDocument();
+    expect(screen.getByText(/Inventory is checked authoritatively/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft sales order' }));
     await waitFor(() => expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1));
     expect(ordersService.createSalesOrder).toHaveBeenCalledWith(orgId, expect.objectContaining({
@@ -81,7 +81,7 @@ describe('Retail Counter — safe draft order workflow', () => {
         productId: 'p-1', productSku: 'WIRE-1', quantity: 1, unitPrice: 100, taxRate: 18,
       })],
     }), false);
-    expect(screen.getByText(/Draft order/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Review order' })).toBeInTheDocument();
     expect(ordersService.confirmSalesOrder).not.toHaveBeenCalled();
   });
 
