@@ -9,8 +9,8 @@ function probe() {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
-        body += chunk;
-        if (body.length > 120000) res.destroy();
+        // Only the beginning of the HTML is needed; consume the rest safely.
+        if (body.length < 120000) body += chunk.slice(0, 120000 - body.length);
       });
       res.on('end', () => {
         // Do not open an unrelated application that happens to occupy port 4321.
