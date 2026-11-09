@@ -289,6 +289,36 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(screen.queryByRole('button', { name: /Audit Trail/ })).not.toBeInTheDocument();
   });
 
+  it('does not show invoices or payment ledger destinations to a sales employee', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: 'sales' });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Invoices\s*\/invoices/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Payments & Receivables/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sales & Receipts Reports/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sales Orders/ })).toBeInTheDocument();
+  });
+
+  it('searches customers by normalized phone digits without exposing financial balances', async () => {
+    vi.mocked(customersService.getCustomers).mockResolvedValue([
+      { id: 'customer-1', name: 'Ravi Electricals', phone: '+91 98765-43210' } as any,
+    ]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: '9876543210' } });
+    const customer = await screen.findByRole('button', { name: /Ravi Electricals/ });
+    expect(customer).toBeInTheDocument();
+    fireEvent.click(customer);
+    expect(screen.getByText('/customers?search=Ravi%20Electricals')).toBeInTheDocument();
+  });
+
   // Test 11: Search data load failure and retry behavior
   it('offers retry after a search request fails and successfully reloads on retry', async () => {
     vi.mocked(productsService.getProducts).mockRejectedValueOnce(new Error('Offline'));
