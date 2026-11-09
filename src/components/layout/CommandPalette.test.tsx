@@ -9,11 +9,13 @@ import { useOrg, OrgContextType } from '@/features/organizations/OrgContext';
 import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
 import { searchFinancialDocuments } from '@/services/universal-search.service';
+import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn(), getProductsPaginated: vi.fn() } }));
 vi.mock('@/services/customers.service', () => ({ customersService: { getCustomers: vi.fn(), getCustomersPaginated: vi.fn() } }));
 vi.mock('@/services/universal-search.service', () => ({ searchFinancialDocuments: vi.fn() }));
+vi.mock('@/services/customer-directory-search.service', () => ({ searchCustomerDirectory: vi.fn() }));
 
 function Location() {
   const location = useLocation();
@@ -62,6 +64,7 @@ beforeEach(() => {
   vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ data: [], totalCount: 0, page: 1, pageSize: 4, totalPages: 0 } as any);
   vi.mocked(customersService.getCustomers).mockResolvedValue([]);
   vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ data: [], totalCount: 0, page: 1, pageSize: 3, totalPages: 0 } as any);
+  vi.mocked(searchCustomerDirectory).mockResolvedValue([]);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
 
@@ -245,7 +248,8 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Cloud Wire' } });
     await waitFor(() => expect(productsService.getProductsPaginated).toHaveBeenCalledWith('cloud-org', { page: 1, pageSize: 4, search: 'Cloud Wire' }, false));
-    expect(customersService.getCustomersPaginated).toHaveBeenCalledWith('cloud-org', { page: 1, pageSize: 3, search: 'Cloud Wire' }, false);
+    expect(searchCustomerDirectory).toHaveBeenCalledWith('cloud-org', 'Cloud Wire', 3);
+    expect(customersService.getCustomersPaginated).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole('button', { name: /Cloud Wire/ }));
     expect(screen.getByText('/products?search=CLOUD%2BSKU')).toBeInTheDocument();
   });
@@ -310,20 +314,37 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
   });
 
   it('searches customers by normalized phone digits without exposing financial balances', async () => {
-    vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ data: [
-      { id: 'customer-1', name: 'Ravi Electricals', phone: '+91 98765-43210' } as any,
-    ] } as any);
+    vi.mocked(searchCustomerDirectory).mockResolvedValue([
+      { id: 'customer-1', name: 'Ravi Electricals', phone: '+91 98765-43210' },
+    ]);
     render(
       <MemoryRouter>
         <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
         <Location />
       </MemoryRouter>
     );
-    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: '9876543210' } });
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: '98765-43210' } });
     const customer = await screen.findByRole('button', { name: /Ravi Electricals/ });
     expect(customer).toBeInTheDocument();
+    expect(searchCustomerDirectory).toHaveBeenCalledWith('cloud-org', '98765-43210', 3);
+    expect(customersService.getCustomersPaginated).not.toHaveBeenCalled();
+    expect(customer).not.toHaveTextContent('Receivable');
     fireEvent.click(customer);
     expect(screen.getByText('/customers?search=Ravi%20Electricals')).toBeInTheDocument();
+  });
+
+
+  it('does not load the full customer table when the bounded directory RPC fails', async () => {
+    vi.mocked(searchCustomerDirectory).mockRejectedValue(new Error('RPC not deployed'));
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: '+91 98765' } });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Search data could not be loaded');
+    expect(customersService.getCustomers).not.toHaveBeenCalled();
+    expect(customersService.getCustomersPaginated).not.toHaveBeenCalled();
   });
 
   it('shows finance-only server results with linked invoice search', async () => {
