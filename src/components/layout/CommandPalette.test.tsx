@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from './CommandPalette';
 import { Header } from './Header';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -11,6 +11,8 @@ import { customersService } from '@/services/customers.service';
 import { searchFinancialDocuments } from '@/services/universal-search.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
 import { searchOperationalRecords } from '@/services/operational-search.service';
+import { suppliersService } from '@/services/suppliers.service';
+import { ordersService } from '@/services/orders.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn(), getProductsPaginated: vi.fn() } }));
@@ -70,6 +72,8 @@ beforeEach(() => {
   vi.mocked(searchOperationalRecords).mockResolvedValue([]);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 function ToggleHarness({ initialOpen = false }: { initialOpen?: boolean }) {
   const [open, setOpen] = useState(initialOpen);
@@ -498,6 +502,183 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     );
     fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'QT-42' } });
     expect(await screen.findByRole('alert')).toHaveTextContent('Operational search is unavailable');
+  });
+
+  it('announces the selected command and supports Home/End and clamped keyboard activation', () => {
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    const results = screen.getAllByRole('button').filter((b) => b.hasAttribute('data-command-result'));
+    expect(input).toHaveAttribute('aria-describedby', 'atlas-command-selection');
+    expect(input).toHaveAttribute('maxLength', '100');
+    expect(document.getElementById('atlas-command-selection')).toHaveTextContent('Selected 1 of');
+    fireEvent.keyDown(input, { key: 'End' });
+    expect(results[results.length - 1]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'Home' });
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(results[results.length - 1]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+  });
+
+  it('does not render stale operational results while a newer query is pending', async () => {
+    let resolveOld: ((rows: any[]) => void) | undefined;
+    vi.mocked(searchOperationalRecords).mockImplementation((_org, term) => {
+      if (term === 'old') return new Promise((resolve) => { resolveOld = resolve; });
+      return Promise.resolve([{ recordType: 'supplier', recordId: 'new-1', reference: 'New Supplier', displayName: 'New Supplier' }]);
+    });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'old' } });
+    await waitFor(() => expect(searchOperationalRecords).toHaveBeenCalledWith('cloud-org', 'old', 3));
+    fireEvent.change(input, { target: { value: 'new' } });
+    expect(screen.queryByRole('button', { name: /Old Supplier/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /New Supplier/ })).toBeInTheDocument();
+    await act(async () => {
+      resolveOld?.([{ recordType: 'supplier', recordId: 'old-1', reference: 'Old Supplier', displayName: 'Old Supplier' }]);
+    });
+    expect(screen.queryByRole('button', { name: /Old Supplier/ })).not.toBeInTheDocument();
+  });
+
+  it('immediately hides financial results when a role loses finance permission', async () => {
+    vi.mocked(searchFinancialDocuments).mockResolvedValue([{
+      record_type: 'invoice', record_id: 'inv-sensitive',
+      document_number: 'INV-SENSITIVE', customer_name: 'Private Firm', document_date: '2026-11-09',
+    }]);
+    const { rerender } = render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'INV-SENSITIVE' } });
+    expect(await screen.findByRole('button', { name: /INV-SENSITIVE/ })).toBeInTheDocument();
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: 'sales' });
+    rerender(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /INV-SENSITIVE/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Private Firm')).not.toBeInTheDocument();
+  });
+
+  it('does not claim there are no results when finance-only search finds a receipt', async () => {
+    vi.mocked(searchFinancialDocuments).mockResolvedValue([{
+      record_type: 'payment', record_id: 'pay-1',
+      document_number: 'PAY-UNIQUE-908', customer_name: 'Buyer', document_date: '2026-11-09',
+    }]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'PAY-UNIQUE-908' } });
+    expect(await screen.findByRole('button', { name: /PAY-UNIQUE-908/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Loading products and customers...')).not.toBeInTheDocument());
+    expect(screen.queryByText('No matching results.')).not.toBeInTheDocument();
+  });
+
+  it('limits cloud query length to 100 characters before requesting any search RPC', async () => {
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'a'.repeat(101) } });
+    await waitFor(() => expect(screen.getByLabelText('Search Atlas OS')).toHaveValue('a'.repeat(101)));
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+    expect(searchFinancialDocuments).not.toHaveBeenCalled();
+    expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
+  });
+
+  it('retries financial and operational RPCs independently after transient failures', async () => {
+    vi.mocked(searchFinancialDocuments).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ record_type: 'invoice', record_id: 'inv-1', document_number: 'INV-RETRY',
+        customer_name: 'Buyer', document_date: '2026-11-09' }]);
+    vi.mocked(searchOperationalRecords).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ recordType: 'supplier', recordId: 's1', reference: 'Retry Supply', displayName: 'Supplier' }]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Retry' } });
+    const retryFinance = await screen.findByRole('button', { name: 'Try finance search again' });
+    const retryOperations = await screen.findByRole('button', { name: 'Try operational search again' });
+    fireEvent.click(retryFinance);
+    expect(await screen.findByRole('button', { name: /INV-RETRY/ })).toBeInTheDocument();
+    expect(searchFinancialDocuments).toHaveBeenCalledTimes(2);
+    // The first retry is shared, so both searches recover without additional full-table reads.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Retry Supply/ })).toBeInTheDocument());
+    expect(searchOperationalRecords).toHaveBeenCalledTimes(2);
+    expect(retryOperations).not.toBeInTheDocument();
+  });
+
+  it('reuses small demo catalogs while typing but refreshes them after reopening', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, isMockAuth: true, isDemoMode: true });
+    const supplierSpy = vi.spyOn(suppliersService, 'getSuppliers').mockResolvedValue([
+      { id: 's1', name: 'Ravi Supply', organizationId: 'cloud-org' } as any,
+    ]);
+    const quotesSpy = vi.spyOn(ordersService, 'getQuotations').mockResolvedValue([]);
+    const ordersSpy = vi.spyOn(ordersService, 'getSalesOrders').mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <ToggleHarness initialOpen />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'Ravi' } });
+    expect(await screen.findByRole('button', { name: /Supplier · Ravi Supply/ })).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Rav' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Supplier · Ravi Supply/ })).toBeInTheDocument());
+    expect(supplierSpy).toHaveBeenCalledTimes(1);
+    expect(quotesSpy).toHaveBeenCalledTimes(1);
+    expect(ordersSpy).toHaveBeenCalledTimes(1);
+    expect(productsService.getProducts).toHaveBeenCalledTimes(1);
+    expect(customersService.getCustomers).toHaveBeenCalledTimes(1);
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('close-btn'));
+    fireEvent.click(screen.getByTestId('open-btn'));
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Ravi' } });
+    await waitFor(() => expect(supplierSpy).toHaveBeenCalledTimes(2));
+    expect(productsService.getProducts).toHaveBeenCalledTimes(2);
+  });
+
+  it('invalidates results on user identity change even within the same organization', async () => {
+    vi.mocked(searchOperationalRecords)
+      .mockResolvedValueOnce([{ recordType: 'supplier', recordId: 'user1-secret',
+        reference: 'User One Supplier', displayName: 'User One Supplier' }])
+      .mockResolvedValue([]);
+    const { rerender } = render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'supplier' } });
+    expect(await screen.findByRole('button', { name: /Supplier · User One Supplier/ })).toBeInTheDocument();
+    vi.mocked(useOrg).mockReturnValue({
+      ...context,
+      currentUser: { ...context.currentUser!, id: 'u2' },
+    });
+    rerender(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Supplier · User One Supplier/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(searchOperationalRecords).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: /Supplier · User One Supplier/ })).not.toBeInTheDocument();
   });
 
   // Test 12: Rapid repeated open/close cycles without React crashing
