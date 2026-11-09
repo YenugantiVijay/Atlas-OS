@@ -11,8 +11,8 @@ import { customersService } from '@/services/customers.service';
 import { searchFinancialDocuments } from '@/services/universal-search.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
-vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn() } }));
-vi.mock('@/services/customers.service', () => ({ customersService: { getCustomers: vi.fn() } }));
+vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn(), getProductsPaginated: vi.fn() } }));
+vi.mock('@/services/customers.service', () => ({ customersService: { getCustomers: vi.fn(), getCustomersPaginated: vi.fn() } }));
 vi.mock('@/services/universal-search.service', () => ({ searchFinancialDocuments: vi.fn() }));
 
 function Location() {
@@ -59,7 +59,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useOrg).mockReturnValue(context);
   vi.mocked(productsService.getProducts).mockResolvedValue([]);
+  vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 4, totalPages: 0 } as any);
   vi.mocked(customersService.getCustomers).mockResolvedValue([]);
+  vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 3, totalPages: 0 } as any);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
 
@@ -231,18 +233,19 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
 
   // Test 8: Product navigation and URL parameter setting
   it('queries the active cloud organization and opens a matching product search with URL parameters', async () => {
-    vi.mocked(productsService.getProducts).mockResolvedValue([
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ items: [
       { id: 'p1', sku: 'CLOUD+SKU', name: 'Cloud Wire', sellingPrice: 0, uom: 'Coils' } as any,
-    ]);
+    ] } as any);
     render(
       <MemoryRouter>
         <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
         <Location />
       </MemoryRouter>
     );
-    expect(productsService.getProducts).toHaveBeenCalledWith('cloud-org', false);
-    expect(customersService.getCustomers).toHaveBeenCalledWith('cloud-org', false);
+    expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Cloud Wire' } });
+    await waitFor(() => expect(productsService.getProductsPaginated).toHaveBeenCalledWith('cloud-org', { page: 1, pageSize: 4, search: 'Cloud Wire' }, false));
+    expect(customersService.getCustomersPaginated).toHaveBeenCalledWith('cloud-org', { page: 1, pageSize: 3, search: 'Cloud Wire' }, false);
     fireEvent.click(await screen.findByRole('button', { name: /Cloud Wire/ }));
     expect(screen.getByText('/products?search=CLOUD%2BSKU')).toBeInTheDocument();
   });
@@ -259,7 +262,7 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
       </MemoryRouter>
     );
 
-    expect(productsService.getProducts).toHaveBeenCalledWith('org-1', false);
+    expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
 
     const input = screen.getByLabelText('Search Atlas OS');
     fireEvent.change(input, { target: { value: 'Test Query' } });
@@ -274,7 +277,8 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     );
 
     await waitFor(() => {
-      expect(productsService.getProducts).toHaveBeenCalledWith('org-2', false);
+      expect(screen.getByLabelText('Search Atlas OS')).toHaveValue('');
+      expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
     });
     expect(input).toHaveValue('');
   });
@@ -306,9 +310,9 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
   });
 
   it('searches customers by normalized phone digits without exposing financial balances', async () => {
-    vi.mocked(customersService.getCustomers).mockResolvedValue([
+    vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ items: [
       { id: 'customer-1', name: 'Ravi Electricals', phone: '+91 98765-43210' } as any,
-    ]);
+    ] } as any);
     render(
       <MemoryRouter>
         <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
