@@ -384,11 +384,11 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
       </MemoryRouter>
     );
     const input = screen.getByLabelText('Search Atlas OS');
-    fireEvent.change(input, { target: { value: 'Dashboard' } });
-    const dashboard = screen.getByRole('button', { name: /Dashboard \/$/ });
-    expect(dashboard).toHaveAttribute('data-active', 'true');
+    fireEvent.change(input, { target: { value: 'Products & SKUs' } });
+    const selected = screen.getByRole('button', { name: /Products & SKUs \/products/ });
+    expect(selected).toHaveAttribute('data-active', 'true');
     fireEvent.keyDown(input, { key: 'Enter' });
-    expect(screen.getByText('/')).toBeInTheDocument();
+    expect(document.querySelector('output')).toHaveTextContent('/products');
   });
 
   it('cycles the active result with arrow keys without exposing unauthorized finance navigation', () => {
