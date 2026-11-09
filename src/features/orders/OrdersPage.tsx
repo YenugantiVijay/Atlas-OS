@@ -58,7 +58,9 @@ export const OrdersPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const linkedSearch = searchParams.get('search') || '';
+  const [searchQuery, setSearchQuery] = useState(linkedSearch);
+  useEffect(() => { setSearchQuery(linkedSearch); setPage(1); }, [linkedSearch]);
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
