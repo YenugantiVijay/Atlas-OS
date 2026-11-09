@@ -59,9 +59,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useOrg).mockReturnValue(context);
   vi.mocked(productsService.getProducts).mockResolvedValue([]);
-  vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 4, totalPages: 0 } as any);
+  vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ data: [], totalCount: 0, page: 1, pageSize: 4, totalPages: 0 } as any);
   vi.mocked(customersService.getCustomers).mockResolvedValue([]);
-  vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 3, totalPages: 0 } as any);
+  vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ data: [], totalCount: 0, page: 1, pageSize: 3, totalPages: 0 } as any);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
 
@@ -233,7 +233,7 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
 
   // Test 8: Product navigation and URL parameter setting
   it('queries the active cloud organization and opens a matching product search with URL parameters', async () => {
-    vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ items: [
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ data: [
       { id: 'p1', sku: 'CLOUD+SKU', name: 'Cloud Wire', sellingPrice: 0, uom: 'Coils' } as any,
     ] } as any);
     render(
@@ -310,7 +310,7 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
   });
 
   it('searches customers by normalized phone digits without exposing financial balances', async () => {
-    vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ items: [
+    vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ data: [
       { id: 'customer-1', name: 'Ravi Electricals', phone: '+91 98765-43210' } as any,
     ] } as any);
     render(
