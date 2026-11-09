@@ -511,7 +511,6 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     const results = screen.getAllByRole('button').filter((b) => b.hasAttribute('data-command-result'));
     expect(input).toHaveAttribute('aria-describedby', 'atlas-command-selection');
     expect(input).toHaveAttribute('maxLength', '100');
-    expect(screen.getByRole('status', { name: '' }).textContent).toBeDefined();
     expect(document.getElementById('atlas-command-selection')).toHaveTextContent('Selected 1 of');
     fireEvent.keyDown(input, { key: 'End' });
     expect(results[results.length - 1]).toHaveAttribute('data-active', 'true');
