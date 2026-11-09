@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search,
   LayoutDashboard,
+  ShoppingCart,
   Boxes,
   ClipboardList,
   FileText,
@@ -230,6 +231,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Inventory Ledger', icon: <Boxes className="w-4 h-4 text-atlas-600" />, path: '/inventory' },
     { label: 'Quotations', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/quotations' },
     { label: 'Sales Orders', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/orders' },
+    { label: 'Retail Counter', icon: <ShoppingCart className="w-4 h-4 text-atlas-600" />, path: '/pos' },
     { label: 'Invoices', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/invoices' },
     { label: 'Payments & Receivables', icon: <CreditCard className="w-4 h-4 text-atlas-600" />, path: '/payments' },
     { label: 'Sales & Receipts Reports', icon: <FileSpreadsheet className="w-4 h-4 text-atlas-600" />, path: '/reports/sales-receipts' },
@@ -239,6 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => {
     if (item.path === '/') return true;
+    if (item.path === '/pos') return hasPermission(currentRole, 'orders:create');
     if (['/invoices', '/payments', '/reports/sales-receipts'].includes(item.path)) return hasPermission(currentRole, 'reports:financial');
     if (item.path === '/audit') return hasPermission(currentRole, 'audit:read');
     return hasPermission(currentRole, 'data:read');
