@@ -615,6 +615,174 @@ export const reportsService = {
   },
 
   /**
+   * FIN-01: The XLSX cloud export must use ONE server-side MVCC snapshot.
+   * Each separate PostgREST query sees its own snapshot, even if counts match.
+   * This RPC returns all bounded parent/child rows and cross-period references
+   * under a single PostgreSQL statement snapshot. Never silently fall back
+   * to the legacy multi-request loader if this RPC is missing or rejected.
+   */
+  async fetchSnapshotReportData(
+    orgId: string,
+    params: ReportFilterParams,
+    onProgress?: (progress: ReportProgress) => void
+  ): Promise<ReportDataResult> {
+    if (params.userRole && !hasPermission(params.userRole, 'reports:financial')) {
+      throw new Error('Unauthorized: User role does not have permission to export financial reports.');
+    }
+    if (!supabase) {
+      throw new ExportIntegrityError('Cloud backend is unavailable for financial snapshot export.', 'SNAPSHOT_UNAVAILABLE');
+    }
+
+    await assertCloudFinancialReportAccess(orgId);
+    onProgress?.({
+      stage: 'invoices',
+      current: 0,
+      total: 1,
+      message: 'Retrieving one consistent financial snapshot...',
+    });
+
+    const { data, error } = await supabase.rpc('get_financial_export_snapshot', {
+      p_org_id: orgId,
+      p_start_date: params.startDate,
+      p_end_date: params.endDate,
+      p_document_type: params.documentType,
+      p_customer_id: params.customerId || null,
+      p_invoice_status: params.invoiceStatus && params.invoiceStatus !== 'ALL'
+        ? params.invoiceStatus : null,
+    });
+
+    if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new ExportIntegrityError(
+        `Financial snapshot could not be verified: ${error?.message || 'Invalid server response'}. Export stopped.`,
+        'SNAPSHOT_UNAVAILABLE'
+      );
+    }
+
+    const payload = data as Record<string, unknown>;
+    if (!Array.isArray(payload.invoices) ||
+        !Array.isArray(payload.payments) ||
+        !Array.isArray(payload.referenced_invoices) ||
+        typeof payload.snapshot_at !== 'string') {
+      throw new ExportIntegrityError('Financial snapshot has an incomplete response structure.', 'SNAPSHOT_INVALID');
+    }
+
+    const validCount = (value: unknown): value is number =>
+      typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+    const invoiceCount = payload.invoice_count;
+    const paymentCount = payload.payment_count;
+    const invoiceItemTotal = payload.invoice_item_count;
+    const paymentAllocationTotal = payload.payment_allocation_count;
+    if (!validCount(invoiceCount) || !validCount(paymentCount) ||
+        !validCount(invoiceItemTotal) || !validCount(paymentAllocationTotal)) {
+      throw new ExportIntegrityError('Financial snapshot counts are missing or invalid.', 'SNAPSHOT_INVALID');
+    }
+    if (payload.invoices.length !== invoiceCount ||
+        payload.payments.length !== paymentCount ||
+        invoiceCount > MAX_SAFE_EXPORT_INVOICES ||
+        paymentCount > 10000 ||
+        invoiceItemTotal + paymentAllocationTotal > 100000) {
+      throw new ExportIntegrityError('Financial snapshot count or safe size mismatch.', 'SNAPSHOT_COUNT_MISMATCH');
+    }
+
+    const seenInvoices = new Set<string>();
+    const seenPayments = new Set<string>();
+    let invoiceItemCount = 0;
+    let paymentAllocationCount = 0;
+
+    const invoices = payload.invoices.map((value: unknown) => {
+      const row = value as Record<string, any>;
+      if (!row || typeof row !== 'object' || !row.id ||
+          row.organization_id !== orgId || seenInvoices.has(row.id) ||
+          !Array.isArray(row.items) || !row.customer ||
+          row.customer.id !== row.customer_id) {
+        throw new ExportIntegrityError('Invalid, duplicate, or cross-tenant invoice in snapshot.', 'SNAPSHOT_INVALID');
+      }
+      seenInvoices.add(row.id);
+      const itemIds = new Set<string>();
+      const items = row.items.map((item: any) => {
+        if (!item || !item.id || item.invoice_id !== row.id || itemIds.has(item.id)) {
+          throw new ExportIntegrityError('Invalid or duplicate invoice item in snapshot.', 'SNAPSHOT_INVALID');
+        }
+        itemIds.add(item.id);
+        invoiceItemCount++;
+        return mapDbInvoiceItem(item);
+      });
+      if (Number(row.subtotal) > 0 && items.length === 0) {
+        throw new ExportIntegrityError('Invoice snapshot is missing line items.', 'SNAPSHOT_INVALID');
+      }
+      return mapDbInvoice(row, items);
+    });
+
+    const payments = payload.payments.map((value: unknown) => {
+      const row = value as Record<string, any>;
+      if (!row || typeof row !== 'object' || !row.id ||
+          row.organization_id !== orgId || seenPayments.has(row.id) ||
+          !Array.isArray(row.allocations) || !row.customer ||
+          row.customer.id !== row.customer_id) {
+        throw new ExportIntegrityError('Invalid, duplicate, or cross-tenant payment in snapshot.', 'SNAPSHOT_INVALID');
+      }
+      seenPayments.add(row.id);
+      const allocationIds = new Set<string>();
+      const allocations = row.allocations.map((alloc: any) => {
+        if (!alloc || !alloc.id || alloc.payment_id !== row.id ||
+            !alloc.invoice_id || allocationIds.has(alloc.id)) {
+          throw new ExportIntegrityError('Invalid or duplicate payment allocation in snapshot.', 'SNAPSHOT_INVALID');
+        }
+        allocationIds.add(alloc.id);
+        paymentAllocationCount++;
+        return mapDbPaymentAllocation(alloc);
+      });
+      return mapDbPayment(row, allocations);
+    });
+
+    if (invoiceItemCount !== invoiceItemTotal ||
+        paymentAllocationCount !== paymentAllocationTotal) {
+      throw new ExportIntegrityError(
+        'Financial snapshot is missing invoice line items or payment allocations.',
+        'SNAPSHOT_COUNT_MISMATCH'
+      );
+    }
+
+    const referencedInvoices = new Map<string, ReferencedInvoiceMeta>();
+    for (const invoice of invoices) {
+      referencedInvoices.set(invoice.id, {
+        id: invoice.id, invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate, status: invoice.status,
+      });
+    }
+
+    for (const value of payload.referenced_invoices) {
+      const row = value as Record<string, any>;
+      if (!row || !row.id || row.organization_id !== orgId || !row.invoice_number ||
+          !row.invoice_date || !row.status) {
+        throw new ExportIntegrityError('Invalid referenced invoice in snapshot.', 'SNAPSHOT_INVALID');
+      }
+      referencedInvoices.set(row.id, {
+        id: row.id, invoiceNumber: row.invoice_number,
+        invoiceDate: row.invoice_date, status: row.status,
+      });
+    }
+
+    for (const payment of payments) {
+      for (const allocation of payment.allocations || []) {
+        if (!referencedInvoices.has(allocation.invoiceId)) {
+          throw new ExportIntegrityError(
+            'Snapshot is missing the invoice referenced by a payment allocation.',
+            'SNAPSHOT_REFERENCE_MISSING'
+          );
+        }
+      }
+    }
+
+    onProgress?.({
+      stage: 'complete', current: invoices.length + payments.length,
+      total: invoices.length + payments.length,
+      message: 'Consistent financial snapshot verified.',
+    });
+    return { invoices, payments, referencedInvoices };
+  },
+
+  /**
    * A PostgREST embedded relation can silently stop at 1,000 rows.
    * Verify and reload large invoice item arrays rather than exporting partial data.
    */
@@ -777,7 +945,11 @@ export const reportsService = {
     isMockAuth: boolean = false,
     onProgress?: (progress: ReportProgress) => void
   ): Promise<{ buffer: ArrayBuffer; filename: string }> {
-    const data = await this.fetchReportData(organization.id, params, isMockAuth, onProgress);
+    // FIN-01: The downloaded cloud workbook must never use the multi-query
+    // pagination path because independent requests cannot share one MVCC view.
+    const data = isMockAuth
+      ? await this.fetchReportData(organization.id, params, true, onProgress)
+      : await this.fetchSnapshotReportData(organization.id, params, onProgress);
 
     onProgress?.({
       stage: 'building',
