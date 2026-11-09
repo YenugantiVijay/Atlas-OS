@@ -52,7 +52,9 @@ export const QuotationsPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const linkedSearch = searchParams.get('search') || '';
+  const [searchQuery, setSearchQuery] = useState(linkedSearch);
+  useEffect(() => { setSearchQuery(linkedSearch); }, [linkedSearch]);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
