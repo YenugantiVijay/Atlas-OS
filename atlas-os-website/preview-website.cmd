@@ -1,61 +1,49 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
-title Atlas OS Website - Local Preview Launcher
-
-echo ======================================================
-echo   ATLAS OS OFFICIAL WEBSITE - LOCAL PREVIEW LAUNCHER
-echo ======================================================
-echo.
-
-:: 1. Verify Node.js is installed
-where node >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Node.js is not found in your PATH.
-    echo Please install Node.js 18+ to run the preview server.
-    echo.
-    pause
-    exit /b 1
-)
-
-:: 2. Change directory to website folder
+title Atlas OS Website - Live Preview
 cd /d "%~dp0"
 
-:: 3. Check if server is already running on port 4321
-netstat -ano | findstr :4321 | findstr LISTENING >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    echo [OK] Preview server is already running on port 4321!
-    echo Opening http://localhost:4321/ in your default browser...
-    start http://localhost:4321/
-    goto :done
-)
-
-:: 4. Check if production dist exists, build if missing
-if not exist "dist\index.html" (
-    echo [INFO] Production build files not found in dist\. Building now...
-    call npm run build
-    if %ERRORLEVEL% neq 0 (
-        echo [ERROR] Build failed. Please inspect the output above.
-        pause
-        exit /b 1
-    )
-)
-
-:: 5. Launch the local preview server
-echo [INFO] Starting local preview server on http://localhost:4321/ ...
-start "Atlas OS Website Preview Server" /min cmd /c "node scripts\serve-preview.mjs"
-
-:: Wait briefly for server to bind port
-timeout /t 2 /nobreak >nul 2>&1
-
-:: Open browser
-echo [OK] Opening http://localhost:4321/ in your default browser...
-start http://localhost:4321/
-
-:done
+echo ======================================================
+echo   ATLAS OS WEBSITE - ONE-CLICK LIVE PREVIEW
+echo ======================================================
 echo.
-echo ======================================================
-echo   Website preview is active at http://localhost:4321/
-echo   To stop the preview server, close its command window.
-echo ======================================================
+
+where node >nul 2>&1
+if errorlevel 1 (
+  echo [ERROR] Node.js is required. Install Node.js and try again.
+  pause
+  exit /b 1
+)
+where npm >nul 2>&1
+if errorlevel 1 (
+  echo [ERROR] npm could not be found in your PATH.
+  pause
+  exit /b 1
+)
+
+if not exist "node_modules\astro\astro.js" (
+  echo [INFO] Installing website dependencies from the lockfile...
+  call npm ci
+  if errorlevel 1 (
+    echo [ERROR] npm ci failed; check the terminal output.
+    pause
+    exit /b 1
+  )
+)
+
+netstat -ano | findstr ":4321 " | findstr LISTENING >nul 2>&1
+if errorlevel 1 (
+  echo [INFO] Starting Astro live development server...
+  start "Atlas OS Website Live Server" cmd /k "npm run dev -- --host 127.0.0.1 --port 4321"
+  timeout /t 4 /nobreak >nul
+) else (
+  echo [INFO] A server is already listening on port 4321.
+)
+
+echo [INFO] Opening http://localhost:4321/
+start "" "http://localhost:4321/"
+echo.
+echo Edit src\pages or src\components to see hot-reloaded changes.
+echo Close the Live Server window to stop the development server.
 echo.

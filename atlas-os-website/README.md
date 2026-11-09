@@ -92,35 +92,22 @@ Supabase migrations, and business workflows are not changed.
 
 ## 4. How to Preview the Website
 
-### Option 1: One-Click Launcher (Windows)
-Double-click `preview-website.cmd` inside the `atlas-os-website/` directory (or run it from PowerShell/CMD):
-```cmd
-.\preview-website.cmd
-```
-This automated launcher:
-1. Checks for Node.js in your PATH.
-2. Tests whether port `4321` is already in use (avoids spawning duplicate background processes).
-3. Compiles a fresh static production build (`npm run build`) if `dist/` is missing.
-4. Starts the local static preview server (`scripts/serve-preview.mjs`).
-5. Automatically opens `http://localhost:4321/` in your default web browser.
+The official website is an **Astro multi-page site**, not a standalone hand-authored HTML page. A regular browser or VS Code Live Server **cannot** render `src/pages/*.astro` directly. The real homepage is automatically generated at `dist/index.html` when you build.
 
-### Option 2: Command-Line Development & Preview
-From the `atlas-os-website/` folder:
+### Easiest: One-click live preview (Windows)
+Double-click `atlas-os-website/preview-website.cmd`. It checks Node/npm, installs dependencies if needed, runs Astro in **live development / hot-reload mode**, then opens **http://localhost:4321/**. Changes to the website update in the browser without another build.
+
+### VS Code Live Server entry
+Open `atlas-os-website/index.html` with Live Server to see the simple **preview launcher page**. Click **Open Live Website** after starting `preview-website.cmd` or `npm run dev`. This HTML entry is an informative launcher, **not** a duplicate of the Astro website and **not** its production source.
+
+### Terminal preview
 ```bash
-# Live development server with hot module reloading:
-npm run dev
-
-# Or build and serve the optimized static production release:
-npm run build
-npm run preview
+cd atlas-os-website
+npm ci
+npm run dev  # live editing at http://localhost:4321
 ```
-Visit `http://localhost:4321/` in any browser.
 
-### Option 3: VS Code Live Server / Static Hosting
-1. Run `npm run build` to generate the static files in `atlas-os-website/dist/`.
-2. Right-click `dist/index.html` in VS Code and select **Open with Live Server**, or run `npx serve dist`.
-
----
+For a compiled production preview, run `npm run build` then `npm run preview`. This serves `dist/`; rebuilding is required after edits.
 
 ## 5. Local Development & Verification
 

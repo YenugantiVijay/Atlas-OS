@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#142B4D" />
+  <link rel="icon" type="image/svg+xml" href="./public/favicon.svg" />
+  <title>Atlas OS — Website Live Preview</title>
+  <style>
+    :root { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; color: #142b4d; background:#f5f7fa; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; box-sizing:border-box; }
+    main { width:min(100%,540px); padding:36px; border:1px solid #d9e4e7; border-radius:20px; background:white; box-shadow:0 14px 32px #142b4d0d; }
+    header { display:flex; align-items:center; gap:14px; margin-bottom:24px; }
+    h1 { font-size:23px; margin:0; } p { color:#475569; line-height:1.6; }
+    a.primary { display:inline-block; border-radius:9px; padding:13px 20px; background:#0d9488; color:white; font-weight:650; text-decoration:none; }
+    a.primary:hover { background:#0f766e; } code { padding:2px 6px; background:#eaf3f4; border-radius:4px; }
+    small { display:block; margin-top:20px; color:#64748b; line-height:1.5; }
+    img { width:48px; height:48px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="./public/favicon.svg" alt="Atlas OS logo" width="48" height="48" />
+      <h1>Atlas OS <span style="color:#0d9488">Website Preview</span></h1>
+    </header>
+    <p>This <code>index.html</code> is a lightweight preview entry for VS Code Live Server or a browser. The complete website is built with <strong>Astro</strong>, so a plain HTML file cannot render its dynamic pages.</p>
+    <p><strong>Windows:</strong> Double-click <code>preview-website.cmd</code> in this folder to start live development mode with auto-refresh. Or open a terminal here and run <code>npm run dev</code>.</p>
+    <a class="primary" href="http://localhost:4321/" target="_blank" rel="noopener">Open Live Website ↗</a>
+    <small>If the button cannot connect, start the dev server first. Production homepage: <code>dist/index.html</code> after <code>npm run build</code>. This launcher is not part of the deployed website.</small>
+  </main>
+</body>
+</html>

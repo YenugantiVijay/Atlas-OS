@@ -92,6 +92,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **PR #45 — Universal Search reliability hardening (2026-11-09; pending CI):** Ctrl+K result lists now bind asynchronous product/customer, financial, and operational responses to the active organization, authenticated user, role and query; old responses are hidden immediately on identity/role/term changes. Keyboard result selection clamps after result-set changes, supports Home/End and a polite screen-reader selection announcement. Search input is capped at 100 characters; the empty state no longer falsely appears beside matching financial records. Finance and operational RPC errors expose retry actions, and small Demo Mode catalogs are cached only for the current open session/user/org (not fetched for every keystroke). Regression tests cover stale in-flight responses, role demotion, account switching, keyboard navigation, retries and demo catalog reuse. **No new migration**; existing migrations 040–043 remain separate production deployment gates. **B2 is hardened but not certified at production scale** until realistic tenant workload, actual production authorization and full operator-flow validation. The postponed 200-entry Demo Mode test remains paused until overall project completion.
 
+**PR #46 — Retail Counter foundation + shared brand/preview (2026-11-09; pending CI):** The official website's navy/teal hexagonal SVG now matches the ERP application's sidebar/header mark and favicon, with a Vitest byte-for-byte asset check. The Astro marketing site gained a root `index.html` **preview launcher only** and a one-click `preview-website.cmd` that starts its live-reload Astro dev server at port 4321; the real website remains `src/pages/index.astro` and produces `dist/index.html` during build. A role-gated `/pos` Retail Counter now supports selecting existing customers, querying up to 8 products per cloud search, scanning names/SKUs, adding single units or bulk whole-unit quantities, per-line discounts and GST preview. Checkout calls the existing idempotent `createSalesOrder` authority **to save a DRAFT only**, revalidating customer active/tenant membership and preserving retry keys. It cannot confirm orders, deduct stock, issue invoices, collect payments or generate receipts, and it does not offer walk-in anonymous customers or multi-unit conversions yet. Unit/UI checks cover input validation, role restrictions and retry behavior. **F-047 and F-048 remain partial**, while F-049–057 are not declared shipped. No new migration or production rollout; ensure earlier migration 042 is deployed before cloud POS customer search is released. Deferred 200-entry Demo Mode stress test remains paused.
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
@@ -157,8 +159,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 | ID | Feature | Status | Wave |
 |---:|---|:---:|:---:|
 | F-046 | Wholesale order processing end-to-end | P | W1 |
-| F-047 | Single-item retail selling | N | W1 |
-| F-048 | Retail counter/POS billing | N | W1 |
+| F-047 | Single-item retail selling | P | W1 |
+| F-048 | Retail counter/POS billing | P | W1 |
 | F-049 | Walk-in customer checkout | N | W1 |
 | F-050 | Retail vs wholesale price levels | N | W1 |
 | F-051 | Customer-specific price lists | N | W2 |
