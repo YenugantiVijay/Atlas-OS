@@ -45,18 +45,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { check: checkActionPermission } = useActionPermission();
   const [products, setProducts] = useState<Product[]>([]);
+  const [catalogResponseKey, setCatalogResponseKey] = useState('');
   const [customers, setCustomers] = useState<CustomerDirectorySearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [financialResults, setFinancialResults] = useState<FinancialSearchResult[]>([]);
+  const [financeResponse, setFinanceResponse] = useState<{ key: string; rows: FinancialSearchResult[] }>({ key: '', rows: [] });
   const [financialLoading, setFinancialLoading] = useState(false);
   const [financialError, setFinancialError] = useState(false);
-  const [operationalResults, setOperationalResults] = useState<OperationalSearchResult[]>([]);
+  const [operationsResponse, setOperationsResponse] = useState<{ key: string; rows: OperationalSearchResult[] }>({ key: '', rows: [] });
   const [operationalLoading, setOperationalLoading] = useState(false);
   const [operationalError, setOperationalError] = useState(false);
   const dialogRef = useDialog(isOpen, onClose);
   const orgId = currentOrg?.id;
+  // Bind every response to its request identity: no previous org, role or term
+  // may flash results while effects/timers for the new identity are settling.
+  const searchKey = JSON.stringify([orgId, currentRole, isMockAuth, isOpen, query.trim()]);
+  const financeAllowed = !isMockAuth && hasPermission(currentRole, 'reports:financial');
+  const dataAllowed = hasPermission(currentRole, 'data:read');
+  const financialResults = financeAllowed && financeResponse.key === searchKey ? financeResponse.rows : [];
+  const operationalResults = dataAllowed && operationsResponse.key === searchKey ? operationsResponse.rows : [];
 
   useEffect(() => {
     if (isOpen) { setQuery(''); setSelectedIndex(0); }
@@ -68,11 +76,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     let active = true;
     setProducts([]);
     setCustomers([]);
+    setCatalogResponseKey('');
     setLoadError(false);
     setIsLoading(false);
-    if (!isOpen || !orgId || !hasPermission(currentRole, 'data:read')) return;
+    if (!isOpen || !orgId || !dataAllowed) return;
     const term = query.trim();
-    if (!isMockAuth && term.length < 2) return;
+    if ((!isMockAuth && term.length < 2) || term.length > 100) return;
     const load = async () => {
       setIsLoading(true);
       try {
@@ -89,6 +98,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         if (active) {
           setProducts(productList);
           setCustomers(customerList);
+          setCatalogResponseKey(searchKey);
         }
       } catch {
         if (active) setLoadError(true);
@@ -98,22 +108,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     };
     const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [isOpen, orgId, currentRole, isMockAuth, retryCount, query]);
+  }, [isOpen, orgId, currentRole, isMockAuth, retryCount, query, dataAllowed, searchKey]);
 
 
   useEffect(() => {
     let active = true;
     const term = query.trim();
-    setFinancialResults([]);
+    setFinanceResponse({ key: '', rows: [] });
     setFinancialError(false);
     setFinancialLoading(false);
-    if (!isOpen || !orgId || isMockAuth ||
-        !hasPermission(currentRole, 'reports:financial') || term.length < 2) return;
+    if (!isOpen || !orgId || !financeAllowed || term.length < 2 || term.length > 100) return;
     const timer = window.setTimeout(() => {
       if (!active) return;
       setFinancialLoading(true);
       searchFinancialDocuments(orgId, currentRole, term).then((rows) => {
-        if (active) setFinancialResults(rows);
+        if (active) setFinanceResponse({ key: searchKey, rows });
       }).catch(() => {
         if (active) setFinancialError(true);
       }).finally(() => {
@@ -121,15 +130,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, isOpen, orgId, isMockAuth, currentRole]);
+  }, [query, isOpen, orgId, isMockAuth, currentRole, financeAllowed, searchKey]);
 
   useEffect(() => {
     let active = true;
     const term = query.trim();
-    setOperationalResults([]);
+    setOperationsResponse({ key: '', rows: [] });
     setOperationalError(false);
     setOperationalLoading(false);
-    if (!isOpen || !orgId || term.length < 2 || !hasPermission(currentRole, 'data:read')) return;
+    if (!isOpen || !orgId || term.length < 2 || term.length > 100 || !dataAllowed) return;
 
     const load = async () => {
       setOperationalLoading(true);
@@ -170,7 +179,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         } else {
           results = await searchOperationalRecords(orgId, term, 3);
         }
-        if (active) setOperationalResults(results);
+        if (active) setOperationsResponse({ key: searchKey, rows: results });
       } catch {
         if (active) setOperationalError(true);
       } finally {
@@ -179,7 +188,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     };
     const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, isOpen, orgId, isMockAuth, currentRole]);
+  }, [query, isOpen, orgId, isMockAuth, currentRole, dataAllowed, searchKey]);
 
   if (!isOpen) return null;
 
@@ -216,35 +225,52 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     item.label.toLowerCase().includes(query.toLowerCase())
   );
 
-  const filteredProducts = products
+  const filteredProducts = catalogResponseKey === searchKey && dataAllowed ? products
     .filter(
       (p) =>
         p.name.toLowerCase().includes(query.toLowerCase()) ||
         p.sku.toLowerCase().includes(query.toLowerCase()) ||
         p.brand?.toLowerCase().includes(query.toLowerCase())
     )
-    .slice(0, 4);
+    .slice(0, 4) : [];
 
-  const filteredCustomers = customers
+  const filteredCustomers = catalogResponseKey === searchKey && dataAllowed ? customers
     .filter(
       (c) =>
         c.name.toLowerCase().includes(query.toLowerCase()) ||
         c.companyName?.toLowerCase().includes(query.toLowerCase()) ||
         c.phone?.replace(/\D/g, '').includes(query.replace(/\D/g, '')) && query.replace(/\D/g, '').length >= 3
     )
-    .slice(0, 3);
+    .slice(0, 3) : [];
 
   const resultCount = quickActions.length + filteredNav.length + financialResults.length + operationalResults.length +
     (query.trim() ? filteredProducts.length + filteredCustomers.length : 0);
+
+  const activeIndex = resultCount > 0 ? Math.min(selectedIndex, resultCount - 1) : 0;
+  const readableResults = [
+    ...quickActions.map((a) => a.label),
+    ...filteredNav.map((n) => n.label),
+    ...financialResults.map((r) => r.document_number),
+    ...operationalResults.map((r) => r.reference),
+    ...(query.trim() ? filteredProducts.map((p) => p.name) : []),
+    ...(query.trim() ? filteredCustomers.map((c) => c.name) : []),
+  ];
+  const selectedLabel = readableResults[activeIndex];
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (resultCount === 0) return;
-      setSelectedIndex((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + resultCount) % resultCount);
+      setSelectedIndex((index) => (Math.min(index, resultCount - 1) + (event.key === 'ArrowDown' ? 1 : -1) + resultCount) % resultCount);
+    } else if (event.key === 'Home' && resultCount > 0) {
+      event.preventDefault();
+      setSelectedIndex(0);
+    } else if (event.key === 'End' && resultCount > 0) {
+      event.preventDefault();
+      setSelectedIndex(resultCount - 1);
     } else if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
       const results = dialogRef.current?.querySelectorAll<HTMLButtonElement>('[data-command-result]');
-      const selected = results?.[Math.min(selectedIndex, (results?.length ?? 1) - 1)];
+      const selected = results?.[activeIndex];
       if (selected) { event.preventDefault(); selected.click(); }
     }
   };
@@ -284,9 +310,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             value={query}
             onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleSearchKeyDown}
+            aria-describedby="atlas-command-selection"
             placeholder="Search commands, products, customers, or workflows..."
             className="w-full bg-transparent text-sm text-content-primary placeholder-content-muted focus:outline-none"
             aria-label="Search Atlas OS"
+            maxLength={100}
           />
           <button
             type="button"
@@ -298,6 +326,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           </button>
         </div>
 
+        <div id="atlas-command-selection" role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {selectedLabel ? `Selected ${activeIndex + 1} of ${resultCount}: ${selectedLabel}` : 'No search results selected'}
+        </div>
         {/* Results Container */}
         <div className="max-h-[60vh] overflow-y-auto p-2.5 space-y-3.5">
           {/* Quick Actions */}
@@ -310,7 +341,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <button
                   key={act.type}
                     data-command-result
-                    data-active={selectedIndex === quickActions.indexOf(act)}
+                    data-active={activeIndex === quickActions.indexOf(act)}
                   type="button"
                   onClick={() => handleSelectCreate(act.type)}
                   className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 hover:text-atlas-800 transition-colors text-left"
@@ -332,7 +363,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <button
                   key={item.path}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.indexOf(item)}
+                    data-active={activeIndex === quickActions.length + filteredNav.indexOf(item)}
                   type="button"
                   onClick={() => handleSelectNav(item.path)}
                   className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 transition-colors text-left"
@@ -360,7 +391,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={`${result.record_type}-${result.record_id}`}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.indexOf(result)}
+                    data-active={activeIndex === quickActions.length + filteredNav.length + financialResults.indexOf(result)}
                     type="button"
                     className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50 data-[active=true]:bg-atlas-100"
                     onClick={() => handleSelectNav(`/${result.record_type === 'invoice' ? 'invoices' : 'payments'}?search=${encodeURIComponent(result.document_number)}`)}
@@ -386,7 +417,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={`${result.recordType}-${result.recordId}`}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + index}
+                    data-active={activeIndex === quickActions.length + filteredNav.length + financialResults.length + index}
                     type="button"
                     className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50 data-[active=true]:bg-atlas-100"
                     onClick={() => handleSelectNav(`${result.recordType === 'supplier' ? '/suppliers' : result.recordType === 'quotation' ? '/quotations' : '/orders'}?search=${encodeURIComponent(result.reference)}`)}
@@ -410,9 +441,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </div>
           )}
           {query.trim() && !isLoading && !loadError && filteredNav.length === 0 && quickActions.length === 0 &&
-            filteredProducts.length === 0 && filteredCustomers.length === 0 && operationalResults.length === 0 &&
+            filteredProducts.length === 0 && filteredCustomers.length === 0 && operationalResults.length === 0 && financialResults.length === 0 &&
             !operationalLoading && !financialLoading && !operationalError && !financialError && (
-              <p role="status" className="px-3 text-sm text-content-secondary">No matching commands, products, or customers.</p>
+              <p role="status" className="px-3 text-sm text-content-secondary">No matching results.</p>
             )}
           {query.trim() && filteredProducts.length > 0 && (
             <div>
@@ -424,7 +455,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={p.id}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.indexOf(p)}
+                    data-active={activeIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.indexOf(p)}
                     type="button"
                     onClick={() => handleSelectNav(`/products?search=${encodeURIComponent(p.sku)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
@@ -453,7 +484,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={c.id}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
+                    data-active={activeIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
                     type="button"
                     onClick={() => handleSelectNav(`/customers?search=${encodeURIComponent(c.name)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
@@ -472,7 +503,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Footer Shortcut hint */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-border text-xs text-content-muted">
-          <span>↑ ↓ select · Enter open · Esc close</span>
+          <span>↑ ↓ select · Home / End · Enter open · Esc close</span>
           <div className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono text-xs">
               ESC
