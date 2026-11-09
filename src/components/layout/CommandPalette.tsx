@@ -42,7 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
-  const { currentOrg, currentRole, isMockAuth } = useOrg();
+  const { currentOrg, currentRole, isMockAuth, isAuthenticated, currentUser } = useOrg();
   const { check: checkActionPermission } = useActionPermission();
   const [products, setProducts] = useState<Product[]>([]);
   const [catalogResponseKey, setCatalogResponseKey] = useState('');
@@ -57,18 +57,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [operationalLoading, setOperationalLoading] = useState(false);
   const [operationalError, setOperationalError] = useState(false);
   const demoCatalogCache = useRef<{
-    orgId: string;
+    identity: string;
     promise: Promise<[Product[], CustomerDirectorySearchResult[]]>;
   } | null>(null);
   const demoOperationsCache = useRef<{
-    orgId: string;
+    identity: string;
     promise: Promise<[Supplier[], Quotation[], SalesOrder[]]>;
   } | null>(null);
   const dialogRef = useDialog(isOpen, onClose);
   const orgId = currentOrg?.id;
   // Bind every response to its request identity: no previous org, role or term
   // may flash results while effects/timers for the new identity are settling.
-  const searchKey = JSON.stringify([orgId, currentRole, isMockAuth, isOpen, query.trim()]);
+  const cacheIdentity = JSON.stringify([orgId, currentUser?.id, isAuthenticated]);
+  const searchKey = JSON.stringify([cacheIdentity, currentRole, isMockAuth, isOpen, query.trim()]);
   const financeAllowed = !isMockAuth && hasPermission(currentRole, 'reports:financial');
   const dataAllowed = hasPermission(currentRole, 'data:read');
   const financialResults = financeAllowed && financeResponse.key === searchKey ? financeResponse.rows : [];
@@ -96,12 +97,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     const term = query.trim();
     if ((!isMockAuth && term.length < 2) || term.length > 100) return;
     const getDemoCatalog = () => {
-      if (demoCatalogCache.current?.orgId === orgId) return demoCatalogCache.current.promise;
+      if (demoCatalogCache.current?.identity === cacheIdentity) return demoCatalogCache.current.promise;
       const promise = Promise.all([
         productsService.getProducts(orgId, true),
         customersService.getCustomers(orgId, true),
       ]);
-      demoCatalogCache.current = { orgId, promise };
+      demoCatalogCache.current = { identity: cacheIdentity, promise };
       return promise;
     };
     const load = async () => {
@@ -130,7 +131,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     };
     const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [isOpen, orgId, currentRole, isMockAuth, retryCount, query, dataAllowed, searchKey]);
+  }, [isOpen, orgId, currentRole, isMockAuth, retryCount, query, dataAllowed, searchKey, cacheIdentity]);
 
 
   useEffect(() => {
@@ -163,13 +164,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (!isOpen || !orgId || term.length < 2 || term.length > 100 || !dataAllowed) return;
 
     const getDemoOperations = () => {
-      if (demoOperationsCache.current?.orgId === orgId) return demoOperationsCache.current.promise;
+      if (demoOperationsCache.current?.identity === cacheIdentity) return demoOperationsCache.current.promise;
       const promise = Promise.all([
         suppliersService.getSuppliers(orgId, true),
         ordersService.getQuotations(orgId, true),
         ordersService.getSalesOrders(orgId, true),
       ]);
-      demoOperationsCache.current = { orgId, promise };
+      demoOperationsCache.current = { identity: cacheIdentity, promise };
       return promise;
     };
     const load = async () => {
@@ -219,7 +220,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     };
     const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, isOpen, orgId, isMockAuth, currentRole, dataAllowed, searchKey, retryCount]);
+  }, [query, isOpen, orgId, isMockAuth, currentRole, dataAllowed, searchKey, retryCount, cacheIdentity]);
 
   if (!isOpen) return null;
 
