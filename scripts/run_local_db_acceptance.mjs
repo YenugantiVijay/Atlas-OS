@@ -28,6 +28,7 @@ import { runFinancialRawReadAcceptance } from './sec01_financial_raw_read_accept
 import { runFin01SnapshotAcceptance } from './fin01_snapshot_acceptance.mjs';
 import { runB2FinancialSearchAcceptance } from './b2_financial_search_acceptance.mjs';
 import { runB2CustomerDirectorySearchAcceptance } from './b2_customer_directory_search_acceptance.mjs';
+import { runB2OperationalSearchAcceptance } from './b2_operational_search_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4604,6 +4605,16 @@ async function runAcceptance() {
     });
 
     await runB2CustomerDirectorySearchAcceptance({
+      client: testClient,
+      orgAId,
+      orgBId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runB2OperationalSearchAcceptance({
       client: testClient,
       orgAId,
       orgBId,
