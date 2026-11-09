@@ -54,31 +54,45 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (isOpen) setQuery('');
   }, [isOpen, orgId]);
 
+  // Demo keeps its small in-memory catalog; cloud searches use bounded
+  // server-side pages only after the operator types a useful query.
   useEffect(() => {
     let active = true;
     setProducts([]);
     setCustomers([]);
     setLoadError(false);
-    if (!isOpen || !orgId || !hasPermission(currentRole, 'data:read')) {
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
-    Promise.all([
-      productsService.getProducts(orgId, isMockAuth),
-      customersService.getCustomers(orgId, isMockAuth),
-    ]).then(([productList, customerList]) => {
-      if (active) {
-        setProducts(productList);
-        setCustomers(customerList);
+    setIsLoading(false);
+    if (!isOpen || !orgId || !hasPermission(currentRole, 'data:read')) return;
+    const term = query.trim();
+    if (!isMockAuth && term.length < 2) return;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const [productList, customerList] = isMockAuth
+          ? await Promise.all([
+              productsService.getProducts(orgId, true),
+              customersService.getCustomers(orgId, true),
+            ])
+          : await Promise.all([
+              productsService.getProductsPaginated(orgId, { page: 1, pageSize: 4, search: term }, false)
+                .then((result) => result.data),
+              customersService.getCustomersPaginated(orgId, { page: 1, pageSize: 3, search: term }, false)
+                .then((result) => result.data),
+            ]);
+        if (active) {
+          setProducts(productList);
+          setCustomers(customerList);
+        }
+      } catch {
+        if (active) setLoadError(true);
+      } finally {
+        if (active) setIsLoading(false);
       }
-    }).catch(() => {
-      if (active) setLoadError(true);
-    }).finally(() => {
-      if (active) setIsLoading(false);
-    });
-    return () => { active = false; };
-  }, [isOpen, orgId, currentRole, isMockAuth, retryCount]);
+    };
+    const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [isOpen, orgId, currentRole, isMockAuth, retryCount, query]);
+
 
   useEffect(() => {
     let active = true;
