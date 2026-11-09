@@ -26,6 +26,7 @@ import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
 import { runFinancialReportAccessAcceptance } from './b1_report_auth_acceptance.mjs';
 import { runFinancialRawReadAcceptance } from './sec01_financial_raw_read_acceptance.mjs';
 import { runFin01SnapshotAcceptance } from './fin01_snapshot_acceptance.mjs';
+import { runB2FinancialSearchAcceptance } from './b2_financial_search_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4584,6 +4585,15 @@ async function runAcceptance() {
     // FIN-01: Test true one-statement export snapshot and finance-only RPC
     // access using genuinely issued invoices and recorded payments.
     await runFin01SnapshotAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runB2FinancialSearchAcceptance({
       client: testClient,
       orgAId,
       ownerAId: userAId,

@@ -54,7 +54,8 @@ export const PaymentsPage: React.FC = () => {
   const [isPreparingRecord, setIsPreparingRecord] = useState(false);
   const [pendingOpenRecord, setPendingOpenRecord] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
+  React.useEffect(() => { setSearchQuery(searchParams.get('search') || ''); }, [searchParams]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);

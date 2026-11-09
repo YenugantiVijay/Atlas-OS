@@ -22,6 +22,7 @@ import { Product, Customer } from '@/types';
 import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { useDialog } from '@/components/ui/useDialog';
+import { searchFinancialDocuments, type FinancialSearchResult } from '@/services/universal-search.service';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -43,6 +44,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [financialResults, setFinancialResults] = useState<FinancialSearchResult[]>([]);
+  const [financialLoading, setFinancialLoading] = useState(false);
+  const [financialError, setFinancialError] = useState(false);
   const dialogRef = useDialog(isOpen, onClose);
   const orgId = currentOrg?.id;
 
@@ -75,6 +79,28 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     });
     return () => { active = false; };
   }, [isOpen, orgId, currentRole, isMockAuth, retryCount]);
+
+  useEffect(() => {
+    let active = true;
+    const term = query.trim();
+    setFinancialResults([]);
+    setFinancialError(false);
+    setFinancialLoading(false);
+    if (!isOpen || !orgId || isMockAuth ||
+        !hasPermission(currentRole, 'reports:financial') || term.length < 2) return;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      setFinancialLoading(true);
+      searchFinancialDocuments(orgId, currentRole, term).then((rows) => {
+        if (active) setFinancialResults(rows);
+      }).catch(() => {
+        if (active) setFinancialError(true);
+      }).finally(() => {
+        if (active) setFinancialLoading(false);
+      });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query, isOpen, orgId, isMockAuth, currentRole]);
 
   if (!isOpen) return null;
 
@@ -221,6 +247,30 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Finance-only, server-bounded invoice and payment results */}
+          {financialLoading && <p role="status" className="px-3 text-xs text-content-muted">Searching financial documents...</p>}
+          {financialError && <p role="alert" className="px-3 text-sm text-rose-700">Financial document search is unavailable.</p>}
+          {query.trim().length >= 2 && financialResults.length > 0 && (
+            <div>
+              <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
+                Invoices & Receipts
+              </div>
+              <div className="mt-1 space-y-1">
+                {financialResults.map((result) => (
+                  <button
+                    key={`${result.record_type}-${result.record_id}`}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50"
+                    onClick={() => handleSelectNav(`/${result.record_type === 'invoice' ? 'invoices' : 'payments'}?search=${encodeURIComponent(result.document_number)}`)}
+                  >
+                    <span className="font-semibold text-content-primary">{result.document_number}</span>
+                    <span className="truncate pl-3 text-content-muted">{result.customer_name} · {result.document_date}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Filtered Products */}
           {isLoading && <p role="status" className="px-3 text-sm text-content-secondary">Loading products and customers...</p>}

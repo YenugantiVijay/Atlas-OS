@@ -82,6 +82,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **Step 7 — B2 Universal Search (first slice, 2026-11-09):** The existing Ctrl+K command palette now prevents Sales/Inventory/Viewer from navigating to raw finance routes (invoices/payments/reports), matching SEC-01's database and route permissions. Customer search also matches normalized phone digits (minimum three) in the current organization's already-authorized customer directory, with regression tests. **B2 remains PARTIAL:** cross-module invoice/receipt search, bounded server-side queries, keyboard result navigation, and permissions-safe financial results remain open. Full implementation must avoid loading unbounded complete catalogs for every query. FIN-01 PR #38 was merged as `31c60c6`; `main` and `Vijay-Atlas` synchronized. The 200-entry industrial test remains deferred.
 
+**Step 7 — B2 financial document search (2026-11-09):** Migration `041_financial_document_search.sql` adds a bounded, authenticated, finance-role checked search for invoice numbers, payment receipt numbers, transaction references and customer names. The Ctrl+K palette integrates debounced finance-only results; invoice/payment list pages accept linked `?search=` filters. New Vitest and real PostgreSQL role/tenant acceptance tests are included. **B2 remains partial until CI passes and full server-side bounded product/customer/other-record search is implemented.** PR #39 merged (`19d769b`); current work is on `Vijay-Atlas`. No production migration is applied; deploy migration 041 before releasing the corresponding frontend. The 200-entry industrial test remains deferred.
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |

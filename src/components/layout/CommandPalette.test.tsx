@@ -8,10 +8,12 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { useOrg, OrgContextType } from '@/features/organizations/OrgContext';
 import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
+import { searchFinancialDocuments } from '@/services/universal-search.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn() } }));
 vi.mock('@/services/customers.service', () => ({ customersService: { getCustomers: vi.fn() } }));
+vi.mock('@/services/universal-search.service', () => ({ searchFinancialDocuments: vi.fn() }));
 
 function Location() {
   const location = useLocation();
@@ -58,6 +60,7 @@ beforeEach(() => {
   vi.mocked(useOrg).mockReturnValue(context);
   vi.mocked(productsService.getProducts).mockResolvedValue([]);
   vi.mocked(customersService.getCustomers).mockResolvedValue([]);
+  vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
 
 function ToggleHarness({ initialOpen = false }: { initialOpen?: boolean }) {
@@ -317,6 +320,37 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(customer).toBeInTheDocument();
     fireEvent.click(customer);
     expect(screen.getByText('/customers?search=Ravi%20Electricals')).toBeInTheDocument();
+  });
+
+  it('shows finance-only server results with linked invoice search', async () => {
+    vi.mocked(searchFinancialDocuments).mockResolvedValue([{
+      record_type: 'invoice', record_id: 'inv-1',
+      document_number: 'INV-204', customer_name: 'Customer A',
+      document_date: '2026-11-05',
+    }]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'INV-204' } });
+    const button = await screen.findByRole('button', { name: /INV-204/ });
+    fireEvent.click(button);
+    expect(screen.getByText('/invoices?search=INV-204')).toBeInTheDocument();
+    expect(searchFinancialDocuments).toHaveBeenCalledWith('cloud-org', 'owner', 'INV-204');
+  });
+
+  it('never calls finance search for sales staff', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: 'sales' });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'INV-204' } });
+    await waitFor(() => expect(screen.getByLabelText('Search Atlas OS')).toHaveValue('INV-204'));
+    expect(searchFinancialDocuments).not.toHaveBeenCalled();
   });
 
   // Test 11: Search data load failure and retry behavior

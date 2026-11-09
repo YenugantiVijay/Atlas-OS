@@ -34,7 +34,7 @@ it.each([
   ['audit', AuditPage, auditService.getAuditEvents, 'No audit events found'],
 ] as const)('shows a failure and retries %s instead of treating it as an empty dataset', async (_name, Page, load, emptyText) => {
   vi.mocked(load).mockRejectedValueOnce(new Error('Service unavailable')).mockResolvedValue([]);
-  render(<Page />);
+  render(<MemoryRouter><Page /></MemoryRouter>);
   expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');
   expect(screen.queryByText(emptyText)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
