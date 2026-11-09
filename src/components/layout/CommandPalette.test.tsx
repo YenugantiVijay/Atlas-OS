@@ -10,12 +10,14 @@ import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
 import { searchFinancialDocuments } from '@/services/universal-search.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
+import { searchOperationalRecords } from '@/services/operational-search.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn(), getProductsPaginated: vi.fn() } }));
 vi.mock('@/services/customers.service', () => ({ customersService: { getCustomers: vi.fn(), getCustomersPaginated: vi.fn() } }));
 vi.mock('@/services/universal-search.service', () => ({ searchFinancialDocuments: vi.fn() }));
 vi.mock('@/services/customer-directory-search.service', () => ({ searchCustomerDirectory: vi.fn() }));
+vi.mock('@/services/operational-search.service', () => ({ searchOperationalRecords: vi.fn() }));
 
 function Location() {
   const location = useLocation();
@@ -65,6 +67,7 @@ beforeEach(() => {
   vi.mocked(customersService.getCustomers).mockResolvedValue([]);
   vi.mocked(customersService.getCustomersPaginated).mockResolvedValue({ data: [], totalCount: 0, page: 1, pageSize: 3, totalPages: 0 } as any);
   vi.mocked(searchCustomerDirectory).mockResolvedValue([]);
+  vi.mocked(searchOperationalRecords).mockResolvedValue([]);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
 
@@ -429,6 +432,72 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(results[1]).toHaveAttribute('data-active', 'true');
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     expect(results[0]).toHaveAttribute('data-active', 'true');
+  });
+
+  it('searches supplier, quotation and order records without loading full operational catalogs', async () => {
+    vi.mocked(searchOperationalRecords).mockResolvedValue([
+      { recordType: 'supplier', recordId: 's1', reference: 'Ravi Supply', displayName: 'Ravi Firm', contactPhone: '+91 99887-76655' },
+      { recordType: 'quotation', recordId: 'q1', reference: 'QT-42', displayName: 'Ravi Firm' },
+      { recordType: 'sales_order', recordId: 'o1', reference: 'SO-42', displayName: 'Ravi Firm' },
+    ]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'Ravi' } });
+    expect(await screen.findByRole('button', { name: /Supplier · Ravi Supply/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Quotation · QT-42/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sales Order · SO-42/ })).toBeInTheDocument();
+    expect(searchOperationalRecords).toHaveBeenCalledWith('cloud-org', 'Ravi', 3);
+    expect(screen.getByRole('button', { name: /Supplier · Ravi Supply/ })).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(screen.getByRole('button', { name: /Quotation · QT-42/ })).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(document.querySelector('output')).toHaveTextContent('/quotations?search=QT-42');
+  });
+
+  it('can deep-link suppliers and sales orders from bounded results', async () => {
+    vi.mocked(searchOperationalRecords).mockResolvedValue([
+      { recordType: 'supplier', recordId: 's1', reference: 'Ravi Supplier', displayName: 'Ravi Supplier' },
+      { recordType: 'sales_order', recordId: 'o1', reference: 'SO-77', displayName: 'Buyer' },
+    ]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Ravi' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Supplier · Ravi Supplier/ }));
+    expect(document.querySelector('output')).toHaveTextContent('/suppliers?search=Ravi%20Supplier');
+    fireEvent.click(screen.getByRole('button', { name: /Sales Order · SO-77/ }));
+    expect(document.querySelector('output')).toHaveTextContent('/orders?search=SO-77');
+  });
+
+  it('does not call operational search without a role permitted to read organization data', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: null });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'SO-77' } });
+    await waitFor(() => expect(screen.getByLabelText('Search Atlas OS')).toHaveValue('SO-77'));
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+  });
+
+  it('shows operational lookup errors without returning unbounded fallback results', async () => {
+    vi.mocked(searchOperationalRecords).mockRejectedValue(new Error('RPC unavailable'));
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'QT-42' } });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Operational search is unavailable');
   });
 
   // Test 12: Rapid repeated open/close cycles without React crashing
