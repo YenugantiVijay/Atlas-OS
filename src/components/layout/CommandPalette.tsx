@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -18,7 +18,7 @@ import {
 import { useOrg } from '@/features/organizations/OrgContext';
 import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
-import { Product } from '@/types';
+import { Product, Supplier, Quotation, SalesOrder } from '@/types';
 import { searchCustomerDirectory, type CustomerDirectorySearchResult } from '@/services/customer-directory-search.service';
 import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
@@ -56,6 +56,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [operationsResponse, setOperationsResponse] = useState<{ key: string; rows: OperationalSearchResult[] }>({ key: '', rows: [] });
   const [operationalLoading, setOperationalLoading] = useState(false);
   const [operationalError, setOperationalError] = useState(false);
+  const demoCatalogCache = useRef<{
+    orgId: string;
+    promise: Promise<[Product[], CustomerDirectorySearchResult[]]>;
+  } | null>(null);
+  const demoOperationsCache = useRef<{
+    orgId: string;
+    promise: Promise<[Supplier[], Quotation[], SalesOrder[]]>;
+  } | null>(null);
   const dialogRef = useDialog(isOpen, onClose);
   const orgId = currentOrg?.id;
   // Bind every response to its request identity: no previous org, role or term
@@ -68,6 +76,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   useEffect(() => {
     if (isOpen) { setQuery(''); setSelectedIndex(0); }
+    else {
+      // Reopen reads fresh local demo data; never reuse across palette sessions.
+      demoCatalogCache.current = null;
+      demoOperationsCache.current = null;
+    }
   }, [isOpen, orgId]);
 
   // Demo keeps its small in-memory catalog; cloud searches use bounded
@@ -82,14 +95,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (!isOpen || !orgId || !dataAllowed) return;
     const term = query.trim();
     if ((!isMockAuth && term.length < 2) || term.length > 100) return;
+    const getDemoCatalog = () => {
+      if (demoCatalogCache.current?.orgId === orgId) return demoCatalogCache.current.promise;
+      const promise = Promise.all([
+        productsService.getProducts(orgId, true),
+        customersService.getCustomers(orgId, true),
+      ]);
+      demoCatalogCache.current = { orgId, promise };
+      return promise;
+    };
     const load = async () => {
       setIsLoading(true);
       try {
         const [productList, customerList] = isMockAuth
-          ? await Promise.all([
-              productsService.getProducts(orgId, true),
-              customersService.getCustomers(orgId, true),
-            ])
+          ? await getDemoCatalog()
           : await Promise.all([
               productsService.getProductsPaginated(orgId, { page: 1, pageSize: 4, search: term }, false)
                 .then((result) => result.data),
@@ -101,7 +120,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           setCatalogResponseKey(searchKey);
         }
       } catch {
-        if (active) setLoadError(true);
+        if (active) {
+          if (isMockAuth) demoCatalogCache.current = null;
+          setLoadError(true);
+        }
       } finally {
         if (active) setIsLoading(false);
       }
@@ -130,7 +152,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, isOpen, orgId, isMockAuth, currentRole, financeAllowed, searchKey]);
+  }, [query, isOpen, orgId, isMockAuth, currentRole, financeAllowed, searchKey, retryCount]);
 
   useEffect(() => {
     let active = true;
@@ -140,16 +162,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     setOperationalLoading(false);
     if (!isOpen || !orgId || term.length < 2 || term.length > 100 || !dataAllowed) return;
 
+    const getDemoOperations = () => {
+      if (demoOperationsCache.current?.orgId === orgId) return demoOperationsCache.current.promise;
+      const promise = Promise.all([
+        suppliersService.getSuppliers(orgId, true),
+        ordersService.getQuotations(orgId, true),
+        ordersService.getSalesOrders(orgId, true),
+      ]);
+      demoOperationsCache.current = { orgId, promise };
+      return promise;
+    };
     const load = async () => {
       setOperationalLoading(true);
       try {
         let results: OperationalSearchResult[];
         if (isMockAuth) {
-          const [suppliers, quotations, orders] = await Promise.all([
-            suppliersService.getSuppliers(orgId, true),
-            ordersService.getQuotations(orgId, true),
-            ordersService.getSalesOrders(orgId, true),
-          ]);
+          const [suppliers, quotations, orders] = await getDemoOperations();
           const q = term.toLowerCase();
           const digits = term.replace(/\D/g, '');
           const matchesPhone = (phone?: string) => digits.length >= 3 &&
@@ -181,14 +209,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         }
         if (active) setOperationsResponse({ key: searchKey, rows: results });
       } catch {
-        if (active) setOperationalError(true);
+        if (active) {
+          if (isMockAuth) demoOperationsCache.current = null;
+          setOperationalError(true);
+        }
       } finally {
         if (active) setOperationalLoading(false);
       }
     };
     const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, isOpen, orgId, isMockAuth, currentRole, dataAllowed, searchKey]);
+  }, [query, isOpen, orgId, isMockAuth, currentRole, dataAllowed, searchKey, retryCount]);
 
   if (!isOpen) return null;
 
@@ -380,7 +411,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
           {/* Finance-only, server-bounded invoice and payment results */}
           {financialLoading && <p role="status" className="px-3 text-xs text-content-muted">Searching financial documents...</p>}
-          {financialError && <p role="alert" className="px-3 text-sm text-rose-700">Financial document search is unavailable.</p>}
+          {financialError && <div role="alert" className="px-3 text-sm text-rose-700">
+            Financial document search is unavailable.{' '}
+            <button type="button" className="underline" onClick={() => setRetryCount((n) => n + 1)}>Try finance search again</button>
+          </div>}
           {query.trim().length >= 2 && financialResults.length > 0 && (
             <div>
               <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
@@ -406,7 +440,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
           {/* Operational searches: 3 rows per family, tenant/RLS-bound in cloud. */}
           {operationalLoading && <p role="status" className="px-3 text-xs text-content-muted">Searching suppliers and orders...</p>}
-          {operationalError && <p role="alert" className="px-3 text-sm text-rose-700">Operational search is unavailable.</p>}
+          {operationalError && <div role="alert" className="px-3 text-sm text-rose-700">
+            Operational search is unavailable.{' '}
+            <button type="button" className="underline" onClick={() => setRetryCount((n) => n + 1)}>Try operational search again</button>
+          </div>
           {query.trim().length >= 2 && operationalResults.length > 0 && (
             <div>
               <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
