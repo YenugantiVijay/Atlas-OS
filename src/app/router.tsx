@@ -29,6 +29,9 @@ const QuotationsPage = React.lazy(() =>
 const OrdersPage = React.lazy(() =>
   import('@/features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage }))
 );
+const RetailPosPage = React.lazy(() =>
+  import('@/features/pos/RetailPosPage').then((m) => ({ default: m.RetailPosPage }))
+);
 const InvoicesPage = React.lazy(() =>
   import('@/features/invoices/InvoicesPage').then((m) => ({ default: m.InvoicesPage }))
 );
@@ -87,6 +90,7 @@ export const router = createHashRouter([
       { path: 'suppliers', element: <SuppliersPage /> },
       { path: 'quotations', element: <QuotationsPage /> },
       { path: 'orders', element: <OrdersPage /> },
+      { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
       { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
       { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
       { path: 'ai', element: <AIPage /> },
