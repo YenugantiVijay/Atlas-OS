@@ -150,6 +150,61 @@ if (!pricingHtml.includes('Pricing to be announced')) {
   console.log('[PASS] Honest two-edition pricing presentation verified.');
 }
 
+// 7. Protect the zero-server index.html preview from the old dead-link launcher.
+const localIndexPath = path.resolve(__dirname, '../index.html');
+if (!fs.existsSync(localIndexPath)) {
+  console.error('[FAIL] Standalone homepage index.html is missing');
+  failedChecks++;
+} else {
+  const page = fs.readFileSync(localIndexPath, 'utf8');
+  const checks = [
+    [/<title>Atlas OS — Run Your Business/i, 'Direct Atlas OS homepage title'],
+    [/<h1>Run Your Business\./i, 'Visible homepage hero'],
+    [/id="product"/, 'Interactive product section'],
+    [/id="features"/, 'Feature section'],
+    [/id="solutions"/, 'Solutions section'],
+    [/id="pricing"/, 'Pricing section'],
+    [/id="demo"/, 'Informative demo section'],
+    [/src="\.\/public\/favicon\.svg"/, 'Local brand logo'],
+    [/role="tablist"/, 'Demo workspace tabs'],
+  ];
+  for (const [pattern, label] of checks) {
+    if (!pattern.test(page)) {
+      console.error('[FAIL] Standalone homepage missing: ' + label);
+      failedChecks++;
+    }
+  }
+  for (const match of page.matchAll(/href="#([a-z0-9-]+)"/gi)) {
+    if (!page.includes('id="' + match[1] + '"')) {
+      console.error('[FAIL] Broken standalone homepage anchor: #' + match[1]);
+      failedChecks++;
+    }
+  }
+  if (/Open Live Website|Website Live Preview<\/title>|href="http:\/\/localhost:4321\/"/i.test(page)) {
+    console.error('[FAIL] Dead localhost launcher UI must not return to index.html');
+    failedChecks++;
+  }
+  if (!fs.existsSync(path.resolve(__dirname, '../public/favicon.svg'))) {
+    console.error('[FAIL] Local homepage favicon is missing');
+    failedChecks++;
+  }
+  console.log('[PASS] Direct homepage entry and local anchors verified.');
+}
+
+// 8. The one-click launcher must wait until the real Astro site is reachable.
+const commandPath = path.resolve(__dirname, '../preview-website.cmd');
+const readinessPath = path.resolve(__dirname, 'wait-for-website.mjs');
+const command = fs.readFileSync(commandPath, 'utf8');
+if (!command.includes('node scripts\\wait-for-website.mjs') ||
+    !command.includes('if errorlevel 1') ||
+    !command.includes('start "" "http://127.0.0.1:4321/"') ||
+    !fs.existsSync(readinessPath)) {
+  console.error('[FAIL] One-click website launcher no longer verifies readiness before opening');
+  failedChecks++;
+} else {
+  console.log('[PASS] One-click launcher checks the Astro homepage before opening browser.');
+}
+
 console.log('----------------------------------------------------');
 if (failedChecks > 0) {
   console.error(`Verification FAILED with ${failedChecks} errors.`);
