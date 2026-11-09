@@ -8,15 +8,12 @@ import {
   Check,
   Shield,
   Camera,
-  User as UserIcon,
-  Save,
-  Menu,
   LogOut,
   Sparkles,
   Cloud,
+  Menu,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -43,6 +40,7 @@ const ROUTE_BREADCRUMBS: Record<string, { section?: string; label: string }> = {
   '/inventory': { section: 'Inventory & Stock', label: 'Stock Movements' },
   '/invoices': { section: 'Finance & Accounts', label: 'Tax Invoices' },
   '/payments': { section: 'Finance & Accounts', label: 'Payments & Ledger' },
+  '/reports/sales-receipts': { section: 'Finance & Accounts', label: 'Sales & Receipts' },
   '/suppliers': { section: 'Purchasing', label: 'Suppliers & Vendors' },
   '/ai': { section: 'Intelligence', label: 'ATLAS AI Assistant' },
   '/team': { section: 'Administration', label: 'Team & Access' },
@@ -74,7 +72,6 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser,
     updateCurrentUser,
     isAuthenticated,
-    isMockAuth,
     isLoadingAuth,
     signOut,
   } = useOrg();
@@ -189,23 +186,24 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header
-        className={`fixed top-0 right-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface-card/95 backdrop-blur-md px-4 sm:px-6 transition-all duration-200 left-0 ${
+        className={`fixed top-0 right-0 z-20 flex h-16 items-center justify-between border-b border-border bg-white/95 backdrop-blur-md px-4 sm:px-6 transition-all duration-200 left-0 ${
           collapsed ? 'lg:left-20' : 'lg:left-64'
         }`}
       >
-        {/* Left: Hamburger & Organization Selector */}
+        {/* Left: Hamburger, Organization Selector & Live Cloud status */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
           {onToggleMobileMenu && (
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="p-1.5 -ml-1 shrink-0 rounded-lg text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:ring-2 focus-visible:ring-atlas-500"
+              className="p-2 -ml-1 shrink-0 rounded-xl text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
 
+          {/* Organization Selector */}
           <div ref={orgDropdownRef} className="relative min-w-0">
             <button
               onClick={() => {
@@ -215,18 +213,24 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               aria-label={`Switch organization: ${currentOrg?.name || 'No organization selected'}`}
               aria-expanded={isOrgDropdownOpen}
-              className={`flex w-full h-9 items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 text-xs font-semibold text-content-primary hover:border-slate-300 hover:bg-slate-100/70 transition-colors ${
-                isOrgDropdownOpen ? 'border-atlas-400 bg-atlas-50 ring-2 ring-atlas-100' : ''
+              className={`flex h-9 items-center gap-2 rounded-xl border border-border/80 bg-slate-50/70 px-3 text-xs font-semibold text-content-primary hover:border-slate-300 hover:bg-slate-100/70 transition-colors shadow-2xs ${
+                isOrgDropdownOpen ? 'border-teal-400 bg-teal-50/50 ring-2 ring-teal-100' : ''
               }`}
             >
-              <Building2 className="w-3.5 h-3.5 text-atlas-600 shrink-0" />
-              <span className="max-w-[130px] sm:max-w-[180px] truncate">{currentOrg?.name || 'Select Organization'}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 ${isOrgDropdownOpen ? 'rotate-180 text-atlas-700' : ''}`} />
+              <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+              <span className="max-w-[120px] sm:max-w-[180px] md:max-w-[220px] truncate">
+                {currentOrg?.name || 'Select Organization'}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 shrink-0 ${
+                  isOrgDropdownOpen ? 'rotate-180 text-teal-700' : ''
+                }`}
+              />
             </button>
 
             {isOrgDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-64 rounded-xl border border-border bg-surface-card p-1.5 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
-                <div className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-content-muted">
+              <div className="absolute left-0 mt-1.5 w-64 rounded-2xl border border-border bg-white p-1.5 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
+                <div className="px-2.5 py-1.5 text-2xs font-bold uppercase tracking-wider text-content-muted">
                   Organizations
                 </div>
                 {organizations.map((org) => (
@@ -236,19 +240,19 @@ export const Header: React.FC<HeaderProps> = ({
                       switchOrganization(org.id);
                       setIsOrgDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-left transition-colors ${
+                    className={`w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left transition-colors ${
                       org.id === currentOrg?.id
-                        ? 'bg-atlas-100 text-atlas-900 font-semibold'
-                        : 'text-content-primary hover:bg-surface-panel'
+                        ? 'bg-teal-50 text-teal-900 font-semibold border border-teal-200/60'
+                        : 'text-content-primary hover:bg-slate-50'
                     }`}
                   >
                     <div className="truncate">
                       <div className="truncate font-medium">{org.name}</div>
-                      <div className="text-xs text-content-secondary truncate">
+                      <div className="text-2xs text-content-secondary truncate">
                         {[org.city, org.state].filter(Boolean).join(', ') || 'Location not set'}
                       </div>
                     </div>
-                    {org.id === currentOrg?.id && <Check className="w-4 h-4 text-atlas-600 shrink-0" />}
+                    {org.id === currentOrg?.id && <Check className="w-4 h-4 text-teal-600 shrink-0" />}
                   </button>
                 ))}
                 <div className="my-1 border-t border-border" />
@@ -257,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setIsOrgDropdownOpen(false);
                     onOpenNewOrgModal();
                   }}
-                  className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-atlas-700 font-medium hover:bg-atlas-50 transition-colors"
+                  className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs text-teal-700 font-semibold hover:bg-teal-50 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Organization</span>
@@ -266,40 +270,47 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Backend / Cloud status badge */}
+          {/* Backend / Cloud status indicator with subtle animation */}
           <button
             type="button"
             onClick={() => !isAuthenticated && setIsAuthModalOpen(true)}
             title={
               isAuthenticated
-                ? 'Connected to live Supabase cloud database'
+                ? 'Authenticated Cloud Workspace (Supabase Configured)'
                 : 'Operating in local demo mode. Click to sign in to Supabase.'
             }
-            className={`hidden md:flex h-9 items-center gap-1.5 px-3 rounded-full border text-xs font-medium transition-all ${
+            className={`hidden md:inline-flex h-9 items-center gap-2 px-3 rounded-xl border text-xs font-medium transition-all shadow-2xs ${
               isAuthenticated
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 cursor-pointer'
+                ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-800'
+                : 'bg-amber-50/90 border-amber-200 text-amber-800 hover:bg-amber-100/90 cursor-pointer'
             }`}
           >
             {isAuthenticated ? (
               <>
-                <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Live Cloud</span>
+                <span className="cloud-live-signal shrink-0" aria-hidden="true">
+                  <span className="cloud-live-signal-ripple" />
+                  <span className="cloud-live-signal-core" />
+                </span>
+                <Cloud className="w-3.5 h-3.5 text-emerald-600 cloud-breathe-icon shrink-0" />
+                <span className="font-semibold tracking-tight">Live Cloud</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>Demo Mode · Sign In</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="font-semibold tracking-tight">Demo Mode · Sign In</span>
               </>
             )}
           </button>
 
-          {/* Breadcrumb Trail (Desktop / Wide screen) */}
-          <nav aria-label="Breadcrumb" className="hidden xl:flex items-center gap-1.5 text-xs text-content-secondary ml-3 pl-3 border-l border-border/70">
+          {/* Breadcrumb Trail (Desktop) */}
+          <nav
+            aria-label="Breadcrumb"
+            className="hidden xl:flex items-center gap-1.5 text-xs text-content-secondary ml-2 pl-3 border-l border-border/60"
+          >
             {currentBreadcrumb.section && (
               <>
-                <span className="text-content-muted font-medium">{currentBreadcrumb.section}</span>
-                <span className="text-content-muted/60" aria-hidden="true">/</span>
+                <span className="text-content-muted font-normal">{currentBreadcrumb.section}</span>
+                <span className="text-content-muted/50" aria-hidden="true">/</span>
               </>
             )}
             <span className="font-semibold text-content-primary">{currentBreadcrumb.label}</span>
@@ -312,35 +323,36 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenCommandPalette}
             aria-label="Search Atlas OS"
-            className="flex h-9 items-center gap-2 rounded-lg border border-border bg-slate-50 px-2.5 sm:px-3 text-xs text-content-secondary hover:border-slate-300 hover:text-content-primary transition-colors shadow-2xs"
+            className="flex h-9 items-center gap-2 rounded-xl border border-border/80 bg-slate-50/70 px-2.5 sm:px-3 text-xs text-content-secondary hover:border-slate-300 hover:bg-slate-100/70 hover:text-content-primary transition-colors shadow-2xs"
           >
             <Search className="w-3.5 h-3.5 text-content-muted" />
             <span className="hidden sm:inline">Search...</span>
-            <kbd className="hidden sm:inline px-1.5 py-0.5 rounded bg-surface-card border border-border font-mono text-2xs text-content-secondary">
+            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-white font-mono text-2xs text-content-secondary shadow-2xs">
               Ctrl+K
             </kbd>
           </button>
 
-          {/* Quick Create Dropdown - role-aware */}
+          {/* Quick Create Button & Dropdown */}
           {availableQuickActions.length > 0 && (
             <div ref={quickCreateRef} className="relative">
-              <Button
-                size="sm"
-                variant="primary"
+              <button
+                type="button"
                 aria-label="Quick Create"
+                aria-expanded={isQuickCreateOpen}
                 onClick={() => {
                   setIsQuickCreateOpen((prev) => !prev);
                   setIsOrgDropdownOpen(false);
                   setIsUserMenuOpen(false);
                 }}
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 px-3 sm:px-3.5 text-xs font-semibold text-white shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
               >
+                <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Quick Create</span>
-              </Button>
+              </button>
 
               {isQuickCreateOpen && (
-                <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-border bg-surface-card p-1 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
-                  <div className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-content-muted">
+                <div className="absolute right-0 mt-1.5 w-48 rounded-2xl border border-border bg-white p-1 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-2.5 py-1 text-2xs font-bold uppercase tracking-wider text-content-muted">
                     Create Record
                   </div>
                   {availableQuickActions.map((act) => (
@@ -350,7 +362,7 @@ export const Header: React.FC<HeaderProps> = ({
                         setIsQuickCreateOpen(false);
                         onOpenQuickCreate(act.type);
                       }}
-                      className="w-full flex items-center px-2.5 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 hover:text-atlas-800 text-left transition-colors font-medium"
+                      className="w-full flex items-center px-2.5 py-2 text-xs rounded-xl text-content-primary hover:bg-teal-50 hover:text-teal-900 text-left transition-colors font-medium"
                     >
                       {act.label}
                     </button>
@@ -360,8 +372,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* User profile capsule trigger & menu */}
-          <div ref={userMenuRef} className="relative pl-1">
+          {/* User Profile Capsule Trigger & Dropdown */}
+          <div ref={userMenuRef} className="relative">
             <button
               onClick={() => {
                 setIsUserMenuOpen((prev) => !prev);
@@ -370,13 +382,13 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               aria-label="User Profile & Shop Menu"
               aria-expanded={isUserMenuOpen}
-              className={`flex h-9 items-center gap-2.5 px-1.5 sm:pr-3 rounded-full border border-border bg-slate-50 hover:bg-atlas-50 hover:border-atlas-300 transition-all shadow-2xs group cursor-pointer ${
-                isUserMenuOpen ? 'ring-2 ring-atlas-200 border-atlas-400 bg-atlas-50' : ''
+              className={`flex h-9 items-center gap-2 pl-1 pr-2 sm:pr-2.5 rounded-xl border border-border/80 bg-slate-50/70 hover:bg-teal-50/50 hover:border-teal-300 transition-all shadow-2xs group cursor-pointer ${
+                isUserMenuOpen ? 'ring-2 ring-teal-100 border-teal-400 bg-teal-50/50' : ''
               }`}
               title="User Profile & Shop Menu"
             >
-              {/* Left side: Profile pic (custom photo or initials) */}
-              <div className="relative w-7 h-7 rounded-full overflow-hidden bg-atlas-200 text-atlas-800 font-bold text-2xs flex items-center justify-center border border-atlas-300 shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              {/* Profile Avatar */}
+              <div className="relative w-7 h-7 rounded-full overflow-hidden bg-teal-100 text-teal-800 font-bold text-2xs flex items-center justify-center border border-teal-200/80 shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
                 {currentUser?.avatarUrl ? (
                   <img
                     src={currentUser.avatarUrl}
@@ -388,31 +400,32 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
 
-              {/* Right side: Top = Name of shop, Bottom = User name & role */}
+              {/* Shop & User Info (Hidden on narrow screens to prevent overflow) */}
               <div className="text-left hidden xl:flex flex-col justify-center min-w-0 pr-0.5">
-                <div className="text-xs font-bold text-content-primary leading-tight truncate max-w-[140px] sm:max-w-[175px] group-hover:text-atlas-900">
+                <div className="text-xs font-bold text-content-primary leading-tight truncate max-w-[130px] group-hover:text-teal-900">
                   {currentOrg?.name || 'Organization'}
                 </div>
-                <div className="text-xs font-medium text-content-secondary leading-tight truncate max-w-[140px] sm:max-w-[175px]">
-                  {currentUser?.fullName || currentUser?.email || (isLoadingAuth ? 'Loading...' : 'User')} • <span className="capitalize text-atlas-700 font-semibold">{currentRole || 'No Role'}</span>
+                <div className="text-2xs font-medium text-content-secondary leading-tight truncate max-w-[130px]">
+                  {currentUser?.fullName || currentUser?.email || (isLoadingAuth ? 'Loading...' : 'User')} •{' '}
+                  <span className="capitalize text-teal-700 font-semibold">{currentRole || 'No Role'}</span>
                 </div>
               </div>
 
               {/* Dropdown Chevron */}
               <ChevronDown
-                className={`hidden sm:block w-3.5 h-3.5 text-content-muted group-hover:text-atlas-700 shrink-0 transition-transform duration-200 ${
-                  isUserMenuOpen ? 'rotate-180 text-atlas-700' : ''
+                className={`w-3.5 h-3.5 text-content-muted group-hover:text-teal-700 shrink-0 transition-transform duration-200 ${
+                  isUserMenuOpen ? 'rotate-180 text-teal-700' : ''
                 }`}
               />
             </button>
 
             {/* Profile Dropdown */}
             {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border border-border bg-surface-card p-3 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border border-border bg-white p-3 shadow-dropdown z-50 animate-in fade-in zoom-in-95">
                 {/* User Profile Header Card */}
-                <div className="p-3 border border-border/70 rounded-xl bg-surface-panel/60 mb-2.5">
+                <div className="p-3 border border-border/70 rounded-xl bg-slate-50/70 mb-2.5">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-atlas-200 text-atlas-800 font-bold text-sm flex items-center justify-center border-2 border-atlas-300 shadow-sm shrink-0">
+                    <div className="relative w-11 h-11 rounded-full overflow-hidden bg-teal-100 text-teal-800 font-bold text-sm flex items-center justify-center border border-teal-200 shadow-xs shrink-0">
                       {currentUser?.avatarUrl ? (
                         <img
                           src={currentUser.avatarUrl}
@@ -424,8 +437,13 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-base font-bold text-content-primary leading-tight truncate">
-                        {currentUser?.fullName || (currentUser?.email ? currentUser.email.split('@')[0] : (isLoadingAuth ? 'Loading...' : 'User'))}
+                      <div className="text-sm font-bold text-content-primary leading-tight truncate">
+                        {currentUser?.fullName ||
+                          (currentUser?.email
+                            ? currentUser.email.split('@')[0]
+                            : isLoadingAuth
+                            ? 'Loading...'
+                            : 'User')}
                       </div>
                       <div className="text-xs font-medium text-content-secondary truncate mt-0.5">
                         {currentUser?.email || (isLoadingAuth ? 'Loading account...' : 'No email set')}
@@ -435,7 +453,7 @@ export const Header: React.FC<HeaderProps> = ({
                           {currentRole || 'No Role'}
                         </Badge>
                         {currentOrg?.name && (
-                          <span className="text-xs text-content-muted font-medium truncate max-w-[140px]">
+                          <span className="text-2xs text-content-muted font-medium truncate max-w-[130px]">
                             {currentOrg.name}
                           </span>
                         )}
@@ -444,17 +462,17 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
 
-                {/* Actions Navigation with increased text size */}
+                {/* Actions Navigation */}
                 <div className="space-y-1">
                   <button
                     onClick={handleOpenProfileModal}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center group-hover:bg-atlas-200 group-hover:scale-105 transition-all shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center group-hover:bg-teal-200 group-hover:scale-105 transition-all shrink-0">
                       <Camera className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
+                      <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
                         Edit Profile & Photo
                       </div>
                       <div className="text-xs text-content-muted font-normal truncate">
@@ -467,13 +485,13 @@ export const Header: React.FC<HeaderProps> = ({
                     <a
                       href="#/settings"
                       onClick={() => setIsUserMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-surface-panel text-content-secondary flex items-center justify-center group-hover:bg-atlas-100 group-hover:text-atlas-700 transition-colors shrink-0 border border-border">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors shrink-0 border border-border/80">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
+                        <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
                           Organization Settings
                         </div>
                         <div className="text-xs text-content-muted font-normal truncate">
@@ -487,13 +505,13 @@ export const Header: React.FC<HeaderProps> = ({
                     <a
                       href="#/team"
                       onClick={() => setIsUserMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-surface-panel text-content-secondary flex items-center justify-center group-hover:bg-atlas-100 group-hover:text-atlas-700 transition-colors shrink-0 border border-border">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors shrink-0 border border-border/80">
                         <Shield className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
+                        <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
                           Team & Memberships
                         </div>
                         <div className="text-xs text-content-muted font-normal truncate">
@@ -530,13 +548,13 @@ export const Header: React.FC<HeaderProps> = ({
                           setIsUserMenuOpen(false);
                           setIsAuthModalOpen(true);
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-atlas-700 hover:bg-atlas-50 transition-colors text-left group"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-teal-700 hover:bg-teal-50 transition-colors text-left group"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center group-hover:bg-atlas-200 transition-colors shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center group-hover:bg-teal-200 transition-colors shrink-0">
                           <Sparkles className="w-4 h-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-atlas-900">Sign In to Cloud</div>
+                          <div className="text-sm font-semibold text-teal-900">Sign In to Cloud</div>
                           <div className="text-xs text-content-muted font-normal truncate">
                             Switch from Demo to Live Supabase
                           </div>
@@ -559,67 +577,58 @@ export const Header: React.FC<HeaderProps> = ({
         description="Update your personal account credentials and profile photo displayed in ATLAS OS."
         maxWidth="md"
       >
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          <ImageUpload
-            label="Profile Photo"
-            value={editAvatarUrl}
-            onChange={setEditAvatarUrl}
-            shape="circle"
-            helperText="Upload a square or circular profile avatar (Optional)"
-          />
-
-          <Input
-            label="Full Name"
-            required
-            value={editFullName}
-            onChange={(e) => setEditFullName(e.target.value)}
-            placeholder="Enter your full name"
-            leftIcon={<UserIcon className="w-4 h-4" />}
-          />
-
-          <Input
-            label="Email Address"
-            type="email"
-            required
-            disabled={!isMockAuth}
-            helperText={!isMockAuth ? 'Your sign-in email cannot be changed from this profile form.' : undefined}
-            value={editEmail}
-            onChange={(e) => setEditEmail(e.target.value)}
-            placeholder="Enter your email address"
-          />
-
-          <div className="p-3 rounded-xl bg-surface-panel border border-border text-xs flex items-center justify-between">
-            <div>
-              <span className="font-semibold text-content-primary block">Active Business Shop</span>
-              <span className="text-content-secondary">{currentOrg?.name || 'Organization'}</span>
-            </div>
-            <Badge variant={getRoleBadgeVariant(currentRole)} size="sm">
-              {currentRole || 'No Role'}
-            </Badge>
+        <form onSubmit={handleSaveProfile} className="space-y-5">
+          <div className="flex flex-col items-center justify-center py-2">
+            <ImageUpload
+              value={editAvatarUrl}
+              onChange={setEditAvatarUrl}
+              label="Profile Photo"
+              shape="square"
+            />
+            <p className="text-xs text-content-muted mt-2 text-center">
+              Upload a clear square picture for your shop avatar badge.
+            </p>
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-border mt-5">
-            <Button
+          <div className="space-y-4">
+            <Input
+              label="Full Name"
+              placeholder="Enter your full name"
+              value={editFullName}
+              onChange={(e) => setEditFullName(e.target.value)}
+              required
+            />
+
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="Enter your email address"
+              value={editEmail}
+              disabled
+              helperText="Email is bound to your account identity and cannot be changed here."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-border">
+            <button
               type="button"
-              variant="outline"
               onClick={() => setIsProfileModalOpen(false)}
-              disabled={isSavingProfile}
+              className="px-4 py-2 text-sm font-semibold text-content-secondary hover:text-content-primary rounded-xl border border-border hover:bg-slate-50 transition-colors"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              variant="primary"
-              isLoading={isSavingProfile}
-              leftIcon={<Save className="w-4 h-4" />}
+              disabled={isSavingProfile}
+              className="px-4 py-2 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl shadow-xs transition-colors disabled:opacity-50"
             >
-              Save Profile
-            </Button>
+              {isSavingProfile ? 'Saving...' : 'Save Profile'}
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Supabase Authentication Modal */}
+      {/* Cloud Authentication Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -627,4 +636,3 @@ export const Header: React.FC<HeaderProps> = ({
     </>
   );
 };
-

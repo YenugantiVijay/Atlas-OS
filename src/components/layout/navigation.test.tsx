@@ -128,8 +128,8 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
-      // The full navigation is intentionally opt-in; verify legacy role rules there.
-      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
+      // Open Administration section to verify Audit Trail link
+      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
 
       // Verify "Activity Feed" is completely removed
       expect(screen.queryByText('Activity Feed')).toBeNull();
@@ -154,9 +154,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
-
-      // The full navigation is intentionally opt-in; verify legacy role rules there.
-      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
 
       const dashboardLink = screen.getByRole('link', { name: /dashboard/i });
       const auditLink = screen.getByRole('link', { name: /audit trail/i });
@@ -424,8 +421,8 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
-      // The full navigation is intentionally opt-in; verify legacy role rules there.
-      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
+      // Open Administration section
+      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();
@@ -445,8 +442,8 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
-      // The full navigation is intentionally opt-in; verify legacy role rules there.
-      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
+      // Open Administration section
+      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();
@@ -470,9 +467,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           </MemoryRouter>
         );
 
-        // The full navigation is intentionally opt-in; verify legacy role rules there.
-        fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
-
         expect(screen.queryByText('Administration')).toBeNull();
         expect(screen.queryByText('Team & Access')).toBeNull();
         expect(screen.queryByText('Audit Trail')).toBeNull();
@@ -493,9 +487,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
-
-      // The full navigation is intentionally opt-in; verify legacy role rules there.
-      fireEvent.change(screen.getByRole('combobox', { name: 'Navigation layout' }), { target: { value: 'all' } });
 
       // Only items without required actions (Dashboard) are shown
       expect(screen.getByText('Dashboard')).toBeInTheDocument();

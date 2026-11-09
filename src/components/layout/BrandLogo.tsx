@@ -7,8 +7,9 @@ export interface BrandLogoProps {
 }
 
 /**
- * One official Atlas OS mark for the marketing website, application and favicon.
- * /favicon.svg is kept byte-identical to atlas-os-website/public/favicon.svg.
+ * Official Atlas OS Brand Logo and Wordmark.
+ * Uses the official Atlas OS brand mark (/favicon.svg) and navy/teal identity.
+ * Visual focus is placed squarely on the geometric mark and crisp ATLAS OS wordmark.
  */
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   collapsed = false,
@@ -18,25 +19,29 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   const isDark = variant === 'dark';
 
   return (
-    <div className={`flex items-center gap-2.5 select-none ${className}`}>
+    <div
+      className={`flex items-center select-none ${collapsed ? 'justify-center' : 'gap-3'} ${className}`}
+      title="Atlas OS"
+    >
       <img
         src="/favicon.svg"
         alt="Atlas OS logo"
         width={36}
         height={36}
-        className="h-9 w-9 shrink-0 rounded-lg"
+        className="h-9 w-9 shrink-0 rounded-lg shadow-xs transition-transform duration-150"
         draggable={false}
       />
       {!collapsed && (
-        <div className="flex flex-col text-left">
-          <div className="flex items-baseline gap-1 leading-none">
-            <span className={`text-lg font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-navy-700'}`}>
-              ATLAS
-            </span>
-            <span className="text-lg font-extrabold tracking-tight text-teal-500">OS</span>
-          </div>
-          <span className={`mt-1 text-xs font-medium tracking-tight ${isDark ? 'text-slate-300' : 'text-content-secondary'}`}>
-            Electrical Distribution
+        <div className="flex items-center tracking-tight leading-none font-heading">
+          <span
+            className={`text-xl font-extrabold tracking-tight ${
+              isDark ? 'text-white' : 'text-navy-700'
+            }`}
+          >
+            ATLAS
+          </span>
+          <span className="ml-1 text-xl font-extrabold tracking-tight text-teal-400">
+            OS
           </span>
         </div>
       )}
