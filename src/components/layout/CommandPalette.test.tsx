@@ -655,6 +655,32 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(productsService.getProducts).toHaveBeenCalledTimes(2);
   });
 
+  it('invalidates results on user identity change even within the same organization', async () => {
+    vi.mocked(searchOperationalRecords)
+      .mockResolvedValueOnce([{ recordType: 'supplier', recordId: 'user1-secret',
+        reference: 'User One Supplier', displayName: 'User One Supplier' }])
+      .mockResolvedValue([]);
+    const { rerender } = render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'supplier' } });
+    expect(await screen.findByRole('button', { name: /Supplier · User One Supplier/ })).toBeInTheDocument();
+    vi.mocked(useOrg).mockReturnValue({
+      ...context,
+      currentUser: { ...context.currentUser!, id: 'u2' },
+    });
+    rerender(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /Supplier · User One Supplier/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(searchOperationalRecords).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: /Supplier · User One Supplier/ })).not.toBeInTheDocument();
+  });
+
   // Test 12: Rapid repeated open/close cycles without React crashing
   it('survives rapid repeated open/close cycles without invariant violations or memory leaks', () => {
     render(
