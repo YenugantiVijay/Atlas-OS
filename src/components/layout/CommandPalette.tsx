@@ -93,7 +93,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => {
     if (item.path === '/') return true;
-    if (item.path === '/reports/sales-receipts') return hasPermission(currentRole, 'reports:financial');
+    if (['/invoices', '/payments', '/reports/sales-receipts'].includes(item.path)) return hasPermission(currentRole, 'reports:financial');
     if (item.path === '/audit') return hasPermission(currentRole, 'audit:read');
     return hasPermission(currentRole, 'data:read');
   });
@@ -124,7 +124,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     .filter(
       (c) =>
         c.name.toLowerCase().includes(query.toLowerCase()) ||
-        c.companyName?.toLowerCase().includes(query.toLowerCase())
+        c.companyName?.toLowerCase().includes(query.toLowerCase()) ||
+        c.phone?.replace(/\D/g, '').includes(query.replace(/\D/g, '')) && query.replace(/\D/g, '').length >= 3
     )
     .slice(0, 3);
 
