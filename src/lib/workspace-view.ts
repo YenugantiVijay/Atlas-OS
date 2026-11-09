@@ -11,7 +11,7 @@ export const ESSENTIAL_WORKSPACE_GROUPS: ReadonlyArray<{
   paths: readonly string[];
 }> = [
   { title: 'Dashboard', paths: ['/'] },
-  { title: 'Sales', paths: ['/orders', '/invoices', '/customers'] },
+  { title: 'Sales', paths: ['/pos', '/orders', '/invoices', '/customers'] },
   { title: 'Inventory', paths: ['/products', '/inventory', '/suppliers'] },
   { title: 'Finance', paths: ['/payments', '/reports/sales-receipts'] },
   { title: 'Settings', paths: ['/settings'] },
