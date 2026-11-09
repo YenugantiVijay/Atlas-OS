@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from './CommandPalette';
 import { Header } from './Header';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -11,6 +11,8 @@ import { customersService } from '@/services/customers.service';
 import { searchFinancialDocuments } from '@/services/universal-search.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
 import { searchOperationalRecords } from '@/services/operational-search.service';
+import { suppliersService } from '@/services/suppliers.service';
+import { ordersService } from '@/services/orders.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/services/products.service', () => ({ productsService: { getProducts: vi.fn(), getProductsPaginated: vi.fn() } }));
@@ -70,6 +72,8 @@ beforeEach(() => {
   vi.mocked(searchOperationalRecords).mockResolvedValue([]);
   vi.mocked(searchFinancialDocuments).mockResolvedValue([]);
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 function ToggleHarness({ initialOpen = false }: { initialOpen?: boolean }) {
   const [open, setOpen] = useState(initialOpen);
@@ -595,6 +599,60 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(searchOperationalRecords).not.toHaveBeenCalled();
     expect(searchFinancialDocuments).not.toHaveBeenCalled();
     expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
+  });
+
+  it('retries financial and operational RPCs independently after transient failures', async () => {
+    vi.mocked(searchFinancialDocuments).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ record_type: 'invoice', record_id: 'inv-1', document_number: 'INV-RETRY',
+        customer_name: 'Buyer', document_date: '2026-11-09' }]);
+    vi.mocked(searchOperationalRecords).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ recordType: 'supplier', recordId: 's1', reference: 'Retry Supply', displayName: 'Supplier' }]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Retry' } });
+    const retryFinance = await screen.findByRole('button', { name: 'Try finance search again' });
+    const retryOperations = await screen.findByRole('button', { name: 'Try operational search again' });
+    fireEvent.click(retryFinance);
+    expect(await screen.findByRole('button', { name: /INV-RETRY/ })).toBeInTheDocument();
+    expect(searchFinancialDocuments).toHaveBeenCalledTimes(2);
+    // The first retry is shared, so both searches recover without additional full-table reads.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Retry Supply/ })).toBeInTheDocument());
+    expect(searchOperationalRecords).toHaveBeenCalledTimes(2);
+    expect(retryOperations).not.toBeInTheDocument();
+  });
+
+  it('reuses small demo catalogs while typing but refreshes them after reopening', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, isMockAuth: true, isDemoMode: true });
+    const supplierSpy = vi.spyOn(suppliersService, 'getSuppliers').mockResolvedValue([
+      { id: 's1', name: 'Ravi Supply', organizationId: 'cloud-org' } as any,
+    ]);
+    const quotesSpy = vi.spyOn(ordersService, 'getQuotations').mockResolvedValue([]);
+    const ordersSpy = vi.spyOn(ordersService, 'getSalesOrders').mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <ToggleHarness initialOpen />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'Ravi' } });
+    expect(await screen.findByRole('button', { name: /Supplier · Ravi Supply/ })).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Rav' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Supplier · Ravi Supply/ })).toBeInTheDocument());
+    expect(supplierSpy).toHaveBeenCalledTimes(1);
+    expect(quotesSpy).toHaveBeenCalledTimes(1);
+    expect(ordersSpy).toHaveBeenCalledTimes(1);
+    expect(productsService.getProducts).toHaveBeenCalledTimes(1);
+    expect(customersService.getCustomers).toHaveBeenCalledTimes(1);
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('close-btn'));
+    fireEvent.click(screen.getByTestId('open-btn'));
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'Ravi' } });
+    await waitFor(() => expect(supplierSpy).toHaveBeenCalledTimes(2));
+    expect(productsService.getProducts).toHaveBeenCalledTimes(2);
   });
 
   // Test 12: Rapid repeated open/close cycles without React crashing
