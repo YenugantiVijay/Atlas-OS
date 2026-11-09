@@ -415,7 +415,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {financialError && <div role="alert" className="px-3 text-sm text-rose-700">
             Financial document search is unavailable.{' '}
             <button type="button" className="underline" onClick={() => setRetryCount((n) => n + 1)}>Try finance search again</button>
-          </div>}}
+          </div>}
           {query.trim().length >= 2 && financialResults.length > 0 && (
             <div>
               <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
