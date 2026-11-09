@@ -75,9 +75,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             ])
           : await Promise.all([
               productsService.getProductsPaginated(orgId, { page: 1, pageSize: 4, search: term }, false)
-                .then((result) => result.items),
+                .then((result) => result.data),
               customersService.getCustomersPaginated(orgId, { page: 1, pageSize: 3, search: term }, false)
-                .then((result) => result.items),
+                .then((result) => result.data),
             ]);
         if (active) {
           setProducts(productList);
