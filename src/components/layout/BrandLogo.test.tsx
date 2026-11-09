@@ -12,12 +12,25 @@ describe('Atlas OS official brand alignment', () => {
     expect(tool).toContain('#2DD4BF');
   });
 
-  it('shows the official icon in both normal and collapsed sidebar layouts', () => {
+  it('shows the official icon in both normal and collapsed sidebar layouts without tagline', () => {
     const { rerender } = render(<BrandLogo variant="dark" />);
     expect(screen.getByRole('img', { name: 'Atlas OS logo' })).toHaveAttribute('src', '/favicon.svg');
     expect(screen.getByText('ATLAS')).toBeInTheDocument();
+    expect(screen.getByText('OS')).toBeInTheDocument();
+    expect(screen.queryByText('Electrical Distribution')).not.toBeInTheDocument();
+
     rerender(<BrandLogo collapsed variant="dark" />);
     expect(screen.getByRole('img', { name: 'Atlas OS logo' })).toBeInTheDocument();
     expect(screen.queryByText('ATLAS')).not.toBeInTheDocument();
+    expect(screen.queryByText('OS')).not.toBeInTheDocument();
+    expect(screen.queryByText('Electrical Distribution')).not.toBeInTheDocument();
+  });
+
+  it('renders light variant with navy brand styling and no tagline', () => {
+    render(<BrandLogo variant="light" />);
+    const atlasText = screen.getByText('ATLAS');
+    expect(atlasText).toHaveClass('text-navy-700');
+    expect(screen.getByText('OS')).toBeInTheDocument();
+    expect(screen.queryByText('Electrical Distribution')).not.toBeInTheDocument();
   });
 });

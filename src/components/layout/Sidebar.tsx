@@ -17,7 +17,6 @@ import {
   ChevronRight,
   TrendingUp,
   X,
-  SlidersHorizontal,
   ChevronDown,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
@@ -25,13 +24,6 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
-import {
-  ESSENTIAL_WORKSPACE_GROUPS,
-  getWorkspaceViewStorageKey,
-  loadWorkspaceView,
-  saveWorkspaceView,
-  WorkspaceView,
-} from '@/lib/workspace-view';
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -49,8 +41,63 @@ interface NavItem {
 
 interface NavGroup {
   title: string;
+  collapsible?: boolean;
   items: NavItem[];
 }
+
+const NAV_GROUPS_CONFIG: NavGroup[] = [
+  {
+    title: 'Overview',
+    collapsible: false,
+    items: [
+      { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+    ],
+  },
+  {
+    title: 'Sales',
+    collapsible: true,
+    items: [
+      { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
+      { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+      { label: 'Customers', path: '/customers', icon: <Users className="w-[18px] h-[18px]" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Inventory',
+    collapsible: true,
+    items: [
+      { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Suppliers & Vendors', path: '/suppliers', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Finance',
+    collapsible: true,
+    items: [
+      { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+      { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    collapsible: false,
+    items: [
+      { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-teal-400" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Administration',
+    collapsible: true,
+    items: [
+      { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
+      { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
+      { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
+    ],
+  },
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
@@ -58,120 +105,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
 }) => {
-  const { currentOrg, currentRole, currentUser, isDemoMode } = useOrg();
+  const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
   const { pathname } = useLocation();
-  const [expandedSimpleSections, setExpandedSimpleSections] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  const preferenceKey = useMemo(
-    () => getWorkspaceViewStorageKey(currentOrg?.id, currentUser?.id, isDemoMode),
-    [currentOrg?.id, currentUser?.id, isDemoMode]
+  // Strictly filter by authorized permissions; roles cannot see links without permission
+  const authorizedGroups = useMemo(
+    () =>
+      NAV_GROUPS_CONFIG
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
+        }))
+        .filter((group) => group.items.length > 0),
+    [currentRole]
   );
-  const [savedPreference, setSavedPreference] = useState<{
-    key: string;
-    view: WorkspaceView;
-  } | null>(null);
-  // When organization or user changes, immediately use that identity's own
-  // preference; no previous tenant's UI preference is carried across.
-  const workspaceView = savedPreference?.key === preferenceKey
-    ? savedPreference.view
-    : loadWorkspaceView(preferenceKey);
 
-  const updateWorkspaceView = (view: WorkspaceView) => {
-    saveWorkspaceView(preferenceKey, view);
-    setSavedPreference({ key: preferenceKey, view });
-  };
-
-  const rawNavGroups: NavGroup[] = [
-    {
-      title: 'Overview',
-      items: [
-        { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
-      ],
-    },
-    {
-      title: 'Sales Operations',
-      items: [
-        { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
-        { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Customers', path: '/customers', icon: <Users className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Inventory & Stock',
-      items: [
-        { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Finance & Accounts',
-      items: [
-        { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
-        { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'reports:financial' },
-      ],
-    },
-    {
-      title: 'Reports',
-      items: [
-        { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
-      ],
-    },
-    {
-      title: 'Purchasing',
-      items: [
-        { label: 'Suppliers & Vendors', path: '/suppliers', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Intelligence',
-      items: [
-        { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-atlas-600" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Administration',
-      items: [
-        { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
-        { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
-        { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
-      ],
-    },
-  ];
-
-  // Authorization always comes first; neither view introduces new access.
-  const authorizedGroups = rawNavGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
-    }))
-    .filter((group) => group.items.length > 0);
-
-  const authorizedItems = new Map(
-    authorizedGroups.flatMap((group) => group.items.map((item) => [item.path, item] as const))
-  );
-  const essentialGroups: NavGroup[] = ESSENTIAL_WORKSPACE_GROUPS
-    .map((group) => ({
-      title: group.title,
-      items: group.paths
-        .map((path) => authorizedItems.get(path))
-        .filter((item): item is NavItem => item !== undefined),
-    }))
-    .filter((group) => group.items.length > 0);
-
-  const navGroups = workspaceView === 'essentials' ? essentialGroups : authorizedGroups;
-
-  // Keep the active route discoverable when users navigate via a deep link
-  // or universal command palette. This changes no authorization.
+  // Automatically keep the active route's group open
   useEffect(() => {
-    const active = ESSENTIAL_WORKSPACE_GROUPS.find((group) => group.paths.includes(pathname));
-    if (active && active.paths.length > 1) {
-      setExpandedSimpleSections((prev) =>
-        prev[active.title] === true ? prev : { ...prev, [active.title]: true }
+    const activeGroup = authorizedGroups.find((group) =>
+      group.items.some((item) => item.path === pathname)
+    );
+    if (activeGroup && activeGroup.collapsible) {
+      setExpandedSections((prev) =>
+        prev[activeGroup.title] === true ? prev : { ...prev, [activeGroup.title]: true }
       );
     }
-  }, [pathname]);
+  }, [pathname, authorizedGroups]);
 
   return (
     <>
@@ -195,8 +156,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 shrink-0">
-          <BrandLogo collapsed={collapsed} variant="dark" />
+        <div
+          className={`flex h-16 items-center border-b border-white/10 shrink-0 ${
+            collapsed && !isMobileOpen ? 'justify-between px-3' : 'justify-between px-4'
+          }`}
+        >
+          <BrandLogo collapsed={collapsed && !isMobileOpen} variant="dark" />
 
           {/* Desktop Collapse Toggle */}
           <button
@@ -236,64 +201,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Navigation density is independent of subscriptions and permissions. */}
-        <div className="shrink-0 px-3.5 pt-3">
-          {(!collapsed || isMobileOpen) ? (
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
-              <SlidersHorizontal className="w-4 h-4 shrink-0 text-teal-200" aria-hidden="true" />
-              <label htmlFor="atlas-navigation-layout" className="sr-only">Navigation layout</label>
-              <select
-                id="atlas-navigation-layout"
-                value={workspaceView}
-                onChange={(event) => updateWorkspaceView(event.target.value as WorkspaceView)}
-                title="Change the menu layout; subscription and permissions stay the same"
-                className="w-full min-w-0 cursor-pointer rounded-md bg-[#243B53] px-2 py-1.5 text-xs font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
-              >
-                <option value="essentials">Simple View</option>
-                <option value="all">Full Navigation</option>
-              </select>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => updateWorkspaceView(workspaceView === 'essentials' ? 'all' : 'essentials')}
-              aria-label={workspaceView === 'essentials' ? 'Show full navigation' : 'Show simple navigation'}
-              title={workspaceView === 'essentials' ? 'Full Navigation' : 'Simple View'}
-              className="flex w-full justify-center rounded-lg p-2.5 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
-            >
-              <SlidersHorizontal className="w-[18px] h-[18px]" />
-            </button>
-          )}
-        </div>
-
         {/* Navigation list */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
-          {navGroups.map((group) => {
-            const simple = workspaceView === 'essentials' && (!collapsed || isMobileOpen);
-            const expandable = simple && group.items.length > 1;
-            const expanded = expandedSimpleSections[group.title] ?? group.items.some((item) => item.path === pathname);
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
+          {authorizedGroups.map((group) => {
+            const isCollapsible = Boolean(group.collapsible && (!collapsed || isMobileOpen));
+            const isExpanded =
+              expandedSections[group.title] ?? group.items.some((item) => item.path === pathname);
+            const sectionSlug = group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
             return (
-              <div key={group.title}>
-                {expandable ? (
+              <div key={group.title} className="space-y-1">
+                {isCollapsible ? (
                   <button
                     type="button"
-                    aria-expanded={expanded}
-                    aria-controls={`simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}`}
-                    onClick={() => setExpandedSimpleSections((prev) => ({ ...prev, [group.title]: !expanded }))}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                    aria-expanded={isExpanded}
+                    aria-controls={`section-${sectionSlug}`}
+                    onClick={() =>
+                      setExpandedSections((prev) => ({ ...prev, [group.title]: !isExpanded }))
+                    }
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
                   >
                     <span>{group.title}</span>
-                    <ChevronDown className={`h-4 w-4 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                        isExpanded ? 'rotate-180 text-teal-300' : ''
+                      }`}
+                      aria-hidden="true"
+                    />
                   </button>
-                ) : (!collapsed || isMobileOpen) && !simple ? (
-                  <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
+                ) : (!collapsed || isMobileOpen) && group.collapsible === false && group.items.length > 1 ? (
+                  <h5 className="px-2.5 mb-1 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
                     {group.title}
                   </h5>
                 ) : null}
+
                 <ul
-                  id={expandable ? `simple-${group.title.toLowerCase().replace(/[^a-z]+/g, '-')}` : undefined}
-                  hidden={expandable && !expanded}
-                  className={`space-y-1 ${expandable && !expanded ? 'hidden' : ''} ${expandable ? 'pl-2' : ''}`}
+                  id={isCollapsible ? `section-${sectionSlug}` : undefined}
+                  hidden={isCollapsible && !isExpanded}
+                  className={`space-y-1 ${isCollapsible && !isExpanded ? 'hidden' : ''} ${
+                    isCollapsible ? 'pl-1' : ''
+                  }`}
                 >
                   {group.items.map((item) => (
                     <li key={item.path}>

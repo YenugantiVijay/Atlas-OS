@@ -52,9 +52,6 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('interacts with ATLAS AI grounded business copilot', async ({ page }) => {
-    // AI is intentionally hidden in the default Essentials navigation.
-    // Choose the permission-preserving All Tools view before using it.
-    await page.getByRole('combobox', { name: 'Navigation layout' }).selectOption('all');
     await page.getByRole('link', { name: /ATLAS AI Assistant/ }).click();
     await expect(page).toHaveURL(/.*#\/ai/);
     await expect(page.getByRole('heading', { name: 'ATLAS AI Assistant' })).toBeVisible();
@@ -63,9 +60,6 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('verifies AI replenishment suggests purchase requisition proposal without direct stock inflation', async ({ page }) => {
-    // AI is intentionally hidden in the default Essentials navigation.
-    // Choose the permission-preserving All Tools view before using it.
-    await page.getByRole('combobox', { name: 'Navigation layout' }).selectOption('all');
     await page.getByRole('link', { name: /ATLAS AI Assistant/ }).click();
     await expect(page).toHaveURL(/.*#\/ai/);
     await page.click('text=Low-stock reorder suggestions');

@@ -117,33 +117,33 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* Executive Operations Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-navy-700 border border-navy-800 p-6 sm:p-7 text-white shadow-card">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 border border-white/10 p-5 sm:p-6 md:p-7 text-white shadow-sm">
         {/* Subtle decorative radial teal accent */}
         <div
-          className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-teal-500/20 blur-3xl"
+          className="pointer-events-none absolute -right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
           aria-hidden="true"
         />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold tracking-wide uppercase px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-teal-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
                 Operations Center
               </span>
-              <span className="text-xs text-slate-300 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                {isMockAuth ? 'Demo workspace' : 'Cloud workspace'}
+              <span className="text-xs font-medium text-slate-300">
+                {isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              {currentOrg?.name || 'Electrical Distribution Workspace'}
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              {currentOrg?.name || 'Operations Workspace'}
             </h1>
-            <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Consolidated business dashboard for tracking stock ledger movements, contractor sales orders, GST-compliant tax invoices, and customer receivables.
+            <p className="text-sm text-slate-300/90 max-w-xl leading-relaxed">
+              Real-time operational command for inventory movements, sales orders, and financial workflows.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             {(() => {
               const orderPerm = check('orders:create');
               return (
@@ -158,7 +158,7 @@ export const DashboardPage: React.FC = () => {
                     }
                   }}
                   leftIcon={<Plus className="w-4 h-4" />}
-                  className="bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm font-semibold"
+                  className="h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-semibold shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                 >
                   New Sales Order
                 </Button>
@@ -169,7 +169,7 @@ export const DashboardPage: React.FC = () => {
               size="md"
               onClick={() => navigate('/ai')}
               leftIcon={<Sparkles className="w-4 h-4 text-teal-300" />}
-              className="border-slate-700 bg-slate-800/80 text-white hover:bg-slate-800 hover:border-slate-600"
+              className="h-10 px-4 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/30 text-white font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 justify-center"
             >
               ATLAS AI
             </Button>
