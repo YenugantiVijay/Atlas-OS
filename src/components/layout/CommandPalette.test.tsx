@@ -376,6 +376,40 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(productsService.getProducts).not.toHaveBeenCalled();
   });
 
+  it('moves through authorized search results with arrows and opens the selected entry with Enter', () => {
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'Dashboard' } });
+    const dashboard = screen.getByRole('button', { name: /Dashboard \/$/ });
+    expect(dashboard).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByText('/')).toBeInTheDocument();
+  });
+
+  it('cycles the active result with arrow keys without exposing unauthorized finance navigation', () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: 'sales' });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: '' } });
+    const results = screen.getAllByRole('button').filter((button) => button.hasAttribute('data-command-result'));
+    expect(results.length).toBeGreaterThan(1);
+    expect(results.some((button) => button.textContent?.includes('Payments & Receivables'))).toBe(false);
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(results[1]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+  });
+
   // Test 12: Rapid repeated open/close cycles without React crashing
   it('survives rapid repeated open/close cycles without invariant violations or memory leaks', () => {
     render(
