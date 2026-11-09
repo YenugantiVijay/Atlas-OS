@@ -86,6 +86,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **B2 bounded product/customer search (2026-11-09):** Cloud Ctrl+K product/customer discovery now debounces input and asks the existing tenant-scoped `getProductsPaginated`/`getCustomersPaginated` services for a maximum of **4 products and 3 customers**, rather than loading the organization's entire catalogs when opening the palette. Demo Mode retains its in-memory search. Unit tests updated to verify bounded query behavior. Search remains partial: normalized phone matching through cloud PostgREST, richer record families, and full interaction/performance acceptance are still open. No new migration for this batch; FIN-01 and financial search migrations 040/041 still require approved deployment before corresponding cloud features work. The 200-entry industrial readiness test remains paused.\n\n**B2 keyboard result navigation (2026-11-09; pending PR CI):** Ctrl+K results now have arrow-key selection, Enter activation, selection highlighting, and regression tests for permission-filtered navigation. This is a UI interaction slice, not full Universal Search completion. Cloud normalized-phone search, additional record families, and full scale/interaction acceptance remain open. No production migrations or deferred 200-entry demo test were run.
 
+**PR #43 — B2 cloud phone search (2026-11-09; pending verification):** Migration `042_customer_directory_phone_search.sql` adds a bounded `SECURITY INVOKER` directory RPC that retains ordinary customer-table RLS, requires active organization access and normalizes stored/entered phone digits before matching. The cloud Ctrl+K palette now uses this small directory response (name/company/phone only); it never fetches credit limits or receivables and fails closed if the migration is missing. Added service, UI, and disposable PostgreSQL role/tenant regression tests. Existing name/company search and Demo Mode behavior remain. **B2 stays PARTIAL** until full multi-record search, scale and operator validation. Deploy migration 042 through the approved process before shipping the matching cloud frontend. No live Supabase migration or 200-entry stress test performed.
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
@@ -181,7 +183,7 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 | F-069 | Atlas Universal Search | P | W1 |
 | F-070 | Search invoices by number from anywhere | P | W1 |
 | F-071 | Global receipt/payment search | N | W1 |
-| F-072 | Customer phone lookup globally | N | W1 |
+| F-072 | Customer phone lookup globally | P | W1 |
 | F-073 | Permission-aware global search | P | W1 |
 | F-074 | Rule-based business summaries | I | W0 |
 | F-075 | Low-stock recommendations | I | W0 |

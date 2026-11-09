@@ -18,7 +18,8 @@ import {
 import { useOrg } from '@/features/organizations/OrgContext';
 import { productsService } from '@/services/products.service';
 import { customersService } from '@/services/customers.service';
-import { Product, Customer } from '@/types';
+import { Product } from '@/types';
+import { searchCustomerDirectory, type CustomerDirectorySearchResult } from '@/services/customer-directory-search.service';
 import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { useDialog } from '@/components/ui/useDialog';
@@ -41,7 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { check: checkActionPermission } = useActionPermission();
   const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<CustomerDirectorySearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -77,8 +78,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           : await Promise.all([
               productsService.getProductsPaginated(orgId, { page: 1, pageSize: 4, search: term }, false)
                 .then((result) => result.data),
-              customersService.getCustomersPaginated(orgId, { page: 1, pageSize: 3, search: term }, false)
-                .then((result) => result.data),
+              searchCustomerDirectory(orgId, term, 3),
             ]);
         if (active) {
           setProducts(productList);
