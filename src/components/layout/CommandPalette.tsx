@@ -249,7 +249,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     data-active={selectedIndex === quickActions.indexOf(act)}
                   type="button"
                   onClick={() => handleSelectCreate(act.type)}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-content-primary hover:bg-atlas-50 hover:text-atlas-800 transition-colors text-left"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 hover:text-atlas-800 transition-colors text-left"
                 >
                   <PlusCircle className="w-4 h-4 text-atlas-500" />
                   <span>{act.label}</span>
@@ -271,7 +271,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     data-active={selectedIndex === quickActions.length + filteredNav.indexOf(item)}
                   type="button"
                   onClick={() => handleSelectNav(item.path)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-content-primary hover:bg-atlas-50 data-[active=true]:bg-atlas-100 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2.5">
                     {item.icon}
@@ -298,7 +298,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     data-command-result
                     data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.indexOf(result)}
                     type="button"
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50 data-[active=true]:bg-atlas-100"
                     onClick={() => handleSelectNav(`/${result.record_type === 'invoice' ? 'invoices' : 'payments'}?search=${encodeURIComponent(result.document_number)}`)}
                   >
                     <span className="font-semibold text-content-primary">{result.document_number}</span>
@@ -334,7 +334,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.indexOf(p)}
                     type="button"
                     onClick={() => handleSelectNav(`/products?search=${encodeURIComponent(p.sku)}`)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
                   >
                     <div>
                       <div className="font-semibold text-content-primary">{p.name}</div>
@@ -363,7 +363,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
                     type="button"
                     onClick={() => handleSelectNav(`/customers?search=${encodeURIComponent(c.name)}`)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
                   >
                     <div>
                       <div className="font-semibold text-content-primary">{c.companyName || c.name}</div>
