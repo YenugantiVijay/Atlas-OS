@@ -24,6 +24,9 @@ import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { useDialog } from '@/components/ui/useDialog';
 import { searchFinancialDocuments, type FinancialSearchResult } from '@/services/universal-search.service';
+import { searchOperationalRecords, type OperationalSearchResult } from '@/services/operational-search.service';
+import { suppliersService } from '@/services/suppliers.service';
+import { ordersService } from '@/services/orders.service';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -49,6 +52,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [financialResults, setFinancialResults] = useState<FinancialSearchResult[]>([]);
   const [financialLoading, setFinancialLoading] = useState(false);
   const [financialError, setFinancialError] = useState(false);
+  const [operationalResults, setOperationalResults] = useState<OperationalSearchResult[]>([]);
+  const [operationalLoading, setOperationalLoading] = useState(false);
+  const [operationalError, setOperationalError] = useState(false);
   const dialogRef = useDialog(isOpen, onClose);
   const orgId = currentOrg?.id;
 
@@ -117,6 +123,64 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => { active = false; window.clearTimeout(timer); };
   }, [query, isOpen, orgId, isMockAuth, currentRole]);
 
+  useEffect(() => {
+    let active = true;
+    const term = query.trim();
+    setOperationalResults([]);
+    setOperationalError(false);
+    setOperationalLoading(false);
+    if (!isOpen || !orgId || term.length < 2 || !hasPermission(currentRole, 'data:read')) return;
+
+    const load = async () => {
+      setOperationalLoading(true);
+      try {
+        let results: OperationalSearchResult[];
+        if (isMockAuth) {
+          const [suppliers, quotations, orders] = await Promise.all([
+            suppliersService.getSuppliers(orgId, true),
+            ordersService.getQuotations(orgId, true),
+            ordersService.getSalesOrders(orgId, true),
+          ]);
+          const q = term.toLowerCase();
+          const digits = term.replace(/\D/g, '');
+          const matchesPhone = (phone?: string) => digits.length >= 3 &&
+            Boolean(phone?.replace(/\D/g, '').includes(digits));
+          results = [
+            ...suppliers.filter((s) => s.name.toLowerCase().includes(q) ||
+              s.companyName?.toLowerCase().includes(q) || matchesPhone(s.phone))
+              .slice(0, 3).map((s) => ({
+                recordType: 'supplier' as const, recordId: s.id, reference: s.name,
+                displayName: s.companyName || s.name, contactPhone: s.phone,
+              })),
+            ...quotations.filter((qtn) => qtn.quotationNumber.toLowerCase().includes(q) ||
+              qtn.customer?.name.toLowerCase().includes(q) ||
+              qtn.customer?.companyName?.toLowerCase().includes(q))
+              .slice(0, 3).map((qtn) => ({
+                recordType: 'quotation' as const, recordId: qtn.id,
+                reference: qtn.quotationNumber, displayName: qtn.customer?.name || '',
+              })),
+            ...orders.filter((o) => o.orderNumber.toLowerCase().includes(q) ||
+              o.customer?.name.toLowerCase().includes(q) ||
+              o.customer?.companyName?.toLowerCase().includes(q))
+              .slice(0, 3).map((o) => ({
+                recordType: 'sales_order' as const, recordId: o.id,
+                reference: o.orderNumber, displayName: o.customer?.name || '',
+              })),
+          ];
+        } else {
+          results = await searchOperationalRecords(orgId, term, 3);
+        }
+        if (active) setOperationalResults(results);
+      } catch {
+        if (active) setOperationalError(true);
+      } finally {
+        if (active) setOperationalLoading(false);
+      }
+    };
+    const timer = window.setTimeout(() => { if (active) void load(); }, isMockAuth ? 0 : 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query, isOpen, orgId, isMockAuth, currentRole]);
+
   if (!isOpen) return null;
 
   const navigationItems = [
@@ -170,7 +234,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     )
     .slice(0, 3);
 
-  const resultCount = quickActions.length + filteredNav.length + financialResults.length +
+  const resultCount = quickActions.length + filteredNav.length + financialResults.length + operationalResults.length +
     (query.trim() ? filteredProducts.length + filteredCustomers.length : 0);
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -309,6 +373,34 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </div>
           )}
 
+          {/* Operational searches: 3 rows per family, tenant/RLS-bound in cloud. */}
+          {operationalLoading && <p role="status" className="px-3 text-xs text-content-muted">Searching suppliers and orders...</p>}
+          {operationalError && <p role="alert" className="px-3 text-sm text-rose-700">Operational search is unavailable.</p>}
+          {query.trim().length >= 2 && operationalResults.length > 0 && (
+            <div>
+              <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-content-muted">
+                Suppliers, Quotations & Orders
+              </div>
+              <div className="mt-1 space-y-1">
+                {operationalResults.map((result, index) => (
+                  <button
+                    key={`${result.recordType}-${result.recordId}`}
+                    data-command-result
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + index}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-atlas-50 data-[active=true]:bg-atlas-100"
+                    onClick={() => handleSelectNav(`${result.recordType === 'supplier' ? '/suppliers' : result.recordType === 'quotation' ? '/quotations' : '/orders'}?search=${encodeURIComponent(result.reference)}`)}
+                  >
+                    <span className="font-semibold text-content-primary">
+                      {result.recordType === 'supplier' ? 'Supplier' : result.recordType === 'quotation' ? 'Quotation' : 'Sales Order'} · {result.reference}
+                    </span>
+                    <span className="truncate pl-3 text-content-muted">{result.displayName}{result.contactPhone ? ` · ${result.contactPhone}` : ''}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Filtered Products */}
           {isLoading && <p role="status" className="px-3 text-sm text-content-secondary">Loading products and customers...</p>}
           {loadError && (
@@ -318,7 +410,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </div>
           )}
           {query.trim() && !isLoading && !loadError && filteredNav.length === 0 && quickActions.length === 0 &&
-            filteredProducts.length === 0 && filteredCustomers.length === 0 && (
+            filteredProducts.length === 0 && filteredCustomers.length === 0 && operationalResults.length === 0 &&
+            !operationalLoading && !financialLoading && !operationalError && !financialError && (
               <p role="status" className="px-3 text-sm text-content-secondary">No matching commands, products, or customers.</p>
             )}
           {query.trim() && filteredProducts.length > 0 && (
@@ -331,7 +424,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={p.id}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.indexOf(p)}
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.indexOf(p)}
                     type="button"
                     onClick={() => handleSelectNav(`/products?search=${encodeURIComponent(p.sku)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
@@ -360,7 +453,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={c.id}
                     data-command-result
-                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
+                    data-active={selectedIndex === quickActions.length + filteredNav.length + financialResults.length + operationalResults.length + filteredProducts.length + filteredCustomers.indexOf(c)}
                     type="button"
                     onClick={() => handleSelectNav(`/customers?search=${encodeURIComponent(c.name)}`)}
                     className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-atlas-50 data-[active=true]:bg-atlas-100 text-left"
