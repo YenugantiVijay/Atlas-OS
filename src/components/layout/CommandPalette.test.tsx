@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from './CommandPalette';
@@ -498,6 +498,104 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     );
     fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'QT-42' } });
     expect(await screen.findByRole('alert')).toHaveTextContent('Operational search is unavailable');
+  });
+
+  it('announces the selected command and supports Home/End and clamped keyboard activation', () => {
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+        <Location />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    const results = screen.getAllByRole('button').filter((b) => b.hasAttribute('data-command-result'));
+    expect(input).toHaveAttribute('aria-describedby', 'atlas-command-selection');
+    expect(input).toHaveAttribute('maxLength', '100');
+    expect(screen.getByRole('status', { name: '' }).textContent).toBeDefined();
+    expect(document.getElementById('atlas-command-selection')).toHaveTextContent('Selected 1 of');
+    fireEvent.keyDown(input, { key: 'End' });
+    expect(results[results.length - 1]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'Home' });
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(results[results.length - 1]).toHaveAttribute('data-active', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(results[0]).toHaveAttribute('data-active', 'true');
+  });
+
+  it('does not render stale operational results while a newer query is pending', async () => {
+    let resolveOld: ((rows: any[]) => void) | undefined;
+    vi.mocked(searchOperationalRecords).mockImplementation((_org, term) => {
+      if (term === 'old') return new Promise((resolve) => { resolveOld = resolve; });
+      return Promise.resolve([{ recordType: 'supplier', recordId: 'new-1', reference: 'New Supplier', displayName: 'New Supplier' }]);
+    });
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'old' } });
+    await waitFor(() => expect(searchOperationalRecords).toHaveBeenCalledWith('cloud-org', 'old', 3));
+    fireEvent.change(input, { target: { value: 'new' } });
+    expect(screen.queryByRole('button', { name: /Old Supplier/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /New Supplier/ })).toBeInTheDocument();
+    await act(async () => {
+      resolveOld?.([{ recordType: 'supplier', recordId: 'old-1', reference: 'Old Supplier', displayName: 'Old Supplier' }]);
+    });
+    expect(screen.queryByRole('button', { name: /Old Supplier/ })).not.toBeInTheDocument();
+  });
+
+  it('immediately hides financial results when a role loses finance permission', async () => {
+    vi.mocked(searchFinancialDocuments).mockResolvedValue([{
+      record_type: 'invoice', record_id: 'inv-sensitive',
+      document_number: 'INV-SENSITIVE', customer_name: 'Private Firm', document_date: '2026-11-09',
+    }]);
+    const { rerender } = render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: 'INV-SENSITIVE' } });
+    expect(await screen.findByRole('button', { name: /INV-SENSITIVE/ })).toBeInTheDocument();
+    vi.mocked(useOrg).mockReturnValue({ ...context, currentRole: 'sales' });
+    rerender(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /INV-SENSITIVE/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Private Firm')).not.toBeInTheDocument();
+  });
+
+  it('does not claim there are no results when finance-only search finds a receipt', async () => {
+    vi.mocked(searchFinancialDocuments).mockResolvedValue([{
+      record_type: 'payment', record_id: 'pay-1',
+      document_number: 'PAY-UNIQUE-908', customer_name: 'Buyer', document_date: '2026-11-09',
+    }]);
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'PAY-UNIQUE-908' } });
+    expect(await screen.findByRole('button', { name: /PAY-UNIQUE-908/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Loading products and customers...')).not.toBeInTheDocument());
+    expect(screen.queryByText('No matching results.')).not.toBeInTheDocument();
+  });
+
+  it('limits cloud query length to 100 characters before requesting any search RPC', async () => {
+    render(
+      <MemoryRouter>
+        <CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'a'.repeat(101) } });
+    await waitFor(() => expect(screen.getByLabelText('Search Atlas OS')).toHaveValue('a'.repeat(101)));
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+    expect(searchFinancialDocuments).not.toHaveBeenCalled();
+    expect(productsService.getProductsPaginated).not.toHaveBeenCalled();
   });
 
   // Test 12: Rapid repeated open/close cycles without React crashing
