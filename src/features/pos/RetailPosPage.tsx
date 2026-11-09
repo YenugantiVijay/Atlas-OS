@@ -45,7 +45,7 @@ export const RetailPosPage: React.FC = () => {
   const customerKey = `${identity}:${customerTerm.trim()}`;
   const products = productResponse.key === productKey ? productResponse.rows : [];
   const customers = customerResponse.key === customerKey ? customerResponse.rows : [];
-  const lines = cart.identity === identity ? cart.lines : [];
+  const lines = useMemo(() => (cart.identity === identity ? cart.lines : []), [cart, identity]);
   const customer = selectedCustomer?.identity === identity ? selectedCustomer.customer : null;
   const completed = savedOrder?.identity === identity ? savedOrder : null;
   const permission = check('orders:create');
