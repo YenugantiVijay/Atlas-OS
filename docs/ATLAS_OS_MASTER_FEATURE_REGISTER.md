@@ -80,6 +80,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **FIN-01 first implementation (2026-11-07):** Migration `040_financial_export_single_statement_snapshot.sql` provides a role-checked, bounded, *single-statement MVCC* invoice/payment/child/reference JSON snapshot. Cloud Excel downloads now use only that verified snapshot; legacy multi-request fetch is not the certified export path. Dedicated browser tests and disposable PostgreSQL contract tests added. Review [FIN-01 architecture and release gates](./FIN_01_CONSISTENT_FINANCIAL_EXPORT.md). **CI pending; no production database changes.** B2 Universal Search remains next in the master sequence.
 
+**Step 7 — B2 Universal Search (first slice, 2026-11-09):** The existing Ctrl+K command palette now prevents Sales/Inventory/Viewer from navigating to raw finance routes (invoices/payments/reports), matching SEC-01's database and route permissions. Customer search also matches normalized phone digits (minimum three) in the current organization's already-authorized customer directory, with regression tests. **B2 remains PARTIAL:** cross-module invoice/receipt search, bounded server-side queries, keyboard result navigation, and permissions-safe financial results remain open. Full implementation must avoid loading unbounded complete catalogs for every query. FIN-01 PR #38 was merged as `31c60c6`; `main` and `Vijay-Atlas` synchronized. The 200-entry industrial test remains deferred.
+
 ## Feature inventory
 
 | ID | Feature | Status | Wave |
