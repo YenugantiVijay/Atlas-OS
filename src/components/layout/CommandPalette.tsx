@@ -186,7 +186,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             Boolean(phone?.replace(/\D/g, '').includes(digits));
           results = [
             ...suppliers.filter((s) => s.name.toLowerCase().includes(q) ||
-              s.companyName?.toLowerCase().includes(q) || matchesPhone(s.phone))
+              s.companyName?.toLowerCase().includes(q) ||
+              s.gstin?.toLowerCase().includes(q) || matchesPhone(s.phone))
               .slice(0, 3).map((s) => ({
                 recordType: 'supplier' as const, recordId: s.id, reference: s.name,
                 displayName: s.companyName || s.name, contactPhone: s.phone,
@@ -260,23 +261,29 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     item.label.toLowerCase().includes(query.toLowerCase())
   );
 
-  const filteredProducts = catalogResponseKey === searchKey && dataAllowed ? products
-    .filter(
-      (p) =>
-        p.name.toLowerCase().includes(query.toLowerCase()) ||
-        p.sku.toLowerCase().includes(query.toLowerCase()) ||
-        p.brand?.toLowerCase().includes(query.toLowerCase())
-    )
-    .slice(0, 4) : [];
+  // Cloud results are already query-matched and bounded by RLS-scoped services.
+  // Re-filtering on displayed fields here incorrectly hid valid GSTIN/HSN or
+  // normalized-phone matches (the matching field may not be in the RPC shape).
+  // Demo data uses the same matching rules locally, because it has no RPC.
+  const termLower = query.trim().toLowerCase();
+  const digits = query.replace(/\D/g, '');
+  const filteredProducts = catalogResponseKey === searchKey && dataAllowed ? (
+    isMockAuth
+      ? products.filter((p) => p.name.toLowerCase().includes(termLower) ||
+          p.sku.toLowerCase().includes(termLower) ||
+          Boolean(p.brand?.toLowerCase().includes(termLower)) ||
+          Boolean(p.hsnCode?.toLowerCase().includes(termLower)))
+      : products
+  ).slice(0, 4) : [];
 
-  const filteredCustomers = catalogResponseKey === searchKey && dataAllowed ? customers
-    .filter(
-      (c) =>
-        c.name.toLowerCase().includes(query.toLowerCase()) ||
-        c.companyName?.toLowerCase().includes(query.toLowerCase()) ||
-        c.phone?.replace(/\D/g, '').includes(query.replace(/\D/g, '')) && query.replace(/\D/g, '').length >= 3
-    )
-    .slice(0, 3) : [];
+  const filteredCustomers = catalogResponseKey === searchKey && dataAllowed ? (
+    isMockAuth
+      ? customers.filter((c) => c.name.toLowerCase().includes(termLower) ||
+          Boolean(c.companyName?.toLowerCase().includes(termLower)) ||
+          Boolean(c.gstin?.toLowerCase().includes(termLower)) ||
+          (digits.length >= 3 && Boolean(c.phone?.replace(/\D/g, '').includes(digits))))
+      : customers
+  ).slice(0, 3) : [];
 
   const resultCount = quickActions.length + filteredNav.length + financialResults.length + operationalResults.length +
     (query.trim() ? filteredProducts.length + filteredCustomers.length : 0);
@@ -504,7 +511,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     <div>
                       <div className="font-semibold text-content-primary">{p.name}</div>
                       <div className="text-xs text-content-secondary mt-0.5">
-                        SKU: {p.sku} • Stock: {p.currentStock || 0} {p.uom}
+                        SKU: {p.sku}{p.hsnCode ? ` · HSN: ${p.hsnCode}` : ''} · Stock: {p.currentStock ?? '—'} {p.uom}
                       </div>
                     </div>
                     <span className="font-medium text-atlas-700 tabular-nums">₹{p.sellingPrice}</span>
