@@ -382,6 +382,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsQuickCreateOpen(false);
               }}
               aria-label="User Profile & Shop Menu"
+              title="User Profile & Shop Menu"
               aria-expanded={isUserMenuOpen}
               className={'group inline-flex h-10 max-w-[235px] items-center gap-2 rounded-xl border bg-white px-1.5 pr-2.5 text-left shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 lg:max-w-[290px] 2xl:max-w-[345px] ' +
                 (isUserMenuOpen ? 'border-teal-400 bg-teal-50/50 ring-2 ring-teal-100' : 'border-slate-200')}
