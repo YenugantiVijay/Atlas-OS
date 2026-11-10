@@ -52,7 +52,8 @@ describe('PR #55 — inventory movement product embed disambiguation', () => {
     const rows = await inventoryService.getStockMovements(orgId, undefined, false);
 
     expect(supabase!.from).toHaveBeenCalledWith('stock_movements');
-    expect(query.select).toHaveBeenCalledExactlyOnceWith(querySelect);
+    expect(query.select).toHaveBeenCalledTimes(1);
+    expect(query.select).toHaveBeenCalledWith(querySelect);
     expect(query.eq).toHaveBeenCalledWith('organization_id', orgId);
     expect(query.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(query.limit).toHaveBeenCalledWith(100);
@@ -75,7 +76,8 @@ describe('PR #55 — inventory movement product embed disambiguation', () => {
       orgId, productId, false, { page: 2, pageSize: 25 },
     );
 
-    expect(query.select).toHaveBeenCalledExactlyOnceWith(querySelect);
+    expect(query.select).toHaveBeenCalledTimes(1);
+    expect(query.select).toHaveBeenCalledWith(querySelect);
     expect(query.eq).toHaveBeenCalledWith('organization_id', orgId);
     expect(query.eq).toHaveBeenCalledWith('product_id', productId);
     expect(query.range).toHaveBeenCalledWith(25, 49);
@@ -88,7 +90,8 @@ describe('PR #55 — inventory movement product embed disambiguation', () => {
     vi.mocked(supabase!.from).mockReturnValue(query as any);
     await expect(inventoryService.getStockMovements(orgId, undefined, false))
       .resolves.toEqual([]);
-    expect(query.select).toHaveBeenCalledExactlyOnceWith(querySelect);
+    expect(query.select).toHaveBeenCalledTimes(1);
+    expect(query.select).toHaveBeenCalledWith(querySelect);
   });
 
   it('does not silently swallow a database query failure', async () => {
@@ -116,12 +119,14 @@ describe('PR #55 — inventory movement product embed disambiguation', () => {
       '22222222-3333-4444-8555-666666666666', false,
     );
 
-    expect(supabase!.rpc).toHaveBeenCalledExactlyOnceWith('record_stock_adjustment', {
+    expect(supabase!.rpc).toHaveBeenCalledTimes(1);
+    expect(supabase!.rpc).toHaveBeenCalledWith('record_stock_adjustment', {
       p_org_id: orgId, p_product_id: productId,
       p_quantity_change: -3, p_notes: 'Physical count correction',
       p_idempotency_key: '22222222-3333-4444-8555-666666666666',
     });
-    expect(query.select).toHaveBeenCalledExactlyOnceWith(querySelect);
+    expect(query.select).toHaveBeenCalledTimes(1);
+    expect(query.select).toHaveBeenCalledWith(querySelect);
     expect(query.eq).toHaveBeenCalledWith('id', movementId);
     expect(query.single).toHaveBeenCalledTimes(1);
     expect(row.id).toBe(movementId);
