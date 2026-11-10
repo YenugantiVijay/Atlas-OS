@@ -701,4 +701,74 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     fireEvent.click(openBtn);
     expect(screen.getByPlaceholderText('Search commands, products, customers, or workflows...')).toBeInTheDocument();
   }, 15000);
+  it('keeps a bounded cloud customer matched by GSTIN even when the RPC intentionally hides the matching field', async () => {
+    vi.mocked(searchCustomerDirectory).mockResolvedValue([{
+      id: 'c-gstin', name: 'Ravi Electricals', companyName: 'Ravi Enterprises', phone: '+91 98765-43210',
+    }]);
+    render(<MemoryRouter><CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} /><Location /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'ABCDE1234F' } });
+    const result = await screen.findByRole('button', { name: /Ravi Enterprises/ });
+    expect(searchCustomerDirectory).toHaveBeenCalledWith('cloud-org', 'ABCDE1234F', 3);
+    expect(result).toBeInTheDocument();
+    expect(result).not.toHaveTextContent('ABCDE1234F');
+    expect(result).not.toHaveTextContent('Receivable');
+    expect(customersService.getCustomers).not.toHaveBeenCalled();
+    fireEvent.click(result);
+    expect(screen.getByText('/customers?search=Ravi%20Electricals')).toBeInTheDocument();
+  });
+
+  it('keeps a cloud product matched by HSN, without requiring its name, SKU or brand to match', async () => {
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValue({ data: [{
+      id: 'p-hsn', name: 'Insulated Copper Cable', sku: 'CB-100', brand: 'Cables',
+      hsnCode: '8544', sellingPrice: 200, currentStock: 7, uom: 'Coils',
+    }], totalCount: 1 } as any);
+    render(<MemoryRouter><CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} /><Location /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: '8544' } });
+    const result = await screen.findByRole('button', { name: /Insulated Copper Cable/ });
+    expect(productsService.getProductsPaginated).toHaveBeenCalledWith('cloud-org', {
+      page: 1, pageSize: 4, search: '8544',
+    }, false);
+    expect(result).toHaveTextContent('HSN: 8544');
+    fireEvent.click(result);
+    expect(screen.getByText('/products?search=CB-100')).toBeInTheDocument();
+  });
+
+  it('shows GSTIN-matched suppliers through bounded operational RPC results, without a full supplier catalog load', async () => {
+    const fullCatalogSpy = vi.spyOn(suppliersService, 'getSuppliers');
+    vi.mocked(searchOperationalRecords).mockResolvedValue([{
+      recordType: 'supplier', recordId: 's-gstin',
+      reference: 'Global Electric Co', displayName: 'Global Electric Company',
+    }]);
+    render(<MemoryRouter><CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} /><Location /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Search Atlas OS'), { target: { value: 'ZYXWV9876P' } });
+    const result = await screen.findByRole('button', { name: /Supplier · Global Electric Co/ });
+    expect(searchOperationalRecords).toHaveBeenCalledWith('cloud-org', 'ZYXWV9876P', 3);
+    expect(result).toBeInTheDocument();
+    expect(result).not.toHaveTextContent('ZYXWV9876P');
+    expect(fullCatalogSpy).not.toHaveBeenCalled();
+  });
+
+  it('matches product HSN and customer GSTIN in local demo without cloud RPC requests', async () => {
+    vi.mocked(useOrg).mockReturnValue({ ...context, isMockAuth: true, isDemoMode: true });
+    vi.mocked(productsService.getProducts).mockResolvedValue([{
+      id: 'demo-product', name: 'Copper Conductor', sku: 'CC-1', hsnCode: '8544',
+      sellingPrice: 100, uom: 'Coils',
+    } as any]);
+    vi.mocked(customersService.getCustomers).mockResolvedValue([{
+      id: 'demo-customer', name: 'Ravi Electricals', gstin: '29ABCDE1234F1Z5',
+    } as any]);
+    const ops = vi.spyOn(suppliersService, 'getSuppliers').mockResolvedValue([]);
+    vi.spyOn(ordersService, 'getQuotations').mockResolvedValue([]);
+    vi.spyOn(ordersService, 'getSalesOrders').mockResolvedValue([]);
+    render(<MemoryRouter><CommandPalette isOpen onClose={() => {}} onOpenQuickCreate={() => {}} /></MemoryRouter>);
+    const input = screen.getByLabelText('Search Atlas OS');
+    fireEvent.change(input, { target: { value: '8544' } });
+    expect(await screen.findByRole('button', { name: /Copper Conductor/ })).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'ABCDE1234F' } });
+    expect(await screen.findByRole('button', { name: /Ravi Electricals/ })).toBeInTheDocument();
+    expect(ops).toHaveBeenCalledTimes(1);
+    expect(searchCustomerDirectory).not.toHaveBeenCalled();
+    expect(searchOperationalRecords).not.toHaveBeenCalled();
+  });
+
 });

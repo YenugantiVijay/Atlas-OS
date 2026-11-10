@@ -300,7 +300,7 @@ export const RetailPosPage: React.FC = () => {
                 setProductTerm('');
               }
             }}
-            placeholder="Search by product name, SKU or brand"/>
+            placeholder="Product name, SKU, brand or HSN"/>
           {productError && <p role="alert" className="mt-2 text-xs text-rose-700">{productError}</p>}
           {productTerm.trim().length >= 2 && !productError && productResponse.key !== productKey && (
             <p role="status" className="mt-2 text-xs text-slate-500">Searching products…</p>
@@ -362,7 +362,7 @@ export const RetailPosPage: React.FC = () => {
                 setCustomerTerm('');
               }
             }}
-            placeholder="Search name, company or phone"/>
+            placeholder="Customer name, company, phone or GSTIN"/>
           {customerError && <p role="alert" className="mt-2 text-xs text-rose-700">{customerError}</p>}
           {customer && (
             <p role="status" className="mt-2 truncate text-xs font-semibold text-teal-800" title={customer.companyName || customer.name}>

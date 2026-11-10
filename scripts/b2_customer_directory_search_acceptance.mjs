@@ -15,6 +15,13 @@ export async function runB2CustomerDirectorySearchAcceptance({
     [idA, idB, idOther, orgAId, orgBId],
   );
 
+  // PR #54: GSTIN matching on the already-minimal directory contract; the
+  // identifier itself is not returned to callers.
+  await client.query(
+    "UPDATE public.customers SET gstin = '29ABCDE1234F1Z5' WHERE id = $1::uuid",
+    [idA],
+  );
+
   const lookup = async (userId, sqlRole, query, requestedOrg = orgAId, limit = 3) => {
     return withRoleContext(client, { role: sqlRole, userId }, async () =>
       (await client.query(
@@ -49,6 +56,17 @@ export async function runB2CustomerDirectorySearchAcceptance({
   recordTest('B2-PHONE-BOUNDS', 'Names, companies, min 3 phone digits and limit are enforced',
     matchOk, `name=${nameRows.length} company=${companyRows.length} twoDigits=${shortRows.length} limit=${limitedRows.length}`,
     matchOk ? null : matchError);
+
+  let gstinRows = [], gstinError = null;
+  try { gstinRows = await lookup(ownerAId, 'authenticated', 'ABCDE1234F'); }
+  catch (e) { gstinError = e; }
+  const gstinOk = !gstinError && gstinRows.some(r => r.id === idA) &&
+    gstinRows.every(r => r.id !== idOther && !('gstin' in r) &&
+      !('credit_limit' in r) && !('current_receivable' in r));
+  recordTest('PR54-CUSTOMER-GSTIN',
+    'Customer GSTIN substrings match without revealing GSTIN or financial data',
+    gstinOk, `rows=${gstinRows.length} error=${gstinError?.message || 'none'}`,
+    gstinOk ? null : gstinError);
 
   let invalidError = null;
   try { await lookup(ownerAId, 'authenticated', '98765', orgAId, 21); } catch (e) { invalidError = e; }

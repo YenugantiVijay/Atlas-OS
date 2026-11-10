@@ -5,6 +5,9 @@ export interface CustomerDirectorySearchResult {
   name: string;
   companyName?: string;
   phone?: string;
+  // Demo catalog may supply GSTIN for local matching; cloud directory RPC
+  // intentionally does not return identifiers beyond display/contact fields.
+  gstin?: string;
 }
 
 /**
