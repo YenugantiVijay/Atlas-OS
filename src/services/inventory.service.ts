@@ -19,6 +19,13 @@ export function mapDbStockMovement(row: any): StockMovement {
   };
 }
 
+// The stock_movements table has TWO FKs to products: product_id and
+// (product_id, organization_id). An unqualified products(*) embed is ambiguous
+// (PostgREST PGRST201). Pin the tenant-consistent composite constraint in BOTH
+// reads while preserving the row.products mapping expected by the UI.
+const STOCK_MOVEMENT_WITH_PRODUCT_SELECT =
+  '*, products:products!fk_stock_movements_product_org(*)';
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const inventoryService = {
@@ -38,7 +45,7 @@ export const inventoryService = {
 
     let query = supabase
       .from('stock_movements')
-      .select('*, products(*)')
+      .select(STOCK_MOVEMENT_WITH_PRODUCT_SELECT)
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false });
 
@@ -112,7 +119,7 @@ export const inventoryService = {
     if (movementId) {
       const { data: movementRow, error: fetchErr } = await supabase
         .from('stock_movements')
-        .select('*, products(*)')
+        .select(STOCK_MOVEMENT_WITH_PRODUCT_SELECT)
         .eq('id', movementId)
         .single();
 
