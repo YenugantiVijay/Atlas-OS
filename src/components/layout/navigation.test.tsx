@@ -128,9 +128,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
-      // Open Administration section to verify Audit Trail link
-      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
-
       // Verify "Activity Feed" is completely removed
       expect(screen.queryByText('Activity Feed')).toBeNull();
 
@@ -421,9 +418,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
         </MemoryRouter>
       );
 
-      // Open Administration section
-      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
-
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();
       expect(screen.getByText('Audit Trail')).toBeInTheDocument();
@@ -441,9 +435,6 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
           <Sidebar collapsed={false} onToggle={() => {}} />
         </MemoryRouter>
       );
-
-      // Open Administration section
-      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
       expect(screen.getByText('Team & Access')).toBeInTheDocument();

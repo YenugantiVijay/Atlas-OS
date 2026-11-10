@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -17,7 +17,6 @@ import {
   ChevronRight,
   TrendingUp,
   X,
-  ChevronDown,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useOrg } from '@/features/organizations/OrgContext';
@@ -41,21 +40,21 @@ interface NavItem {
 
 interface NavGroup {
   title: string;
-  collapsible?: boolean;
+  showHeading?: boolean;
   items: NavItem[];
 }
 
 const NAV_GROUPS_CONFIG: NavGroup[] = [
   {
     title: 'Overview',
-    collapsible: false,
+    showHeading: false,
     items: [
       { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
     ],
   },
   {
     title: 'Sales',
-    collapsible: true,
+    showHeading: true,
     items: [
       { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
       { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
@@ -66,7 +65,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
   },
   {
     title: 'Inventory',
-    collapsible: true,
+    showHeading: true,
     items: [
       { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
@@ -75,7 +74,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
   },
   {
     title: 'Finance',
-    collapsible: true,
+    showHeading: true,
     items: [
       { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'reports:financial' },
       { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
@@ -83,14 +82,14 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
   },
   {
     title: 'Intelligence',
-    collapsible: false,
+    showHeading: false,
     items: [
       { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-teal-400" />, action: 'data:read' },
     ],
   },
   {
     title: 'Administration',
-    collapsible: true,
+    showHeading: true,
     items: [
       { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
       { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
@@ -107,8 +106,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
-  const { pathname } = useLocation();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   // Strictly filter by authorized permissions; roles cannot see links without permission
   const authorizedGroups = useMemo(
@@ -121,18 +118,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         .filter((group) => group.items.length > 0),
     [currentRole]
   );
-
-  // Automatically keep the active route's group open
-  useEffect(() => {
-    const activeGroup = authorizedGroups.find((group) =>
-      group.items.some((item) => item.path === pathname)
-    );
-    if (activeGroup && activeGroup.collapsible) {
-      setExpandedSections((prev) =>
-        prev[activeGroup.title] === true ? prev : { ...prev, [activeGroup.title]: true }
-      );
-    }
-  }, [pathname, authorizedGroups]);
 
   return (
     <>
@@ -203,83 +188,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
-          {authorizedGroups.map((group) => {
-            const isCollapsible = Boolean(group.collapsible && (!collapsed || isMobileOpen));
-            const isExpanded =
-              expandedSections[group.title] ?? group.items.some((item) => item.path === pathname);
-            const sectionSlug = group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          {authorizedGroups.map((group) => (
+            <div key={group.title} className="space-y-1">
+              {(!collapsed || isMobileOpen) && group.showHeading !== false && (
+                <h5 className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-slate-400 select-none">
+                  {group.title}
+                </h5>
+              )}
 
-            return (
-              <div key={group.title} className="space-y-1">
-                {isCollapsible ? (
-                  <button
-                    type="button"
-                    aria-expanded={isExpanded}
-                    aria-controls={`section-${sectionSlug}`}
-                    onClick={() =>
-                      setExpandedSections((prev) => ({ ...prev, [group.title]: !isExpanded }))
-                    }
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-                  >
-                    <span>{group.title}</span>
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        isExpanded ? 'rotate-180 text-teal-300' : ''
-                      }`}
-                      aria-hidden="true"
-                    />
-                  </button>
-                ) : (!collapsed || isMobileOpen) && group.collapsible === false && group.items.length > 1 ? (
-                  <h5 className="px-2.5 mb-1 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
-                    {group.title}
-                  </h5>
-                ) : null}
-
-                <ul
-                  id={isCollapsible ? `section-${sectionSlug}` : undefined}
-                  hidden={isCollapsible && !isExpanded}
-                  className={`space-y-1 ${isCollapsible && !isExpanded ? 'hidden' : ''} ${
-                    isCollapsible ? 'pl-1' : ''
-                  }`}
-                >
-                  {group.items.map((item) => (
-                    <li key={item.path}>
-                      <NavLink
-                        to={item.path}
-                        end={item.path === '/'}
-                        onClick={() => {
-                          if (isMobileOpen && onCloseMobile) {
-                            onCloseMobile();
-                          }
-                        }}
-                        title={collapsed && !isMobileOpen ? item.label : undefined}
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
-                            isActive
-                              ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
-                              : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
-                          } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
+              <ul className="space-y-1">
+                {group.items.map((item) => (
+                  <li key={item.path}>
+                    <NavLink
+                      to={item.path}
+                      end={item.path === '/'}
+                      onClick={() => {
+                        if (isMobileOpen && onCloseMobile) {
+                          onCloseMobile();
                         }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            <span
-                              className={`shrink-0 transition-colors ${
-                                isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
-                              }`}
-                            >
-                              {item.icon}
-                            </span>
-                            {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
-                          </>
-                        )}
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
+                      }}
+                      title={collapsed && !isMobileOpen ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
+                          isActive
+                            ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
+                            : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
+                        } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <span
+                            className={`shrink-0 transition-colors ${
+                              isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
+                          {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
+                        </>
+                      )}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         {/* Bottom status */}
