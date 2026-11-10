@@ -16,6 +16,28 @@ export const MAX_RECEIPT_LINES = 50;
 export const MAX_PACKAGES = 200;
 export const MAX_UNITS = 1_000_000;
 
+/** Display the common cases × units/case grid without guessing a package size.
+ * Mixed carton counts remain in the original explicit representation. */
+export function readUniformCartons(packageText: string): {
+  isUniform: boolean; cases: string; unitsPerCase: string;
+} {
+  const trimmed = packageText.trim();
+  if (!trimmed) return { isUniform: true, cases: '', unitsPerCase: '' };
+  const match = /^(\d*)\s*[x×]\s*(\d*)$/i.exec(trimmed);
+  return match
+    ? { isUniform: true, cases: match[1], unitsPerCase: match[2] }
+    : { isUniform: false, cases: '', unitsPerCase: '' };
+}
+
+/** Incomplete input stays in the worksheet until both fields are entered.
+ * Existing parsePackageCounts still rejects it before a draft is saved. */
+export function writeUniformCartons(cases: string, unitsPerCase: string): string {
+  if (!/^\d*$/.test(cases) || !/^\d*$/.test(unitsPerCase)) {
+    throw new Error('Cases and units per case must be whole numbers.');
+  }
+  return !cases && !unitsPerCase ? '' : cases + 'x' + unitsPerCase;
+}
+
 /**
  * An explicit package list, NOT an assumed carton size:
  * "12, 10, 11" => three cartons of different counts.
