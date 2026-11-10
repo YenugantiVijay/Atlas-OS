@@ -136,7 +136,7 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(grid).toHaveTextContent('WIRE-1');
     expect(grid).toHaveTextContent('18%');
     expect(screen.getByText('Estimated total')).toBeInTheDocument();
-    expect(screen.getByText('₹118.00')).toBeInTheDocument();
+    expect(screen.getAllByText('₹118.00').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/Draft-only foundation:/)).toBeInTheDocument();
     expect(screen.getByText(/This is not a tax invoice/)).toBeInTheDocument();
   });
