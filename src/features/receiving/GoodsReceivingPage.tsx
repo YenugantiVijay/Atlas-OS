@@ -369,7 +369,7 @@ export const GoodsReceivingPage: React.FC = () => {
               className="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"/>
           </div>
           <p className="text-xs text-slate-500">Suggestions show live stock and current catalog selling price. If an item is new, create it here without leaving this receipt.</p>
-          {searchError && <p role="alert" className="text-xs text-rose-700">{searchError}</p>
+          {searchError && <p role="alert" className="text-xs text-rose-700">{searchError}</p>}
           {matches.length > 0 && <div className="max-h-44 max-w-2xl divide-y overflow-auto rounded-lg border border-slate-200" aria-label="Receiving product matches">
             {matches.map((p, i) => <button type="button" key={p.id} disabled={!editable}
               onClick={() => addProduct(p)}
