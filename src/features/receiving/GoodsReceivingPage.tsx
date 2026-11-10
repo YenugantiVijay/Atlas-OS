@@ -8,6 +8,8 @@ import type { Product, Supplier } from '@/types';
 import { productsService } from '@/services/products.service';
 import { suppliersService } from '@/services/suppliers.service';
 import { goodsReceivingService, type GoodsReceiptRecord } from '@/services/goods-receiving.service';
+import { supplierPriceHistoryService, type SupplierPriceEntry } from '@/services/supplier-price-history.service';
+import { supplierRateChange } from '@/features/pricing/supplier-rate-utils';
 import {
   buildGoodsReceiptPayload, computeReceiptLine, parseReceivingNotebook,
   readUniformCartons, writeUniformCartons, parsePackageCounts,
@@ -29,6 +31,7 @@ export const GoodsReceivingPage: React.FC = () => {
   activeOrgRef.current = orgId;
   const canReceive = check('inventory:receive');
   const canCreateProduct = check('products:create');
+  const canReadSupplierRates = check('supplier-prices:read').allowed;
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [receipts, setReceipts] = useState<GoodsReceiptRecord[]>([]);
   const [supplierId, setSupplierId] = useState('');
@@ -36,6 +39,11 @@ export const GoodsReceivingPage: React.FC = () => {
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<ReceiptWorksheetLine[]>([]);
+  const [priorRates, setPriorRates] = useState<{
+    key: string;
+    entries: Record<string, Pick<SupplierPriceEntry, 'unitCost' | 'effectiveOn' | 'sourceType'>>;
+    error: boolean;
+  }>({ key: '', entries: {}, error: false });
   const [mixedRows, setMixedRows] = useState<Set<string>>(() => new Set());
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [receiptId, setReceiptId] = useState<string>(() => crypto.randomUUID());
@@ -109,6 +117,42 @@ export const GoodsReceivingPage: React.FC = () => {
     return () => { active = false; clearTimeout(timer); };
   }, [orgId, canReceive.allowed, isMockAuth, term]);
 
+  // Exact supplier and product comparisons as of the receipt date.
+  // Missing history is unknown, never a zero-valued price.
+  const rateLookupKey = JSON.stringify([orgId, supplierId, date, rows.map((r) => r.product.id)]);
+  useEffect(() => {
+    let active = true;
+    if (!orgId || !supplierId || !date || !rows.length || !canReadSupplierRates || isMockAuth) {
+      setPriorRates({ key: '', entries: {}, error: false });
+      return;
+    }
+    const selectedIds = rows.map((r) => r.product.id);
+    const timer = window.setTimeout(async () => {
+      try {
+        const entries: Record<string, Pick<SupplierPriceEntry, 'unitCost' | 'effectiveOn' | 'sourceType'>> = {};
+        for (let offset = 0; offset < selectedIds.length; offset += 5) {
+          const batch = await Promise.all(selectedIds.slice(offset, offset + 5).map(async (productId) => {
+            const history = await supplierPriceHistoryService.list(orgId, {
+              supplierId, productId, asOf: date, limit: 1,
+            });
+            return { productId, latest: history[0] };
+          }));
+          if (!active) return;
+          for (const item of batch) {
+            if (item.latest) entries[item.productId] = item.latest;
+          }
+        }
+        if (active) setPriorRates({ key: rateLookupKey, entries, error: false });
+      } catch {
+        if (active) setPriorRates({ key: rateLookupKey, entries: {}, error: true });
+      }
+    }, 240);
+    return () => { active = false; window.clearTimeout(timer); };
+  // The key only changes on supplier/date/product-ID changes, not editing quantities.
+  }, [rateLookupKey, orgId, supplierId, date, canReadSupplierRates, isMockAuth]);
+
+  const visiblePriorRates = priorRates.key === rateLookupKey ? priorRates.entries : {};
+  const priorRatesUnavailable = priorRates.key === rateLookupKey && priorRates.error;
   const editable = !busy && !isMockAuth && canReceive.allowed && savedState !== 'POSTED';
   const canQuickCreate = editable && canCreateProduct.allowed && rows.length < 50;
   const markDirty = () => {
@@ -236,16 +280,20 @@ export const GoodsReceivingPage: React.FC = () => {
     await runOnce(async () => {
       const parsed = parseReceivingNotebook(notebook);
       const imported: ReceiptWorksheetLine[] = [];
-      for (const row of parsed) {
-        const result = await productsService.getProductsPaginated(
-          orgId, { search: row.sku, page: 1, pageSize: 8, isActive: true }, false,
-        );
-        const match = result.data.find((p) => p.sku.toLowerCase() === row.sku.toLowerCase());
-        if (!match) throw new Error('SKU not found or inactive in this business: ' + row.sku);
-        imported.push({
-          product: match, packageText: row.packageText,
-          looseUnits: row.looseUnits, unitCost: row.unitCost,
-        });
+      for (let offset = 0; offset < parsed.length; offset += 5) {
+        const batch = await Promise.all(parsed.slice(offset, offset + 5).map(async (row) => {
+          const result = await productsService.getProductsPaginated(
+            orgId, { search: row.sku, page: 1, pageSize: 100, isActive: true }, false,
+          );
+          const skuMatch = result.data.find((p) => p.sku.toLowerCase() === row.sku.toLowerCase());
+          const nameMatches = result.data.filter((p) => p.name.toLowerCase() === row.sku.toLowerCase());
+          const match = skuMatch || (nameMatches.length === 1 && result.totalCount <= 100 ? nameMatches[0] : null);
+          if (!match) throw new Error('Product not found or name ambiguous: ' + row.sku +
+            '. Use an exact SKU, or create the product using New product first.');
+          return { product: match, packageText: row.packageText,
+            looseUnits: row.looseUnits, unitCost: row.unitCost };
+        }));
+        imported.push(...batch);
       }
       if (activeOrgRef.current !== orgId) return;
       const merged = [...rows, ...imported];
@@ -338,8 +386,8 @@ export const GoodsReceivingPage: React.FC = () => {
         </div>
 
         {showNotebook && <div className="space-y-2 border-b border-slate-200 bg-slate-50 p-4">
-          <label htmlFor="grn-paste" className="block text-sm font-semibold">Paste TAB-separated rows: SKU / carton units / loose units / purchase rate</label>
-          <p className="text-xs text-slate-600">Example: FERT-50 [Tab] 12,10,11 [Tab] 5 [Tab] 1120.00. Use 5x12 for five cartons with 12 units each.</p>
+          <label htmlFor="grn-paste" className="block text-sm font-semibold">Paste from Excel or Notepad — SKU or exact name, cases, loose units and purchase rate</label>
+          <p className="text-xs text-slate-600">Five columns: Product / Cases / Units per case / Loose / Purchase rate. Or four columns: Product / Mixed carton counts / Loose / Purchase rate. Use TAB between columns, optional header, and up to 50 products. Unknown products must first be created with New product.</p>
           <textarea id="grn-paste" rows={4} value={notebook} onChange={(e) => setNotebook(e.target.value)}
             placeholder={'SKU-001\t12,10,11\t5\t1120.00'} className="w-full rounded-lg border border-slate-300 p-3 font-mono text-sm"/>
           <button type="button" disabled={!editable} onClick={() => void pasteNotebook()}
@@ -394,6 +442,9 @@ export const GoodsReceivingPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {rows.map((row, i) => {
                 const calc = calculated[i];
+                const baseline = visiblePriorRates[row.product.id];
+                const rateDelta = baseline && calc.data
+                  ? supplierRateChange(baseline.unitCost, calc.data.unitCost) : null;
                 const uniform = readUniformCartons(row.packageText);
                 const mixed = mixedRows.has(row.product.id) || !uniform.isUniform;
                 return <tr key={row.product.id} className="align-top">
@@ -449,6 +500,15 @@ export const GoodsReceivingPage: React.FC = () => {
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchRef.current?.focus(); } }}
                       disabled={!editable} inputMode="decimal"
                       className="h-10 w-28 rounded-lg border border-slate-300 px-2 text-right"/>
+                    {baseline && <p className="mt-1 min-w-[130px] text-[11px] text-slate-600">
+                      Last supplier: {currency(baseline.unitCost)} ({baseline.effectiveOn})
+                    </p>}
+                    {rateDelta?.percent !== null && rateDelta?.percent !== undefined &&
+                      <p className={'mt-0.5 text-[11px] font-semibold ' +
+                        (rateDelta.significant ? 'text-amber-800' : 'text-slate-500')}>
+                        {rateDelta.percent > 0 ? '+' : ''}{rateDelta.percent.toFixed(1)}%
+                        {rateDelta.significant ? ' · Review rate change' : ' change'}
+                      </p>}
                   </td>
                   <td className="px-3 py-3 font-semibold tabular-nums">{calc.data ? currency(calc.data.totalUnits * calc.data.unitCost) : '—'}</td>
                   <td className="px-3 py-2">
@@ -463,7 +523,11 @@ export const GoodsReceivingPage: React.FC = () => {
           </table>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm">
-          <span className="text-slate-500">Use Cases × Units/case for uniform cartons, or variable counts such as 12,10,11. No assumed pack size.</span>
+          <div className="text-slate-500">
+            <span>Use Cases × Units/case for uniform cartons, or variable counts such as 12,10,11. No assumed pack size.</span>
+            {priorRatesUnavailable && <p role="status" className="mt-1 text-amber-800">Supplier price comparison unavailable; review the rate history manually. Receipt saving remains available.</p>}
+            {!priorRatesUnavailable && supplierId && rows.length > 0 && <p className="mt-1">Rate comparisons are advisory. They never change catalog prices or stock until posting.</p>}
+          </div>
           <div className="text-right"><strong>{totalUnits.toLocaleString('en-IN')} units</strong><span className="ml-3 text-slate-600">Estimated purchase value {currency(totalCost)}</span></div>
         </div>
       </section>
