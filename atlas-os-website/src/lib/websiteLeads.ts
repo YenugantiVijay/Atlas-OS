@@ -22,7 +22,7 @@ export function getOrCreateRequestId(
 
 export async function submitWebsiteLead(
   kind: WebsiteLeadKind,
-  data: Record<string, unknown>,
+  data: object,
   token: string,
   requestId: string,
 ): Promise<string> {
