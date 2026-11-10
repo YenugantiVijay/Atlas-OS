@@ -41,7 +41,7 @@ const CATEGORIES = [
   'Fans & Appliances',
 ];
 
-const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
+const UOM_OPTIONS: UOM[] = ['Nos', 'Bags', 'Kg', 'Litres', 'Packs', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
