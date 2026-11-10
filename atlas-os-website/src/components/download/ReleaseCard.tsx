@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import TurnstileWidget from '../common/TurnstileWidget';
+import { getOrCreateRequestId, leadDeliveryConfigured, submitWebsiteLead } from '../../lib/websiteLeads';
 import {
   Monitor,
   CheckCircle2,
@@ -17,14 +19,30 @@ interface ReleaseCardProps {
 export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
   const [notifyEmail, setNotifyEmail] = useState('');
   const [isNotified, setIsNotified] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [resetCounter, setResetCounter] = useState(0);
+  const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
-  const handleNotifySubmit = (e: React.FormEvent) => {
+  const handleNotifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (notifyEmail.trim()) {
-      const stored = JSON.parse(localStorage.getItem('atlas_download_subscribers') || '[]');
-      stored.push({ email: notifyEmail.trim(), date: new Date().toISOString() });
-      localStorage.setItem('atlas_download_subscribers', JSON.stringify(stored));
+    if (isSubmitting) return;
+    setErrorMessage('');
+    setIsSubmitting(true);
+    try {
+      const data = { email: notifyEmail.trim() };
+      const request = getOrCreateRequestId(requestRef.current, data);
+      requestRef.current = request;
+      await submitWebsiteLead('release', data, turnstileToken, request.requestId);
       setIsNotified(true);
+      requestRef.current = null;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to register your email.');
+      setTurnstileToken('');
+      setResetCounter((n) => n + 1);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -163,10 +181,11 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
             {isNotified ? (
               <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>You are registered for release notifications!</span>
+                <span>Your notification request was accepted for email delivery.</span>
               </div>
             ) : (
-              <form onSubmit={handleNotifySubmit} className="flex items-center gap-2">
+              <form onSubmit={handleNotifySubmit} className="flex flex-col gap-2">
+                {errorMessage && <p role="alert" className="max-w-xs text-xs text-rose-700">{errorMessage}</p>}
                 <input
                   type="email"
                   required
@@ -175,12 +194,15 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
                   onChange={(e) => setNotifyEmail(e.target.value)}
                   className="h-11 px-3.5 text-xs rounded-xl border border-border bg-surface-secondary text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 w-60"
                 />
+                <TurnstileWidget action="lead_release" onToken={setTurnstileToken} resetCounter={resetCounter} />
+                {!leadDeliveryConfigured && <p role="status" className="text-xs text-amber-800">Release notifications are not configured yet.</p>}
                 <button
                   type="submit"
+                  disabled={isSubmitting || !leadDeliveryConfigured || !turnstileToken}
                   className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 btn-shimmer"
                 >
                   <Bell className="w-3.5 h-3.5" />
-                  <span>Notify Me</span>
+                  <span>{isSubmitting ? 'Sending...' : 'Notify Me'}</span>
                 </button>
               </form>
             )}
