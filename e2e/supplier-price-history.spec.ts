@@ -18,7 +18,7 @@ test.describe('PR57 supplier price history — safe demo rendering',()=>{
 
   test('keeps private history actions disabled, and supports a scrolling mobile table',async({page})=>{
     await page.setViewportSize({width:375,height:812});
-    await expect(page.getByLabel('Supplier')).toBeDisabled();
+    await expect(page.getByLabel('Supplier',{exact:true})).toBeDisabled();
     const table=page.getByRole('region',{name:'Supplier price table'});
     const widths=await table.evaluate((element)=>({
       outer:element.clientWidth,inner:element.scrollWidth,
