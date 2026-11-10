@@ -32,6 +32,7 @@ import { runB2OperationalSearchAcceptance } from './b2_operational_search_accept
 import { runSec02PrivilegedRpcAcceptance } from './sec02_privileged_rpc_acceptance.mjs';
 import { runWebsiteLeadRateAcceptance } from './pr51_website_leads_acceptance.mjs';
 import { runGoodsReceivingAcceptance } from './pr56_goods_receiving_acceptance.mjs';
+import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1394,6 +1395,11 @@ async function runAcceptance() {
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
       productAId: prodA1Id, productBId: prodA2Id, foreignProductId: prodB1Id,
+    });
+    // PR #57: price snapshots are derived from the posted GRN above.
+    await runSupplierPriceHistoryAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
     });
 
     // PR #51: service-only website lead limiter; no genuine visitor data.
