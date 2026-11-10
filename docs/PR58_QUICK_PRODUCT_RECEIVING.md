@@ -41,3 +41,15 @@ During lorry intake, an item may not yet exist in the catalog. Previously, the o
 ## BUSY positioning
 
 BUSY already offers broad GST, POS, batch, inventory, ERP reports, integrations and configurable price lists. Atlas OS should prioritize a noticeably faster distributor first-run journey: find or create an item without changing screens, enter actual cartons/loose units from a lorry, review draft, post once, see immediate stock and source-specific price history. Differentiate through **measurable reduction in steps/errors**, modern keyboard-first use and transparent approval/audit trails—not unsupported claims of feature parity.
+
+## Extended gap closure — Atlas OS 4 five-item audit (November 11, 2026)
+
+| User-reported gap | Code/evidence in this PR or earlier | Remaining limitation |
+|---|---|---|
+| Company/supplier price changes | PR57 append-only quoted and posted purchase rates; receiving now fetches **last recorded supplier rate for the specific supplier/product as of receipt date** and highlights ≥5% change next to current entry | Supplier/manufacturer notices must still be entered manually. No upstream automatic polling; no selling-price rewrite |
+| Google-style stock and selling autocomplete | Existing retail counter and Ctrl+K results; PR58 receiving autocomplete; **catalog page now offers clickable/keyboard product suggestions** (name, SKU, brand, HSN, stock and selling price) with stale-request guarding | Quotation and order editors retain their older selection UI and should be upgraded separately |
+| Notepad / spreadsheet receiving | Four-column mixed-carton TSV or **five-column Product, Cases, Units/case, Loose, Rate**, optional header, up to 50 product rows, exact SKU or unique exact name. Lookup runs in five-request batches, validates all before replacing worksheet | Unknown products require in-place creation first; automatic fuzzy product master creation is deliberately prohibited |
+| Stock Movements errors | PR55 composite product foreign-key embed. New restricted fallback for PostgREST relationship cache errors (`PGRST200/PGRST201`) returns the **same RLS-scoped stock movements without join**. Page keeps movements visible when separate product catalog fetch fails; non-relationship/permission errors still show retryable failures | Live authenticated browser session verification is still required |
+| BUSY differentiation | Fewer operator context switches: lookup → new product as needed → cases/variable cartons → compare supplier rate → draft → explicit atomic post → stock & source-specific price history | No unsupported claims of parity for batch/expiry, full finance, supplier payable and BUSY data migrations |
+
+No financial ledger, inventory authority, RLS or production data is modified by these UI/read-only improvements. New tests cover five-column notebook parsing, tenant-scoped retry failure behavior, independent stock-ledger rendering, and contextual rate advisory.
