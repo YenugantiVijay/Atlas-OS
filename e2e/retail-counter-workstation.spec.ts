@@ -40,23 +40,15 @@ test.describe('PR #53 — Retail Counter billing workstation', () => {
     await page.setViewportSize({ width: 375, height: 812 });
     const region = page.getByRole('region', { name: 'Scroll billing line items' });
     await expect(region).toBeVisible();
-    const size = await page.evaluate(() => ({
-      docWidth: document.documentElement.scrollWidth,
-      viewport: document.documentElement.clientWidth,
-    }));
-    if (size.docWidth > size.viewport + 1) {
-      const overflowing = await page.evaluate(() => Array.from(document.querySelectorAll('body *'))
-        .map((element) => ({
-          tag: element.tagName.toLowerCase(),
-          className: typeof element.className === 'string' ? element.className.slice(0, 140) : '',
-          right: Math.round(element.getBoundingClientRect().right),
-          left: Math.round(element.getBoundingClientRect().left),
-        }))
-        .filter((element) => element.right > document.documentElement.clientWidth + 2)
-        .slice(0, 18));
-      console.log('POS mobile overflow diagnostics', JSON.stringify(overflowing));
-    }
-    expect(size.docWidth).toBeLessThanOrEqual(size.viewport + 1);
+    // The shared app shell animates lg:ml-64 -> ml-0 and lg:left-64 -> left-0
+    // over 200ms when switching from desktop to mobile. Assert the SETTLED
+    // responsive layout, not an intermediate frame during the transition.
+    await expect.poll(async () => {
+      return page.evaluate(() =>
+        document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+    }, { timeout: 3000, intervals: [100, 150, 200, 300] }).toBeLessThanOrEqual(1);
+
     const innerWidths = await region.evaluate((element) => ({
       scrollWidth: element.scrollWidth,
       clientWidth: element.clientWidth,
