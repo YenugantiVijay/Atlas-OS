@@ -7,7 +7,7 @@ import type { Product } from '@/types';
 const org='11111111-2222-4333-8444-555555555555';
 const product={
   id:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', organizationId:org,
-  sku:'FERT-50', name:'Fertilizer 50 kg', category:'Fertilizer', uom:'Bag',
+  sku:'FERT-50', name:'Fertilizer 50 kg', category:'Fertilizer', uom:'Nos',
   sellingPrice:1350, purchaseCost:1200, taxRate:5,
   currentStock:0, reorderThreshold:5, isActive:true, createdAt:'',updatedAt:'',
 } as Product;
