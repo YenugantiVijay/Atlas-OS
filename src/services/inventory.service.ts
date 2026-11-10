@@ -43,8 +43,9 @@ export const inventoryService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
+    const client = supabase;
     const createLedgerQuery = (includeProduct: boolean) => {
-      let query = supabase
+      let query = client
         .from('stock_movements')
         .select(includeProduct ? STOCK_MOVEMENT_WITH_PRODUCT_SELECT : '*')
         .eq('organization_id', orgId)
