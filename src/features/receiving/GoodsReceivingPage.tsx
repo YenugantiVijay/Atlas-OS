@@ -23,6 +23,8 @@ export const GoodsReceivingPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
   const { check } = useActionPermission();
   const orgId = currentOrg?.id || '';
+  const activeOrgRef = useRef(orgId);
+  activeOrgRef.current = orgId;
   const canReceive = check('inventory:receive');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [receipts, setReceipts] = useState<GoodsReceiptRecord[]>([]);
@@ -54,7 +56,12 @@ export const GoodsReceivingPage: React.FC = () => {
     setSavedState('NEW'); setDirty(true); setConfirmPosting(false);
     setTerm(''); setMatches([]); setError(''); setSuccess('');
   }, []);
-  useEffect(() => { newReceipt(); }, [orgId, newReceipt]);
+  useEffect(() => {
+    newReceipt();
+    setSuppliers([]);
+    setReceipts([]);
+    setMatches([]);
+  }, [orgId, newReceipt]);
 
   const refresh = useCallback(async () => {
     if (!orgId || isMockAuth) return;
@@ -63,11 +70,14 @@ export const GoodsReceivingPage: React.FC = () => {
       const [supplierRows, receiptRows] = await Promise.all([
         suppliersService.getSuppliers(orgId, false), goodsReceivingService.list(orgId),
       ]);
+      if (activeOrgRef.current !== orgId) return;
       setSuppliers(supplierRows.filter((s) => s.isActive));
       setReceipts(receiptRows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to load suppliers and receiving history.');
-    } finally { setLoading(false); }
+      if (activeOrgRef.current === orgId) {
+        setError(e instanceof Error ? e.message : 'Unable to load suppliers and receiving history.');
+      }
+    } finally { if (activeOrgRef.current === orgId) setLoading(false); }
   }, [orgId, isMockAuth]);
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -175,6 +185,7 @@ export const GoodsReceivingPage: React.FC = () => {
           looseUnits: String(row.looseUnits), unitCost: Number(row.unitCost).toFixed(2),
         });
       }
+      if (activeOrgRef.current !== orgId) return;
       setReceiptId(receipt.id); setSupplierId(receipt.supplierId);
       setInvoice(receipt.supplierInvoiceNumber); setDate(receipt.receivedOn);
       setNotes(receipt.notes); setRows(prepared);
@@ -199,6 +210,7 @@ export const GoodsReceivingPage: React.FC = () => {
           looseUnits: row.looseUnits, unitCost: row.unitCost,
         });
       }
+      if (activeOrgRef.current !== orgId) return;
       const merged = [...rows, ...imported];
       buildGoodsReceiptPayload(orgId, merged);
       setRows(merged); markDirty(); setShowNotebook(false); setNotebook('');
