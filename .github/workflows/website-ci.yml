@@ -62,6 +62,6 @@ jobs:
       - name: Install Chromium for website end-to-end tests
         run: ../node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Run real-enquiry form browser tests (mocked services)
-        run: ../node_modules/.bin/playwright test e2e/leads.spec.ts
+      - name: Verify real Astro homepage, navigation and website lead forms
+        run: ../node_modules/.bin/playwright test e2e/canonical-home.spec.ts e2e/leads.spec.ts
 

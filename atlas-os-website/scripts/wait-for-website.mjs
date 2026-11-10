@@ -16,7 +16,11 @@ function probe() {
         // Do not open an unrelated application that happens to occupy port 4321.
         resolve(res.statusCode === 200 &&
           /<title>[^<]*Atlas OS/i.test(body) &&
-          /<html/i.test(body));
+          /<html/i.test(body) &&
+          // Require signature markup of the actual Astro design. A random
+          // dev server or the removed standalone HTML copy is NOT accepted.
+          body.includes('capability-orbit') &&
+          body.includes('Connected Business Workflow'));
       });
       res.on('error', () => resolve(false));
     });
