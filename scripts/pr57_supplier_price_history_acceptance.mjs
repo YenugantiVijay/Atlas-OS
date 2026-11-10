@@ -189,4 +189,3 @@ export async function runSupplierPriceHistoryAcceptance({
   recordTest('RATE57-22','Accounts cannot record manual supplier quotes',
     accountsWriteError?.code==='42501','sqlstate='+(accountsWriteError?.code||'none'));
 }
-}
