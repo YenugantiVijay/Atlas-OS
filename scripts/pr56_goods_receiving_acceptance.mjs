@@ -3,9 +3,16 @@ import crypto from 'node:crypto';
 /** PR #56 acceptance: disposable PostgreSQL only, never hosted Supabase. */
 export async function runGoodsReceivingAcceptance({
   client, withRoleContext, recordTest, orgAId, orgBId, ownerAId, ownerBId,
-  productAId, productBId, foreignProductId,
 }) {
+  // Dedicated test products ensure this slice cannot change the baseline stock
+  // counts assumed by the other master lifecycle acceptance scenarios.
+  const productAId=crypto.randomUUID(), productBId=crypto.randomUUID();
+  const foreignProductId=crypto.randomUUID();
   const supplierA=crypto.randomUUID(), supplierB=crypto.randomUUID();
+  await client.query(
+    "INSERT INTO public.products(id,organization_id,sku,name,category,uom,purchase_cost,selling_price,tax_rate) VALUES($1::uuid,$2::uuid,'GRN56-A','Receiving Fixture A','Test','Bag',20,30,5),($3::uuid,$2::uuid,'GRN56-B','Receiving Fixture B','Test','Nos',50,70,5),($4::uuid,$5::uuid,'GRN56-FOREIGN','Receiving Foreign','Test','Nos',10,20,5)",
+    [productAId,orgAId,productBId,foreignProductId,orgBId]
+  );
   const receiptId=crypto.randomUUID(), secondId=crypto.randomUUID(), invalidId=crypto.randomUUID();
   await client.query(
     "INSERT INTO public.suppliers(id,organization_id,name) VALUES($1::uuid,$2::uuid,'Supplier A'),($3::uuid,$4::uuid,'Supplier B')",
