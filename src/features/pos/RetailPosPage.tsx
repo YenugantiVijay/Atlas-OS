@@ -44,6 +44,20 @@ export const RetailPosPage: React.FC = () => {
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
+  // F2 is an operator shortcut even when focus is on the page body rather than
+  // inside the worksheet; never intercept Ctrl/Alt/Meta combinations.
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'F2' && !event.defaultPrevented &&
+          !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        productInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, []);
+
   const productKey = `${identity}:${productTerm.trim()}`;
   const customerKey = `${identity}:${customerTerm.trim()}`;
   const products = productResponse.key === productKey ? productResponse.rows : [];
@@ -279,7 +293,7 @@ export const RetailPosPage: React.FC = () => {
               } else if (e.key === 'ArrowUp' && products.length) {
                 e.preventDefault();
                 setActiveProductIndex((index) => Math.max(index - 1, 0));
-              } else if (e.key === 'Enter' && products.length) {
+              } else if (e.key === 'Enter' && !e.ctrlKey && products.length) {
                 e.preventDefault();
                 addProduct(products[Math.min(activeProductIndex, products.length - 1)]);
               } else if (e.key === 'Escape') {
@@ -341,7 +355,7 @@ export const RetailPosPage: React.FC = () => {
               } else if (e.key === 'ArrowUp' && customers.length) {
                 e.preventDefault();
                 setActiveCustomerIndex((index) => Math.max(index - 1, 0));
-              } else if (e.key === 'Enter' && customers.length) {
+              } else if (e.key === 'Enter' && !e.ctrlKey && customers.length) {
                 e.preventDefault();
                 chooseCustomer(customers[Math.min(activeCustomerIndex, customers.length - 1)]);
               } else if (e.key === 'Escape' && !customer) {
