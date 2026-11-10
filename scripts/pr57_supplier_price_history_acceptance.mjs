@@ -144,4 +144,49 @@ export async function runSupplierPriceHistoryAcceptance({
     Number(priceBefore.rows[0].selling_price)===Number(priceAfter.rows[0].selling_price) &&
     stockBefore.rows[0].stock===stockAfter.rows[0].stock,
     JSON.stringify({before:priceBefore.rows[0],after:priceAfter.rows[0],stockBefore:stockBefore.rows[0].stock,stockAfter:stockAfter.rows[0].stock}));
+
+  // Confirm the trigger really fires only at GRN posting, not draft creation.
+  const anotherReceipt=crypto.randomUUID();
+  const newLines=[{productId:f.product_id,packageCounts:[2],looseUnits:0,unitCost:980}];
+  await asA(()=>client.query(
+    "SELECT public.save_goods_receipt_draft($1::uuid,$2::uuid,$3::uuid,$4::text,$5::date,$6::text,$7::jsonb)",
+    [orgAId,anotherReceipt,f.supplier_id,'GRN57-PRICE-TEST','2026-11-10','Second delivery',JSON.stringify(newLines)]
+  ));
+  const beforePost=await allRates();
+  recordTest('RATE57-18','Saving a draft does not capture a purchase rate',
+    beforePost.rows.length===2,'rate_count='+beforePost.rows.length);
+  const nextPost=await asA(()=>client.query(
+    'SELECT public.post_goods_receipt($1::uuid,$2::uuid) AS result',[orgAId,anotherReceipt]
+  ));
+  const postedRates=await allRates();
+  recordTest('RATE57-19','Posting a second GRN atomically captures its actual paid rate',
+    nextPost.rows[0]?.result?.idempotent_replay===false &&
+    postedRates.rows.length===3 &&
+    postedRates.rows.some(x=>x.source_receipt_id===anotherReceipt &&
+      x.source_type==='GOODS_RECEIPT' && Number(x.unit_cost)===980),
+    'rate_count='+postedRates.rows.length);
+  const nextReplay=await asA(()=>client.query(
+    'SELECT public.post_goods_receipt($1::uuid,$2::uuid) AS result',[orgAId,anotherReceipt]
+  ));
+  const replayRates=await allRates();
+  recordTest('RATE57-20','GRN post replay does not duplicate any supplier price event',
+    nextReplay.rows[0]?.result?.idempotent_replay===true && replayRates.rows.length===3,
+    'rate_count='+replayRates.rows.length);
+
+  // Accounts staff can read sensitive cost snapshots but cannot create quotes.
+  const accountsUid=crypto.randomUUID();
+  await client.query('INSERT INTO auth.users(id,email) VALUES($1::uuid,$2::text)',
+    [accountsUid,'pr57-accounts-'+accountsUid+'@example.test']);
+  await client.query("INSERT INTO public.memberships(organization_id,user_id,role,is_active) VALUES($1::uuid,$2::uuid,'accounts',true)",
+    [orgAId,accountsUid]);
+  const accountRead=await withRoleContext(client,{role:'authenticated',userId:accountsUid},
+    ()=>client.query('SELECT count(*)::integer AS n FROM public.supplier_price_history WHERE organization_id=$1::uuid',[orgAId]));
+  recordTest('RATE57-21','Accounts can read own-company supplier rate history',
+    accountRead.rows[0].n>=3,'row_count='+accountRead.rows[0].n);
+  let accountsWriteError=null;
+  try{await withRoleContext(client,{role:'authenticated',userId:accountsUid},
+    ()=>save(orgAId,crypto.randomUUID(),f.supplier_id,f.product_id));}catch(e){accountsWriteError=e;}
+  recordTest('RATE57-22','Accounts cannot record manual supplier quotes',
+    accountsWriteError?.code==='42501','sqlstate='+(accountsWriteError?.code||'none'));
+}
 }
