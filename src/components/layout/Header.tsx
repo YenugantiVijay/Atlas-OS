@@ -372,9 +372,10 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* User Profile Capsule Trigger & Dropdown */}
-          <div ref={userMenuRef} className="relative">
+          {/* Distinct user identity: organization already appears in the workspace switcher. */}
+          <div ref={userMenuRef} className="relative shrink-0">
             <button
+              type="button"
               onClick={() => {
                 setIsUserMenuOpen((prev) => !prev);
                 setIsOrgDropdownOpen(false);
@@ -382,40 +383,30 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               aria-label="User Profile & Shop Menu"
               aria-expanded={isUserMenuOpen}
-              className={`flex h-9 items-center gap-2 pl-1 pr-2 sm:pr-2.5 rounded-xl border border-border/80 bg-slate-50/70 hover:bg-teal-50/50 hover:border-teal-300 transition-all shadow-2xs group cursor-pointer ${
-                isUserMenuOpen ? 'ring-2 ring-teal-100 border-teal-400 bg-teal-50/50' : ''
-              }`}
-              title="User Profile & Shop Menu"
+              className={'group inline-flex h-10 max-w-[235px] items-center gap-2 rounded-xl border bg-white px-1.5 pr-2.5 text-left shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 lg:max-w-[290px] 2xl:max-w-[345px] ' +
+                (isUserMenuOpen ? 'border-teal-400 bg-teal-50/50 ring-2 ring-teal-100' : 'border-slate-200')}
             >
-              {/* Profile Avatar */}
-              <div className="relative w-7 h-7 rounded-full overflow-hidden bg-teal-100 text-teal-800 font-bold text-2xs flex items-center justify-center border border-teal-200/80 shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-teal-200 bg-teal-100 text-[11px] font-bold text-teal-800">
                 {currentUser?.avatarUrl ? (
-                  <img
-                    src={currentUser.avatarUrl}
+                  <img src={currentUser.avatarUrl}
                     alt={currentUser.fullName || 'User avatar'}
-                    className="w-full h-full object-cover"
-                  />
+                    className="h-full w-full object-cover"/>
                 ) : (
                   <span>{getInitials(currentUser?.fullName || currentUser?.email || 'User')}</span>
                 )}
-              </div>
-
-              {/* Shop & User Info (Hidden on narrow screens to prevent overflow) */}
-              <div className="text-left hidden xl:flex flex-col justify-center min-w-0 pr-0.5">
-                <div className="text-xs font-bold text-content-primary leading-tight truncate max-w-[130px] group-hover:text-teal-900">
-                  {currentOrg?.name || 'Organization'}
-                </div>
-                <div className="text-2xs font-medium text-content-secondary leading-tight truncate max-w-[130px]">
-                  {currentUser?.fullName || currentUser?.email || (isLoadingAuth ? 'Loading...' : 'User')} •{' '}
-                  <span className="capitalize text-teal-700 font-semibold">{currentRole || 'No Role'}</span>
-                </div>
-              </div>
-
-              {/* Dropdown Chevron */}
+              </span>
+              <span className="hidden min-w-0 flex-col justify-center lg:flex">
+                <span className="block max-w-[145px] truncate text-xs font-bold leading-4 text-[#142B4D] 2xl:max-w-[205px]"
+                  title={currentUser?.fullName || currentUser?.email || 'User'}>
+                  {currentUser?.fullName || currentUser?.email || (isLoadingAuth ? 'Loading...' : 'User')}
+                </span>
+                <span className="block text-[10px] font-medium capitalize leading-4 text-teal-700">
+                  {currentRole || 'No Role'}
+                </span>
+              </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-content-muted group-hover:text-teal-700 shrink-0 transition-transform duration-200 ${
-                  isUserMenuOpen ? 'rotate-180 text-teal-700' : ''
-                }`}
+                className={'h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-teal-700 ' +
+                  (isUserMenuOpen ? 'rotate-180 text-teal-700' : '')}
               />
             </button>
 
