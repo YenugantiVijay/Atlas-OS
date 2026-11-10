@@ -17,6 +17,9 @@ const ProductsPage = React.lazy(() =>
 const InventoryPage = React.lazy(() =>
   import('@/features/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage }))
 );
+const GoodsReceivingPage = React.lazy(() =>
+  import('@/features/receiving/GoodsReceivingPage').then((m) => ({ default: m.GoodsReceivingPage }))
+);
 const CustomersPage = React.lazy(() =>
   import('@/features/customers/CustomersPage').then((m) => ({ default: m.CustomersPage }))
 );
@@ -86,6 +89,7 @@ export const router = createHashRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'products', element: <ProductsPage /> },
       { path: 'inventory', element: <InventoryPage /> },
+      { path: 'receiving', element: <RequirePermission action="inventory:receive"><GoodsReceivingPage /></RequirePermission> },
       { path: 'customers', element: <CustomersPage /> },
       { path: 'suppliers', element: <SuppliersPage /> },
       { path: 'quotations', element: <QuotationsPage /> },
