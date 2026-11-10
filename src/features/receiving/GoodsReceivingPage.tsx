@@ -61,6 +61,7 @@ export const GoodsReceivingPage: React.FC = () => {
     setSuppliers([]);
     setReceipts([]);
     setMatches([]);
+    setLoading(false);
   }, [orgId, newReceipt]);
 
   const refresh = useCallback(async () => {
@@ -154,6 +155,7 @@ export const GoodsReceivingPage: React.FC = () => {
         organizationId: orgId, receiptId, supplierId, supplierInvoiceNumber: invoice.trim(),
         receivedOn: date, notes, lines: payload,
       });
+      if (activeOrgRef.current !== orgId) return;
       setSavedState('DRAFT'); setDirty(false); setConfirmPosting(false);
       setSuccess('Draft saved. Inventory has not changed.');
       await refresh();
@@ -163,6 +165,7 @@ export const GoodsReceivingPage: React.FC = () => {
     if (!confirmPosting || dirty || savedState !== 'DRAFT' || !editable) return;
     await runOnce(async () => {
       const result = await goodsReceivingService.post(orgId, receiptId);
+      if (activeOrgRef.current !== orgId) return;
       setSavedState('POSTED'); setConfirmPosting(false); setDirty(false);
       setSuccess(result.idempotent_replay
         ? 'This goods receipt was already posted; stock was not added twice.'
