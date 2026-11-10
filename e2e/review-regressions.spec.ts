@@ -41,7 +41,7 @@ test('search selection opens the filtered catalog and restores keyboard focus', 
   await page.getByRole('textbox', { name: 'Search Atlas OS' }).fill('POL-W-2.5-RD');
   await page.getByRole('button', { name: /Polycab 2.5 sq mm/ }).click();
   await expect(page).toHaveURL(/products\?search=POL-W-2.5-RD/);
-  await expect(page.getByRole('textbox', { name: /Search products/i })).toHaveValue('POL-W-2.5-RD');
+  await expect(page.getByRole('combobox', { name: /Search products/i })).toHaveValue('POL-W-2.5-RD');
   await expect(page.getByText('HAV-MCB-DP-32A', { exact: true })).toHaveCount(0);
   await search.click();
   await page.keyboard.press('Escape');
