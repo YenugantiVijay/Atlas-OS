@@ -11,7 +11,7 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
     await expect(page.getByRole('region',{name:'Receiving line-item grid'})).toBeVisible();
     const headings=['Sl.','Product / SKU','Carton unit counts (variable)','Loose units','Total units','Unit','Purchase rate','Line value'];
     for(const name of headings){
-      await expect(page.getByRole('columnheader',{name})).toBeVisible();
+      await expect(page.getByRole('columnheader',{name,exact:true})).toBeVisible();
     }
     await expect(page.getByRole('status').filter({hasText:'Cloud-only first release'})).toBeVisible();
     await expect(page.getByRole('button',{name:'Save receiving draft'})).toBeDisabled();
