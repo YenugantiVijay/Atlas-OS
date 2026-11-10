@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, PackagePlus, Plus, Search, Trash2, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ReceivingNewProductDialog } from './ReceivingNewProductDialog';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import type { Product, Supplier } from '@/types';
@@ -9,6 +10,7 @@ import { suppliersService } from '@/services/suppliers.service';
 import { goodsReceivingService, type GoodsReceiptRecord } from '@/services/goods-receiving.service';
 import {
   buildGoodsReceiptPayload, computeReceiptLine, parseReceivingNotebook,
+  readUniformCartons, writeUniformCartons, parsePackageCounts,
   type ReceiptWorksheetLine,
 } from './receiving-worksheet';
 
@@ -26,6 +28,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const activeOrgRef = useRef(orgId);
   activeOrgRef.current = orgId;
   const canReceive = check('inventory:receive');
+  const canCreateProduct = check('products:create');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [receipts, setReceipts] = useState<GoodsReceiptRecord[]>([]);
   const [supplierId, setSupplierId] = useState('');
@@ -33,6 +36,8 @@ export const GoodsReceivingPage: React.FC = () => {
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<ReceiptWorksheetLine[]>([]);
+  const [mixedRows, setMixedRows] = useState<Set<string>>(() => new Set());
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [receiptId, setReceiptId] = useState<string>(() => crypto.randomUUID());
   const [savedState, setSavedState] = useState<'NEW' | 'DRAFT' | 'POSTED'>('NEW');
   const [dirty, setDirty] = useState(true);
@@ -52,7 +57,8 @@ export const GoodsReceivingPage: React.FC = () => {
 
   const newReceipt = useCallback(() => {
     setSupplierId(''); setInvoice(''); setDate(today()); setNotes('');
-    setRows([]); setReceiptId(crypto.randomUUID());
+    setRows([]); setMixedRows(new Set()); setShowCreateProduct(false);
+    setReceiptId(crypto.randomUUID());
     setSavedState('NEW'); setDirty(true); setConfirmPosting(false);
     setTerm(''); setMatches([]); setError(''); setSuccess('');
   }, []);
@@ -104,6 +110,7 @@ export const GoodsReceivingPage: React.FC = () => {
   }, [orgId, canReceive.allowed, isMockAuth, term]);
 
   const editable = !busy && !isMockAuth && canReceive.allowed && savedState !== 'POSTED';
+  const canQuickCreate = editable && canCreateProduct.allowed && rows.length < 50;
   const markDirty = () => {
     setDirty(true); setConfirmPosting(false); setError(''); setSuccess('');
   };
@@ -120,7 +127,8 @@ export const GoodsReceivingPage: React.FC = () => {
     }]);
     markDirty();
     setTerm(''); setMatches([]); setActiveIndex(0);
-    searchRef.current?.focus();
+    // Keep keyboard-driven intake fast: immediately start entering cases.
+    window.setTimeout(() => document.getElementById('grn-cases-' + product.id)?.focus(), 0);
   };
   const updateRow = (id: string, key: 'packageText' | 'looseUnits' | 'unitCost', value: string) => {
     setRows((prev) => prev.map((row) => row.product.id === id ? { ...row, [key]: value } : row));
@@ -128,7 +136,32 @@ export const GoodsReceivingPage: React.FC = () => {
   };
   const removeRow = (id: string) => {
     setRows((prev) => prev.filter((row) => row.product.id !== id));
+    setMixedRows((prev) => { const next = new Set(prev); next.delete(id); return next; });
     markDirty();
+  };
+  const updateUniform = (id: string, field: 'cases' | 'unitsPerCase', value: string) => {
+    const row = rows.find((item) => item.product.id === id);
+    if (!row) return;
+    const current = readUniformCartons(row.packageText);
+    if (!current.isUniform) return;
+    const nextCases = field === 'cases' ? value : current.cases;
+    const nextUnits = field === 'unitsPerCase' ? value : current.unitsPerCase;
+    // Keep partial edits (e.g. "10x") in the UI but never save invalid rows.
+    if (!/^\d*$/.test(value)) return;
+    updateRow(id, 'packageText', writeUniformCartons(nextCases, nextUnits));
+  };
+  const changeCartonMode = (id: string, mixed: boolean) => {
+    if (mixed) {
+      const current = rows.find((row) => row.product.id === id);
+      let expanded = '';
+      try { expanded = current ? parsePackageCounts(current.packageText).join(', ') : ''; }
+      catch { expanded = ''; }
+      setMixedRows((prev) => new Set(prev).add(id));
+      updateRow(id, 'packageText', expanded);
+    } else {
+      setMixedRows((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      updateRow(id, 'packageText', '');
+    }
   };
 
   const calculated = rows.map((row) => {
@@ -192,6 +225,7 @@ export const GoodsReceivingPage: React.FC = () => {
       setReceiptId(receipt.id); setSupplierId(receipt.supplierId);
       setInvoice(receipt.supplierInvoiceNumber); setDate(receipt.receivedOn);
       setNotes(receipt.notes); setRows(prepared);
+      setMixedRows(new Set(prepared.filter((r) => !readUniformCartons(r.packageText).isUniform).map((r) => r.product.id)));
       setSavedState('DRAFT'); setDirty(false); setConfirmPosting(false);
       setSuccess('Draft loaded for review. No stock has been posted.');
     });
@@ -216,13 +250,27 @@ export const GoodsReceivingPage: React.FC = () => {
       if (activeOrgRef.current !== orgId) return;
       const merged = [...rows, ...imported];
       buildGoodsReceiptPayload(orgId, merged);
-      setRows(merged); markDirty(); setShowNotebook(false); setNotebook('');
+      setRows(merged);
+      setMixedRows((prev) => new Set([...prev, ...imported.filter((r) => !readUniformCartons(r.packageText).isUniform).map((r) => r.product.id)]));
+      markDirty(); setShowNotebook(false); setNotebook('');
       setSuccess(imported.length + ' rows imported; review them before saving.');
     });
   };
 
   return (
     <div className="space-y-4 pb-8">
+      {showCreateProduct && canQuickCreate && (
+        <ReceivingNewProductDialog
+          organizationId={orgId} suggestedName={term}
+          onClose={() => setShowCreateProduct(false)}
+          onCreated={(product) => {
+            if (activeOrgRef.current !== orgId) return;
+            addProduct(product);
+            setShowCreateProduct(false);
+            setSuccess('Product created with zero opening stock and added to this receipt. Enter quantities, save the draft and post to add inventory.');
+          }}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-[#142B4D] sm:text-2xl">
@@ -299,7 +347,14 @@ export const GoodsReceivingPage: React.FC = () => {
         </div>}
 
         <div className="space-y-2 border-b border-slate-200 p-4">
-          <label htmlFor="grn-search" className="block text-xs font-semibold">Add product by name, SKU, brand or HSN</label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="grn-search" className="block text-xs font-semibold">Add product by name, SKU, brand or HSN</label>
+            <button type="button" disabled={!canQuickCreate}
+              onClick={() => setShowCreateProduct(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-40">
+              <Plus size={14}/> New product
+            </button>
+          </div>
           <div className="relative max-w-2xl">
             <Search size={17} className="absolute left-3 top-3 text-slate-400"/>
             <input id="grn-search" ref={searchRef} value={term} disabled={!editable}
@@ -313,53 +368,85 @@ export const GoodsReceivingPage: React.FC = () => {
               placeholder="Type at least 2 characters; ↑ ↓ Enter to add"
               className="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"/>
           </div>
-          {searchError && <p role="alert" className="text-xs text-rose-700">{searchError}</p>}
+          <p className="text-xs text-slate-500">Suggestions show live stock and current catalog selling price. If an item is new, create it here without leaving this receipt.</p>
+          {searchError && <p role="alert" className="text-xs text-rose-700">{searchError}</p>
           {matches.length > 0 && <div className="max-h-44 max-w-2xl divide-y overflow-auto rounded-lg border border-slate-200" aria-label="Receiving product matches">
             {matches.map((p, i) => <button type="button" key={p.id} disabled={!editable}
               onClick={() => addProduct(p)}
               className={'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-teal-50 ' + (i === activeIndex ? 'bg-teal-50' : '')}>
               <span><strong>{p.name}</strong><span className="ml-2 text-xs text-slate-500">{p.sku} · {p.uom}</span></span>
-              <span className="text-xs text-slate-500">Stock {p.currentStock ?? '—'} · <Plus size={13} className="inline"/></span>
+              <span className="flex flex-col items-end gap-0.5 text-xs text-slate-600">
+                <span>Available: {p.currentStock === undefined ? '—' : p.currentStock.toLocaleString('en-IN')} {p.uom}</span>
+                <span className="font-semibold text-teal-700">Selling: {currency(p.sellingPrice)}</span>
+              </span>
             </button>)}
           </div>}
         </div>
 
         <div className="w-full max-w-full overflow-x-auto" role="region" tabIndex={0} aria-label="Receiving line-item grid">
-          <table className="w-full min-w-[1000px] text-left text-xs">
+          <table className="w-full min-w-[1270px] text-left text-xs">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
-                {['Sl.','Product / SKU','Carton unit counts (variable)','Loose units','Total units','Unit','Purchase rate','Line value','Remove'].map((h) =>
+                {['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Total units','Unit','Purchase rate','Line value','Remove'].map((h) =>
                   <th key={h} scope="col" className="px-3 py-3 font-semibold">{h}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row, i) => {
                 const calc = calculated[i];
+                const uniform = readUniformCartons(row.packageText);
+                const mixed = mixedRows.has(row.product.id) || !uniform.isUniform;
                 return <tr key={row.product.id} className="align-top">
                   <td className="px-3 py-4 font-semibold">{i + 1}</td>
                   <td className="min-w-[155px] px-3 py-3">
                     <strong>{row.product.name}</strong><p className="text-slate-500">{row.product.sku}</p>
                   </td>
-                  <td className="min-w-[225px] px-3 py-2">
-                    <input aria-label={'Carton units for ' + row.product.name} value={row.packageText}
-                      onChange={(e) => updateRow(row.product.id,'packageText',e.target.value)}
-                      disabled={!editable} placeholder="12, 10, 11 or 5x12"
-                      className="h-10 w-full rounded-lg border border-slate-300 px-2 font-mono text-sm"/>
-                    <span className="mt-1 block text-[11px] text-slate-500">
+                  <td className="px-3 py-2">
+                    <input id={'grn-cases-' + row.product.id} aria-label={'Cases for ' + row.product.name}
+                      value={mixed ? '' : uniform.cases} disabled={!editable || mixed} inputMode="numeric"
+                      onChange={(e) => updateUniform(row.product.id, 'cases', e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('grn-units-' + row.product.id)?.focus(); } }}
+                      placeholder="e.g. 10"
+                      className="h-10 w-20 rounded-lg border border-slate-300 px-2 text-right disabled:bg-slate-50"/>
+                  </td>
+                  <td className="px-3 py-2">
+                    <input id={'grn-units-' + row.product.id} aria-label={'Units per case for ' + row.product.name}
+                      value={mixed ? '' : uniform.unitsPerCase} disabled={!editable || mixed} inputMode="numeric"
+                      onChange={(e) => updateUniform(row.product.id, 'unitsPerCase', e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('grn-loose-' + row.product.id)?.focus(); } }}
+                      placeholder="e.g. 12"
+                      className="h-10 w-24 rounded-lg border border-slate-300 px-2 text-right disabled:bg-slate-50"/>
+                  </td>
+                  <td className="min-w-[170px] px-3 py-2">
+                    {mixed ? (
+                      <input aria-label={'Variable cartons for ' + row.product.name}
+                        value={row.packageText} disabled={!editable}
+                        onChange={(e) => updateRow(row.product.id, 'packageText', e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('grn-loose-' + row.product.id)?.focus(); } }}
+                        placeholder="12, 10, 11"
+                        className="h-10 w-full rounded-lg border border-slate-300 px-2 font-mono text-sm"/>
+                    ) : <span className="block py-2 text-[11px] text-slate-500">Same size cartons</span>}
+                    <button type="button" disabled={!editable} onClick={() => changeCartonMode(row.product.id, !mixed)}
+                      className="mt-1 block text-[11px] font-semibold text-teal-700 disabled:opacity-40">
+                      {mixed ? 'Switch to cases × units (clears mixed counts)' : 'Different carton sizes?'}
+                    </button>
+                    <span className="block text-[11px] text-slate-500">
                       {calc.data ? calc.data.packageCounts.length + ' cartons' : calc.error}
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    <input aria-label={'Loose units for ' + row.product.name} value={row.looseUnits}
+                    <input id={'grn-loose-' + row.product.id} aria-label={'Loose units for ' + row.product.name} value={row.looseUnits}
                       onChange={(e) => updateRow(row.product.id,'looseUnits',e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('grn-rate-' + row.product.id)?.focus(); } }}
                       disabled={!editable} inputMode="numeric"
                       className="h-10 w-24 rounded-lg border border-slate-300 px-2 text-right"/>
                   </td>
                   <td className="px-3 py-3 font-bold tabular-nums text-teal-800">{calc.data?.totalUnits ?? '—'}</td>
                   <td className="px-3 py-3">{row.product.uom}</td>
                   <td className="px-3 py-2">
-                    <input aria-label={'Purchase rate for ' + row.product.name} value={row.unitCost}
+                    <input id={'grn-rate-' + row.product.id} aria-label={'Purchase rate for ' + row.product.name} value={row.unitCost}
                       onChange={(e) => updateRow(row.product.id,'unitCost',e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchRef.current?.focus(); } }}
                       disabled={!editable} inputMode="decimal"
                       className="h-10 w-28 rounded-lg border border-slate-300 px-2 text-right"/>
                   </td>
@@ -371,12 +458,12 @@ export const GoodsReceivingPage: React.FC = () => {
                   </td>
                 </tr>;
               })}
-              {!rows.length && <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">Find an item above, or paste notebook rows to start receiving.</td></tr>}
+              {!rows.length && <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-500">Find an item above, or paste notebook rows to start receiving.</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm">
-          <span className="text-slate-500">Carton sizes are entered explicitly—no fixed units-per-case assumption.</span>
+          <span className="text-slate-500">Use Cases × Units/case for uniform cartons, or variable counts such as 12,10,11. No assumed pack size.</span>
           <div className="text-right"><strong>{totalUnits.toLocaleString('en-IN')} units</strong><span className="ml-3 text-slate-600">Estimated purchase value {currency(totalCost)}</span></div>
         </div>
       </section>
