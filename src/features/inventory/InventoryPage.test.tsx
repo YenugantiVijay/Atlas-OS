@@ -137,6 +137,32 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
     vi.mocked(inventoryService.getStockMovements).mockResolvedValue(sampleMovements);
   });
 
+  it('keeps read-only stock movements visible when the product catalog request fails', async () => {
+    vi.mocked(productsService.getProducts).mockRejectedValueOnce(new Error('Catalog unavailable'));
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Inventory Movement Ledger')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Initial warehouse inventory')).toBeInTheDocument());
+    expect(screen.getByRole('status').textContent).toMatch(/product catalog could not be loaded/i);
+    expect(screen.getByRole('button', { name: /adjust stock/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /retry catalog/i })).toBeInTheDocument();
+    expect(mockShowToast).not.toHaveBeenCalledWith('error', 'Failed to load stock movements', expect.anything());
+  });
+
+  it('displays a recoverable error if the stock movement query itself fails', async () => {
+    vi.mocked(inventoryService.getStockMovements).mockRejectedValueOnce(new Error('Ledger permission denied'));
+    render(
+      <MemoryRouter>
+        <InventoryPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Ledger permission denied')).toBeInTheDocument());
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'Failed to load stock movements', 'Ledger permission denied');
+  });
+
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   // --------------------------------------------------------------------------

@@ -2,9 +2,9 @@
 
 > **Owner:** Atlas OS product development | **Tracking branch:** `Vijay-Atlas` | **Last reconciled:** 2026-11-07
 >
-> **Purpose:** Make every previously discussed feature visible in one place; prevent chat-history loss and roadmap drift. This register covers the **140-item working inventory** assembled from the original Atlas OS discussions, Atlas OS 2, repository code, and design documents. It is a *planning inventory*, not a declaration that all 140 items are complete, independently audited, or equally necessary for initial launch.
+> **Purpose:** Make every previously discussed feature visible in one place; prevent chat-history loss and roadmap drift. This register covers the **142-item working inventory** assembled from the original Atlas OS discussions, Atlas OS 2, repository code, and design documents. It is a *planning inventory*, not a declaration that all 140 items are complete, independently audited, or equally necessary for initial launch.
 >
-> **Important:** Some entries are capabilities inside larger features (e.g. product search), and others are multi-year program areas. The numbers are permanent identifiers, **not 140 standalone pull requests**.
+> **Important:** Some entries are capabilities inside larger features (e.g. product search), and others are multi-year program areas. The numbers are permanent identifiers, **not 142 standalone pull requests**.
 
 ## One engineering strategy: all features tracked, controlled implementation batches
 
@@ -151,7 +151,7 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 | ID | Feature | Status | Wave |
 |---:|---|:---:|:---:|
-| F-026 | Quick inventory spreadsheet-style entry | N | W1 |
+| F-026 | Quick inventory spreadsheet-style entry | P | W1 |
 | F-027 | Complete bulk stock receiving workflow | P | W1 |
 | F-028 | Purchase orders | N | W1 |
 | F-029 | Goods receipt note (GRN) | N | W1 |
@@ -292,6 +292,15 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 | F-139 | Supplier-buyer discovery network | D | W4 |
 | F-140 | Automated buyer/supplier procurement coordination | D | W4 |
 
+**PR #58 follow-up gap closure (2026-11-11; CI pending):** Receiving now compares last supplier/product rate (as-of receipt date) before posting and highlights ≥5% differences without automatic master-cost changes; spreadsheet paste accepts four- or five-column TAB input and unique exact product names. The Products catalog gains price/stock autocomplete with stale-response guards and HSN filtering. Stock Movements falls back to restricted, unembedded reads only for PostgREST relationship errors; catalog fetch failure no longer hides the ledger. Existing POS and Ctrl+K had stock+sale-price search; quotation/order selection remains older UI. F-026/F-027/F-141/F-142 remain partial pending real authenticated cloud browser acceptance. See [PR #58 gap closure](./PR58_QUICK_PRODUCT_RECEIVING.md).\n\n### PR #58 — Receiving worksheet quick product creation (2026-11-10; CI pending)
+
+F-026/F-027 remain **partial**, not certified, until a real authenticated cloud browser walkthrough. The receiving screen now supports in-place creation of a new product via the existing guarded `create_product_atomic` RPC (**opening stock zero**), price-and-availability autocomplete, auto serial numbers, separate Cases × Units/case entry and explicit mixed-size carton counts. Purchase cost and selling-price master fields do not change when a GRN is posted; PR57 preserves supplier-specific paid rates. See [PR #58](./PR58_QUICK_PRODUCT_RECEIVING.md). No new migration or production data write.
+
+| ID | Newly approved workflow enhancement | Status | Wave |
+|---:|---|:---:|:---:|
+| F-141 | Create a new product directly from a receiving worksheet row, with a protected product master write and zero opening stock | P | W1 |
+| F-142 | Item suggestions showing current stock and selling price in receiving; extend to counter/quotes/global search | P | W1 |
+
 ## Evidence map (starting points, not certification)
 
 | Domain | Main sources to re-check when implementing |
@@ -320,6 +329,6 @@ For every development task:
 ## Follow-up register improvements (optional, not blockers)
 
 - Add per-feature **acceptance checklists, test evidence, owner, last reviewed date and dependency IDs** as implementation starts. Avoid inventing evidence on 140 entries.
-- Use one linked GitHub issue per **work package**, not 140 automatically generated issues. Link issues to F-IDs.
+- Use one linked GitHub issue per **work package**, not 142 automatically generated issues. Link issues to F-IDs.
 - Once a week, reconcile current PRs, open blockers, and planned work with this file.
 - Mark W1/W2 release-cut inclusions explicitly after user/customer prioritization; do not silently promise every program area for v1.

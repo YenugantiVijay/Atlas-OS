@@ -9,12 +9,14 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
   test('renders the notepad-style receiving grid with supplier reference and no fake stock posting',async({page})=>{
     await expect(page.getByRole('heading',{name:'Bulk Goods Receiving'})).toBeVisible();
     await expect(page.getByRole('region',{name:'Receiving line-item grid'})).toBeVisible();
-    const headings=['Sl.','Product / SKU','Carton unit counts (variable)','Loose units','Total units','Unit','Purchase rate','Line value'];
+    const headings=['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Total units','Unit','Purchase rate','Line value'];
     for(const name of headings){
       await expect(page.getByRole('columnheader',{name,exact:true})).toBeVisible();
     }
     await expect(page.getByRole('status').filter({hasText:'Cloud-only first release'})).toBeVisible();
     await expect(page.getByRole('button',{name:'Save receiving draft'})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'New product'})).toBeDisabled();
+    await expect(page.getByText(/Suggestions show live stock and current catalog selling price/)).toBeVisible();
     await expect(page.getByRole('button',{name:'Confirm posting'})).toHaveCount(0);
     await expect(page.getByText(/Saving a draft never increases stock/)).toBeVisible();
   });
@@ -22,7 +24,7 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
   test('notebook import explains variable carton counts while unauthorized posting stays blocked',async({page})=>{
     const opener=page.getByRole('button',{name:'Paste notebook rows'});
     await expect(opener).toBeDisabled();
-    await expect(page.getByText(/Carton sizes are entered explicitly/)).toBeVisible();
+    await expect(page.getByText(/No assumed pack size/)).toBeVisible();
     await expect(page.getByText(/No receipts have been recorded yet/)).toBeVisible();
   });
 

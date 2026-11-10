@@ -41,7 +41,7 @@ const CATEGORIES = [
   'Fans & Appliances',
 ];
 
-const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
+const UOM_OPTIONS: UOM[] = ['Nos', 'Bags', 'Kg', 'Litres', 'Packs', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
   const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
@@ -55,6 +55,9 @@ export const ProductsPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const latestCatalogRequest = useRef(0);
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
   const [page, setPage] = useState(1);
@@ -116,6 +119,7 @@ export const ProductsPage: React.FC = () => {
   const loadProducts = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Product[] | null> => {
     if (!currentOrg) return null;
     const orgIdAtCall = currentOrg.id;
+    const requestId = ++latestCatalogRequest.current;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -149,7 +153,7 @@ export const ProductsPage: React.FC = () => {
         );
       }
 
-      if (activeOrgIdRef.current !== orgIdAtCall) {
+      if (activeOrgIdRef.current !== orgIdAtCall || requestId !== latestCatalogRequest.current) {
         return null;
       }
 
@@ -158,13 +162,13 @@ export const ProductsPage: React.FC = () => {
       setTotalPages(res.totalPages);
       return res.data;
     } catch (err: any) {
-      if (activeOrgIdRef.current !== orgIdAtCall) return null;
+      if (activeOrgIdRef.current !== orgIdAtCall || requestId !== latestCatalogRequest.current) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load products. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load products', msg);
       return null;
     } finally {
-      if (activeOrgIdRef.current === orgIdAtCall) {
+      if (activeOrgIdRef.current === orgIdAtCall && requestId === latestCatalogRequest.current) {
         setIsLoading(false);
       }
     }
@@ -385,7 +389,8 @@ export const ProductsPage: React.FC = () => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand?.toLowerCase().includes(searchQuery.toLowerCase());
+      p.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.hsnCode?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       selectedCategory === 'All Categories' || p.category === selectedCategory;
@@ -399,6 +404,15 @@ export const ProductsPage: React.FC = () => {
 
     return matchesSearch && matchesCategory && matchesStock;
   });
+
+  const suggestions = suggestionsOpen && searchQuery.trim().length >= 2 && !isLoading && !loadError
+    ? filteredProducts.slice(0, 8) : [];
+  const chooseSuggestion = (product: Product) => {
+    setSearchQuery(product.sku);
+    setPage(1);
+    setSuggestionsOpen(false);
+    setSuggestionIndex(0);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -453,17 +467,60 @@ export const ProductsPage: React.FC = () => {
       {/* Filters & Search */}
       <Card>
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          <div className="flex-1 w-full">
+          <div className="relative flex-1 w-full">
             <Input
-              placeholder="Search by product name, SKU, or manufacturer brand..."
+              placeholder="Search name, SKU, company, or HSN..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
+                setSuggestionsOpen(true);
+                setSuggestionIndex(0);
                 setPage(1);
+              }}
+              onFocus={() => { if (searchQuery.trim().length >= 2) setSuggestionsOpen(true); }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' && suggestions.length) {
+                  e.preventDefault();
+                  setSuggestionIndex((n) => Math.min(n + 1, suggestions.length - 1));
+                } else if (e.key === 'ArrowUp' && suggestions.length) {
+                  e.preventDefault();
+                  setSuggestionIndex((n) => Math.max(0, n - 1));
+                } else if (e.key === 'Enter' && suggestions.length) {
+                  e.preventDefault();
+                  chooseSuggestion(suggestions[Math.min(suggestionIndex, suggestions.length - 1)]);
+                } else if (e.key === 'Escape') {
+                  setSuggestionsOpen(false);
+                }
               }}
               leftIcon={<Search className="w-4 h-4" />}
               aria-label="Search products"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={suggestions.length > 0}
+              aria-controls="catalog-suggestions"
             />
+            {suggestions.length > 0 && (
+              <div id="catalog-suggestions" role="listbox" aria-label="Matching catalog products"
+                className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                {suggestions.map((p, i) => (
+                  <button type="button" role="option" aria-selected={i === suggestionIndex}
+                    key={p.id} onClick={() => chooseSuggestion(p)}
+                    className={'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-teal-50 ' +
+                      (i === suggestionIndex ? 'bg-teal-50' : '')}>
+                    <span className="min-w-0">
+                      <strong className="block truncate text-slate-800">{p.name}</strong>
+                      <span className="block truncate text-xs text-slate-500">{p.sku} · {p.brand || 'No brand'} · {p.uom}</span>
+                    </span>
+                    <span className="shrink-0 text-right text-xs">
+                      <span className="block font-medium text-slate-600">Stock {p.currentStock ?? '—'} {p.uom}</span>
+                      <span className="block font-semibold text-teal-700">{formatCurrency(p.sellingPrice)}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchQuery.trim().length >= 2 && !suggestions.length && isLoading &&
+              <p className="mt-1 text-xs text-slate-500">Searching the current business catalog…</p>}
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">

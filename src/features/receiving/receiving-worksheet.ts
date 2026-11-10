@@ -16,6 +16,28 @@ export const MAX_RECEIPT_LINES = 50;
 export const MAX_PACKAGES = 200;
 export const MAX_UNITS = 1_000_000;
 
+/** Display the common cases × units/case grid without guessing a package size.
+ * Mixed carton counts remain in the original explicit representation. */
+export function readUniformCartons(packageText: string): {
+  isUniform: boolean; cases: string; unitsPerCase: string;
+} {
+  const trimmed = packageText.trim();
+  if (!trimmed) return { isUniform: true, cases: '', unitsPerCase: '' };
+  const match = /^(\d*)\s*[x×]\s*(\d*)$/i.exec(trimmed);
+  return match
+    ? { isUniform: true, cases: match[1], unitsPerCase: match[2] }
+    : { isUniform: false, cases: '', unitsPerCase: '' };
+}
+
+/** Incomplete input stays in the worksheet until both fields are entered.
+ * Existing parsePackageCounts still rejects it before a draft is saved. */
+export function writeUniformCartons(cases: string, unitsPerCase: string): string {
+  if (!/^\d*$/.test(cases) || !/^\d*$/.test(unitsPerCase)) {
+    throw new Error('Cases and units per case must be whole numbers.');
+  }
+  return !cases && !unitsPerCase ? '' : cases + 'x' + unitsPerCase;
+}
+
 /**
  * An explicit package list, NOT an assumed carton size:
  * "12, 10, 11" => three cartons of different counts.
@@ -88,22 +110,57 @@ export function buildGoodsReceiptPayload(organizationId: string, lines: ReceiptW
   });
 }
 
-/** Notebook rows: exact SKU<TAB>carton counts<TAB>loose units<TAB>purchase rate */
+/** Notebook rows can be pasted from Excel or plain text:
+ * 4 columns: SKU/name<TAB>mixed cartons<TAB>loose<TAB>rate
+ * 5 columns: SKU/name<TAB>cases<TAB>units/case<TAB>loose<TAB>rate.
+ * Names are resolved tenant-side by the caller, never automatically created.
+ */
 export function parseReceivingNotebook(text: string) {
-  const rows = text.trim().split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  if (rows.length < 1 || rows.length > 20) throw new Error('Paste between 1 and 20 rows.');
-  const skus = new Set<string>();
+  const rows = text.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  const isHeader = (row: string) => {
+    const cells = row.split('\t').map((x) => x.trim().toLowerCase());
+    return cells.length >= 4 && ['sku','product','item','product name','item name'].includes(cells[0]) &&
+      (cells[1] === 'cartons' || cells[1] === 'carton counts' || cells[1] === 'cases');
+  };
+  if (rows.length && isHeader(rows[0])) rows.shift();
+  if (rows.length < 1 || rows.length > MAX_RECEIPT_LINES) {
+    throw new Error('Paste between 1 and 50 product rows.');
+  }
+  const identifiers = new Set<string>();
   return rows.map((row, idx) => {
     const cells = row.split('\t').map((x) => x.trim());
-    if (cells.length !== 4 || !cells[0] || cells[0].length > 100) {
-      throw new Error('Paste row ' + (idx + 1) + ' must have exactly four TAB-separated columns.');
+    if ((cells.length !== 4 && cells.length !== 5) || !cells[0] || cells[0].length > 255) {
+      throw new Error('Paste row ' + (idx + 1) + ' needs 4 or 5 TAB-separated columns.');
     }
-    const sku = cells[0].toUpperCase();
-    if (skus.has(sku)) throw new Error('Duplicate SKU in pasted rows: ' + sku);
-    skus.add(sku);
-    // The same validation runs again before the RPC. Do not trust spreadsheet totals.
-    const previewLine = { packageText: cells[1], looseUnits: cells[2], unitCost: cells[3] };
-    computeReceiptLine(previewLine as ReceiptWorksheetLine);
-    return { sku: cells[0], ...previewLine };
+    const identifier = cells[0].toLocaleUpperCase('en-IN');
+    if (identifiers.has(identifier)) throw new Error('Duplicate product in pasted rows: ' + cells[0]);
+    identifiers.add(identifier);
+    let packageText: string, looseUnits: string, unitCost: string;
+    if (cells.length === 4) {
+      [packageText, looseUnits, unitCost] = cells.slice(1);
+    } else {
+      const cases = cells[1];
+      const unitsPerCase = cells[2];
+      if (!/^(0|[1-9]\d*)$/.test(cases) || !/^(0|[1-9]\d*)$/.test(unitsPerCase)) {
+        throw new Error('Row ' + (idx + 1) + ': Cases and units/case must be whole numbers.');
+      }
+      const caseCount = Number(cases);
+      const perCase = Number(unitsPerCase);
+      if (!Number.isSafeInteger(caseCount) || caseCount > MAX_PACKAGES ||
+          !Number.isSafeInteger(perCase) || perCase > MAX_UNITS ||
+          (caseCount === 0 && perCase !== 0) || (caseCount > 0 && perCase === 0)) {
+        throw new Error('Row ' + (idx + 1) + ': Enter up to 200 cases with a positive unit count, or 0 cases and 0 units/case.');
+      }
+      packageText = caseCount === 0 ? '' : writeUniformCartons(cases, unitsPerCase);
+      looseUnits = cells[3];
+      unitCost = cells[4];
+    }
+    // All totals are recalculated and validated again by the server on save/post.
+    try { computeReceiptLine({packageText, looseUnits, unitCost} as ReceiptWorksheetLine); }
+    catch (error) {
+      throw new Error('Row ' + (idx + 1) + ': ' +
+        (error instanceof Error ? error.message : 'Invalid product quantities.'));
+    }
+    return { sku: cells[0], packageText, looseUnits, unitCost };
   });
 }

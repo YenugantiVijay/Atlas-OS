@@ -35,7 +35,7 @@ export interface Membership {
   user?: User;
 }
 
-export type UOM = 'Nos' | 'Coils' | 'Meters' | 'Boxes' | 'Bundles' | 'Sets' | 'Rolls';
+export type UOM = 'Nos' | 'Coils' | 'Meters' | 'Boxes' | 'Bundles' | 'Sets' | 'Rolls' | 'Bags' | 'Kg' | 'Litres' | 'Packs';
 
 export interface Product {
   id: string;
