@@ -75,8 +75,11 @@ BEGIN
 
     SELECT id,sku,name,uom,is_active INTO v_product
     FROM public.products WHERE id=v_id AND organization_id=p_org_id;
-    IF NOT FOUND OR NOT v_product.is_active THEN
-      RAISE EXCEPTION 'Receipt product not active or not in this organization' USING ERRCODE='42501';
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Receipt product not in this organization' USING ERRCODE='42501';
+    END IF;
+    IF NOT v_product.is_active THEN
+      RAISE EXCEPTION 'Receipt product is inactive' USING ERRCODE='42501';
     END IF;
 
     v_loose := (v_line->>'looseUnits')::INTEGER;
@@ -211,12 +214,12 @@ BEGIN
     (SELECT jsonb_agg(jsonb_build_object(
       'productId',line->>'productId','packageCounts',line->'packageCounts',
       'looseUnits',line->'looseUnits','unitCost',line->'unitCost'
-    )) FROM jsonb_array_elements(v_receipt.lines) AS line));
+    )) FROM jsonb_array_elements(v_receipt.lines) AS t(line)));
 
   -- Deterministic ascending product locks avoid deadlocks with other workflows.
   FOR v_prod IN
     SELECT (line->>'productId')::UUID
-    FROM jsonb_array_elements(v_receipt.lines) AS line
+    FROM jsonb_array_elements(v_receipt.lines) AS t(line)
     ORDER BY 1
   LOOP
     PERFORM 1 FROM public.products
