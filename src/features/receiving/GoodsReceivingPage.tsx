@@ -31,7 +31,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<ReceiptWorksheetLine[]>([]);
-  const [receiptId, setReceiptId] = useState(() => crypto.randomUUID());
+  const [receiptId, setReceiptId] = useState<string>(() => crypto.randomUUID());
   const [savedState, setSavedState] = useState<'NEW' | 'DRAFT' | 'POSTED'>('NEW');
   const [dirty, setDirty] = useState(true);
   const [busy, setBusy] = useState(false);
