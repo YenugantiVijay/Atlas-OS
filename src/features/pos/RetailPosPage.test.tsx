@@ -168,7 +168,7 @@ describe('Retail Counter — safe draft order workflow', () => {
     fireEvent.change(lookup, { target: { value: 'Ravi' } });
     await screen.findByRole('button', { name: /Ravi Electricals/ });
     fireEvent.keyDown(lookup, { key: 'Enter' });
-    expect(screen.getByText(/Selected:/)).toBeInTheDocument();
+    expect(screen.getByText('Selected')).toBeInTheDocument();
     fireEvent.keyDown(lookup, { key: 'Enter', ctrlKey: true });
     await waitFor(() => expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1));
     expect(ordersService.confirmSalesOrder).not.toHaveBeenCalled();
