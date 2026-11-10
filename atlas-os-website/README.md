@@ -98,33 +98,41 @@ To activate the forms you must deploy the Supabase `submit-website-lead` Edge Fu
 
 See [PR #51 Website Lead Delivery deployment and verification](../docs/PR51_WEBSITE_LEAD_DELIVERY.md) for secrets, staging tests, explicit deployment approval and real inbox verification. Neither the website build nor a merged PR deploys the service automatically.
 
-## 4. How to Preview the Website
+## 4. Preview the REAL Website (one Astro design, no duplicate index.html)
 
-### Option A — Open `index.html` directly (no server required)
+**The only website design source is `src/pages/*.astro`**, starting with `src/pages/index.astro`. Do not maintain another standalone homepage at `atlas-os-website/index.html`: a duplicate used to show a different, simplified design in VS Code Live Server. It has been deleted.
 
-**Right-click `atlas-os-website/index.html` → Open with Live Server** in VS Code, or double-click it in File Explorer. It now shows the **Atlas OS homepage immediately**, rather than the old placeholder card with the broken “Open Live Website” button.
+### Windows — open the official website automatically
 
-This file is a **self-contained, responsive HTML homepage preview** with working anchor navigation and an interactive sample workspace. It is intentionally distinct from the full multi-page Astro application; changes to `src/pages/*.astro` will **not** automatically update this standalone preview.
+1. Open the `atlas-os-website` folder in File Explorer.
+2. Double-click **`preview-website.cmd`**.
+3. The script checks Node/npm, installs dependencies if needed, starts Astro, verifies it is serving the actual Atlas OS homepage, and opens **http://127.0.0.1:4321/** directly in your browser.
+4. Keep the Astro server terminal open while previewing. Edits to `src/pages/`, `src/components/` and styles appear with hot reload.
 
-### Option B — Open the complete official website (recommended for design/development)
+If the script reports a startup error, check the separately opened **Atlas OS Website Live Server** terminal. A different application on port 4321 must be stopped before Astro can start there.
 
-**Double-click `atlas-os-website/preview-website.cmd` on Windows.** It installs missing dependencies, starts the real Astro dev server, waits until the Atlas OS homepage is reachable, and only then opens the browser directly at **http://127.0.0.1:4321/**. No intermediate card or “Open Website” click is necessary.
+### VS Code — live preview (with hot reload)
 
-The complete website is authored in `src/pages/*.astro` and supports all its actual pages, components and live reload. If it cannot start, the script reports an error rather than opening a dead link. Keep the server console open while previewing; close it to stop the server.
-
-Equivalent terminal commands:
+Open the **website folder** in VS Code and run these commands in the terminal:
 
 ```bash
-cd atlas-os-website
 npm ci
 npm run dev
 ```
 
-### Production-style preview
+Then open **http://127.0.0.1:4321/** in your browser. **Do not use "Open with Live Server" on an `index.html` in the source folder**: Live Server cannot compile `.astro` components and will not show the true website.
 
-Run `npm run build` followed by `npm run preview` from the website directory. The generated `dist/index.html` is the real compiled Astro homepage for hosting.
+### Production build — the generated index.html you requested
 
-**Why there are two entrypoints:** VS Code Live Server only serves static HTML, CSS and JavaScript; it cannot compile `.astro` components or launch Node processes. The root `index.html` is therefore a working standalone homepage preview, while `preview-website.cmd` opens the actual complete website.
+```bash
+npm run build
+npm run verify
+npm run preview
+```
+
+Astro automatically creates the real homepage at **`atlas-os-website/dist/index.html`**, plus matching pages/assets. This is the correct `index.html`; it is generated from the original Astro design, not independently edited. The production-style preview opens on port 4321 (stop the dev server first).
+
+Firebase Hosting uses `dist/` as its website root; the original design and route structure are preserved.
 
 ## 5. Local Development & Verification
 
