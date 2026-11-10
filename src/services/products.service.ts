@@ -48,6 +48,7 @@ export const productsService = {
           p.name.toLowerCase().includes(s) ||
           p.sku.toLowerCase().includes(s) ||
           Boolean(p.brand && p.brand.toLowerCase().includes(s)) ||
+          Boolean(p.hsnCode && p.hsnCode.toLowerCase().includes(s)) ||
           p.category.toLowerCase().includes(s),
         (a, b) => a.name.localeCompare(b.name)
       );
@@ -66,7 +67,7 @@ export const productsService = {
       // Sanitize search term to prevent PostgREST grammar breakage
       const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
       if (s) {
-        query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%`);
+        query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%,hsn_code.ilike.%${s}%`);
       }
     }
 
