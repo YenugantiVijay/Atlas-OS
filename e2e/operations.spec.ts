@@ -20,7 +20,6 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('navigates to products catalog and filters by category', async ({ page }) => {
-    await page.locator('aside').getByRole('button', { name: 'Inventory', exact: true }).click();
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);
     await expect(page.getByText('Products & Catalog')).toBeVisible();
@@ -35,14 +34,12 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('navigates to sales orders and verifies order lifecycle', async ({ page }) => {
-    await page.locator('aside').getByRole('button', { name: 'Sales', exact: true }).click();
     await page.getByRole('link', { name: 'Sales Orders' }).click();
     await expect(page).toHaveURL(/.*#\/orders/);
     await expect(page.getByText('SO-2026-0001')).toBeVisible();
   });
 
   test('navigates to tax invoices and views commercial GST snapshot', async ({ page }) => {
-    await page.locator('aside').getByRole('button', { name: 'Sales', exact: true }).click();
     await page.getByRole('link', { name: 'Tax Invoices' }).click();
     await expect(page).toHaveURL(/.*#\/invoices/);
     await expect(page.getByText('ATL/25-26/0001')).toBeVisible();
@@ -77,7 +74,6 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await expect(page.getByText('Top Brands by Stock Valuation')).toBeVisible();
 
     // 2. Products pagination controls
-    await page.locator('aside').getByRole('button', { name: 'Inventory', exact: true }).click();
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);
     const pagination = page.getByTestId('pagination-control');
@@ -89,7 +85,6 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
 
   test('verifies end-to-end payment workflow and balance settlement', async ({ page }) => {
     // 1. Navigate to Payments page and verify KPI summary metrics
-    await page.locator('aside').getByRole('button', { name: 'Finance', exact: true }).click();
     await page.getByRole('link', { name: 'Payments & Ledger' }).click();
     await expect(page).toHaveURL(/.*#\/payments/);
     await expect(page.getByText('Payments & Receivables Ledger')).toBeVisible();

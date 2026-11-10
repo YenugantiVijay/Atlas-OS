@@ -52,10 +52,16 @@ test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
     await expect(aside.getByText('Simple View')).toHaveCount(0);
     await expect(aside.getByText('Full Navigation')).toHaveCount(0);
 
-    // Collapsible group buttons exist
-    await expect(aside.getByRole('button', { name: 'Sales' })).toBeVisible();
-    await expect(aside.getByRole('button', { name: 'Inventory' })).toBeVisible();
-    await expect(aside.getByRole('button', { name: 'Finance' })).toBeVisible();
+    // Static section headings exist without dropdown toggle buttons
+    await expect(aside.getByText('Sales', { exact: true })).toBeVisible();
+    await expect(aside.getByText('Inventory', { exact: true })).toBeVisible();
+    await expect(aside.getByText('Finance', { exact: true })).toBeVisible();
+    await expect(aside.getByRole('button', { name: 'Sales' })).toHaveCount(0);
+    await expect(aside.getByRole('button', { name: 'Inventory' })).toHaveCount(0);
+    await expect(aside.getByRole('button', { name: 'Finance' })).toHaveCount(0);
+    await expect(aside.getByRole('link', { name: 'Sales Orders' })).toBeVisible();
+    await expect(aside.getByRole('link', { name: 'Products & SKUs' })).toBeVisible();
+    await expect(aside.getByRole('link', { name: 'Payments & Ledger' })).toBeVisible();
     await expect(aside.getByRole('link', { name: 'ATLAS AI Assistant' })).toBeVisible();
   });
 
