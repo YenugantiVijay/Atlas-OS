@@ -123,7 +123,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const rateLookupKey = JSON.stringify([orgId, supplierId, date, rateProductIds]);
   useEffect(() => {
     let active = true;
-    if (!orgId || !supplierId || !date || !rows.length || !canReadSupplierRates || isMockAuth) {
+    if (!orgId || !supplierId || !date || !rateProductIds || !canReadSupplierRates || isMockAuth) {
       setPriorRates({ key: '', entries: {}, error: false });
       return;
     }
