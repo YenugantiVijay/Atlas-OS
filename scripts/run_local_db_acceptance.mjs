@@ -31,6 +31,7 @@ import { runB2CustomerDirectorySearchAcceptance } from './b2_customer_directory_
 import { runB2OperationalSearchAcceptance } from './b2_operational_search_acceptance.mjs';
 import { runSec02PrivilegedRpcAcceptance } from './sec02_privileged_rpc_acceptance.mjs';
 import { runWebsiteLeadRateAcceptance } from './pr51_website_leads_acceptance.mjs';
+import { runGoodsReceivingAcceptance } from './pr56_goods_receiving_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1387,6 +1388,13 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+
+    // PR #56: real role/tenant and stock ledger acceptance on disposable PG only.
+    await runGoodsReceivingAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+      productAId: prodA1Id, productBId: prodA2Id, foreignProductId: prodB1Id,
+    });
 
     // PR #51: service-only website lead limiter; no genuine visitor data.
     await runWebsiteLeadRateAcceptance({ client: testClient, withRoleContext, recordTest });
