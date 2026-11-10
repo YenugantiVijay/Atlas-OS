@@ -170,7 +170,7 @@ test.describe('ATLAS OS — Restart, Recovery & Multi-Tenant Isolation (Phase A3
   test.describe('Test Group 4 — Resilient Error & Empty State Recovery', () => {
     test('renders graceful empty state when search matches zero records', async ({ page }) => {
       await page.goto('/#/products');
-      const searchInput = page.getByRole('textbox', { name: /Search products/i });
+      const searchInput = page.getByRole('combobox', { name: /Search products/i });
       await searchInput.fill('NONEXISTENT_SKU_QUERY_XYZ_99999');
 
       await expect(page.getByText('No products found')).toBeVisible();
