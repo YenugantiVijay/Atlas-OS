@@ -119,14 +119,15 @@ export const GoodsReceivingPage: React.FC = () => {
 
   // Exact supplier and product comparisons as of the receipt date.
   // Missing history is unknown, never a zero-valued price.
-  const rateLookupKey = JSON.stringify([orgId, supplierId, date, rows.map((r) => r.product.id)]);
+  const rateProductIds = rows.map((r) => r.product.id).join(',');
+  const rateLookupKey = JSON.stringify([orgId, supplierId, date, rateProductIds]);
   useEffect(() => {
     let active = true;
     if (!orgId || !supplierId || !date || !rows.length || !canReadSupplierRates || isMockAuth) {
       setPriorRates({ key: '', entries: {}, error: false });
       return;
     }
-    const selectedIds = rows.map((r) => r.product.id);
+    const selectedIds = rateProductIds.split(',');
     const timer = window.setTimeout(async () => {
       try {
         const entries: Record<string, Pick<SupplierPriceEntry, 'unitCost' | 'effectiveOn' | 'sourceType'>> = {};
@@ -149,7 +150,7 @@ export const GoodsReceivingPage: React.FC = () => {
     }, 240);
     return () => { active = false; window.clearTimeout(timer); };
   // The key only changes on supplier/date/product-ID changes, not editing quantities.
-  }, [rateLookupKey, orgId, supplierId, date, canReadSupplierRates, isMockAuth]);
+  }, [rateLookupKey, rateProductIds, orgId, supplierId, date, canReadSupplierRates, isMockAuth]);
 
   const visiblePriorRates = priorRates.key === rateLookupKey ? priorRates.entries : {};
   const priorRatesUnavailable = priorRates.key === rateLookupKey && priorRates.error;
