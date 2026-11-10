@@ -20,7 +20,7 @@ export const PosBillingGrid: React.FC<Props> = ({
   lines, calculatedLines, disabled = false,
   onQuantityChange, onDiscountChange, onRemove,
 }) => (
-  <section aria-label="Retail billing worksheet" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <section aria-label="Retail billing worksheet" className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-3">
       <div>
         <h2 className="font-semibold text-[#142B4D]">Billing worksheet</h2>
@@ -30,7 +30,7 @@ export const PosBillingGrid: React.FC<Props> = ({
         {lines.length} {lines.length === 1 ? 'line' : 'lines'}
       </span>
     </div>
-    <div className="max-h-[460px] overflow-auto" role="region" aria-label="Scroll billing line items" tabIndex={0}>
+    <div className="max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto" role="region" aria-label="Scroll billing line items" tabIndex={0}>
       <table className="w-full min-w-[1030px] border-collapse text-left text-xs text-slate-700">
         <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
           <tr className="border-b border-slate-200">
