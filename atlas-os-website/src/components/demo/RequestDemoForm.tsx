@@ -365,8 +365,7 @@ export default function RequestDemoForm() {
       <div className="flex items-start gap-2.5 pt-2 text-[11px] text-content-secondary border-t border-border">
         <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
         <p>
-          We respect commercial confidentiality. Your contact details are stored securely and used solely by our team to
-          coordinate your Atlas OS product demonstration. We never sell or share distributor business records.
+          We respect commercial confidentiality. Your enquiry is sent over HTTPS to our designated email provider to coordinate a product demonstration. Cloudflare Turnstile processes verification data.
         </p>
       </div>
 
