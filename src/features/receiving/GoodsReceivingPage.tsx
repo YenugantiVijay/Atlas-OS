@@ -9,7 +9,7 @@ import { productsService } from '@/services/products.service';
 import { suppliersService } from '@/services/suppliers.service';
 import { goodsReceivingService, type GoodsReceiptRecord } from '@/services/goods-receiving.service';
 import { supplierPriceHistoryService, type SupplierPriceEntry } from '@/services/supplier-price-history.service';
-import { supplierRateChange } from '@/features/pricing/supplier-rate-utils';
+import { parseSupplierRate, supplierRateChange } from '@/features/pricing/supplier-rate-utils';
 import {
   buildGoodsReceiptPayload, computeReceiptLine, parseReceivingNotebook,
   readUniformCartons, writeUniformCartons, parsePackageCounts,
@@ -444,8 +444,11 @@ export const GoodsReceivingPage: React.FC = () => {
               {rows.map((row, i) => {
                 const calc = calculated[i];
                 const baseline = visiblePriorRates[row.product.id];
-                const rateDelta = baseline && calc.data
-                  ? supplierRateChange(baseline.unitCost, calc.data.unitCost) : null;
+                let enteredRate: number | null = null;
+                try { enteredRate = parseSupplierRate(row.unitCost); }
+                catch { /* Incomplete or invalid rates never generate a comparison. */ }
+                const rateDelta = baseline && enteredRate !== null
+                  ? supplierRateChange(baseline.unitCost, enteredRate) : null;
                 const uniform = readUniformCartons(row.packageText);
                 const mixed = mixedRows.has(row.product.id) || !uniform.isUniform;
                 return <tr key={row.product.id} className="align-top">
