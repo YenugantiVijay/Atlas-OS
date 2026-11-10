@@ -94,13 +94,43 @@ describe('PR #55 — inventory movement product embed disambiguation', () => {
     expect(query.select).toHaveBeenCalledWith(querySelect);
   });
 
-  it('does not silently swallow a database query failure', async () => {
-    const query = createMovementQuery({
+  it('recovers from relationship-cache errors using a bounded, org-scoped raw movement read', async () => {
+    const embed = createMovementQuery({
       data: null, error: { code: 'PGRST201', message: 'Ambiguous relationship' },
+    });
+    const fallback = createMovementQuery({ data: [{...movement, products: undefined}], error: null });
+    vi.mocked(supabase!.from).mockReturnValueOnce(embed as any).mockReturnValueOnce(fallback as any);
+    const rows = await inventoryService.getStockMovements(orgId, undefined, false);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].productId).toBe(productId);
+    expect(rows[0].quantityChange).toBe(24);
+    expect(rows[0].product).toBeUndefined();
+    expect(embed.select).toHaveBeenCalledWith(querySelect);
+    expect(fallback.select).toHaveBeenCalledWith('*');
+    expect(fallback.eq).toHaveBeenCalledWith('organization_id', orgId);
+    expect(fallback.limit).toHaveBeenCalledWith(100);
+  });
+
+  it('surfaces fallback failures instead of masking a database outage or permissions issue', async () => {
+    const embed = createMovementQuery({
+      data: null, error: { code: 'PGRST200', message: 'Relationship missing' },
+    });
+    const fallback = createMovementQuery({
+      data: null, error: { code: '42501', message: 'permission denied' },
+    });
+    vi.mocked(supabase!.from).mockReturnValueOnce(embed as any).mockReturnValueOnce(fallback as any);
+    await expect(inventoryService.getStockMovements(orgId, undefined, false))
+      .rejects.toThrow('Failed to fetch stock movements: permission denied');
+  });
+
+  it('never retries a non-relationship error with a broader read', async () => {
+    const query = createMovementQuery({
+      data: null, error: { code: '42501', message: 'permission denied' },
     });
     vi.mocked(supabase!.from).mockReturnValue(query as any);
     await expect(inventoryService.getStockMovements(orgId, undefined, false))
-      .rejects.toThrow('Failed to fetch stock movements: Ambiguous relationship');
+      .rejects.toThrow('Failed to fetch stock movements: permission denied');
+    expect(supabase!.from).toHaveBeenCalledTimes(1);
   });
 
   it('fetches the posted adjustment by the same composite FK without re-posting stock', async () => {
