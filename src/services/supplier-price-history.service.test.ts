@@ -18,7 +18,7 @@ const row={
   source_reference:'GRN-001',notes:'Receipt',actor_id:'99999999-8888-4777-8666-555555555555',
   recorded_at:'2026-11-10T10:00:00Z',
 };
-const createBuilder=(data= [row],error:unknown=null)=>({
+const createBuilder=(data: typeof row[] | null = [row],error:unknown=null)=>({
   select:vi.fn().mockReturnThis(),
   eq:vi.fn().mockReturnThis(),
   lte:vi.fn().mockReturnThis(),
