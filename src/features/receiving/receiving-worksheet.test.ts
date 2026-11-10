@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parsePackageCounts, computeReceiptLine, buildGoodsReceiptPayload, parseReceivingNotebook,
+  readUniformCartons, writeUniformCartons,
 } from './receiving-worksheet';
 import type { Product } from '@/types';
 
@@ -18,6 +19,16 @@ describe('PR56 variable carton receiving',()=>{
     expect(computeReceiptLine(row)).toMatchObject({
       packageCounts:[12,10,11], looseUnits:5,totalUnits:38,unitCost:1120.5,
     });
+  });
+  it('supports separate cases and units/case fields without inventing package sizes',()=>{
+    expect(readUniformCartons('')).toEqual({isUniform:true,cases:'',unitsPerCase:''});
+    expect(readUniformCartons('10x12')).toEqual({isUniform:true,cases:'10',unitsPerCase:'12'});
+    expect(readUniformCartons('12,10,11').isUniform).toBe(false);
+    expect(writeUniformCartons('10','12')).toBe('10x12');
+    expect(parsePackageCounts(writeUniformCartons('10','12'))).toHaveLength(10);
+    expect(writeUniformCartons('10','')).toBe('10x');
+    expect(()=>parsePackageCounts(writeUniformCartons('10',''))).toThrow(/positive integers/);
+    expect(()=>writeUniformCartons('1.5','12')).toThrow(/whole numbers/);
   });
   it('supports repeat shorthand and 200 explicit cartons safely',()=>{
     expect(parsePackageCounts('5x12, 10, 2×3')).toEqual([12,12,12,12,12,10,3,3]);
