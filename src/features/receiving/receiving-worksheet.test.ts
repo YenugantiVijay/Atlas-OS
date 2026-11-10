@@ -20,7 +20,7 @@ describe('PR56 variable carton receiving',()=>{
     });
   });
   it('supports repeat shorthand and 200 explicit cartons safely',()=>{
-    expect(parsePackageCounts('5x12, 10, 2×3')).toEqual([12,12,12,12,12,10,3,3,3,3,3,3]);
+    expect(parsePackageCounts('5x12, 10, 2×3')).toEqual([12,12,12,12,12,10,3,3]);
     expect(parsePackageCounts('200x2')).toHaveLength(200);
     expect(()=>parsePackageCounts('201x2')).toThrow(/up to 200 cartons/);
     expect(()=>parsePackageCounts('0,2')).toThrow(/positive integers/);
