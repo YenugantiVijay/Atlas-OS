@@ -99,7 +99,7 @@ export const PosBillingGrid: React.FC<Props> = ({
                   </span>
                   {lowStock && <span className="mt-1 block text-[10px] text-amber-700" title="Quantity exceeds last displayed stock; confirmation may fail.">
                     <AlertTriangle className="mr-1 inline h-3 w-3"/>
-                    Qty exceeds stock
+                    Quantity exceeds last displayed stock
                   </span>}
                 </td>
                 <td className="px-2 py-3 text-center">
