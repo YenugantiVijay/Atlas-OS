@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Header } from './Header';
@@ -227,4 +227,42 @@ describe('Header Premium UI Redesign & Live Cloud Indicator', () => {
     // Viewer has no create permissions, so Quick Create button must not appear
     expect(screen.queryByRole('button', { name: 'Quick Create' })).not.toBeInTheDocument();
   });
+  it('presents the user and role without duplicating or truncating the shop name in the chip', () => {
+    vi.mocked(useOrg).mockReturnValue({
+      currentOrg,
+      organizations: [currentOrg],
+      currentRole: 'owner',
+      currentUser: { ...currentUser, fullName: 'Anand Kumar Venkata Varma' },
+      isAuthenticated: true,
+      isLoadingAuth: false,
+      signOut: vi.fn(),
+    } as unknown as OrgContextType);
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <Header collapsed={false}
+            onOpenCommandPalette={() => {}}
+            onOpenQuickCreate={() => {}}
+            onOpenNewOrgModal={() => {}}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    const profile = screen.getByRole('button', { name: 'User Profile & Shop Menu' });
+    expect(within(profile).getByText('Anand Kumar Venkata Varma')).toHaveAttribute(
+      'title', 'Anand Kumar Venkata Varma'
+    );
+    expect(within(profile).getByText('owner')).toBeInTheDocument();
+    expect(within(profile).queryByText(currentOrg.name)).toBeNull();
+    expect(screen.getByRole('button', { name: /Switch organization/ })).toHaveTextContent(currentOrg.name);
+    expect(profile).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(profile);
+    expect(profile).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(currentUser.email)).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(profile).toHaveAttribute('aria-expanded', 'false');
+  });
+
 });
