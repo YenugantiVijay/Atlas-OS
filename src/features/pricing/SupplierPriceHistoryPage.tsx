@@ -18,14 +18,15 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** A dated, append-only cost record. Neither quotes nor posted GRNs mutate
  * historical stock valuation or the product's configured selling price. */
 export const SupplierPriceHistoryPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { check } = useActionPermission();
   const orgId = currentOrg?.id || '';
   const readAllowed = check('supplier-prices:read').allowed;
   const recordPermission = check('supplier-prices:record');
   const canRecord = recordPermission.allowed && !isMockAuth;
-  const activeOrg = useRef(orgId);
-  activeOrg.current = orgId;
+  const requestIdentity = `${orgId}:${currentRole || 'none'}:${isMockAuth}`;
+  const activeIdentity = useRef(requestIdentity);
+  activeIdentity.current = requestIdentity;
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [entries, setEntries] = useState<SupplierPriceEntry[]>([]);
@@ -46,31 +47,34 @@ export const SupplierPriceHistoryPage: React.FC = () => {
   const [searchError, setSearchError] = useState('');
 
   const refresh = useCallback(async () => {
-    if (!orgId || isMockAuth || !readAllowed) return;
+    if (!orgId || isMockAuth || !readAllowed) {
+      setSuppliers([]); setEntries([]); return;
+    }
+    const requestedIdentity = requestIdentity;
     setLoading(true);
     try {
       const [supplierRows, history] = await Promise.all([
         suppliersService.getSuppliers(orgId, false),
         supplierPriceHistoryService.list(orgId, { limit: 60 }),
       ]);
-      if (activeOrg.current !== orgId) return;
+      if (activeIdentity.current !== requestedIdentity) return;
       setSuppliers(supplierRows);
       setEntries(history);
       setError('');
     } catch (cause) {
-      if (activeOrg.current === orgId)
+      if (activeIdentity.current === requestedIdentity)
         setError(cause instanceof Error ? cause.message : 'Unable to load supplier prices.');
     } finally {
-      if (activeOrg.current === orgId) setLoading(false);
+      if (activeIdentity.current === requestedIdentity) setLoading(false);
     }
-  }, [orgId, isMockAuth, readAllowed]);
+  }, [orgId, isMockAuth, readAllowed, requestIdentity]);
 
   useEffect(() => {
     setSuppliers([]); setEntries([]); setSupplierId(''); setProduct(null);
     setProductQuery(''); setMatches([]); setPrevious(null);
     setPrice(''); setReference(''); setEffectiveOn(today());
     setError(''); setSuccess(''); setEntryId(crypto.randomUUID());
-  }, [orgId]);
+  }, [requestIdentity]);
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
@@ -121,13 +125,14 @@ export const SupplierPriceHistoryPage: React.FC = () => {
     if (!saveEnabled || !product || validatedPrice === null || busyRef.current) return;
     busyRef.current = true; setBusy(true); setError(''); setSuccess('');
     const requestOrg = orgId;
+    const requestedIdentity = requestIdentity;
     try {
       const result = await supplierPriceHistoryService.recordQuote({
         organizationId: requestOrg, entryId, supplierId,
         productId: product.id, unitCost: validatedPrice,
         effectiveOn, notes: reference.trim(),
       });
-      if (activeOrg.current !== requestOrg) return;
+      if (activeIdentity.current !== requestedIdentity) return;
       const change = supplierRateChange(result.previous_rate, validatedPrice);
       const movement = change.percent === null ? 'no comparable prior rate' :
         Math.abs(change.percent).toFixed(1) + '% ' + change.direction;
@@ -139,7 +144,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
       setPrice(''); setReference(''); setPrevious(null);
       await refresh();
     } catch (cause) {
-      if (activeOrg.current === requestOrg)
+      if (activeIdentity.current === requestedIdentity)
         setError(cause instanceof Error ? cause.message : 'Supplier quote was not saved.');
       // Keep entryId on failure, so connection retries never duplicate a quote.
     } finally {
