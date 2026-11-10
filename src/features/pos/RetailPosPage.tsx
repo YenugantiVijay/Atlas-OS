@@ -228,7 +228,7 @@ export const RetailPosPage: React.FC = () => {
   const readyToSave = permission.allowed && Boolean(customer) && lines.length > 0 && !totals.error && !saving;
 
   return (
-    <div className="space-y-4 pb-6" onKeyDown={(event) => {
+    <div className="w-full min-w-0 max-w-full space-y-4 pb-6" onKeyDown={(event) => {
       if (event.key === 'F2') {
         event.preventDefault();
         productInputRef.current?.focus();
@@ -267,7 +267,7 @@ export const RetailPosPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         {/* Search remains bounded, role-safe and tied to the existing services. */}
         <section aria-label="Add products" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -402,8 +402,8 @@ export const RetailPosPage: React.FC = () => {
         onRemove={(id) => updateLines(lines.filter((line) => line.product.id !== id))}
       />
 
-      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(310px,370px)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(310px,370px)]">
+        <section className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <ShieldCheck size={17} className="text-teal-700"/>
             <h2 className="text-sm font-semibold text-[#142B4D]">Draft details & safeguards</h2>
@@ -420,7 +420,7 @@ export const RetailPosPage: React.FC = () => {
           <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-500"><Keyboard size={13}/> F2: product lookup · Ctrl+Enter: save ready draft · Tab: next editable cell</p>
         </section>
 
-        <section aria-label="Draft totals and save" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section aria-label="Draft totals and save" className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-[#142B4D]">Order summary</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-4 text-slate-600"><dt>Gross subtotal</dt><dd className="tabular-nums">{totals.value ? formatCurrency(totals.value.grossSubtotal) : '—'}</dd></div>
