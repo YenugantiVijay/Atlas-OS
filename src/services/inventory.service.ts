@@ -43,29 +43,38 @@ export const inventoryService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    let query = supabase
-      .from('stock_movements')
-      .select(STOCK_MOVEMENT_WITH_PRODUCT_SELECT)
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false });
+    const createLedgerQuery = (includeProduct: boolean) => {
+      let query = supabase
+        .from('stock_movements')
+        .select(includeProduct ? STOCK_MOVEMENT_WITH_PRODUCT_SELECT : '*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
 
-    if (productId && productId !== 'ALL') {
-      query = query.eq('product_id', productId);
-    }
-
-    if (pagination?.page && pagination?.pageSize) {
-      const from = (pagination.page - 1) * pagination.pageSize;
-      const to = from + pagination.pageSize - 1;
-      query = query.range(from, to);
-    } else {
-      query = query.limit(100);
-    }
-
-    const { data, error } = await query;
+      if (productId && productId !== 'ALL') {
+        query = query.eq('product_id', productId);
+      }
+      if (pagination?.page && pagination?.pageSize) {
+        const pageSize = Math.max(1, Math.min(100, pagination.pageSize));
+        const from = (Math.max(1, pagination.page) - 1) * pageSize;
+        query = query.range(from, from + pageSize - 1);
+      } else {
+        query = query.limit(100);
+      }
+      return query;
+    };
+    const { data, error } = await createLedgerQuery(true);
     if (error) {
-      throw new Error(`Failed to fetch stock movements: ${error.message}`);
+      // A stale PostgREST relationship cache must not hide the stock ledger.
+      // Only relationship errors get a *read-only*, tenant-scoped fallback.
+      if (error.code !== 'PGRST200' && error.code !== 'PGRST201') {
+        throw new Error(`Failed to fetch stock movements: ${error.message}`);
+      }
+      const fallback = await createLedgerQuery(false);
+      if (fallback.error) {
+        throw new Error(`Failed to fetch stock movements: ${fallback.error.message}`);
+      }
+      return (fallback.data || []).map(mapDbStockMovement);
     }
-
     return (data || []).map(mapDbStockMovement);
   },
 
