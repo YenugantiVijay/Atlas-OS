@@ -7,6 +7,7 @@ export type Action =
   | 'products:create'
   | 'products:update'
   | 'products:delete'
+  | 'inventory:receive'
   | 'inventory:adjust'
   | 'customers:manage'
   | 'suppliers:manage'
@@ -29,6 +30,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
     'products:create',
     'products:update',
     'products:delete',
+    'inventory:receive',
     'inventory:adjust',
     'customers:manage',
     'suppliers:manage',
@@ -48,6 +50,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
     'audit:read',
     'products:create',
     'products:update',
+    'inventory:receive',
     'inventory:adjust',
     'customers:manage',
     'suppliers:manage',
@@ -73,6 +76,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
   inventory: [
     'products:create',
     'products:update',
+    'inventory:receive',
     'inventory:adjust',
     'suppliers:manage',
     'data:read',
@@ -122,6 +126,7 @@ export const ACTION_DESCRIPTIONS: Record<Action, string> = {
   'products:create': 'create products',
   'products:update': 'edit products',
   'products:delete': 'delete products',
+  'inventory:receive': 'receive supplier stock',
   'inventory:adjust': 'record stock adjustments',
   'customers:manage': 'create or edit customers',
   'suppliers:manage': 'create or edit suppliers',
