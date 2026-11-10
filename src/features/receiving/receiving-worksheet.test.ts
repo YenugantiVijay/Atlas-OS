@@ -55,6 +55,20 @@ describe('PR56 variable carton receiving',()=>{
     expect(()=>buildGoodsReceiptPayload(org,[{...row,product:{...product,isActive:false}}])).toThrow(/active/);
     expect(()=>buildGoodsReceiptPayload(org,[])).toThrow(/between 1 and 50/);
   });
+  it('imports a header and five standard columns for cases, units/case, loose units and rate',()=>{
+    const text='Product\\tCases\\tUnits per case\\tLoose\\tPurchase rate\\n' +
+      'FERT-50\\t10\\t12\\t0\\t1120.50\\n' +
+      'Fertilizer B\\t8\\t10\\t5\\t900';
+    expect(parseReceivingNotebook(text)).toEqual([
+      {sku:'FERT-50',packageText:'10x12',looseUnits:'0',unitCost:'1120.50'},
+      {sku:'Fertilizer B',packageText:'8x10',looseUnits:'5',unitCost:'900'},
+    ]);
+    expect(parseReceivingNotebook('FERT-50\\t0\\t0\\t6\\t1120')).toEqual([
+      {sku:'FERT-50',packageText:'',looseUnits:'6',unitCost:'1120'},
+    ]);
+    expect(()=>parseReceivingNotebook('FERT-50\\t0\\t12\\t5\\t1120')).toThrow(/0 cases/);
+    expect(()=>parseReceivingNotebook('FERT-50\\t201\\t12\\t0\\t1120')).toThrow(/up to 200 cases/);
+  });
   it('parses exact TAB-separated notepad rows, rejecting ambiguous or repeated SKUs',()=>{
     expect(parseReceivingNotebook('FERT-50\t12,10,11\t5\t1120.50\nCABLE-01\t5x12\t0\t25'))
       .toEqual([
@@ -62,6 +76,6 @@ describe('PR56 variable carton receiving',()=>{
         {sku:'CABLE-01',packageText:'5x12',looseUnits:'0',unitCost:'25'},
       ]);
     expect(()=>parseReceivingNotebook('FERT-50 12 10')).toThrow(/TAB-separated/);
-    expect(()=>parseReceivingNotebook('SKU\t10\t0\t25\nsku\t1\t0\t25')).toThrow(/Duplicate SKU/);
+    expect(()=>parseReceivingNotebook('SKU\t10\t0\t25\nsku\t1\t0\t25')).toThrow(/Duplicate product/);
   });
 });
