@@ -150,45 +150,44 @@ if (!pricingHtml.includes('Pricing to be announced')) {
   console.log('[PASS] Honest two-edition pricing presentation verified.');
 }
 
-// 7. Protect the zero-server index.html preview from the old dead-link launcher.
-const localIndexPath = path.resolve(__dirname, '../index.html');
-if (!fs.existsSync(localIndexPath)) {
-  console.error('[FAIL] Standalone homepage index.html is missing');
+// 7. The Astro homepage is the ONLY source of website design.
+// A hand-maintained root index.html previously duplicated and contradicted
+// the real Astro design. Its presence is now a regression.
+const duplicateHome = path.resolve(__dirname, '../index.html');
+if (fs.existsSync(duplicateHome)) {
+  console.error('[FAIL] Duplicate root index.html detected. Edit src/pages/index.astro instead.');
   failedChecks++;
 } else {
-  const page = fs.readFileSync(localIndexPath, 'utf8');
+  console.log('[PASS] No duplicate standalone homepage in website root.');
+}
+
+const canonicalSource = path.resolve(__dirname, '../src/pages/index.astro');
+const compiledHome = path.join(distDir, 'index.html');
+if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
+  console.error('[FAIL] Canonical Astro homepage or generated dist/index.html is missing.');
+  failedChecks++;
+} else {
+  const source = fs.readFileSync(canonicalSource, 'utf8');
+  const generated = fs.readFileSync(compiledHome, 'utf8');
   const checks = [
-    [/<title>Atlas OS — Run Your Business/i, 'Direct Atlas OS homepage title'],
-    [/<h1>Run Your Business\./i, 'Visible homepage hero'],
-    [/id="product"/, 'Interactive product section'],
-    [/id="features"/, 'Feature section'],
-    [/id="solutions"/, 'Solutions section'],
-    [/id="pricing"/, 'Pricing section'],
-    [/id="demo"/, 'Informative demo section'],
-    [/src="\.\/public\/favicon\.svg"/, 'Local brand logo'],
-    [/role="tablist"/, 'Demo workspace tabs'],
+    [source.includes('CapabilityOrbit'), 'Astro homepage source includes signature orbit component'],
+    [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
+    [generated.includes('capability-orbit'), 'Built homepage contains original orbit layout'],
+    [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
+    [generated.includes('Without the Complications.'), 'Built homepage retains original hero'],
+    [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
+    [generated.includes('href="/product"'), 'Built homepage links to product page'],
+    [generated.includes('href="/request-demo"'), 'Built homepage links to real demo request'],
   ];
-  for (const [pattern, label] of checks) {
-    if (!pattern.test(page)) {
-      console.error('[FAIL] Standalone homepage missing: ' + label);
+  for (const [pass, label] of checks) {
+    if (!pass) {
+      console.error('[FAIL] ' + label);
       failedChecks++;
     }
   }
-  for (const match of page.matchAll(/href="#([a-z0-9-]+)"/gi)) {
-    if (!page.includes('id="' + match[1] + '"')) {
-      console.error('[FAIL] Broken standalone homepage anchor: #' + match[1]);
-      failedChecks++;
-    }
+  if (checks.every(([pass]) => pass)) {
+    console.log('[PASS] Generated homepage matches the canonical Astro design and interactive structure.');
   }
-  if (/Open Live Website|Website Live Preview<\/title>|href="http:\/\/localhost:4321\/"/i.test(page)) {
-    console.error('[FAIL] Dead localhost launcher UI must not return to index.html');
-    failedChecks++;
-  }
-  if (!fs.existsSync(path.resolve(__dirname, '../public/favicon.svg'))) {
-    console.error('[FAIL] Local homepage favicon is missing');
-    failedChecks++;
-  }
-  console.log('[PASS] Direct homepage entry and local anchors verified.');
 }
 
 // 8. The one-click launcher must wait until the real Astro site is reachable.
