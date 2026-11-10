@@ -183,4 +183,34 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
   });
 
+  it('adds an HSN-matched cloud product using existing paginated product search', async () => {
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValueOnce({
+      data: [{ ...product, hsnCode: '8544' }], totalCount: 1,
+    } as any);
+    mount();
+    fireEvent.change(screen.getByLabelText('Search POS products'), { target: { value: '8544' } });
+    const result = await screen.findByRole('button', { name: 'Add Copper Wire' });
+    expect(productsService.getProductsPaginated).toHaveBeenCalledWith(orgId, {
+      search: '8544', page: 1, pageSize: 8, isActive: true,
+    }, false);
+    fireEvent.click(result);
+    expect(screen.getByRole('table')).toHaveTextContent('8544');
+    expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
+  });
+
+  it('allows cloud GSTIN customer lookup without displaying restricted finance fields', async () => {
+    vi.mocked(searchCustomerDirectory).mockResolvedValueOnce([{
+      id: 'c-1', name: 'Ravi Electricals', companyName: 'Ravi Traders',
+      phone: '+91 98765-43210',
+    }]);
+    mount();
+    fireEvent.change(screen.getByLabelText('Search POS customers'), { target: { value: 'ABCDE1234F' } });
+    const result = await screen.findByRole('button', { name: /Ravi Traders/ });
+    expect(searchCustomerDirectory).toHaveBeenCalledWith(orgId, 'ABCDE1234F', 5);
+    expect(result).not.toHaveTextContent('credit');
+    expect(result).not.toHaveTextContent('receivable');
+    fireEvent.click(result);
+    expect(screen.getByText('Selected')).toBeInTheDocument();
+  });
+
 });
