@@ -29,7 +29,8 @@ describe('Goods Receiving service — no fake stock success',()=>{
     await expect(goodsReceivingService.saveDraft(command)).resolves.toEqual({
       receipt_id:receiptId,status:'DRAFT',
     });
-    expect(supabase!.rpc).toHaveBeenCalledExactlyOnceWith('save_goods_receipt_draft',{
+    expect(supabase!.rpc).toHaveBeenCalledTimes(1);
+    expect(supabase!.rpc).toHaveBeenCalledWith('save_goods_receipt_draft',{
       p_org_id:orgId,p_receipt_id:receiptId,p_supplier_id:supplierId,
       p_supplier_invoice_number:'INV-1001',p_received_on:'2026-11-10',
       p_notes:'Factory seal intact',p_lines:command.lines,
