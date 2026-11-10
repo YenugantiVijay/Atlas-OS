@@ -127,4 +127,60 @@ describe('Retail Counter — safe draft order workflow', () => {
     const [first, second] = vi.mocked(ordersService.createSalesOrder).mock.calls;
     expect(first[1].idempotencyKey).toBe(second[1].idempotencyKey);
   });
+  it('shows the billing worksheet with product-master GST and exact totals', async () => {
+    mount();
+    await fillCart();
+    const grid = screen.getByRole('region', { name: 'Scroll billing line items' });
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(grid).toHaveTextContent('Copper Wire');
+    expect(grid).toHaveTextContent('WIRE-1');
+    expect(grid).toHaveTextContent('18%');
+    expect(screen.getByText('Estimated total')).toBeInTheDocument();
+    expect(screen.getByText('₹118.00')).toBeInTheDocument();
+    expect(screen.getByText(/Draft-only foundation:/)).toBeInTheDocument();
+    expect(screen.getByText(/This is not a tax invoice/)).toBeInTheDocument();
+  });
+
+  it('adds a selected result using ArrowDown and Enter without creating an invoice', async () => {
+    const second = { ...product, id: 'p-2', name: 'LED Panel', sku: 'LED-2', hsnCode: '9405' };
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValue({
+      data: [product, second], totalCount: 2,
+    } as any);
+    mount();
+    const lookup = screen.getByLabelText('Search POS products');
+    fireEvent.change(lookup, { target: { value: 'LED' } });
+    await screen.findByRole('button', { name: 'Add LED Panel' });
+    fireEvent.keyDown(lookup, { key: 'ArrowDown' });
+    fireEvent.keyDown(lookup, { key: 'Enter' });
+    expect(screen.getByRole('table')).toHaveTextContent('LED Panel');
+    expect(screen.getByRole('table')).not.toHaveTextContent('WIRE-1');
+    expect(screen.getByLabelText('Search POS products')).toHaveValue('');
+    expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
+  });
+
+  it('accepts customer selection by keyboard and Ctrl+Enter saves only a draft', async () => {
+    mount();
+    const productLookup = screen.getByLabelText('Search POS products');
+    fireEvent.change(productLookup, { target: { value: 'Wire' } });
+    await screen.findByRole('button', { name: 'Add Copper Wire' });
+    fireEvent.keyDown(productLookup, { key: 'Enter' });
+    const lookup = screen.getByLabelText('Search POS customers');
+    fireEvent.change(lookup, { target: { value: 'Ravi' } });
+    await screen.findByRole('button', { name: /Ravi Electricals/ });
+    fireEvent.keyDown(lookup, { key: 'Enter' });
+    expect(screen.getByText(/Selected:/)).toBeInTheDocument();
+    fireEvent.keyDown(lookup, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1));
+    expect(ordersService.confirmSalesOrder).not.toHaveBeenCalled();
+  });
+
+  it('disables search, cart changes and saving when order creation is forbidden', () => {
+    check.mockReturnValue({ allowed: false, message: 'Orders are restricted' });
+    mount();
+    expect(screen.getByLabelText('Search POS products')).toBeDisabled();
+    expect(screen.getByRole('table')).toHaveTextContent('No items in this bill yet');
+    expect(screen.getByRole('button', { name: 'Save draft sales order' })).toBeDisabled();
+    expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
+  });
+
 });
