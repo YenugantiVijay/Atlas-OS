@@ -23,7 +23,7 @@ export const MAX_UNITS = 1_000_000;
  */
 export function parsePackageCounts(input: string): number[] {
   if (!input.trim()) return [];
-  const parts = input.split(/[,;\n]+/).map((x) => x.trim());
+  const parts = input.split(/[,;\n]/).map((x) => x.trim());
   if (parts.some((x) => !x)) throw new Error('Remove empty entries between carton counts.');
   const counts: number[] = [];
   for (const part of parts) {
