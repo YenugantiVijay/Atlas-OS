@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
+  PackagePlus,
   X,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
@@ -69,6 +70,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     items: [
       { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Goods Receiving', path: '/receiving', icon: <PackagePlus className="w-[18px] h-[18px]" />, action: 'inventory:receive' },
       { label: 'Suppliers & Vendors', path: '/suppliers', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
     ],
   },
