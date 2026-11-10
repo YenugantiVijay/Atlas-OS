@@ -734,6 +734,7 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
   });
 
   it('shows GSTIN-matched suppliers through bounded operational RPC results, without a full supplier catalog load', async () => {
+    const fullCatalogSpy = vi.spyOn(suppliersService, 'getSuppliers');
     vi.mocked(searchOperationalRecords).mockResolvedValue([{
       recordType: 'supplier', recordId: 's-gstin',
       reference: 'Global Electric Co', displayName: 'Global Electric Company',
@@ -744,7 +745,7 @@ describe('CommandPalette — React Hooks Reliability, Search & Keyboard Regressi
     expect(searchOperationalRecords).toHaveBeenCalledWith('cloud-org', 'ZYXWV9876P', 3);
     expect(result).toBeInTheDocument();
     expect(result).not.toHaveTextContent('ZYXWV9876P');
-    expect(suppliersService.getSuppliers).not.toHaveBeenCalled();
+    expect(fullCatalogSpy).not.toHaveBeenCalled();
   });
 
   it('matches product HSN and customer GSTIN in local demo without cloud RPC requests', async () => {
