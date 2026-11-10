@@ -92,6 +92,23 @@ export async function runGoodsReceivingAcceptance({
     replay.rows[0]?.result?.idempotent_replay===true,
     JSON.stringify({posted:posted.rows[0]?.result,replay:replay.rows[0]?.result}));
 
+  // A signed-in sales member can access ordinary products but not private
+  // supplier purchase rates or the GRN posting authority.
+  const salesUserId=crypto.randomUUID();
+  await client.query("INSERT INTO auth.users(id,email) VALUES($1::uuid,$2::text)",
+    [salesUserId,'grn56-sales-'+salesUserId+'@example.test']);
+  await client.query("INSERT INTO public.memberships(organization_id,user_id,role,is_active) VALUES($1::uuid,$2::uuid,'sales',true)",
+    [orgAId,salesUserId]);
+  const salesRead=await withRoleContext(client,{role:'authenticated',userId:salesUserId},
+    ()=>client.query("SELECT id FROM public.goods_receipts WHERE organization_id=$1::uuid",[orgAId]));
+  recordTest('GRN56-17','Sales role cannot view supplier purchase-rate snapshots',
+    salesRead.rows.length===0,'rows='+salesRead.rows.length);
+  let salesPostError=null;
+  try {await withRoleContext(client,{role:'authenticated',userId:salesUserId},
+    ()=>post(orgAId,receiptId));}catch(e){salesPostError=e;}
+  recordTest('GRN56-18','Sales role cannot post a receipt',
+    salesPostError?.code==='42501','sqlstate='+(salesPostError?.code||'none'));
+
   const delta=[await stock(productAId)-beforeA,await stock(productBId)-beforeB];
   recordTest('GRN56-11','Variable cartons post exact stock ONCE (38 and 11)',
     delta[0]===38&&delta[1]===11,JSON.stringify(delta));
