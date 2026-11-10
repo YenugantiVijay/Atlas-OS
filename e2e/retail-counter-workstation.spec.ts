@@ -44,7 +44,24 @@ test.describe('PR #53 — Retail Counter billing workstation', () => {
       docWidth: document.documentElement.scrollWidth,
       viewport: document.documentElement.clientWidth,
     }));
+    if (size.docWidth > size.viewport + 1) {
+      const overflowing = await page.evaluate(() => Array.from(document.querySelectorAll('body *'))
+        .map((element) => ({
+          tag: element.tagName.toLowerCase(),
+          className: typeof element.className === 'string' ? element.className.slice(0, 140) : '',
+          right: Math.round(element.getBoundingClientRect().right),
+          left: Math.round(element.getBoundingClientRect().left),
+        }))
+        .filter((element) => element.right > document.documentElement.clientWidth + 2)
+        .slice(0, 18));
+      console.log('POS mobile overflow diagnostics', JSON.stringify(overflowing));
+    }
     expect(size.docWidth).toBeLessThanOrEqual(size.viewport + 1);
+    const innerWidths = await region.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }));
+    expect(innerWidths.scrollWidth).toBeGreaterThan(innerWidths.clientWidth);
   });
 
   test('profile menu displays user identity separately from organization selector', async ({ page }) => {
