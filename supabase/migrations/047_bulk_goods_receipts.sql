@@ -31,7 +31,10 @@ REVOKE ALL ON TABLE public.goods_receipts FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.goods_receipts TO authenticated;
 GRANT ALL ON TABLE public.goods_receipts TO service_role;
 CREATE POLICY goods_receipts_tenant_read ON public.goods_receipts FOR SELECT TO authenticated
-  USING (public.can_read_organization_data(organization_id));
+  USING (
+    public.can_read_organization_data(organization_id)
+    AND public.user_has_org_role(organization_id,'owner','admin','inventory','accounts')
+  );
 
 -- Check and canonicalize worksheet input; there is NO caller-provided total.
 -- Each package count is individually entered (different carton sizes allowed).
@@ -178,6 +181,7 @@ DECLARE
   v_role TEXT;
   v_receipt public.goods_receipts%ROWTYPE;
   v_line JSONB;
+  v_validated_lines JSONB;
   v_prod UUID;
   v_units INTEGER;
   v_total BIGINT := 0;
@@ -210,7 +214,7 @@ BEGIN
 
   -- Refuse stale or malformed lines. Totals are recalculated from individual
   -- package counts; no browser total is used for stock postings.
-  PERFORM public.validate_goods_receipt_lines(p_org_id,
+  v_validated_lines := public.validate_goods_receipt_lines(p_org_id,
     (SELECT jsonb_agg(jsonb_build_object(
       'productId',line->>'productId','packageCounts',line->'packageCounts',
       'looseUnits',line->'looseUnits','unitCost',line->'unitCost'
@@ -219,7 +223,7 @@ BEGIN
   -- Deterministic ascending product locks avoid deadlocks with other workflows.
   FOR v_prod IN
     SELECT (line->>'productId')::UUID
-    FROM jsonb_array_elements(v_receipt.lines) AS t(line)
+    FROM jsonb_array_elements(v_validated_lines) AS t(line)
     ORDER BY 1
   LOOP
     PERFORM 1 FROM public.products
@@ -229,7 +233,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOR v_line IN SELECT value FROM jsonb_array_elements(v_receipt.lines)
+  FOR v_line IN SELECT value FROM jsonb_array_elements(v_validated_lines)
   LOOP
     v_prod := (v_line->>'productId')::UUID;
     v_units := (v_line->>'totalUnits')::INTEGER;
