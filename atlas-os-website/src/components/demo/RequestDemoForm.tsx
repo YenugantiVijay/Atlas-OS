@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import TurnstileWidget from '../common/TurnstileWidget';
+import { getOrCreateRequestId, leadDeliveryConfigured, submitWebsiteLead } from '../../lib/websiteLeads';
 import { CheckCircle2, AlertCircle, Send, ShieldCheck, Phone, Mail, Building2, User } from 'lucide-react';
 import type { DemoRequestPayload } from '../../types';
 
@@ -17,6 +19,9 @@ export default function RequestDemoForm() {
 
   // Anti-spam honeypot field
   const [honeypot, setHoneypot] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [resetCounter, setResetCounter] = useState(0);
+  const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   // UI States
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,69 +64,25 @@ export default function RequestDemoForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
-
-    // Honeypot check for bots
     if (honeypot) {
-      console.warn('Bot submission prevented.');
-      setIsSuccess(true);
+      setErrorMessage('Verification failed. Please try again.');
       return;
     }
-
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
     setIsSubmitting(true);
-
     try {
-      // Check rate limit in localStorage (max 3 submissions per hour per browser)
-      const lastSubmissionsStr = localStorage.getItem('atlas_demo_submissions');
-      const now = Date.now();
-      const oneHour = 60 * 60 * 1000;
-      let timestamps: number[] = lastSubmissionsStr ? JSON.parse(lastSubmissionsStr) : [];
-      timestamps = timestamps.filter((t) => now - t < oneHour);
-
-      if (timestamps.length >= 3) {
-        throw new Error(
-          'You have submitted multiple enquiries recently. Please allow our team time to respond or email sales@atlasos.business directly.'
-        );
-      }
-
-      // Check for configured backend demo endpoint (e.g., Supabase / Firebase Functions / webhook)
-      const endpoint = (window as any).ATLAS_DEMO_ENDPOINT || '';
-
-      if (endpoint) {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...formData,
-            submittedAt: new Date().toISOString(),
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Unable to submit enquiry to server. Please email sales@atlasos.business.');
-        }
-      } else {
-        // Transparent client-side enquiry storage when no external serverless endpoint is wired
-        const enquiries = JSON.parse(localStorage.getItem('atlas_saved_enquiries') || '[]');
-        enquiries.push({
-          ...formData,
-          submittedAt: new Date().toISOString(),
-          id: `enquiry-${Date.now()}`,
-        });
-        localStorage.setItem('atlas_saved_enquiries', JSON.stringify(enquiries));
-      }
-
-      // Update rate limiter
-      timestamps.push(now);
-      localStorage.setItem('atlas_demo_submissions', JSON.stringify(timestamps));
-
+      const request = getOrCreateRequestId(requestRef.current, formData);
+      requestRef.current = request;
+      await submitWebsiteLead('demo', formData, turnstileToken, request.requestId);
       setIsSuccess(true);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'An unexpected error occurred. Please try again.');
+      requestRef.current = null;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Your request was not delivered. Please retry.');
+      setTurnstileToken('');
+      setResetCounter((n) => n + 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -139,8 +100,7 @@ export default function RequestDemoForm() {
           </h3>
           <p className="text-sm text-content-secondary leading-relaxed">
             Thank you, <strong className="text-content-primary">{formData.fullName}</strong>. Your enquiry for{' '}
-            <strong className="text-content-primary">{formData.businessName}</strong> has been logged in our onboarding
-            queue.
+            <strong className="text-content-primary">{formData.businessName}</strong> was accepted for email delivery to our team.
           </p>
         </div>
 
@@ -160,17 +120,15 @@ export default function RequestDemoForm() {
         </div>
 
         <p className="text-xs text-content-muted">
-          Our technical solutions team typically responds within 1 business day. For urgent enquiries, write directly to{' '}
-          <a href="mailto:sales@atlasos.business" className="text-brand-600 font-semibold hover:underline">
-            sales@atlasos.business
-          </a>
-          .
+          Our team will follow up using the contact details you supplied. Please keep your enquiry reference if requested.
         </p>
 
         <button
           type="button"
           onClick={() => {
             setIsSuccess(false);
+            setTurnstileToken('');
+            setResetCounter((n) => n + 1);
             setFormData({
               fullName: '',
               businessName: '',
@@ -204,7 +162,7 @@ export default function RequestDemoForm() {
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-3">
+        <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-3">
           <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
           <span>{errorMessage}</span>
         </div>
