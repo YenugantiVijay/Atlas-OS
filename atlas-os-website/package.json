@@ -12,7 +12,8 @@
     "check": "node scripts/run-astro.mjs check",
     "typecheck": "tsc --noEmit",
     "postinstall": "node scripts/patch-sitemap.mjs",
-    "verify": "node scripts/verify-website.mjs"
+    "verify": "node scripts/verify-website.mjs",
+    "test:leads": "node --test scripts/test-website-leads.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
