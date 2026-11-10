@@ -62,6 +62,7 @@ export const supplierPriceHistoryService = {
   async list(organizationId: string, filters?: {
     supplierId?: string;
     productId?: string;
+    asOf?: string;
     limit?: number;
   }): Promise<SupplierPriceEntry[]> {
     const limit = Math.min(100, Math.max(1, filters?.limit ?? 60));
@@ -70,6 +71,7 @@ export const supplierPriceHistoryService = {
       .eq('organization_id', organizationId);
     if (filters?.supplierId) query = query.eq('supplier_id', filters.supplierId);
     if (filters?.productId) query = query.eq('product_id', filters.productId);
+    if (filters?.asOf) query = query.lte('effective_on', filters.asOf);
     const { data, error } = await query
       .order('effective_on', { ascending: false })
       .order('recorded_at', { ascending: false })
