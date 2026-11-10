@@ -12,6 +12,10 @@ export async function runB2OperationalSearchAcceptance({
             ($2::uuid,$4::uuid,'Other Tenant Supplier','Secret Other Firm','+91 99887-76655')`,
     [supplierAId, supplierBId, orgAId, orgBId],
   );
+  await client.query(
+    "UPDATE public.suppliers SET gstin = '29ZYXWV9876P1Z8' WHERE id = $1::uuid",
+    [supplierAId],
+  );
   const { rows: quotations } = await client.query(
     `SELECT q.id, q.quotation_number, c.name AS customer_name
      FROM public.quotations q JOIN public.customers c
@@ -43,6 +47,7 @@ export async function runB2OperationalSearchAcceptance({
   for (const tc of [
     { label: 'SUPPLIER-NAME', term: 'Search Supplier Alpha', kind: 'supplier', id: supplierAId },
     { label: 'SUPPLIER-COMPANY', term: 'Atlas Supplier Company', kind: 'supplier', id: supplierAId },
+    { label: 'SUPPLIER-GSTIN', term: 'ZYXWV9876P', kind: 'supplier', id: supplierAId },
     { label: 'SUPPLIER-PHONE', term: '9988776655', kind: 'supplier', id: supplierAId },
     { label: 'SUPPLIER-PARTIAL-PHONE', term: '99887-76655', kind: 'supplier', id: supplierAId },
     { label: 'QUOTE-NUMBER', term: quotations[0].quotation_number, kind: 'quotation', id: quotations[0].id },
