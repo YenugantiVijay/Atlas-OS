@@ -43,8 +43,25 @@ jobs:
       - name: Check Astro project
         run: npm run check
 
+      - name: Test real marketing lead endpoint (mocked service only)
+        run: npm run test:leads
+
       - name: Build production website
         run: npm run build
+        env:
+          PUBLIC_LEAD_ENDPOINT: https://api.example.test/functions/v1/submit-website-lead
+          PUBLIC_TURNSTILE_SITE_KEY: ci-public-site-key
 
       - name: Verify built website
         run: npm run verify
+
+      - name: Install root Playwright test runner
+        run: npm ci --no-audit --no-fund
+        working-directory: .
+
+      - name: Install Chromium for website end-to-end tests
+        run: ../node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Run real-enquiry form browser tests (mocked services)
+        run: ../node_modules/.bin/playwright test e2e/leads.spec.ts
+

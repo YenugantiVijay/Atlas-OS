@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import TurnstileWidget from '../common/TurnstileWidget';
+import { getOrCreateRequestId, leadDeliveryConfigured, submitWebsiteLead } from '../../lib/websiteLeads';
 import { Send, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 
 export default function ContactForm() {
@@ -12,6 +14,9 @@ export default function ContactForm() {
   });
 
   const [honeypot, setHoneypot] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [resetCounter, setResetCounter] = useState(0);
+  const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,27 +47,25 @@ export default function ContactForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (honeypot) return; // Silent discard for bot submission
-
+    if (isSubmitting) return;
+    setErrorMessage(null);
+    if (honeypot) {
+      setErrorMessage('Verification failed. Please try again.');
+      return;
+    }
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setErrorMessage(null);
-
     try {
-      // Simulate submission endpoint with local storage fallback
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      const inquiries = JSON.parse(localStorage.getItem('atlas_contact_inquiries') || '[]');
-      inquiries.push({
-        ...formData,
-        submittedAt: new Date().toISOString(),
-      });
-      localStorage.setItem('atlas_contact_inquiries', JSON.stringify(inquiries));
-
+      const request = getOrCreateRequestId(requestRef.current, formData);
+      requestRef.current = request;
+      await submitWebsiteLead('contact', formData, turnstileToken, request.requestId);
       setIsSuccess(true);
-    } catch {
-      setErrorMessage('Unable to submit inquiry at this time. Please email us directly at contact@atlas-os.web.app.');
+      requestRef.current = null;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to deliver your enquiry. Please retry.');
+      setTurnstileToken('');
+      setResetCounter((n) => n + 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -76,12 +79,14 @@ export default function ContactForm() {
         </div>
         <h3 className="text-xl font-bold font-display mb-2">Message Received Successfully!</h3>
         <p className="text-sm text-emerald-800 max-w-md mx-auto leading-relaxed mb-6">
-          Thank you, <strong>{formData.name}</strong>. Our team has received your message regarding <strong>{formData.department}</strong>. We will reply to <strong>{formData.email}</strong> within 4 business hours.
+          Thank you, <strong>{formData.name}</strong>. Our email service accepted your enquiry regarding <strong>{formData.department}</strong>. Please watch <strong>{formData.email}</strong> for a response.
         </p>
         <button
           type="button"
           onClick={() => {
             setIsSuccess(false);
+            setTurnstileToken('');
+            setResetCounter((n) => n + 1);
             setFormData({
               name: '',
               email: '',
@@ -116,7 +121,7 @@ export default function ContactForm() {
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
+        <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
           <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
           <span>{errorMessage}</span>
         </div>
@@ -233,9 +238,13 @@ export default function ContactForm() {
         {fieldErrors.message && <p className="text-xs text-rose-600 mt-1">{fieldErrors.message}</p>}
       </div>
 
+      <TurnstileWidget action="lead_contact" onToken={setTurnstileToken} resetCounter={resetCounter} />
+      {!leadDeliveryConfigured && (
+        <p role="status" className="text-sm text-amber-800">Online enquiries are temporarily unavailable. No message will be stored in this browser.</p>
+      )}
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || !leadDeliveryConfigured || !turnstileToken}
         className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md hover:shadow-brand-500/20 disabled:opacity-50 transition-all btn-shimmer"
       >
         {isSubmitting ? (
@@ -253,7 +262,7 @@ export default function ContactForm() {
 
       <p className="text-xs text-text-muted flex items-center gap-1.5 pt-2">
         <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-        <span>Your contact details are encrypted and will never be shared with third-party advertisers.</span>
+        <span>Your enquiry is sent over HTTPS to our email provider; Cloudflare helps verify submissions.</span>
       </p>
     </form>
   );

@@ -30,6 +30,7 @@ import { runB2FinancialSearchAcceptance } from './b2_financial_search_acceptance
 import { runB2CustomerDirectorySearchAcceptance } from './b2_customer_directory_search_acceptance.mjs';
 import { runB2OperationalSearchAcceptance } from './b2_operational_search_acceptance.mjs';
 import { runSec02PrivilegedRpcAcceptance } from './sec02_privileged_rpc_acceptance.mjs';
+import { runWebsiteLeadRateAcceptance } from './pr51_website_leads_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1386,6 +1387,9 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+
+    // PR #51: service-only website lead limiter; no genuine visitor data.
+    await runWebsiteLeadRateAcceptance({ client: testClient, withRoleContext, recordTest });
     // B1.1 — Verify database authorization for financial reports using actual
     // authenticated/anonymous database roles and independent tenant identities.
     await runFinancialReportAccessAcceptance({

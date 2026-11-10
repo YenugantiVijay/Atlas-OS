@@ -90,6 +90,14 @@ static on smaller screens or when the user requests reduced motion. AI Insights
 is explicitly labeled **In development**. The ERP application's own styles,
 Supabase migrations, and business workflows are not changed.
 
+## Real website enquiries (PR #51)
+
+Contact, Demo Request, and desktop release notification forms now use a server-backed email delivery endpoint. **They no longer report success after saving data only in browser localStorage.**
+
+To activate the forms you must deploy the Supabase `submit-website-lead` Edge Function, apply the service-only rate-limit migration, configure Resend and Cloudflare Turnstile, and provide `PUBLIC_LEAD_ENDPOINT` and `PUBLIC_TURNSTILE_SITE_KEY` at **website build time**. Without these settings the forms display an unavailable notice and do not fake delivery.
+
+See [PR #51 Website Lead Delivery deployment and verification](../docs/PR51_WEBSITE_LEAD_DELIVERY.md) for secrets, staging tests, explicit deployment approval and real inbox verification. Neither the website build nor a merged PR deploys the service automatically.
+
 ## 4. How to Preview the Website
 
 ### Option A — Open `index.html` directly (no server required)
