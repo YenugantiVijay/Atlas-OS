@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile, mkdir, rename, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { createInitialState } from './checks.mjs';
+import { createInitialState, migrationCatalog } from './checks.mjs';
 import { readiness, effectiveStatus, validateRecord, STATUSES } from './readiness.mjs';
 
 const DIR=path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +32,20 @@ async function initialize() {
   if(error.code!=='ENOENT')throw error;
   state=createInitialState();
   await save();
+ }
+ // Upgrade placeholder migration labels on existing installs without resetting
+ // any evidence, manually recorded statuses, notes or verification timestamps.
+ if(Array.isArray(state.migrations)){
+  let corrected=false;
+  for(const row of state.migrations){
+   const official=migrationCatalog.find(x=>x.version===Number(row.version));
+   if(official && (row.name!==official.name || row.observed_id!==official.observed_id)){
+    row.name=official.name;
+    row.observed_id=official.observed_id;
+    corrected=true;
+   }
+  }
+  if(corrected)await save();
  }
 }
 const respond=(res,code,data)=>{
