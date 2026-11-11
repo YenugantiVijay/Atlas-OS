@@ -96,7 +96,10 @@ export const GoodsReceivingPage: React.FC = () => {
     setShowNotebook(restored?.showNotebook || false);
     setShowCreateProduct(false);
     setConfirmPosting(false);
-    setTerm(''); setMatches([]); setError(''); setSuccess('');
+    setTerm(''); setMatches([]); setError('');
+    setSuccess(restored && (restored.rows.length || restored.invoice || restored.supplierId)
+      ? 'Your unfinished receiving worksheet has been restored from this tab. Nothing was posted.'
+      : '');
     const cached = readReceivingLists(userId, orgId);
     setSuppliers(cached?.suppliers || []);
     setReceipts(cached?.receipts || []);
@@ -283,6 +286,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const totalCost = calculated.reduce((sum, x) => sum + (x.data ? x.data.totalUnits * x.data.unitCost : 0), 0);
   const ready = Boolean(supplierId && invoice.trim() && date && rows.length &&
     calculated.every((x) => x.data) && editable);
+  const hasLocalDraft = Boolean(userId && (rows.length || invoice.trim() || supplierId || notebook));
 
   const runOnce = async (fn: () => Promise<void>) => {
     if (busyRef.current) return;
@@ -615,6 +619,10 @@ export const GoodsReceivingPage: React.FC = () => {
           </p>
           <p className="text-xs text-slate-500">Duplicate supplier invoice numbers are rejected. Your receipt has a stable ID for safe retry after a network interruption.</p>
           <p className="text-xs text-slate-500">Receipt state: <strong>{savedState}{dirty ? ' · Unsaved changes' : ''}</strong></p>
+          {hasLocalDraft && savedState !== 'POSTED' &&
+            <p role="status" className="text-xs font-medium text-teal-700">
+              Saved in this tab · You can change pages and return without losing these entries.
+            </p>}
         </div>
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <button type="button" disabled={!ready || busy} onClick={() => void save()}
