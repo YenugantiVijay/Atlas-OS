@@ -7,9 +7,14 @@ const returned = {
   sku:'STG-GRN-001',name:'Staging Item',category:'Testing',uom:'Nos',
   purchase_cost:100,selling_price:150,tax_rate:0,is_active:true,
 };
-const rpc = vi.fn((_name: string, _args: Record<string, unknown>) => ({
-  abortSignal: vi.fn(async()=>({data:returned,error:null})),
-}));
+const rpc = vi.hoisted(() => vi.fn((_name: string, _args: Record<string, unknown>) => ({
+  abortSignal: vi.fn(async()=>({data:{
+    id:'11111111-2222-4333-8444-555555555555',
+    organization_id:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    sku:'STG-GRN-001',name:'Staging Item',category:'Testing',uom:'Nos',
+    purchase_cost:100,selling_price:150,tax_rate:0,is_active:true,
+  },error:null})),
+})));
 vi.mock('@/lib/supabase',()=>({supabase:{rpc}}));
 
 describe('product creation matches deployed Supabase RPC',()=>{
