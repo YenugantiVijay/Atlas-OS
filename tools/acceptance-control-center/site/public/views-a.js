@@ -24,7 +24,8 @@ V.Migrations=function Migrations({state,selected,onSelected,onMark}){
      </button>`)}</div>
      ${current?html`<div className="mig-detail">
        <div><strong>Migration ${String(current.version).padStart(3,'0')} · ${current.name.replaceAll('_',' ')}</strong>
-         <p>${current.observed_from} · ${formatDate(current.verified_at)}</p></div>
+         <p>${current.observed_from} · ${formatDate(current.verified_at)}</p>
+         <p>Supabase migration ID: <span className="mono">${current.observed_id || 'Not available'}</span></p></div>
        <div className="btn-row"><${Status} value=${current.status}/>
          <${External} url=${current.evidence_url}>Evidence</${External}>
          <button className="btn sm" onClick=${()=>onMark(current)}>Update status</button></div>
