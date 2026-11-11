@@ -94,17 +94,22 @@ async function synchronize(force=false) {
    Date.now()-Date.parse(state.github.last_synced_at)<180000)return {ok:true,skipped:true};
  syncTask=(async()=>{
   try{
-   const [main,dev,prs,runs]=await Promise.all([
+   const [main,dev,prs,runs,mainRuns]=await Promise.all([
     github('/branches/main'),github('/branches/Vijay-Atlas'),
     github('/pulls?state=all&per_page=20&sort=updated&direction=desc'),
-    github('/actions/runs?per_page=25')
+    github('/actions/runs?per_page=25'),
+    // Include main CI even when many development-branch runs fill the latest page.
+    github('/actions/runs?branch=main&per_page=8')
    ]);
+   const seen=new Set();
+   const allRuns=[...(runs.workflow_runs||[]),...(mainRuns.workflow_runs||[])]
+    .filter(r=>{if(seen.has(r.id))return false;seen.add(r.id);return true;});
    const next={
     repo:'YenugantiVijay/Atlas-OS',main_sha:main.commit.sha,dev_sha:dev.commit.sha,
     pull_requests:prs.map(p=>({number:p.number,title:p.title,merged_at:p.merged_at,
       state:p.merged_at?'merged':p.draft?'draft':p.state,url:p.html_url,
       head_sha:p.head?.sha||'',updated_at:p.updated_at})),
-    ci_runs:(runs.workflow_runs||[]).map(r=>({id:r.id,name:r.name,branch:r.head_branch,
+    ci_runs:allRuns.map(r=>({id:r.id,name:r.name,branch:r.head_branch,
       status:r.status,conclusion:r.conclusion,head_sha:r.head_sha,url:r.html_url,at:r.updated_at})),
     last_synced_at:new Date().toISOString(),last_error:''
    };
