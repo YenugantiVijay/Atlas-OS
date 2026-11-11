@@ -110,3 +110,40 @@ export function cacheReceivingLists(userId: string, orgId: string, suppliers: Su
 export function clearReceivingLists(userId: string, orgId: string): void {
   cachedLists.delete(receivingWorkspaceKey(userId, orgId));
 }
+
+/** Preserve the unfinished quick-product form when navigating away. */
+export function readReceivingProductForm(userId: string, orgId: string): Record<string, string> | null {
+  const storage = getStorage();
+  const key = receivingWorkspaceKey(userId, orgId);
+  if (!storage || !key) return null;
+  try {
+    const value = JSON.parse(storage.getItem(key + ':new-product') || 'null');
+    if (!value || typeof value !== 'object' || typeof value.updatedAt !== 'number' ||
+      Date.now() - value.updatedAt > EXPIRY_MS || typeof value.fields !== 'object') return null;
+    return value.fields;
+  } catch { return null; }
+}
+
+export function saveReceivingProductForm(userId: string, orgId: string, fields: Record<string, string>): void {
+  const storage = getStorage(), key = receivingWorkspaceKey(userId, orgId);
+  if (!storage || !key) return;
+  try { storage.setItem(key + ':new-product', JSON.stringify({ updatedAt: Date.now(), fields })); }
+  catch { /* no storage */ }
+}
+
+export function clearReceivingProductForm(userId: string, orgId: string): void {
+  const storage = getStorage(), key = receivingWorkspaceKey(userId, orgId);
+  if (!storage || !key) return;
+  try { storage.removeItem(key + ':new-product'); } catch { /* no storage */ }
+}
+
+export function clearAllReceivingTabData(): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    for (let i = storage.length - 1; i >= 0; i--) {
+      const key = storage.key(i);
+      if (key?.startsWith(PREFIX)) storage.removeItem(key);
+    }
+  } catch { /* privacy mode */ }
+}
