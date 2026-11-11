@@ -1,24 +1,41 @@
-# Atlas OS — Acceptance Control Center
+# Atlas OS — Independent Acceptance Control Center
 
-**Private hosted tracker:** https://atlas-os-acceptance.hatchable.site
+**No Hatchable account or deployment required.** This project now runs entirely on localhost, using a private Node.js evidence API and the existing React/Vite/TypeScript UI. The former Hatchable backend in `backend/` is **legacy reference code only**, not part of the local runtime.
 
-Development policy: `Vijay-Atlas → test → PR → main`. This code is proposed on the current development branch; keep `main` for reviewed changes.
+## Windows startup
 
-## What is tracked
-- Staging health and migrations 001–048.
-- Actual authenticated JWT, goods receipt, supplier quote, price history, duplicate prevention, cross-tenant and role isolation, audits, immutable snapshots, stock and price safeguards.
-- Verified / failed / blocked / unknown outcomes, exact next verification steps, HTTPS evidence, run history, commit and PR notes.
-- GitHub CI and merges through an hourly read-only public API sync plus manual refresh.
-- Conservative NO-GO until every current-main critical authenticated check passes and staging/migrations/main CI are healthy.
+From the Atlas OS repository:
 
-**Production remains untouched. The 200-entry Demo Mode industrial test stays excluded.**
+```powershell
+cd tools\acceptance-control-center\site
+npm install
+npm run dev
+```
 
-## Source
-- `site/`: React 18, Vite, TypeScript entry, htm React components, Vitest and Playwright UI checks.
-- `backend/`: Hatchable API handlers, read-only GitHub sync and separate PostgreSQL evidence database.
+Visit **http://127.0.0.1:4178**. The local API listens only at `127.0.0.1:4179`. For a standalone built site, use `npm run build` followed by `npm run server` and open `http://127.0.0.1:4179`. Data persists in `site/.data/acceptance.json`, which is excluded from Git.
 
-Run `cd tools/acceptance-control-center/site && npm install && npm test && npm run build`.
-For browser UI tests: `npx playwright install chromium && npm run test:e2e`.
-Playwright intercepts /api/state with synthetic UI fixtures. It is **not** real Supabase-authenticated acceptance.
+```powershell
+npm run test:api  # Node tests: evidence storage, origin checks and no-go enforcement
+npm test          # Vitest decision rules
+npm run build     # TypeScript + Vite
+npm run test:e2e  # Playwright UI using safe fixture state
+```
 
-The hosted private tracker updates its state after every saved staging test and on GitHub sync. It invalidates earlier real-auth results when main SHA changes and never auto-verifies auth from Demo Mode.
+## Workflow and scope
+
+- Preserve **Vijay-Atlas → tests → PR review → main**. Do not merge without successful CI.
+- Track staging health, migrations **001–048**, authenticated GRN drafts/posts, supplier quotes/history, duplicate submission, cross-tenant isolation, role rules, audit events, immutable prices, and stock/price safeguards.
+- **verified / failed / blocked / unknown** statuses include dated evidence links and exact next steps. The local backend persists an append-only test-run journal. The dashboard calculates GO/NO-GO after each test and refreshes read-only GitHub merge/CI metadata.
+- No Supabase service key, no Atlas production database access, and no automatic GRN or quote execution. The **200-entry Demo Mode industrial test is excluded**.
+- A real-auth check cannot become verified from SQL simulation, Demo Mode, Vitest, or unauthenticated CI: it needs a real staging authenticated-browser/API observation, HTTPS evidence, and exact current main commit.
+- The 11 November staging health snapshot expires after 24 hours; migrations 001–048 were read-only confirmed that day but must be rechecked when staging changes.
+- The migration grid uses **the actual staging migration names and Supabase migration IDs**, including timestamp-based IDs for migrations 015–048; upgrading the tracker preserves previously recorded pass/fail evidence.
+- The release gate rejects missing or duplicate migration numbers, missing mandatory critical checks, and any newer pending/failed `ATLAS OS CI` run on current `main`. GitHub sync includes main CI separately even during heavy development.
+- At the 11 November 2026 audit, staging had **0 Auth users and 0 organizations**. `AUTH-01` and downstream real-auth tests cannot pass until staging-only test identities are provisioned. Do not provision production users or claim that a simulated SQL role is genuine authentication.
+- Recorded evidence is an operator assertion. Review traces before production approval.
+- GitHub API reads may need optional `GITHUB_TOKEN` for higher rate limits. Never place it in frontend code or commit credentials.
+- For offline/isolated testing, `ATLAS_TRACKER_DISABLE_GITHUB_SYNC=1` stops network synchronization, leaving the release at **NO-GO**.
+
+## Legacy status
+
+PR #59 previously stored a Hatchable-specific backend. The preferred implementation is now `site/local/server.mjs` and `site/local/checks.mjs`. Neither the local app nor its CI needs Hatchable.

@@ -41,13 +41,9 @@ function App(){
    return()=>window.removeEventListener('hashchange',change);
  },[]);
  useEffect(()=>{
-   if(!window.hatchable?.events)return;
-   try{
-     const connection=window.hatchable.events.connect();
-     const channel=connection.channel('atlas-acceptance');
-     channel.on('changed',()=>{void load();});
-     channel.on('$reset',()=>{void load();});
-   }catch{ /* server snapshots are available on navigation and manual refresh */ }
+   // Local independent tracker refreshes after each test and periodically for GitHub merges.
+   const timer=window.setInterval(()=>{void load();},60000);
+   return ()=>window.clearInterval(timer);
  },[load]);
  const navigate=key=>{location.hash=key;setPage(key);window.scrollTo({top:0,behavior:'smooth'});};
  const sync=async()=>{
