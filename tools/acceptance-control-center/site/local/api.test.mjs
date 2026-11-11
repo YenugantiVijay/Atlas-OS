@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
 import {tmpdir} from 'node:os';
@@ -33,6 +33,13 @@ test('private API blocks forged auth and writes evidence to its own local file',
  const dir=await mkdtemp(path.join(tmpdir(),'atlas-local-'));
  const apiPort=await port();
  const file=path.join(dir,'acceptance.json');
+ // Simulate a previously installed tracker with placeholder names and real
+ // human-recorded failure evidence. Startup must correct names, not statuses.
+ const old=createInitialState();
+ old.migrations[17].name='migration_018';
+ old.migrations[17].status='failed';
+ old.migrations[17].evidence_url='https://example.org/old-failure';
+ await writeFile(file,JSON.stringify(old));
  const child=spawn(process.execPath,['local/server.mjs'],{
   cwd:path.resolve(import.meta.dirname,'..'),stdio:'ignore',
   env:{...process.env,ATLAS_TRACKER_PORT:String(apiPort),ATLAS_TRACKER_DATA_FILE:file,ATLAS_TRACKER_DISABLE_GITHUB_SYNC:'1'}
@@ -49,6 +56,9 @@ test('private API blocks forged auth and writes evidence to its own local file',
   const data=await (await fetch(base+'/api/state')).json();
   assert.equal(data.summary.decision,'NO-GO');
   assert.equal(data.migrations.length,48);
+  assert.equal(data.migrations[17].name,'atomic_organization_creation');
+  assert.equal(data.migrations[17].status,'failed');
+  assert.equal(data.migrations[17].evidence_url,'https://example.org/old-failure');
   assert.equal(data.checks.find(c=>c.id==='AUTH-01').effective_status,'blocked');
   const request=async(payload,origin='http://127.0.0.1:4178')=>fetch(base+'/api/runs/record',{
    method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(payload)
