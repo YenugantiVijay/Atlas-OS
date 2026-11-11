@@ -7,7 +7,7 @@ const returned = {
   sku:'STG-GRN-001',name:'Staging Item',category:'Testing',uom:'Nos',
   purchase_cost:100,selling_price:150,tax_rate:0,is_active:true,
 };
-const rpc = vi.fn(() => ({
+const rpc = vi.fn((_name: string, _args: Record<string, unknown>) => ({
   abortSignal: vi.fn(async()=>({data:returned,error:null})),
 }));
 vi.mock('@/lib/supabase',()=>({supabase:{rpc}}));
