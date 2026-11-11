@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '@/types';
 import {
   receivingWorkspaceKey, readReceivingWorkspace, saveReceivingWorkspace,
   clearReceivingWorkspace, appendConfirmedProductToWorkspace,
   readReceivingProductForm, saveReceivingProductForm,
+  readReceivingLists, cacheReceivingLists, clearReceivingLists,
 } from './receiving-workspace';
 
 const user = 'test-user-a';
@@ -66,6 +67,24 @@ describe('receiving worksheet navigation and tenant isolation', () => {
     expect(readReceivingWorkspace(user, org)?.rows[0].product.currentStock).toBe(0);
     clearReceivingWorkspace(user, org);
     expect(readReceivingWorkspace(user, org)).toBeNull();
+  });
+
+  it('reuses fresh supplier lists and shows stale data instantly while a refresh is needed', () => {
+    const realTime = Date.now;
+    const now = realTime();
+    clearReceivingLists(user, org);
+    try {
+      cacheReceivingLists(user, org, [], []);
+      expect(readReceivingLists(user, org)).not.toBeNull();
+      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(now + 61_000);
+      expect(readReceivingLists(user, org)).toBeNull();
+      expect(readReceivingLists(user, org, true)).not.toBeNull();
+      dateSpy.mockReturnValue(now + 16 * 60_000);
+      expect(readReceivingLists(user, org, true)).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+      clearReceivingLists(user, org);
+    }
   });
 
   it('retains incomplete product fields across route transitions', () => {
