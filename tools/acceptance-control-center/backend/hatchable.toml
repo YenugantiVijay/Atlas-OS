@@ -1,0 +1,5 @@
+name = "Atlas OS — Acceptance Control Center"
+description = "Private evidence-driven staging release readiness tracker"
+[[cron]]
+path = "/api/jobs/github-sync"
+schedule = "17 * * * *"
