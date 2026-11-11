@@ -199,7 +199,8 @@ export const productsService = {
     orgId: string,
     input: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'organizationId' | 'currentStock'>,
     isMockAuth: boolean = false,
-    openingStock: number = 0
+    openingStock: number = 0,
+    signal?: AbortSignal
   ): Promise<Product> {
     if (isMockAuth) {
       return storage.createProduct(orgId, input, openingStock);
@@ -210,7 +211,7 @@ export const productsService = {
     }
 
     // Atomic product creation + opening stock initialization via authoritative RPC
-    const { data, error } = await supabase.rpc('create_product_atomic', {
+    const request = supabase.rpc('create_product_atomic', {
       p_org_id: orgId,
       p_sku: input.sku.trim(),
       p_name: input.name.trim(),
@@ -228,6 +229,7 @@ export const productsService = {
       p_notes: 'Initial opening stock',
       p_image_url: input.imageUrl || null,
     });
+    const { data, error } = await (signal ? request.abortSignal(signal) : request);
 
     if (error) {
       throw new Error(`Failed to create product: ${error.message}`);
