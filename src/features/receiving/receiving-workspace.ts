@@ -89,7 +89,7 @@ export function appendConfirmedProductToWorkspace(
       product, packageText: '', looseUnits: '0',
       unitCost: Number(product.purchaseCost ?? 0).toFixed(2),
     }],
-    savedState: 'NEW', dirty: true,
+    savedState: current.savedState, dirty: true,
   });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('atlas:receiving:restored', { detail: { userId, orgId, receiptId } }));
