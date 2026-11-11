@@ -1,3 +1,5 @@
+import { definitions } from './checks.mjs';
+
 export const STATUSES = ['verified','failed','blocked','unknown'];
 
 export function effectiveStatus(check, mainSha, now = Date.now()) {
@@ -17,25 +19,36 @@ export function readiness(checks, migrations, gh) {
   }));
   const critical = decorated.filter(c => c.priority === 'critical');
   const unverified = critical.filter(c => c.effective_status !== 'verified');
-  const migOk = migrations.length === 48 && migrations.every(m => m.status === 'verified');
+  const versionIds = new Set(migrations.map(m => Number(m.version)));
+  const migOk = migrations.length === 48 &&
+    versionIds.size === 48 &&
+    [...versionIds].every(v => Number.isInteger(v) && v >= 1 && v <= 48) &&
+    migrations.every(m => m.status === 'verified');
   const stage = decorated.find(c => c.id === 'STG-01');
-  const mainCi = (gh?.ci_runs || []).find(r => r.head_sha === main && r.branch === 'main' &&
-    r.status === 'completed' && r.conclusion === 'success' && r.name === 'ATLAS OS CI');
-  const ciGate = Boolean(mainCi);
-  const good = unverified.length === 0 && migOk && stage?.effective_status === 'verified' && ciGate && Boolean(main);
+  // Latest current-main run is authoritative, including a newer pending/failing run.
+  const mainRuns = (gh?.ci_runs || [])
+    .filter(r => r.head_sha === main && r.branch === 'main' && r.name === 'ATLAS OS CI')
+    .sort((a,b) => String(b.at || '').localeCompare(String(a.at || '')));
+  const latestMainCi = mainRuns[0];
+  const ciGate = latestMainCi?.status === 'completed' && latestMainCi.conclusion === 'success';
+  const requiredIds = definitions.map(d => d[0]);
+  const missingRequired = requiredIds.filter(id => !critical.some(c => c.id === id));
+  const good = missingRequired.length === 0 && unverified.length === 0 && migOk &&
+    stage?.effective_status === 'verified' && ciGate && Boolean(main);
   const counts = STATUSES.reduce((o,s) => {o[s] = decorated.filter(c => c.effective_status === s).length; return o;}, {});
   const reasons = [];
   if (!main) reasons.push('Latest main commit has not been synced');
   if (!ciGate) reasons.push('No passing main-branch CI attached to the current main commit');
   if (stage?.effective_status !== 'verified') reasons.push('Staging health verification is missing or older than 24h');
-  if (!migOk) reasons.push('Not all migrations 001–048 are verified');
+  if (!migOk) reasons.push('Not all unique migrations 001–048 are verified');
+  if (missingRequired.length) reasons.push('Required checks missing: ' + missingRequired.join(', '));
   if (unverified.length) reasons.push(unverified.length + ' critical acceptance checks are not verified on current main');
   return {
     decision: good ? 'GO' : 'NO-GO',
     completed: decorated.filter(c => c.effective_status === 'verified').length,
     total: decorated.length, counts,
     criticalVerified: critical.length - unverified.length,
-    criticalTotal: critical.length, blockers: unverified.map(c=>c.id),
+    criticalTotal: critical.length, blockers: [...missingRequired, ...unverified.map(c=>c.id)],
     reasons, migrationVerified: migrations.filter(m=>m.status==='verified').length,
     ciGate, mainSha: main, evaluatedAt: new Date().toISOString()
   };
