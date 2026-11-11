@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 4178",
+    "dev": "node local/dev.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run src",
     "test:e2e": "playwright test",
-    "preview": "vite preview"
+    "preview": "node local/server.mjs",
+    "vite:dev": "vite --host 127.0.0.1 --port 4178",
+    "server": "node local/server.mjs",
+    "test:api": "node --test local/*.test.mjs"
   },
   "dependencies": {
     "react": "18.3.1",
