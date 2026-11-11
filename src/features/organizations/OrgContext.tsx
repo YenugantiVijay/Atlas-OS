@@ -298,6 +298,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loadGenerationRef = useRef(0);
   const switchGenerationRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(null);
+  // Auth may emit SIGNED_IN repeatedly when a browser tab regains focus.
+  // Track the last fully loaded identity to avoid full-screen reloads.
+  const loadedUserIdRef = useRef<string | null>(null);
   const inFlightLoadPromiseRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
 
   const isMockAuth = isDemoMode;
@@ -328,6 +331,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Immediate account purge on user switch to prevent temporary cross-account data bleed
     if (activeUserIdRef.current && activeUserIdRef.current !== authUser.id) {
+      loadedUserIdRef.current = null;
       setOrganizations([]);
       setCurrentOrg(null);
       setCurrentRole(null);
@@ -428,6 +432,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
+        loadedUserIdRef.current = authUser.id;
         setOrganizations(orgList);
         setMemberships(memList);
         setCurrentOrg(active);
@@ -447,6 +452,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err: unknown) {
         if (loadGenerationRef.current === currentGen) {
           const msg = err instanceof Error ? err.message : String(err);
+          loadedUserIdRef.current = null;
           setAuthError(msg);
           setCurrentRole(null);
           setEligibility(null);
@@ -604,14 +610,18 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setSession(newSession);
           setIsDemoMode(false);
           localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
-          // Invalidate React Query cache to prevent cross-account stale data
-          queryClient.clear();
-          if (newSession) {
+          // Supabase may emit SIGNED_IN on tab focus and TOKEN_REFRESHED
+          // periodically. The JWT changed, not the user or their worksheet.
+          // Rehydrating the organization and purging every query here caused
+          // needless loading/flicker across pages.
+          if (newSession && loadedUserIdRef.current !== newSession.user.id) {
+            queryClient.clear(); // only when the authenticated identity changes
             await loadRemoteData(newSession);
           }
         } else if (event === 'SIGNED_OUT') {
           clearAllReceivingTabData(); // no supplier prices or unsaved receipt data retained after logout
           activeUserIdRef.current = null;
+          loadedUserIdRef.current = null;
           loadGenerationRef.current++;
           switchGenerationRef.current++;
           inFlightLoadPromiseRef.current = null;
