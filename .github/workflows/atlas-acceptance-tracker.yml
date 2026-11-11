@@ -1,0 +1,31 @@
+name: Atlas OS Acceptance Tracker
+on:
+  pull_request:
+    paths:
+      - 'tools/acceptance-control-center/**'
+      - '.github/workflows/atlas-acceptance-tracker.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/acceptance-control-center/**'
+jobs:
+  dashboard-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/acceptance-control-center/site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install UI dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test decision rules with Vitest
+        run: npm test
+      - name: TypeScript and Vite build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Playwright fixture UI tests
+        run: npm run test:e2e
