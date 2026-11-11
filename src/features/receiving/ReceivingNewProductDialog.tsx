@@ -3,9 +3,15 @@ import { Plus, X } from 'lucide-react';
 import type { Product, UOM } from '@/types';
 import { productsService } from '@/services/products.service';
 import { prepareReceivingProduct, type ReceivingProductFields } from './receiving-new-product';
+import {
+  appendConfirmedProductToWorkspace, readReceivingProductForm,
+  saveReceivingProductForm, clearReceivingProductForm,
+} from './receiving-workspace';
 
 interface Props {
   organizationId: string;
+  userId?: string;
+  receiptId?: string;
   suggestedName: string;
   onCreated: (product: Product) => void;
   onClose: () => void;
@@ -16,17 +22,27 @@ const UOMS: UOM[] = ['Nos','Bags','Kg','Litres','Boxes','Packs','Bundles','Coils
 /** Creates a catalog master with zero opening stock, then returns it to the
  * unsaved receiving worksheet. This does not bypass the product-creation RPC. */
 export const ReceivingNewProductDialog: React.FC<Props> = ({
-  organizationId, suggestedName, onCreated, onClose,
+  organizationId, userId = '', receiptId = '', suggestedName, onCreated, onClose,
 }) => {
-  const [values, setValues] = useState<ReceivingProductFields>({
+  const [values, setValues] = useState<ReceivingProductFields>(() => ({
     name: suggestedName.slice(0, 255), sku: '', brand: '', category: 'General',
     uom: 'Nos', inboundRate: '', sellingPrice: '0', taxRate: '0', hsnCode: '',
-  });
+    ...(readReceivingProductForm(userId, organizationId) as Partial<ReceivingProductFields> || {}),
+  }));
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState('');
   const mounted = useRef(true);
   const sending = useRef(false);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // StrictMode mounts effects twice in development. Restore the mounted flag
+  // on setup; otherwise a successful RPC can be ignored forever.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    saveReceivingProductForm(userId, organizationId, values as unknown as Record<string, string>);
+  }, [values, userId, organizationId]);
   const setField = (key: keyof ReceivingProductFields, value: string) => {
     setValues(prev => ({ ...prev, [key]: value }));
     setError('');
@@ -37,15 +53,29 @@ export const ReceivingNewProductDialog: React.FC<Props> = ({
     let input: ReturnType<typeof prepareReceivingProduct>;
     try { input = prepareReceivingProduct(values); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Invalid product.'); return; }
-    sending.current = true; setBusy(true); setError('');
+    sending.current = true; setBusy(true); setSlow(false); setError('');
+    const controller = new AbortController();
+    const slowTimer = window.setTimeout(() => { if (mounted.current) setSlow(true); }, 6500);
+    // A hung network must not leave the UI stuck on "Creating" indefinitely.
+    // Because server acknowledgement could be lost, never retry automatically.
+    const timeout = window.setTimeout(() => controller.abort(), 25000);
     try {
-      const product = await productsService.createProduct(organizationId, input, false, 0);
+      const product = await productsService.createProduct(organizationId, input, false, 0, controller.signal);
+      clearReceivingProductForm(userId, organizationId);
       if (mounted.current) onCreated(product);
+      else appendConfirmedProductToWorkspace(userId, organizationId, receiptId, product);
     } catch (cause) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : 'Product creation failed.');
+      if (mounted.current) {
+        const message = controller.signal.aborted
+          ? 'The cloud did not confirm this request within 25 seconds. Check Products & SKUs for this SKU before attempting again; do not create a duplicate.'
+          : cause instanceof Error ? cause.message : 'Product creation failed.';
+        setError(message);
+      }
     } finally {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(timeout);
       sending.current = false;
-      if (mounted.current) setBusy(false);
+      if (mounted.current) { setBusy(false); setSlow(false); }
     }
   };
 
@@ -113,6 +143,11 @@ export const ReceivingNewProductDialog: React.FC<Props> = ({
                 placeholder="4, 6 or 8 digits" onChange={e=>setField('hsnCode',e.target.value)}/>
             </label>
           </div>
+          {slow && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs font-medium text-amber-900">
+            Staging cloud is taking longer than usual. You can navigate to another page;
+            if the server confirms creation, the product will be added to this worksheet when you return.
+            Please do not submit the SKU twice.
+          </p>}
           {error && <p role="alert" className="rounded-lg bg-rose-50 p-2 text-sm text-rose-800">{error}</p>}
           <p className="text-xs text-amber-800">The product master is saved immediately. Cancelling the receipt later will not delete it or create stock.</p>
           <div className="flex flex-wrap justify-end gap-2">
