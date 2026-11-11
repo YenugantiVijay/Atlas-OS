@@ -223,7 +223,7 @@ export const productsService = {
       p_tax_rate: input.taxRate,
       p_hsn_code: input.hsnCode?.trim() || null,
       p_reorder_threshold: input.reorderThreshold,
-      p_is_active: input.isActive ?? true,
+      // create_product_atomic has no p_is_active argument; newly created products default to active.
       p_opening_stock: openingStock || 0,
       p_notes: 'Initial opening stock',
       p_image_url: input.imageUrl || null,
