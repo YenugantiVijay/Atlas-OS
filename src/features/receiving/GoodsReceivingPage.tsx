@@ -137,7 +137,7 @@ export const GoodsReceivingPage: React.FC = () => {
   }, [userId, orgId, receiptId]);
 
   const refresh = useCallback(async (force = false) => {
-    if (!orgId || isMockAuth || !userId) return;
+    if (!orgId || isMockAuth) return;
     const cached = readReceivingLists(userId, orgId);
     if (cached && !force) {
       setSuppliers(cached.suppliers);
