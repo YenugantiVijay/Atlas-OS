@@ -100,7 +100,7 @@ export const GoodsReceivingPage: React.FC = () => {
     setSuccess(restored && (restored.rows.length || restored.invoice || restored.supplierId)
       ? 'Your unfinished receiving worksheet has been restored from this tab. Nothing was posted.'
       : '');
-    const cached = readReceivingLists(userId, orgId);
+    const cached = readReceivingLists(userId, orgId, true);
     setSuppliers(cached?.suppliers || []);
     setReceipts(cached?.receipts || []);
     setLoading(false);
@@ -141,13 +141,20 @@ export const GoodsReceivingPage: React.FC = () => {
 
   const refresh = useCallback(async (force = false) => {
     if (!orgId || isMockAuth) return;
-    const cached = readReceivingLists(userId, orgId);
-    if (cached && !force) {
-      setSuppliers(cached.suppliers);
-      setReceipts(cached.receipts);
-      return; // no redundant loading or network call on quick tab switches
+    const fresh = readReceivingLists(userId, orgId);
+    if (fresh && !force) {
+      setSuppliers(fresh.suppliers);
+      setReceipts(fresh.receipts);
+      return; // no duplicate call on quick page switches
     }
-    if (!cached) setLoading(true);
+    const stale = readReceivingLists(userId, orgId, true);
+    if (stale) {
+      // Display last known lists without blocking the worksheet, then revalidate.
+      setSuppliers(stale.suppliers);
+      setReceipts(stale.receipts);
+    } else {
+      setLoading(true);
+    }
     try {
       const [supplierRows, receiptRows] = await Promise.all([
         suppliersService.getSuppliers(orgId, false), goodsReceivingService.list(orgId),
