@@ -98,10 +98,17 @@ export function appendConfirmedProductToWorkspace(
 }
 
 const cachedLists = new Map<string, { at: number; suppliers: Supplier[]; receipts: GoodsReceiptRecord[] }>();
-export function readReceivingLists(userId: string, orgId: string) {
+/**
+ * Immediately show previously loaded lists on page return, even if their
+ * short freshness TTL elapsed. The page revalidates stale data in the background.
+ * Retain no cross-user or cross-organization references.
+ */
+export function readReceivingLists(userId: string, orgId: string, allowStale = false) {
   const key = receivingWorkspaceKey(userId, orgId);
   const value = cachedLists.get(key);
-  return value && Date.now() - value.at < 60_000 ? value : null;
+  if (!value) return null;
+  const age = Date.now() - value.at;
+  return age >= 0 && age < (allowStale ? 15 * 60_000 : 60_000) ? value : null;
 }
 export function cacheReceivingLists(userId: string, orgId: string, suppliers: Supplier[], receipts: GoodsReceiptRecord[]): void {
   const key = receivingWorkspaceKey(userId, orgId);
