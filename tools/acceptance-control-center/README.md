@@ -29,6 +29,9 @@ npm run test:e2e  # Playwright UI using safe fixture state
 - No Supabase service key, no Atlas production database access, and no automatic GRN or quote execution. The **200-entry Demo Mode industrial test is excluded**.
 - A real-auth check cannot become verified from SQL simulation, Demo Mode, Vitest, or unauthenticated CI: it needs a real staging authenticated-browser/API observation, HTTPS evidence, and exact current main commit.
 - The 11 November staging health snapshot expires after 24 hours; migrations 001–048 were read-only confirmed that day but must be rechecked when staging changes.
+- The migration grid uses **the actual staging migration names and Supabase migration IDs**, including timestamp-based IDs for migrations 015–048; upgrading the tracker preserves previously recorded pass/fail evidence.
+- The release gate rejects missing or duplicate migration numbers, missing mandatory critical checks, and any newer pending/failed `ATLAS OS CI` run on current `main`. GitHub sync includes main CI separately even during heavy development.
+- At the 11 November 2026 audit, staging had **0 Auth users and 0 organizations**. `AUTH-01` and downstream real-auth tests cannot pass until staging-only test identities are provisioned. Do not provision production users or claim that a simulated SQL role is genuine authentication.
 - Recorded evidence is an operator assertion. Review traces before production approval.
 - GitHub API reads may need optional `GITHUB_TOKEN` for higher rate limits. Never place it in frontend code or commit credentials.
 - For offline/isolated testing, `ATLAS_TRACKER_DISABLE_GITHUB_SYNC=1` stops network synchronization, leaving the release at **NO-GO**.
