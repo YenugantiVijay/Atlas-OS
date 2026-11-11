@@ -21,6 +21,8 @@ jobs:
           node-version: '20'
       - name: Install UI dependencies
         run: npm install --no-audit --no-fund
+      - name: Test private Node API and staging safety (no external network)
+        run: npm run test:api
       - name: Test decision rules with Vitest
         run: npm test
       - name: TypeScript and Vite build
