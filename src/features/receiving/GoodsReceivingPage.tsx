@@ -15,6 +15,10 @@ import {
   readUniformCartons, writeUniformCartons, parsePackageCounts,
   type ReceiptWorksheetLine,
 } from './receiving-worksheet';
+import {
+  receivingWorkspaceKey, readReceivingWorkspace, saveReceivingWorkspace,
+  clearReceivingWorkspace, readReceivingLists, cacheReceivingLists, clearReceivingLists,
+} from './receiving-workspace';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const currency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
@@ -24,9 +28,11 @@ const currency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'cu
  * adjustment loophole. The only stock-writing path is post_goods_receipt RPC.
  */
 export const GoodsReceivingPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, currentUser, isMockAuth } = useOrg();
+  const userId = currentUser?.id || '';
   const { check } = useActionPermission();
   const orgId = currentOrg?.id || '';
+  const workspaceKey = receivingWorkspaceKey(userId, orgId);
   const activeOrgRef = useRef(orgId);
   activeOrgRef.current = orgId;
   const canReceive = check('inventory:receive');
@@ -61,39 +67,102 @@ export const GoodsReceivingPage: React.FC = () => {
   const [notebook, setNotebook] = useState('');
   const [showNotebook, setShowNotebook] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hydratedKey, setHydratedKey] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
   const newReceipt = useCallback(() => {
+    clearReceivingWorkspace(userId, orgId);
     setSupplierId(''); setInvoice(''); setDate(today()); setNotes('');
     setRows([]); setMixedRows(new Set()); setShowCreateProduct(false);
     setReceiptId(crypto.randomUUID());
     setSavedState('NEW'); setDirty(true); setConfirmPosting(false);
     setTerm(''); setMatches([]); setError(''); setSuccess('');
-  }, []);
-  useEffect(() => {
-    newReceipt();
-    setSuppliers([]);
-    setReceipts([]);
-    setMatches([]);
-    setLoading(false);
-  }, [orgId, newReceipt]);
+  }, [userId, orgId]);
 
-  const refresh = useCallback(async () => {
+  // Hydrate by *both* Supabase user and organization; never overwrite another
+  // operator's unsaved worksheet. A tab or route change does not discard input.
+  useEffect(() => {
+    const restored = readReceivingWorkspace(userId, orgId);
+    setSupplierId(restored?.supplierId || '');
+    setInvoice(restored?.invoice || '');
+    setDate(restored?.date || today());
+    setNotes(restored?.notes || '');
+    setRows(restored?.rows || []);
+    setMixedRows(new Set(restored?.mixedRows || []));
+    setReceiptId(restored?.receiptId || crypto.randomUUID());
+    setSavedState(restored?.savedState || 'NEW');
+    setDirty(restored?.dirty ?? true);
+    setNotebook(restored?.notebook || '');
+    setShowNotebook(restored?.showNotebook || false);
+    setShowCreateProduct(false);
+    setConfirmPosting(false);
+    setTerm(''); setMatches([]); setError('');
+    setSuccess(restored && (restored.rows.length || restored.invoice || restored.supplierId)
+      ? 'Your unfinished receiving worksheet has been restored from this tab. Nothing was posted.'
+      : '');
+    const cached = readReceivingLists(userId, orgId);
+    setSuppliers(cached?.suppliers || []);
+    setReceipts(cached?.receipts || []);
+    setLoading(false);
+    setHydratedKey(workspaceKey);
+  }, [workspaceKey, orgId, userId]);
+
+  // Persist immediately after each edit. This is local-only scratchpad data:
+  // it never posts a receipt or touches the authoritative stock ledger.
+  useEffect(() => {
+    if (!workspaceKey || hydratedKey !== workspaceKey) return;
+    if (savedState === 'POSTED') {
+      clearReceivingWorkspace(userId, orgId);
+      return;
+    }
+    saveReceivingWorkspace(userId, orgId, {
+      supplierId, invoice, date, notes, rows, mixedRows: [...mixedRows],
+      receiptId, savedState, dirty, notebook, showNotebook,
+    });
+  }, [workspaceKey, hydratedKey, userId, orgId, supplierId, invoice, date, notes,
+    rows, mixedRows, receiptId, savedState, dirty, notebook, showNotebook]);
+
+  // Restore a product whose server request completed while another route was open.
+  useEffect(() => {
+    const onLateProduct = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string; orgId: string; receiptId: string }>).detail;
+      if (detail?.userId !== userId || detail.orgId !== orgId || detail.receiptId !== receiptId) return;
+      const next = readReceivingWorkspace(userId, orgId);
+      if (next && next.receiptId === receiptId) {
+        setRows(next.rows);
+        setMixedRows(new Set(next.mixedRows));
+        setDirty(true);
+        setSuccess('New product confirmed and added to your restored worksheet.');
+      }
+    };
+    window.addEventListener('atlas:receiving:restored', onLateProduct);
+    return () => window.removeEventListener('atlas:receiving:restored', onLateProduct);
+  }, [userId, orgId, receiptId]);
+
+  const refresh = useCallback(async (force = false) => {
     if (!orgId || isMockAuth) return;
-    setLoading(true);
+    const cached = readReceivingLists(userId, orgId);
+    if (cached && !force) {
+      setSuppliers(cached.suppliers);
+      setReceipts(cached.receipts);
+      return; // no redundant loading or network call on quick tab switches
+    }
+    if (!cached) setLoading(true);
     try {
       const [supplierRows, receiptRows] = await Promise.all([
         suppliersService.getSuppliers(orgId, false), goodsReceivingService.list(orgId),
       ]);
       if (activeOrgRef.current !== orgId) return;
-      setSuppliers(supplierRows.filter((s) => s.isActive));
+      const activeSuppliers = supplierRows.filter((supplier) => supplier.isActive);
+      cacheReceivingLists(userId, orgId, activeSuppliers, receiptRows);
+      setSuppliers(activeSuppliers);
       setReceipts(receiptRows);
     } catch (e) {
       if (activeOrgRef.current === orgId) {
         setError(e instanceof Error ? e.message : 'Unable to load suppliers and receiving history.');
       }
     } finally { if (activeOrgRef.current === orgId) setLoading(false); }
-  }, [orgId, isMockAuth]);
+  }, [orgId, userId, isMockAuth]);
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
@@ -217,6 +286,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const totalCost = calculated.reduce((sum, x) => sum + (x.data ? x.data.totalUnits * x.data.unitCost : 0), 0);
   const ready = Boolean(supplierId && invoice.trim() && date && rows.length &&
     calculated.every((x) => x.data) && editable);
+  const hasLocalDraft = Boolean(userId && (rows.length || invoice.trim() || supplierId || notebook));
 
   const runOnce = async (fn: () => Promise<void>) => {
     if (busyRef.current) return;
@@ -236,7 +306,8 @@ export const GoodsReceivingPage: React.FC = () => {
       if (activeOrgRef.current !== orgId) return;
       setSavedState('DRAFT'); setDirty(false); setConfirmPosting(false);
       setSuccess('Draft saved. Inventory has not changed.');
-      await refresh();
+      clearReceivingLists(userId, orgId);
+      await refresh(true);
     });
   };
   const post = async () => {
@@ -248,7 +319,9 @@ export const GoodsReceivingPage: React.FC = () => {
       setSuccess(result.idempotent_replay
         ? 'This goods receipt was already posted; stock was not added twice.'
         : 'Goods receipt posted. Stock movements were created exactly once.');
-      await refresh();
+      clearReceivingWorkspace(userId, orgId);
+      clearReceivingLists(userId, orgId);
+      await refresh(true);
     });
   };
   const loadDraft = async (receipt: GoodsReceiptRecord) => {
@@ -310,7 +383,7 @@ export const GoodsReceivingPage: React.FC = () => {
     <div className="space-y-4 pb-8">
       {showCreateProduct && canQuickCreate && (
         <ReceivingNewProductDialog
-          organizationId={orgId} suggestedName={term}
+          organizationId={orgId} userId={userId} receiptId={receiptId} suggestedName={term}
           onClose={() => setShowCreateProduct(false)}
           onCreated={(product) => {
             if (activeOrgRef.current !== orgId) return;
@@ -546,6 +619,10 @@ export const GoodsReceivingPage: React.FC = () => {
           </p>
           <p className="text-xs text-slate-500">Duplicate supplier invoice numbers are rejected. Your receipt has a stable ID for safe retry after a network interruption.</p>
           <p className="text-xs text-slate-500">Receipt state: <strong>{savedState}{dirty ? ' · Unsaved changes' : ''}</strong></p>
+          {hasLocalDraft && savedState !== 'POSTED' &&
+            <p role="status" className="text-xs font-medium text-teal-700">
+              Saved in this tab · You can change pages and return without losing these entries.
+            </p>}
         </div>
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <button type="button" disabled={!ready || busy} onClick={() => void save()}
@@ -577,7 +654,7 @@ export const GoodsReceivingPage: React.FC = () => {
       <section aria-label="Recent goods receipts" className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[#142B4D]">Recent goods receipts</h2>
-          <button type="button" onClick={() => void refresh()} disabled={loading} className="text-xs font-semibold text-teal-700">Refresh</button>
+          <button type="button" onClick={() => void refresh(true)} disabled={loading} className="text-xs font-semibold text-teal-700">Refresh</button>
         </div>
         {loading && <p role="status" className="text-xs text-slate-500">Loading receipts…</p>}
         {!loading && !receipts.length && <p className="text-xs text-slate-500">No receipts have been recorded yet.</p>}

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { clearAllReceivingTabData } from '@/features/receiving/receiving-workspace';
 import type { Session } from '@supabase/supabase-js';
 import {
   Organization,
@@ -609,6 +610,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await loadRemoteData(newSession);
           }
         } else if (event === 'SIGNED_OUT') {
+          clearAllReceivingTabData(); // no supplier prices or unsaved receipt data retained after logout
           activeUserIdRef.current = null;
           loadGenerationRef.current++;
           switchGenerationRef.current++;

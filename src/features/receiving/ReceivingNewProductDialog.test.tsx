@@ -37,8 +37,33 @@ describe('PR58 new product inside receiving worksheet',()=>{
     expect(productsService.createProduct).toHaveBeenCalledWith(
       product.organizationId,expect.objectContaining({
         name:'Fertilizer A',sku:'FERT-A',uom:'Bags',purchaseCost:1120.5,sellingPrice:1400,taxRate:5,
-      }),false,0,
+      }),false,0,expect.any(AbortSignal),
     );
+  });
+
+  it('does not drop a confirmed product just because the operator changed tabs during the request',async()=>{
+    const { saveReceivingWorkspace, readReceivingWorkspace } = await import('./receiving-workspace');
+    sessionStorage.clear();
+    saveReceivingWorkspace('user-a',product.organizationId,{
+      receiptId:'receipt-a',supplierId:'',invoice:'',date:'2026-11-11',notes:'',
+      rows:[],mixedRows:[],savedState:'NEW',dirty:true,notebook:'',showNotebook:false,
+    });
+    let resolveRequest: ((value: Product)=>void)|undefined;
+    vi.mocked(productsService.createProduct).mockImplementation(() => new Promise<Product>(resolve=>{
+      resolveRequest=resolve;
+    }));
+    const onCreated=vi.fn();
+    const mounted = render(<ReceivingNewProductDialog
+      userId="user-a" receiptId="receipt-a" organizationId={product.organizationId}
+      suggestedName="Fertilizer A" onCreated={onCreated} onClose={vi.fn()}/>);
+    fireEvent.change(screen.getByLabelText('New product SKU'),{target:{value:'FERT-A'}});
+    fireEvent.change(screen.getByLabelText('New product purchase rate'),{target:{value:'1120.50'}});
+    fireEvent.click(screen.getByRole('button',{name:'Create and add to sheet'}));
+    expect(resolveRequest).toBeTypeOf('function');
+    mounted.unmount(); // navigation destroys the dialog, not the in-flight RPC
+    resolveRequest!(product);
+    await waitFor(()=>expect(readReceivingWorkspace('user-a',product.organizationId)?.rows).toHaveLength(1));
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   it('displays server-side failures without claiming the product was created',async()=>{
