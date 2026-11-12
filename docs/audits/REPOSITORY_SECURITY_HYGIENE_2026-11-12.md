@@ -24,6 +24,10 @@ The root vite.config.ts previously used server.host=true while the lockfile cont
 
 Advisory: https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7
 
+## Confirmed preview file exposure risk addressed
+
+The old atlas-os-website/scripts/serve-preview.mjs listened on 0.0.0.0 and joined a decoded, untrusted URL path directly onto dist, without a containment check. This created a potential arbitrary file-read path during LAN preview (for example dot-dot navigation to website source/config files). It is now localhost-only and rejects encoded Windows/Unix parent segments, bad escapes, unsupported methods, and symlinks outside the static build root. A dedicated Node preview HTTP regression suite runs in website CI. Production Firebase hosting uses a different static server and was not modified.
+
 ## Prioritized unresolved verification
 
 | Severity | Finding | Required next proof |
