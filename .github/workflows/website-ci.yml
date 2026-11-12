@@ -52,6 +52,10 @@ jobs:
           PUBLIC_LEAD_ENDPOINT: https://api.example.test/functions/v1/submit-website-lead
           PUBLIC_TURNSTILE_SITE_KEY: ci-public-site-key
 
+      - name: Website preview path isolation tests
+        working-directory: atlas-os-website
+        run: npm run test:preview
+
       - name: Verify built website
         run: npm run verify
 

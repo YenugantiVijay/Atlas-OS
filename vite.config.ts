@@ -24,6 +24,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
+    // Restrict the development server to this computer. Vite 6.4.5 has a
+    // network-exposed dev-server RCE advisory (GHSA-p4f5-76q4-ffq7).
+    // Never use --host or 0.0.0.0 until the patched toolchain is verified.
+    host: '127.0.0.1',
+    strictPort: true,
   },
 });

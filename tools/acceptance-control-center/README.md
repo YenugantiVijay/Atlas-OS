@@ -1,6 +1,6 @@
 # Atlas OS — Independent Acceptance Control Center
 
-**No Hatchable account or deployment required.** This project now runs entirely on localhost, using a private Node.js evidence API and the existing React/Vite/TypeScript UI. The former Hatchable backend in `backend/` is **legacy reference code only**, not part of the local runtime.
+**No Hatchable account or deployment required.** This project now runs entirely on localhost, using a private Node.js evidence API and the existing React/Vite/TypeScript UI. The obsolete Hatchable backend source has been removed; only the independent local runtime is supported.
 
 ## Windows startup
 
@@ -38,4 +38,4 @@ npm run test:e2e  # Playwright UI using safe fixture state
 
 ## Legacy status
 
-PR #59 previously stored a Hatchable-specific backend. The preferred implementation is now `site/local/server.mjs` and `site/local/checks.mjs`. Neither the local app nor its CI needs Hatchable.
+PR #59 originally stored a Hatchable-specific backend. That retired source was removed. The supported runtime is `site/local/server.mjs` and `site/local/checks.mjs`.
