@@ -23,6 +23,9 @@ export interface GoodsReceiptRecord {
   updatedAt: string;
 }
 
+export type ReceiptDeliveryLine = Pick<GoodsReceiptRecord['lines'][number],
+  'productId' | 'productName' | 'sku' | 'totalUnits' | 'billedUnits' | 'damagedUnits'>;
+
 interface SaveReceiptCommand {
   organizationId: string;
   receiptId: string;

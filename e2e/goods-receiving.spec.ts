@@ -28,6 +28,15 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
     await expect(page.getByText(/No receipts have been recorded yet/)).toBeVisible();
   });
 
+  test('supplier follow-up opens from receiving and asks for cloud sign-in in demo',async({page})=>{
+    await page.getByRole('link',{name:'Supplier Follow-up',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Supplier Follow-up',exact:true})).toBeVisible();
+    await expect(page.getByText('Sign in to a cloud workspace to see supplier follow-ups.')).toBeVisible();
+    await expect(page.getByRole('button',{name:'Record resolution'})).toHaveCount(0);
+    await page.getByRole('link',{name:'Back to Goods Receiving'}).click();
+    await expect(page.getByRole('heading',{name:'Bulk Goods Receiving'})).toBeVisible();
+  });
+
   test('receiving worksheet retains its own horizontal table scroll on mobile',async({page})=>{
     await page.setViewportSize({width:375,height:812});
     await expect(page.getByRole('region',{name:'Receiving line-item grid'})).toBeVisible();
