@@ -23,7 +23,10 @@ const sources=tracked.filter(p=>
 ).map(path=>({path,text:readFileSync(path,'utf8')}));
 for(const {path,text} of sources){
  if(path==='scripts/audit-repository.mjs') continue;
- if(/sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text))
+ const secretTokens=[...text.matchAll(/sb_secret_[A-Za-z0-9_-]{20,}/g)].map(m=>m[0]).filter(
+  token=>!(path==='src/lib/supabase.test.ts' && token==='sb_secret_sample_test_key_that_should_never_be_in_frontend')
+ );
+ if(secretTokens.length || /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text))
   problems.push('Potential embedded secret: '+path);
  if(/window\.hatchable\b|hatchable\.events\b/.test(text))
   problems.push('Retired Hatchable runtime code: '+path);
@@ -34,7 +37,8 @@ for(const {path,text} of sources){
 }
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const candidates=Object.keys(pkg.dependencies||{}).filter(name=>
- !sources.some(x=>x.text.includes("'"+name+"'")||x.text.includes('"'+name+'"')));
+ !sources.some(x=>x.text.includes("'"+name+"'")||x.text.includes('"'+name+'"')||
+   x.text.includes("'"+name+"/")||x.text.includes('"'+name+"/')));
 if(candidates.length) warnings.push('Possible unused direct dependencies (review before removal): '+candidates.join(', '));
 console.log('Atlas OS hygiene: '+tracked.length+' tracked files; '+migrations.length+
  ' migrations; '+tests.length+' test/spec files; '+sources.length+' code files scanned.');
