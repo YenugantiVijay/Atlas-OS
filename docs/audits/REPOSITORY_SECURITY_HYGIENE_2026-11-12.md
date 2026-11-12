@@ -20,13 +20,24 @@ Date: 12 November 2026. Scope: ERP React/Vite code, website Astro code, independ
 
 ## Newly confirmed critical development-server exposure
 
-The root vite.config.ts previously used server.host=true while the lockfile contained Vite 6.4.5. Maintainer advisory GHSA-p4f5-76q4-ffq7 (published 10 November 2026) affects this version if the development server is reachable over the network. This is a development-workstation risk, not evidence of a production static-build compromise. Default development binding has been restricted to 127.0.0.1 with a strict port, and the repository hygiene test now rejects host:true / 0.0.0.0. Patch upgrade to 6.4.6 or later remains a separate mandatory dependency resolution step; never run npm run dev -- --host on an affected version.
+The root vite.config.ts previously used server.host=true while the lockfile contained Vite 6.4.5. Maintainer advisory GHSA-p4f5-76q4-ffq7 (published 10 November 2026) affects this version if the development server is reachable over the network. This is a development-workstation risk, not evidence of a production static-build compromise. Default development binding has been restricted to 127.0.0.1 with a strict port, and the repository hygiene test now rejects host:true / 0.0.0.0. Vite was subsequently upgraded and locked to the verified patched 6.4.6 release, with package.json and package-lock.json updated together. localhost binding and the hygiene guard remain in place; do not expose development endpoints to the public network.
 
 Advisory: https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7
 
 ## Confirmed preview file exposure risk addressed
 
 The old atlas-os-website/scripts/serve-preview.mjs listened on 0.0.0.0 and joined a decoded, untrusted URL path directly onto dist, without a containment check. This created a potential arbitrary file-read path during LAN preview (for example dot-dot navigation to website source/config files). It is now localhost-only and rejects encoded Windows/Unix parent segments, bad escapes, unsupported methods, and symlinks outside the static build root. A dedicated Node preview HTTP regression suite runs in website CI. Production Firebase hosting uses a different static server and was not modified.
+
+## Dependency supply-chain triage (CI npm audit, 12 November 2026)
+
+- Full application npm dependency audit: **14 advisories** (11 moderate, 1 high, 2 critical) at time of scan. Production-only audit: 5 (4 moderate, 1 high). This audit explicitly does not dismiss them just because tests pass.
+- **Vitest 3 / tinypool (2 critical)**: development/test-runner dependency; upgrade to Vitest 4.1.12+ needs focused compatibility testing, not automatic forced major migration.
+- **Zod 3 (high)**: constrained-array memory exhaustion. Next review every untrusted validation boundary and apply input-size caps while planning Zod 4 migration. Do not force-upgrade without running operational validation tests.
+- **React Router 6 (moderate)**: open-redirect/SSR-hydration advisories. Current application is a client-side hash router, not React Router SSR. Still plan a validated v7 upgrade, and review user-controlled navigation input.
+- **UUID via ExcelJS 4 (moderate)**: exported Excel workbooks are generated using `.xlsx.writeBuffer()` in src/lib/excel.ts; no untrusted workbook loading path currently identified. Avoid the audit-suggested incompatible downgrade without targeted export tests.
+- **Vitest mocker / TypeScript ESLint minimatch**: build/test tool dependency issues; upgrade in separate CI-reviewed PRs.
+- **Vite 6.4.5 dev-server advisory**: root Vite upgraded to **6.4.6** and localhost-bound; this patched update must pass CI and Playwright before merge.
+- The CI audit inventories known issues but is intentionally nonblocking until severity, exposure, migration and regression plans are approved.
 
 ## Prioritized unresolved verification
 

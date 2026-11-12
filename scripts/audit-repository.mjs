@@ -39,6 +39,13 @@ const viteConfig=readFileSync('vite.config.ts','utf8');
 if(/\bhost\s*:\s*(?:true|['"]0\.0\.0\.0['"])/.test(viteConfig))
  problems.push('Vite dev server binds to the network, exposing vulnerable dev endpoints. Use localhost only.');
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
+const viteLock=JSON.parse(readFileSync('package-lock.json','utf8'));
+const viteInstalled=viteLock.packages?.['node_modules/vite']?.version || '0.0.0';
+const viteParts=viteInstalled.split('.').map(Number);
+if(viteParts.length!==3 || !viteParts.every(Number.isInteger) ||
+   (viteParts[0]===6 && (viteParts[1]<4 || (viteParts[1]===4 && viteParts[2]<6))))
+ problems.push('Vite lockfile uses unpatched 6.x release: '+viteInstalled);
+
 const candidates=Object.keys(pkg.dependencies||{}).filter(name=>
  !sources.some(x=>["'", '"'].some(quote=>
    x.text.includes(quote+name+quote)||x.text.includes(quote+name+'/'))));
