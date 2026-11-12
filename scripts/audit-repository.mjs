@@ -43,7 +43,7 @@ const viteLock=JSON.parse(readFileSync('package-lock.json','utf8'));
 const viteInstalled=viteLock.packages?.['node_modules/vite']?.version || '0.0.0';
 const viteParts=viteInstalled.split('.').map(Number);
 if(viteParts.length!==3 || !viteParts.every(Number.isInteger) ||
-   (viteParts[0]===6 && (viteParts[1]<4 || (viteParts[1]===4 && viteParts[2]<6))))
+   (viteParts[0]<6 || (viteParts[0]===6 && (viteParts[1]<4 || (viteParts[1]===4 && viteParts[2]<6))))))
  problems.push('Vite lockfile uses unpatched 6.x release: '+viteInstalled);
 
 const candidates=Object.keys(pkg.dependencies||{}).filter(name=>
