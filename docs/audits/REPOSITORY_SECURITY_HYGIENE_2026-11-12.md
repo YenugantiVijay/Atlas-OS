@@ -57,3 +57,28 @@ The old atlas-os-website/scripts/serve-preview.mjs listened on 0.0.0.0 and joine
 NO-GO for live production until authenticated staging acceptance, performance and security exceptions are reviewed. The historical database and authorization CI tests still run. This audit is an initial verified pass, **not** a claim to have proven every code path safe.
 
 Evidence: GitHub PR #62, Supabase staging Security and Performance Advisors, standalone Acceptance Control Center.
+
+## Independent follow-up verification — 12 November 2026
+
+This follow-up inspected the current `Vijay-Atlas` tree and live **staging-only read-only** catalog/advisors after PR #62 merged. The repository currently has 460 tracked files in the cleanup branch, comprising application, Astro website, acceptance dashboard, tests, 48 SQL migrations, and retained historical audit documents. This number excludes previously deleted retired source and does not imply all 460 files are executable source.
+
+### Evidence of tested cleanup
+
+- Existing PR #63 initially failed `ATLAS OS CI` at the new `Repository Hygiene & Secret Exposure Gate`: `scripts/audit-repository.mjs` contained a JavaScript syntax error in the Vite version predicate. Fixed on `Vijay-Atlas` in commit `10dfe875117e9a297101ab60e0d14f978f119e63`.
+- Fresh **push CI**: https://github.com/YenugantiVijay/Atlas-OS/actions/runs/43160074476 — success. Fresh **PR CI**: https://github.com/YenugantiVijay/Atlas-OS/actions/runs/43160079392 — success. Both include hygiene, lint, TypeScript, disposable PostgreSQL lifecycle/security acceptance, Vitest, build and Playwright.
+- Separate acceptance-dashboard CI: https://github.com/YenugantiVijay/Atlas-OS/actions/runs/43160079402 — success. Astro website CI: https://github.com/YenugantiVijay/Atlas-OS/actions/runs/43160079406 — success.
+- Staging project: `ATLAS-OS-Staging` (`bwswqnhlebbzdxumlkih`). Read-only catalog: **29 public ordinary tables, 0 without RLS**. This is an RLS configuration check, not an authenticated tenant-isolation proof.
+- Staging Supabase Security Advisor: 39 authenticated-callable `SECURITY DEFINER` functions requiring per-function review and 1 informational `website_lead_rate_limits` RLS-enabled policy-free service-only table. Advisor explanation: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+- Staging Supabase Performance Advisor: 32 missing covering FK indexes. Evaluate against representative query plans before applying migrations: https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
+- Spot-reviewed definer functions include `create_organization` (delegates to `create_organization_v2`), `get_financial_export_snapshot` (delegates to `assert_financial_report_access`), `get_user_organizations` (filters by `auth.uid()`), and `check_stock_movement_invariant` (trigger-only function). Do not classify every advisory as proven exploit; do not revoke EXECUTE blindly without checking callers and running authenticated negative tests.
+
+### Cleanup safety and remaining production gate
+
+- Deleted files were limited to verified retired Hatchable backend artifacts and a generated Astro file; preserved active Acceptance Control Center, application code, migration 001–048 history, unit/integration tests, lockfiles, and historical audit evidence. Dependencies removed had no runtime usage in scanned source and the lockfile was updated.
+- Older repository-root audit reports refer to 15 migrations and early October 2026 snapshots; **they are historical**, not the current authoritative architecture or release-readiness record. Prefer `docs/ATLAS_OS_MASTER_FEATURE_REGISTER.md`, this current audit, and the Acceptance Control Center.
+- **Not yet production-ready:** no independently verified real-authenticated GRN post and quote replay sequence; no second-tenant/role-permission negative tests; no final evidence for stock/price immutability, audit attribution and duplicate idempotency under actual staging JWTs.
+- **Outstanding dependency exposure:** the recorded audit identified 14 full dependency advisories (including critical dev-runner dependencies and one high-priority Zod 3 issue). Do not use `npm audit fix --force` without validating major-version changes and keeping package/lockfile/test expectations in sync.
+- **Performance work:** review real query traces for Stock Movements, invoice/customer directory pages, and supplier price history. The 32 FK index advisories and React cloud-loading UX are test targets, not authorization to create dozens of speculative indexes.
+- **Still explicitly excluded:** the paused 200-entry industrial Demo Mode test.
+
+**Overall verdict: NO-GO for production.** CI passing verifies source and simulated/test-database behavior, not real authenticated operational acceptance. No production Supabase project was queried or modified during this verification. No staging data was mutated.
