@@ -37,8 +37,8 @@ for(const {path,text} of sources){
 }
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const candidates=Object.keys(pkg.dependencies||{}).filter(name=>
- !sources.some(x=>x.text.includes("'"+name+"'")||x.text.includes('"'+name+'"')||
-   x.text.includes("'"+name+"/")||x.text.includes('"'+name+"/')));
+ !sources.some(x=>["'", '"'].some(quote=>
+   x.text.includes(quote+name+quote)||x.text.includes(quote+name+'/'))));
 if(candidates.length) warnings.push('Possible unused direct dependencies (review before removal): '+candidates.join(', '));
 console.log('Atlas OS hygiene: '+tracked.length+' tracked files; '+migrations.length+
  ' migrations; '+tests.length+' test/spec files; '+sources.length+' code files scanned.');
