@@ -1,6 +1,7 @@
 export interface SourceRow {
   number: number;
   cells: string[];
+  cellIssues?: Record<number, 'formula' | 'error' | 'long-number'>;
 }
 
 export interface SourceSheet {
@@ -12,27 +13,32 @@ export const MAX_IMPORT_ROWS = 20_000;
 const MAX_COLUMNS = 80;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
-export const FORMULA_CELL = '\u0000';
 
 function csvDelimiter(text: string): string {
   const choices = [',', '\t', ';'];
   const scores = [0, 0, 0];
   const seen = [false, false, false];
   let inQuotes = false;
+  let fieldStart = true;
   let rows = 0;
   for (let index = 0; index < text.length && rows < 30; index++) {
     const character = text[index];
-    if (character === '"') {
+    if (character === '"' && (inQuotes || fieldStart)) {
       if (inQuotes && text[index + 1] === '"') index++;
       else inQuotes = !inQuotes;
+      fieldStart = false;
     } else if (!inQuotes) {
       if (character === '\n') {
         seen.forEach((present, choice) => { if (present) scores[choice]++; });
         seen.fill(false);
         rows++;
+        fieldStart = true;
       } else {
         const choice = choices.indexOf(character);
-        if (choice !== -1) seen[choice] = true;
+        if (choice !== -1) {
+          seen[choice] = true;
+          fieldStart = true;
+        } else if (character.trim()) fieldStart = false;
       }
     }
   }
@@ -41,11 +47,13 @@ function csvDelimiter(text: string): string {
 }
 
 export function parseDelimitedSheet(contents: string, name: string): SourceSheet {
-  const text = contents.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
-  const delimiter = csvDelimiter(text);
+  const normalized = contents.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const directive = /^sep=([,;\t])(?:\n|$)/i.exec(normalized);
+  const text = directive ? normalized.slice(directive[0].length) : normalized;
+  const delimiter = directive?.[1] ?? csvDelimiter(text);
   const rows: SourceRow[] = [];
-  let line = 1;
-  let rowStart = 1;
+  let line = directive ? 2 : 1;
+  let rowStart = line;
   let cells: string[] = [];
   let value = '';
   let inQuotes = false;
@@ -205,18 +213,30 @@ export async function readImportFile(file: File): Promise<SourceSheet[]> {
     const rows: SourceRow[] = [];
     sheet.eachRow((row) => {
       const cells: string[] = [];
+      const cellIssues: NonNullable<SourceRow['cellIssues']> = {};
       row.eachCell((cell, column) => {
         if (cell.type === ExcelJS.ValueType.Merge) return;
         if (column > MAX_COLUMNS) throw new Error(`A source sheet can have up to ${MAX_COLUMNS} columns.`);
         const value = cell.value;
-        if (cell.type === ExcelJS.ValueType.Formula) cells[column - 1] = FORMULA_CELL;
-        else if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && /^0{2,30}$/.test(cell.numFmt)) {
-          cells[column - 1] = String(value).padStart(cell.numFmt.length, '0');
-        } else cells[column - 1] = cell.text.trim();
+        const index = column - 1;
+        if (cell.type === ExcelJS.ValueType.Formula || cell.type === ExcelJS.ValueType.Error) {
+          cellIssues[index] = cell.type === ExcelJS.ValueType.Formula ? 'formula' : 'error';
+          cells[index] = '';
+          return;
+        }
+        const format = cell.numFmt?.replace(/"[^"]*"|\\./g, '') ?? '';
+        if (typeof value === 'number' && format.includes('%')) {
+          cells[index] = Number((value * 100).toPrecision(15)) + '%';
+        } else if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && /^0{2,30}$/.test(cell.numFmt)) {
+          cells[index] = String(value).padStart(cell.numFmt.length, '0');
+        } else cells[index] = cell.text.trim();
+        if (typeof value === 'number' && Number.isInteger(value) && Math.abs(value) >= 1e15) {
+          cellIssues[index] = 'long-number';
+        }
       });
-      if (cells.some(Boolean)) {
+      if (cells.some(Boolean) || Object.keys(cellIssues).length) {
         if (++totalRows > MAX_IMPORT_ROWS) throw new Error(`A file can have up to ${MAX_IMPORT_ROWS.toLocaleString()} populated rows.`);
-        rows.push({ number: row.number, cells });
+        rows.push({ number: row.number, cells, cellIssues });
       }
     });
     if (rows.length) sheets.push({ name: sheet.name, rows });

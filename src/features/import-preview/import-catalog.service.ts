@@ -1,6 +1,6 @@
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import type { AtlasImportCatalog } from './import-preview';
+import type { CustomerIdentity, ProductIdentity } from './import-preview';
 
 const PAGE_SIZE = 500;
 const MAX_CATALOG_ROWS = 25_000;
@@ -22,29 +22,25 @@ async function readCatalog<T extends { id: string }>(
   }
 }
 
-export async function loadImportCatalog(orgId: string, demo: boolean, signal: AbortSignal): Promise<AtlasImportCatalog> {
-  if (demo) {
-    const [products, customers] = await Promise.all([storage.getProducts(orgId), storage.getCustomers(orgId)]);
-    return { products, customers };
-  }
-
+export async function loadImportProducts(orgId: string, demo: boolean, signal: AbortSignal): Promise<ProductIdentity[]> {
+  if (demo) return storage.getProducts(orgId);
   const client = supabase;
-  if (!client) throw new Error('Atlas catalog comparison is unavailable.');
+  if (!client) throw new Error('Atlas product comparison is unavailable.');
+  return readCatalog<ProductIdentity & { id: string }>((after) => {
+    let query = client.from('products').select('id,sku,name,uom').eq('organization_id', orgId);
+    if (after) query = query.gt('id', after);
+    return query.order('id').limit(PAGE_SIZE).abortSignal(signal);
+  });
+}
 
-  const [products, customers] = await Promise.all([
-    readCatalog<{ id: string; sku: string; name: string; uom: string }>((after) => {
-      let query = client.from('products').select('id,sku,name,uom').eq('organization_id', orgId);
-      if (after) query = query.gt('id', after);
-      return query.order('id').limit(PAGE_SIZE).abortSignal(signal);
-    }),
-    readCatalog<{ id: string; name: string; gstin: string | null; phone: string | null }>((after) => {
-      let query = client.from('customers').select('id,name,gstin,phone').eq('organization_id', orgId);
-      if (after) query = query.gt('id', after);
-      return query.order('id').limit(PAGE_SIZE).abortSignal(signal);
-    }),
-  ]);
-  return {
-    products,
-    customers: customers.map((row) => ({ name: row.name, gstin: row.gstin ?? undefined, phone: row.phone ?? undefined })),
-  };
+export async function loadImportCustomers(orgId: string, demo: boolean, signal: AbortSignal): Promise<CustomerIdentity[]> {
+  if (demo) return storage.getCustomers(orgId);
+  const client = supabase;
+  if (!client) throw new Error('Atlas customer comparison is unavailable.');
+  const rows = await readCatalog<{ id: string; name: string; gstin: string | null; phone: string | null }>((after) => {
+    let query = client.from('customers').select('id,name,gstin,phone').eq('organization_id', orgId);
+    if (after) query = query.gt('id', after);
+    return query.order('id').limit(PAGE_SIZE).abortSignal(signal);
+  });
+  return rows.map((row) => ({ name: row.name, gstin: row.gstin ?? undefined, phone: row.phone ?? undefined }));
 }

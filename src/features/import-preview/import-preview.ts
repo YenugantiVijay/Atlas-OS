@@ -1,6 +1,6 @@
 import { validateGstin, validateMoneyInput, validateQuantityInput, validateTaxRateInput } from '@/lib/validation';
 import type { UOM } from '@/types';
-import { FORMULA_CELL, type SourceSheet } from './import-file';
+import type { SourceSheet } from './import-file';
 
 export type ImportDataset = 'products' | 'customers' | 'stock';
 type Field = 'sku' | 'name' | 'unit' | 'category' | 'purchaseCost' | 'sellingPrice' |
@@ -41,7 +41,12 @@ export const IMPORT_DATASETS: Record<ImportDataset, { label: string; hint: strin
     fields: [
       { key: 'sku', label: 'SKU or item code', aliases: ['sku', 'item code', 'product code', 'item alias', 'alias', 'code'] },
       { key: 'name', label: 'Product name', aliases: ['item name', 'item', 'product name', 'name of item', 'name'] },
-      { key: 'quantity', label: 'Opening quantity', aliases: ['main qty', 'main quantity', 'opening stock qty', 'opening qty', 'opening stock', 'closing stock qty', 'closing qty', 'closing stock', 'closing quantity', 'stock qty', 'quantity', 'qty', 'stock balance'], required: true },
+      { key: 'quantity', label: 'Opening quantity', aliases: [
+        'closing stock main unit qty', 'closing stock main qty', 'closing qty main unit',
+        'closing stock qty', 'closing stock quantity', 'closing qty', 'closing quantity',
+        'main unit qty', 'main unit quantity', 'main qty', 'main quantity',
+        'stock qty', 'stock quantity', 'quantity', 'qty',
+      ], required: true },
       { key: 'unit', label: 'Main unit', aliases: ['main unit', 'main uom', 'unit name', 'uom', 'unit'] },
     ],
   },
@@ -70,16 +75,20 @@ const unitLookup = new Map(Object.entries(units).flatMap(([unit, aliases]) => al
 export const normalizeUnit = (value = '') => unitLookup.get(normalizeHeader(value));
 
 export function suggestColumns(dataset: ImportDataset, cells: string[]): ColumnMapping {
-  const headings = Array.from(cells, (cell) => normalizeHeader(cell ?? ''));
+  const headings = groupBy(
+    Array.from(cells, (cell, index) => ({ heading: normalizeHeader(cell ?? ''), index })),
+    (column) => column.heading,
+  );
   const used = new Set<number>();
   const mapping: ColumnMapping = {};
   for (const field of IMPORT_DATASETS[dataset].fields) {
-    const index = field.aliases.map((alias) => headings.findIndex((heading, column) =>
-      heading === normalizeHeader(alias) && !used.has(column),
-    )).find((column) => column !== -1);
-    if (index !== undefined) {
-      mapping[field.key] = index;
-      used.add(index);
+    for (const alias of field.aliases) {
+      const matches = headings.get(normalizeHeader(alias));
+      if (matches?.length !== 1 || used.has(matches[0].index)) continue;
+      const column = matches[0].index;
+      mapping[field.key] = column;
+      used.add(column);
+      break;
     }
   }
   return mapping;
@@ -100,7 +109,7 @@ export function suggestHeader(dataset: ImportDataset, sheet: SourceSheet): numbe
   return best;
 }
 
-export function mappingIssues(dataset: ImportDataset, mapping: ColumnMapping): string[] {
+export function mappingIssues(dataset: ImportDataset, mapping: ColumnMapping, headings: string[] = []): string[] {
   const missing = IMPORT_DATASETS[dataset].fields
     .filter((field) => field.required && mapping[field.key] === undefined).map((field) => field.label);
   if (dataset === 'stock' && mapping.sku === undefined && mapping.name === undefined) {
@@ -109,6 +118,14 @@ export function mappingIssues(dataset: ImportDataset, mapping: ColumnMapping): s
   const issues = missing.length ? ['Map the required columns — ' + missing.join(', ') + '.'] : [];
   const columns = Object.values(mapping);
   if (new Set(columns).size !== columns.length) issues.push('Each mapped field needs its own source column.');
+  const quantityHeading = mapping.quantity === undefined ? '' : normalizeHeader(headings[mapping.quantity] ?? '');
+  const unitHeading = mapping.unit === undefined ? '' : normalizeHeader(headings[mapping.unit] ?? '');
+  if (dataset === 'stock' && /\b(?:value|amount|amt|valuation|rate|price)\b/.test(quantityHeading)) {
+    issues.push('The selected stock column describes a monetary value. Choose a quantity column.');
+  }
+  if (/\b(?:alt|alternate|secondary)\b/.test(unitHeading + ' ' + quantityHeading)) {
+    issues.push('Choose the main-unit columns for quantity and unit.');
+  }
   return issues;
 }
 
@@ -116,7 +133,7 @@ interface MappedRow { number: number; values: FieldValues; issues: string[] }
 export interface PreviewRow extends MappedRow { matchedProduct?: string; normalizedUnit?: UOM }
 export interface ProductIdentity { sku: string; name: string; uom: string }
 export interface CustomerIdentity { name: string; gstin?: string; phone?: string }
-export interface AtlasImportCatalog { products: ProductIdentity[]; customers: CustomerIdentity[] }
+const identifierFields = new Set<Field>(['sku', 'hsn', 'gstin', 'phone']);
 
 export function readMappedRows(dataset: ImportDataset, sheet: SourceSheet, header: number, mapping: ColumnMapping) {
   const rows: MappedRow[] = [];
@@ -130,14 +147,23 @@ export function readMappedRows(dataset: ImportDataset, sheet: SourceSheet, heade
       const column = mapping[field.key];
       if (column === undefined) continue;
       const value = row.cells[column] ?? '';
-      if (value === FORMULA_CELL || value.startsWith('=')) issues.push(field.label + ' uses a formula. Paste a fixed value into the source file.');
-      else values[field.key] = value;
+      const cellIssue = row.cellIssues?.[column];
+      if (cellIssue === 'formula' || value.startsWith('=')) {
+        issues.push(field.label + ' uses a formula. Paste a fixed value into the source file.');
+      } else if (cellIssue === 'error') {
+        issues.push(field.label + ' contains an Excel error. Correct it in the source file.');
+      } else {
+        values[field.key] = value;
+        if (cellIssue === 'long-number' && identifierFields.has(field.key)) {
+          issues.push(field.label + ' may have lost digits in Excel. Export this identifier as text.');
+        }
+      }
     }
-    const firstText = row.cells.find((cell) => cell && cell !== FORMULA_CELL);
-    const footer = /^(?:grand total|sub\s?total|total|report total):?$/i.test(firstText ?? '');
+    const firstText = row.cells.find(Boolean);
+    const footer = dataset === 'stock' && /^(?:grand total|sub\s?total|report total):?$/i.test(firstText ?? '');
     const repeatedHeader = Object.values(mapping).length > 0 && Object.values(mapping)
       .every((column) => normalizeHeader(row.cells[column] ?? '') === normalizeHeader(headings[column] ?? ''));
-    if ((!values.sku && footer) || repeatedHeader) {
+    if ((!values.sku && footer) || (repeatedHeader && issues.length === 0)) {
       ignored++;
       continue;
     }
@@ -226,7 +252,7 @@ export function previewCustomers(rows: MappedRow[], existing: CustomerIdentity[]
   });
 }
 
-export function previewStock(rows: MappedRow[], products: PreviewRow[], existing: ProductIdentity[]): PreviewRow[] {
+export function previewStock(rows: MappedRow[], products: PreviewRow[], existing: ProductIdentity[], atlasCompared = true): PreviewRow[] {
   const fromSheet = products.filter(({ values }) => values.sku && values.name)
     .map(({ values }) => ({ sku: values.sku!, name: values.name!, uom: values.unit ?? '' }));
   const bySku = (product: ProductIdentity) => normalizeKey(product.sku);
@@ -253,14 +279,23 @@ export function previewStock(rows: MappedRow[], products: PreviewRow[], existing
 
     const sourceMatches = (sku ? sourceSku.get(sku) : sourceName.get(name)) ?? [];
     const atlasMatches = (sku ? atlasSku.get(sku) : atlasName.get(name)) ?? [];
-    const matches = [...sourceMatches, ...atlasMatches];
-    const product = matches[0];
+    const sourceProduct = sourceMatches[0];
+    const atlasProduct = atlasMatches[0];
+    const ambiguous = sourceMatches.length > 1 || atlasMatches.length > 1 ||
+      (sourceProduct && atlasProduct && bySku(sourceProduct) !== bySku(atlasProduct));
+    const product = sourceProduct ?? atlasProduct;
+    let matchedProduct: ProductIdentity | undefined;
     if (!sku && !name) issues.push('Enter a SKU or product name.');
-    else if (!product) issues.push('Product not found in the product export or Atlas catalog.');
-    else if (sourceMatches.length > 1 || atlasMatches.length > 1 || new Set(matches.map(bySku)).size > 1) {
+    else if (!product) issues.push(atlasCompared
+      ? 'Product not found in the product export or Atlas catalog.'
+      : 'No match in the product export. Compare with Atlas to check the catalog.');
+    else if (ambiguous) {
       issues.push('More than one product matches. Check the SKU.');
     } else {
-      if (sku && name && !matches.some((match) => byName(match) === name)) issues.push('The SKU matches a different product name.');
+      const matches = [...sourceMatches, ...atlasMatches];
+      if (sku && name && !matches.some((match) => byName(match) === name)) {
+        issues.push('The SKU matches a different product name.');
+      } else matchedProduct = product;
       const expected = matches.map((match) => normalizeUnit(match.uom));
       if (expected.some((unit) => !unit)) issues.push('A matching product needs a recognised main unit.');
       if (normalizedUnit && expected.some((unit) => unit && unit !== normalizedUnit)) {
@@ -270,15 +305,16 @@ export function previewStock(rows: MappedRow[], products: PreviewRow[], existing
       if (atlasMatches.length) issues.push('This product already exists in Atlas. Review its stock before applying an opening balance.');
     }
     return {
-      ...row, issues, normalizedUnit, matchedProduct: product ? product.name + ' · ' + product.sku : undefined,
-      identity: product ? bySku(product) : sku ? 'sku:' + sku : name ? 'name:' + name : '',
+      ...row, issues, normalizedUnit,
+      matchedProduct: matchedProduct ? matchedProduct.name + ' · ' + matchedProduct.sku : undefined,
+      identity: matchedProduct ? 'sku:' + bySku(matchedProduct) : sku ? 'sku:' + sku : name ? 'name:' + name : '',
     };
   });
   const groups = groupBy(preview, (row) => row.identity);
   return preview.map(({ identity, ...row }) => ({
     ...row,
     issues: (groups.get(identity)?.length ?? 0) > 1
-      ? [...row.issues, 'Multiple stock rows match this product. Consolidate them before migration.']
+      ? [...row.issues, 'Multiple stock rows use this SKU or name. Review them before migration.']
       : row.issues,
   }));
 }
