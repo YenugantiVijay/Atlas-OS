@@ -11,6 +11,7 @@ export function mapDbProduct(row: any, stock?: number): Product {
     organizationId: row.organization_id,
     sku: row.sku,
     name: row.name,
+    searchAliases: row.search_aliases || undefined,
     brand: row.brand || undefined,
     category: row.category,
     description: row.description || undefined,
@@ -49,6 +50,7 @@ export const productsService = {
           p.sku.toLowerCase().includes(s) ||
           Boolean(p.brand && p.brand.toLowerCase().includes(s)) ||
           Boolean(p.hsnCode && p.hsnCode.toLowerCase().includes(s)) ||
+          Boolean(p.searchAliases && p.searchAliases.toLowerCase().includes(s)) ||
           p.category.toLowerCase().includes(s),
         (a, b) => a.name.localeCompare(b.name)
       );
@@ -56,27 +58,6 @@ export const productsService = {
 
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
-    }
-
-    let query = supabase
-      .from('products')
-      .select('*', { count: 'exact' })
-      .eq('organization_id', orgId);
-
-    if (params.search && params.search.trim()) {
-      // Sanitize search term to prevent PostgREST grammar breakage
-      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
-      if (s) {
-        query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%,hsn_code.ilike.%${s}%`);
-      }
-    }
-
-    if (params.category && params.category !== 'ALL') {
-      query = query.eq('category', params.category);
-    }
-
-    if (params.isActive !== undefined) {
-      query = query.eq('is_active', params.isActive);
     }
 
     // Allowlisted sort fields to prevent invalid SQL column errors
@@ -92,10 +73,26 @@ export const productsService = {
     const sortBy = ALLOWED_PROD_SORT_FIELDS[params.sortBy || 'name'] || 'name';
     const ascending = params.sortOrder === 'desc' ? false : true;
 
-    // Deterministic sorting with secondary tie-breaker by primary key id
-    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
+    const client = supabase;
+    const term = params.search?.trim().replace(/[,()":\\]/g, ' ').trim();
+    const fetchPage = (includeAliases: boolean) => {
+      let query = client.from('products').select('*', { count: 'exact' }).eq('organization_id', orgId);
+      if (term) {
+        const columns = ['name', 'sku', 'brand', 'hsn_code'];
+        if (includeAliases) columns.push('search_aliases');
+        query = query.or(columns.map((column) => column + '.ilike.%' + term + '%').join(','));
+      }
+      if (params.category && params.category !== 'ALL') query = query.eq('category', params.category);
+      if (params.isActive !== undefined) query = query.eq('is_active', params.isActive);
+      return query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
+    };
 
-    const { data: dbProducts, error: prodErr, count } = await query;
+    let result = await fetchPage(true);
+    // Existing catalog search stays available during a rolling database upgrade.
+    if (term && result.error?.code === '42703' && result.error.message.includes('search_aliases')) {
+      result = await fetchPage(false);
+    }
+    const { data: dbProducts, error: prodErr, count } = result;
 
     if (prodErr) {
       throw new Error(`Failed to fetch products: ${prodErr.message}`);
@@ -276,6 +273,7 @@ export const productsService = {
     const payload: any = { updated_at: new Date().toISOString() };
     if (updates.sku !== undefined) payload.sku = updates.sku.trim();
     if (updates.name !== undefined) payload.name = updates.name.trim();
+    if (updates.searchAliases !== undefined) payload.search_aliases = updates.searchAliases;
     if (updates.brand !== undefined) payload.brand = updates.brand?.trim() || null;
     if (updates.category !== undefined) payload.category = updates.category;
     if (updates.description !== undefined) payload.description = updates.description?.trim() || null;

@@ -65,4 +65,14 @@ describe('PR54 product search coverage', () => {
     expect(page.data).toHaveLength(1);
     expect(supabase!.from).not.toHaveBeenCalled();
   });
+
+  it('searches aliases and keeps other product search working before the aliases migration', async () => {
+    table.range.mockResolvedValueOnce({ data: null, count: null, error: {
+      code: '42703', message: 'column products.search_aliases does not exist',
+    } });
+    const page = await productsService.getProductsPaginated(org, { search: 'legacy code' });
+    expect(table.or).toHaveBeenNthCalledWith(1, expect.stringContaining('search_aliases.ilike.%legacy code%'));
+    expect(table.or.mock.calls[1][0]).not.toContain('search_aliases');
+    expect(page.data[0].currentStock).toBe(7);
+  });
 });

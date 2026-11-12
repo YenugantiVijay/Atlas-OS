@@ -5,6 +5,7 @@ import { RetailPosPage } from './RetailPosPage';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { productsService } from '@/services/products.service';
+import { productAlternativesService } from '@/services/product-alternatives.service';
 import { customersService } from '@/services/customers.service';
 import { ordersService } from '@/services/orders.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
@@ -13,6 +14,9 @@ vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/hooks/useActionPermission', () => ({ useActionPermission: vi.fn() }));
 vi.mock('@/services/products.service', () => ({
   productsService: { getProductsPaginated: vi.fn() },
+}));
+vi.mock('@/services/product-alternatives.service', () => ({
+  productAlternativesService: { forCounter: vi.fn() },
 }));
 vi.mock('@/services/customers.service', () => ({
   customersService: { getCustomersPaginated: vi.fn(), getCustomerById: vi.fn() },
@@ -59,6 +63,7 @@ describe('Retail Counter — safe draft order workflow', () => {
     vi.mocked(productsService.getProductsPaginated).mockResolvedValue({
       data: [product], totalCount: 1,
     } as any);
+    vi.mocked(productAlternativesService.forCounter).mockResolvedValue([]);
     vi.mocked(searchCustomerDirectory).mockResolvedValue([
       { id: 'c-1', name: 'Ravi Electricals', phone: '+91 98765-43210' },
     ]);
@@ -211,6 +216,28 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(result).not.toHaveTextContent('receivable');
     fireEvent.click(result);
     expect(screen.getByText('Selected')).toBeInTheDocument();
+  });
+
+  it('shows approved substitutes for an out-of-stock item and requires explicit selection', async () => {
+    vi.mocked(productsService.getProductsPaginated).mockResolvedValueOnce({
+      data: [{ ...product, currentStock: 0 }], totalCount: 1,
+    } as any);
+    vi.mocked(productAlternativesService.forCounter).mockResolvedValueOnce([{
+      sourceProductId: 'p-1', comparisonNote: 'Same size and rating',
+      product: { ...product, id: 'p-2', name: 'Copper Wire Plus', sku: 'WIRE-2', uom: 'Nos',
+        sellingPrice: 125, currentStock: 7 },
+    }]);
+    mount();
+    fireEvent.change(screen.getByLabelText('Search POS products'), { target: { value: 'Old wire code' } });
+    const alternative = await screen.findByRole('button', { name: 'Add approved alternative Copper Wire Plus' });
+    expect(productAlternativesService.forCounter).toHaveBeenCalledWith(orgId, ['p-1']);
+    expect(alternative).toHaveTextContent('Stock 7');
+    expect(alternative).toHaveTextContent('₹125.00');
+    expect(alternative).toHaveTextContent('Same size and rating');
+    expect(screen.getByRole('table')).toHaveTextContent('No items in this bill yet');
+    fireEvent.click(alternative);
+    expect(screen.getByRole('table')).toHaveTextContent('WIRE-2');
+    expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
   });
 
 });

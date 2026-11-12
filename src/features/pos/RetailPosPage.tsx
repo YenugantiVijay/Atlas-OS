@@ -4,6 +4,7 @@ import { Plus, Search, ShoppingCart, ArrowRight, CheckCircle2, Keyboard, FileClo
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { productsService } from '@/services/products.service';
+import { productAlternativesService, type CounterAlternative } from '@/services/product-alternatives.service';
 import { customersService } from '@/services/customers.service';
 import { searchCustomerDirectory, type CustomerDirectorySearchResult } from '@/services/customer-directory-search.service';
 import { ordersService } from '@/services/orders.service';
@@ -27,6 +28,9 @@ export const RetailPosPage: React.FC = () => {
   const [productTerm, setProductTerm] = useState('');
   const [productResponse, setProductResponse] = useState<{ key: string; rows: Product[] }>({ key: '', rows: [] });
   const [productError, setProductError] = useState('');
+  const [alternativeResponse, setAlternativeResponse] = useState<{
+    key: string; rows: CounterAlternative[]; unavailable?: boolean;
+  }>({ key: '', rows: [] });
   const [customerTerm, setCustomerTerm] = useState('');
   const [activeProductIndex, setActiveProductIndex] = useState(0);
   const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
@@ -61,6 +65,7 @@ export const RetailPosPage: React.FC = () => {
   const productKey = `${identity}:${productTerm.trim()}`;
   const customerKey = `${identity}:${customerTerm.trim()}`;
   const products = productResponse.key === productKey ? productResponse.rows : [];
+  const alternatives = alternativeResponse.key === productKey ? alternativeResponse.rows : [];
   const customers = customerResponse.key === customerKey && !selectedCustomer ? customerResponse.rows : [];
   const lines = useMemo(() => (cart.identity === identity ? cart.lines : []), [cart, identity]);
   const customer = selectedCustomer?.identity === identity ? selectedCustomer.customer : null;
@@ -89,7 +94,14 @@ export const RetailPosPage: React.FC = () => {
       productsService.getProductsPaginated(organizationId, {
         search: term, page: 1, pageSize: 8, isActive: true,
       }, isMockAuth).then((result) => {
-        if (active) setProductResponse({ key: productKey, rows: result.data });
+        if (!active) return;
+        setProductResponse({ key: productKey, rows: result.data });
+        if (isMockAuth) return;
+        const outOfStock = result.data.filter((product) =>
+          product.currentStock !== undefined && product.currentStock <= 0).map((product) => product.id);
+        void productAlternativesService.forCounter(organizationId, outOfStock)
+          .then((rows) => { if (active) setAlternativeResponse({ key: productKey, rows }); })
+          .catch(() => { if (active) setAlternativeResponse({ key: productKey, rows: [], unavailable: true }); });
       }).catch(() => {
         if (active) setProductError('Product search unavailable. Try again.');
       });
@@ -300,7 +312,7 @@ export const RetailPosPage: React.FC = () => {
                 setProductTerm('');
               }
             }}
-            placeholder="Product name, SKU, brand or HSN"/>
+            placeholder="Product name, nickname, SKU, brand or HSN"/>
           {productError && <p role="alert" className="mt-2 text-xs text-rose-700">{productError}</p>}
           {productTerm.trim().length >= 2 && !productError && productResponse.key !== productKey && (
             <p role="status" className="mt-2 text-xs text-slate-500">Searching products…</p>
@@ -311,21 +323,41 @@ export const RetailPosPage: React.FC = () => {
           {products.length > 0 && (
             <div className="mt-2 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200" aria-label="Product search results">
               {products.map((product, index) => (
-                <button key={product.id} type="button" disabled={saving || !permission.allowed}
-                  onClick={() => addProduct(product)}
-                  aria-label={'Add ' + product.name}
-                  className={'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors hover:bg-teal-50 ' +
-                    (index === activeProductIndex ? 'bg-teal-50/80' : '')}>
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold text-[#142B4D]">{product.name}</span>
-                    <span className="block truncate text-[11px] text-slate-500">{product.sku} · {product.uom} · Stock {product.currentStock ?? '—'}</span>
-                  </span>
-                  <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-teal-700">
-                    {formatCurrency(product.sellingPrice)} <Plus size={14}/>
-                  </span>
-                </button>
+                <div key={product.id}>
+                  <button type="button" disabled={saving || !permission.allowed}
+                    onClick={() => addProduct(product)}
+                    aria-label={'Add ' + product.name}
+                    className={'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors hover:bg-teal-50 ' +
+                      (index === activeProductIndex ? 'bg-teal-50/80' : '')}>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-[#142B4D]">{product.name}</span>
+                      <span className="block truncate text-[11px] text-slate-500">{product.sku} · {product.uom} · Stock {product.currentStock ?? '—'}</span>
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-teal-700">
+                      {formatCurrency(product.sellingPrice)} <Plus size={14}/>
+                    </span>
+                  </button>
+                  {alternatives.filter((match) => match.sourceProductId === product.id).map((match) => (
+                    <button key={match.product.id} type="button"
+                      disabled={saving || !permission.allowed || (match.product.currentStock ?? 0) <= 0}
+                      onClick={() => addProduct(match.product)} aria-label={'Add approved alternative ' + match.product.name}
+                      className="flex w-full items-start justify-between gap-3 border-t border-slate-100 bg-atlas-50/50 py-2 pl-6 pr-3 text-left text-xs hover:bg-atlas-50 disabled:opacity-60">
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-atlas-800">Approved alternative · {match.product.name}</span>
+                        <span className="block text-slate-600">{match.product.sku} · {match.product.uom} · Stock {match.product.currentStock}</span>
+                        <span className="block text-slate-600">{match.comparisonNote}</span>
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-teal-700">
+                        {formatCurrency(match.product.sellingPrice)} <Plus size={14}/>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
+          )}
+          {alternativeResponse.key === productKey && alternativeResponse.unavailable && (
+            <p role="status" className="mt-2 text-xs text-slate-600">Approved alternatives are unavailable.</p>
           )}
         </section>
 
