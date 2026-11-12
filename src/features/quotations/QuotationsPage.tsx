@@ -29,6 +29,7 @@ import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/Prerequisit
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 import { getBusinessDateOffset } from '@/lib/dates';
+import { QuotationRateReview } from './QuotationRateReview';
 
 interface LineItemDraft {
   productId: string;
@@ -39,7 +40,7 @@ interface LineItemDraft {
 }
 
 export const QuotationsPage: React.FC = () => {
-  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
   const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -53,12 +54,35 @@ export const QuotationsPage: React.FC = () => {
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const linkedSearch = searchParams.get('search') || '';
+  const linkedQuotationId = searchParams.get('quotationId');
   const [searchQuery, setSearchQuery] = useState(linkedSearch);
   useEffect(() => { setSearchQuery(linkedSearch); }, [linkedSearch]);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewingQuotation, setViewingQuotation] = useState<Quotation | null>(null);
+  const canSeeRateReview = currentRole === 'sales' || check('supplier-prices:read').allowed;
+
+  useEffect(() => {
+    if (!linkedQuotationId || !currentOrg?.id || isMockAuth) return;
+    let active = true;
+    void ordersService.getQuotationById(currentOrg.id, linkedQuotationId)
+      .then((quotation) => {
+        if (!active) return;
+        if (quotation) setViewingQuotation(quotation);
+        else showToast('warning', 'Quotation unavailable', 'This quotation could not be found in this workspace.');
+      })
+      .catch(() => { if (active) showToast('error', 'Unable to open quotation', 'Please try again.'); })
+      .finally(() => {
+        if (!active) return;
+        setSearchParams((previous) => {
+          const next = new URLSearchParams(previous);
+          next.delete('quotationId');
+          return next;
+        }, { replace: true });
+      });
+    return () => { active = false; };
+  }, [linkedQuotationId, currentOrg?.id, isMockAuth, setSearchParams, showToast]);
 
   // Form
   const [customerId, setCustomerId] = useState('');
@@ -734,7 +758,7 @@ export const QuotationsPage: React.FC = () => {
       </Modal>
 
       {/* View Quotation Detail Modal */}
-      {viewingQuotation && (
+      {viewingQuotation && viewingQuotation.organizationId === currentOrg?.id && (
         <Modal
           isOpen={Boolean(viewingQuotation)}
           onClose={() => setViewingQuotation(null)}
@@ -797,6 +821,12 @@ export const QuotationsPage: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+
+            {currentOrg?.id === viewingQuotation.organizationId && !isMockAuth && canSeeRateReview &&
+              ['DRAFT', 'SENT', 'ACCEPTED'].includes(viewingQuotation.status) && (
+                <QuotationRateReview key={`${currentOrg.id}:${currentRole}:${viewingQuotation.id}`}
+                  organizationId={currentOrg.id} scope={{ quotationId: viewingQuotation.id }} />
+              )}
 
             {/* Totals Summary */}
             {(() => {

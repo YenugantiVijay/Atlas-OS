@@ -29,6 +29,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
 import { validateMoneyInput, validateTaxRateInput, parseStrictNumber } from '@/lib/validation';
+import { ProductSearchSettings } from './ProductSearchSettings';
 
 const CATEGORIES = [
   'All Categories',
@@ -68,6 +69,7 @@ export const ProductsPage: React.FC = () => {
   // Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchSettingsProduct, setSearchSettingsProduct] = useState<Product | null>(null);
 
   // Form Fields
   const [sku, setSku] = useState('');
@@ -91,6 +93,7 @@ export const ProductsPage: React.FC = () => {
       // Stale response guard and form reset on organization switch
       setIsCreateModalOpen(false);
       setEditingProduct(null);
+      setSearchSettingsProduct(null);
       setSku('');
       setName('');
       setBrand('');
@@ -675,16 +678,24 @@ export const ProductsPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEdit(p)}
-                      leftIcon={<Edit2 className="w-3.5 h-3.5" />}
-                      disabled={!check('products:update').allowed}
-                      title={!check('products:update').allowed ? check('products:update').message : undefined}
-                    >
-                      Edit
-                    </Button>
+                    <div className="flex flex-wrap justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEdit(p)}
+                        leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                        disabled={!check('products:update').allowed}
+                        title={!check('products:update').allowed ? check('products:update').message : undefined}
+                      >
+                        Edit
+                      </Button>
+                      {!isMockAuth && check('products:update').allowed && (
+                        <Button variant="ghost" size="sm" onClick={() => setSearchSettingsProduct(p)}
+                          aria-label={'Search names and alternatives for ' + p.name}>
+                          Search settings
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -692,6 +703,15 @@ export const ProductsPage: React.FC = () => {
           </TableBody>
         </Table>
       )}
+
+      {searchSettingsProduct && !isMockAuth && check('products:update').allowed &&
+        searchSettingsProduct.organizationId === currentOrg?.id && (
+          <ProductSearchSettings key={searchSettingsProduct.id} product={searchSettingsProduct}
+            onClose={() => setSearchSettingsProduct(null)}
+            onAliasesSaved={() => {
+              if (activeOrgIdRef.current === searchSettingsProduct.organizationId) void loadProducts();
+            }} />
+        )}
 
       {/* Pagination Controls */}
       {filteredProducts.length > 0 && (

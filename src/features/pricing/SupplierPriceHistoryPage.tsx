@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, CalendarDays, History, Search, ShieldCheck, TrendingUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { QuotationRateReview } from '@/features/quotations/QuotationRateReview';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { suppliersService } from '@/services/suppliers.service';
 import { productsService } from '@/services/products.service';
@@ -45,6 +46,12 @@ export const SupplierPriceHistoryPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchError, setSearchError] = useState('');
+  const [selectedReview, setSelectedReview] = useState<{ rateId: string; label: string; identity: string } | null>(null);
+  const reviewPanel = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedReview?.identity === requestIdentity) reviewPanel.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedReview, requestIdentity]);
 
   const refresh = useCallback(async () => {
     if (!orgId || isMockAuth || !readAllowed) {
@@ -74,6 +81,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
     setProductQuery(''); setMatches([]); setPrevious(null);
     setPrice(''); setReference(''); setEffectiveOn(today());
     setError(''); setSuccess(''); setEntryId(crypto.randomUUID());
+    setSelectedReview(null);
   }, [requestIdentity]);
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -139,6 +147,9 @@ export const SupplierPriceHistoryPage: React.FC = () => {
       setSuccess(result.idempotent_replay
         ? 'This quote was already recorded; a duplicate was not created.'
         : 'Supplier quote recorded (' + movement + '). Product prices and inventory were not changed.');
+      if (change.direction === 'increase' || result.idempotent_replay) {
+        setSelectedReview({ rateId: result.entry_id, label: product.name, identity: requestedIdentity });
+      }
       setEntryId(crypto.randomUUID());
       setProduct(null); setProductQuery(''); setMatches([]);
       setPrice(''); setReference(''); setPrevious(null);
@@ -277,6 +288,13 @@ export const SupplierPriceHistoryPage: React.FC = () => {
         </p>
       </section>
 
+      {readAllowed && !isMockAuth && selectedReview?.identity === requestIdentity && (
+        <div ref={reviewPanel}>
+          <QuotationRateReview key={`${requestIdentity}:${selectedReview.rateId}`}
+            organizationId={orgId} scope={{ rateId: selectedReview.rateId }} description={selectedReview.label} />
+        </div>
+      )}
+
       <section aria-label="Recorded supplier prices" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           <h2 className="text-base font-semibold text-[#142B4D]">Rate timeline</h2>
@@ -293,7 +311,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
         <div role="region" aria-label="Supplier price table" tabIndex={0} className="max-w-full overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-xs">
             <thead className="bg-slate-50 text-slate-600">
-              <tr>{['Effective', 'Supplier', 'Product / SKU', 'Unit rate', 'Source', 'Reference', 'Recorded'].map((x) =>
+              <tr>{['Effective', 'Supplier', 'Product / SKU', 'Unit rate', 'Source', 'Reference', 'Recorded', 'Quotations'].map((x) =>
                 <th key={x} scope="col" className="px-4 py-3 font-semibold">{x}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -315,6 +333,12 @@ export const SupplierPriceHistoryPage: React.FC = () => {
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-500">
                   <CalendarDays size={12} className="mr-1 inline"/>{entry.recordedAt.slice(0, 10)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <button type="button" className="font-semibold text-atlas-700 underline"
+                    onClick={() => setSelectedReview({ rateId: entry.id, label: entry.productName, identity: requestIdentity })}>
+                    View affected quotes
+                  </button>
                 </td>
               </tr>)}
             </tbody>

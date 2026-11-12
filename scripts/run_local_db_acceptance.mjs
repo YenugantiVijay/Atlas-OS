@@ -33,6 +33,8 @@ import { runSec02PrivilegedRpcAcceptance } from './sec02_privileged_rpc_acceptan
 import { runWebsiteLeadRateAcceptance } from './pr51_website_leads_acceptance.mjs';
 import { runGoodsReceivingAcceptance } from './pr56_goods_receiving_acceptance.mjs';
 import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history_acceptance.mjs';
+import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
+import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1400,6 +1402,17 @@ async function runAcceptance() {
     await runSupplierPriceHistoryAcceptance({
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+    });
+
+    await runQuotationRateReviewsAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+    });
+
+    await runProductSearchAlternativesAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+      sourceProductId: prodA1Id, alternativeProductId: prodA2Id, foreignProductId: prodB1Id,
     });
 
     // PR #51: service-only website lead limiter; no genuine visitor data.

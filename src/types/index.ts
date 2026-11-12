@@ -42,6 +42,7 @@ export interface Product {
   organizationId: string;
   sku: string;
   name: string;
+  searchAliases?: string;
   brand?: string;
   category: string;
   description?: string;
