@@ -4,7 +4,7 @@ Date: 12 November 2026. Scope: ERP React/Vite code, website Astro code, independ
 
 ## Evidence-based findings
 
-- At the starting point, the repository contained 551 tracked files, 48 real Supabase SQL migrations, 83 test/spec files, and 109 historical documents. Do not indiscriminately delete historical audits, migrations, lockfiles, or tests.
+- At the starting point, GitHub contained 472 tracked files and 79 directory entries (551 total tree entries), 48 real Supabase SQL migrations, 83 test/spec files, and 109 historical documents. Do not indiscriminately delete historical audits, migrations, lockfiles, or tests.
 - PR #62 was already merged and the sole development branch was fast-forwarded to main.
 - Staging SQL audit found no ordinary/partitioned public tables with RLS disabled. There are 61 public functions, 49 SECURITY DEFINER functions, 39 executable by authenticated, and zero SECURITY DEFINER functions executable by anon. This is not proof that all authenticated authorization rules are safe.
 - Database Security Advisor reports one informational policy-free service-only website lead limiter table plus 39 warnings about authenticated-callable SECURITY DEFINER functions. Some RPCs are intentionally public to authorized users; review per-function tenant, role and session guards before revoking.
