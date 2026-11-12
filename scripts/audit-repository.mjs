@@ -35,6 +35,9 @@ for(const {path,text} of sources){
  if(/dangerouslySetInnerHTML/.test(text))
   warnings.push('HTML injection sink: '+path);
 }
+const viteConfig=readFileSync('vite.config.ts','utf8');
+if(/\bhost\s*:\s*(?:true|['"]0\.0\.0\.0['"])/.test(viteConfig))
+ problems.push('Vite dev server binds to the network, exposing vulnerable dev endpoints. Use localhost only.');
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const candidates=Object.keys(pkg.dependencies||{}).filter(name=>
  !sources.some(x=>["'", '"'].some(quote=>

@@ -18,6 +18,12 @@ Date: 12 November 2026. Scope: ERP React/Vite code, website Astro code, independ
 - Remove the confirmed unused root application dependencies @hookform/resolvers, @supabase/ssr and react-hook-form, plus the now-orphaned cookie transitive dependency. The lockfile is updated in the same commit. The dependency references were cross-checked against the entire scanned source tree and lockfile reverse dependencies.
 - Add a read-only CI gate to reject accidental tracked generated files, private environment files, obvious secret-key/private-key material, regression-suite removal and reintroduction of the retired runtime. Remaining static dependency candidates are review-only.
 
+## Newly confirmed critical development-server exposure
+
+The root vite.config.ts previously used server.host=true while the lockfile contained Vite 6.4.5. Maintainer advisory GHSA-p4f5-76q4-ffq7 (published 10 November 2026) affects this version if the development server is reachable over the network. This is a development-workstation risk, not evidence of a production static-build compromise. Default development binding has been restricted to 127.0.0.1 with a strict port, and the repository hygiene test now rejects host:true / 0.0.0.0. Patch upgrade to 6.4.6 or later remains a separate mandatory dependency resolution step; never run npm run dev -- --host on an affected version.
+
+Advisory: https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7
+
 ## Prioritized unresolved verification
 
 | Severity | Finding | Required next proof |

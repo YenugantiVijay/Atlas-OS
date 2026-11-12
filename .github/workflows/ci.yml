@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, master, Vijay-Atlas ]
 
+concurrency:
+  group: atlas-os-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -40,6 +44,10 @@ jobs:
 
       # Advisory inventory only: classify before enforcing and upgrading packages.
       # This never changes the lockfile or blocks unrelated fixes.
+      - name: Inspect patched Vite release metadata
+        continue-on-error: true
+        run: npm view vite@6.4.6 version dist.tarball dist.integrity dependencies optionalDependencies --json
+
       - name: Inventory production dependency advisories
         run: npm audit --omit=dev --audit-level=high || true
 
