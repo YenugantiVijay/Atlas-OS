@@ -15,7 +15,8 @@ Date: 12 November 2026. Scope: ERP React/Vite code, website Astro code, independ
 
 - The old 14-file Hatchable backend implementation is unused by the standalone Acceptance Control Center (running site/local/server.mjs and its own data store). Delete its old source and retired Hatchable-specific migrations **from Git only**; this does not delete its remote hosted database or any Atlas OS Supabase migration.
 - Remove tracked atlas-os-website/.astro/types.d.ts, a generated file already excluded by the website's .gitignore.
-- Add a read-only CI gate to reject accidental tracked generated files, private environment files, obvious secret-key/private-key material, regression-suite removal and reintroduction of the retired runtime. Static dependency candidates are review-only.
+- Remove the confirmed unused root application dependencies @hookform/resolvers, @supabase/ssr and react-hook-form, plus the now-orphaned cookie transitive dependency. The lockfile is updated in the same commit. The dependency references were cross-checked against the entire scanned source tree and lockfile reverse dependencies.
+- Add a read-only CI gate to reject accidental tracked generated files, private environment files, obvious secret-key/private-key material, regression-suite removal and reintroduction of the retired runtime. Remaining static dependency candidates are review-only.
 
 ## Prioritized unresolved verification
 
