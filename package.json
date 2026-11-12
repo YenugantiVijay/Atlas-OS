@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src scripts --ext .ts,.tsx,.js,.mjs --max-warnings=0",
     "verify:fast": "npm run lint && npm run typecheck && vitest run src/services/review-regressions.test.ts src/services/products.test.ts && npm run test:e2e:smoke",
-    "verify:all": "npm run lint && npm run typecheck && npm run test:db && npm test && npm run build && npm run test:e2e"
+    "verify:all": "npm run lint && npm run typecheck && npm run test:db && npm test && npm run build && npm run test:e2e",
+    "audit:repository": "node scripts/audit-repository.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

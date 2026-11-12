@@ -38,6 +38,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Repository Hygiene & Secret Exposure Gate
+        run: npm run audit:repository
+
       - name: ESLint & React Hooks Check
         run: npm run lint
 
