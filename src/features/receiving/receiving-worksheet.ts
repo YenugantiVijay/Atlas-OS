@@ -5,12 +5,16 @@ export interface ReceiptWorksheetLine {
   packageText: string;
   looseUnits: string;
   unitCost: string;
+  billedUnits?: string;
+  damagedUnits?: string;
 }
 export interface ReceiptPayloadLine {
   productId: string;
   packageCounts: number[];
   looseUnits: number;
   unitCost: number;
+  billedUnits?: number | null;
+  damagedUnits?: number;
 }
 export const MAX_RECEIPT_LINES = 50;
 export const MAX_PACKAGES = 200;
@@ -66,7 +70,24 @@ export function parsePackageCounts(input: string): number[] {
   return counts;
 }
 
-export function computeReceiptLine(line: ReceiptWorksheetLine) {
+export function receiptDeliveryCounts(receivedUnits: number, billedUnits: number | null = null, damagedUnits = 0) {
+  return {
+    billedUnits,
+    damagedUnits,
+    usableUnits: receivedUnits - damagedUnits,
+    missingUnits: billedUnits === null ? 0 : Math.max(0, billedUnits - receivedUnits),
+    excessUnits: billedUnits === null ? 0 : Math.max(0, receivedUnits - billedUnits),
+  };
+}
+
+function readDeliveryCount(value: string, label: string): number {
+  if (!/^(0|[1-9]\d*)$/.test(value) || Number(value) > MAX_UNITS) {
+    throw new Error(label + ' must be a whole number from 0 to 1,000,000.');
+  }
+  return Number(value);
+}
+
+export function computeReceiptLine(line: Omit<ReceiptWorksheetLine, 'product'>) {
   const packages = parsePackageCounts(line.packageText);
   if (!/^(0|[1-9]\d*)$/.test(line.looseUnits.trim())) {
     throw new Error('Loose units must be a nonnegative whole number.');
@@ -76,22 +97,28 @@ export function computeReceiptLine(line: ReceiptWorksheetLine) {
     throw new Error('Loose units must be at most 1,000,000.');
   }
   const total = packages.reduce((sum, n) => sum + n, loose);
-  if (!Number.isSafeInteger(total) || total < 1 || total > MAX_UNITS) {
+  const billedText = line.billedUnits?.trim() ?? '';
+  const billed = billedText ? readDeliveryCount(billedText, 'Billed units') : null;
+  const damaged = readDeliveryCount(line.damagedUnits?.trim() || '0', 'Damaged units');
+  if (!Number.isSafeInteger(total) || total > MAX_UNITS || (total === 0 && !(billed && billed > 0))) {
     throw new Error('Each line must total between 1 and 1,000,000 units.');
   }
+  if (damaged > total) throw new Error('Damaged units cannot exceed received units.');
   const costText = line.unitCost.trim();
   if (!/^(0|[1-9]\d{0,9})(\.\d{1,2})?$/.test(costText)) {
     throw new Error('Purchase rate must be a nonnegative amount with at most two decimal places.');
   }
   const unitCost = Number(costText);
   if (!Number.isFinite(unitCost)) throw new Error('Invalid purchase rate.');
-  return { packageCounts: packages, looseUnits: loose, totalUnits: total, unitCost };
+  return { packageCounts: packages, looseUnits: loose, totalUnits: total, unitCost,
+    ...receiptDeliveryCounts(total, billed, damaged) };
 }
 
 export function buildGoodsReceiptPayload(organizationId: string, lines: ReceiptWorksheetLine[]): ReceiptPayloadLine[] {
   if (!organizationId || lines.length < 1 || lines.length > MAX_RECEIPT_LINES) {
     throw new Error('A goods receipt needs between 1 and 50 products.');
   }
+  const checksDelivery = lines.some((line) => line.billedUnits !== undefined || line.damagedUnits !== undefined);
   const unique = new Set<string>();
   return lines.map((line, index) => {
     if (line.product.organizationId !== organizationId || !line.product.isActive) {
@@ -102,8 +129,11 @@ export function buildGoodsReceiptPayload(organizationId: string, lines: ReceiptW
     }
     unique.add(line.product.id);
     try {
-      const { packageCounts, looseUnits, unitCost } = computeReceiptLine(line);
-      return { productId: line.product.id, packageCounts, looseUnits, unitCost };
+      const { packageCounts, looseUnits, unitCost, billedUnits, damagedUnits } = computeReceiptLine(line);
+      return {
+        productId: line.product.id, packageCounts, looseUnits, unitCost,
+        ...(checksDelivery && { billedUnits, damagedUnits }),
+      };
     } catch (error) {
       throw new Error('Row ' + (index + 1) + ': ' + (error instanceof Error ? error.message : 'Invalid quantities.'));
     }
@@ -156,7 +186,7 @@ export function parseReceivingNotebook(text: string) {
       unitCost = cells[4];
     }
     // All totals are recalculated and validated again by the server on save/post.
-    try { computeReceiptLine({packageText, looseUnits, unitCost} as ReceiptWorksheetLine); }
+    try { computeReceiptLine({ packageText, looseUnits, unitCost }); }
     catch (error) {
       throw new Error('Row ' + (idx + 1) + ': ' +
         (error instanceof Error ? error.message : 'Invalid product quantities.'));

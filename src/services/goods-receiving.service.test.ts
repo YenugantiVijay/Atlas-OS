@@ -44,6 +44,13 @@ describe('Goods Receiving service — no fake stock success',()=>{
     vi.mocked(supabase!.rpc).mockResolvedValueOnce({data:{receipt_id:'other',status:'DRAFT'},error:null} as any);
     await expect(goodsReceivingService.saveDraft(command)).rejects.toThrow(/not confirmed/);
   });
+  it('routes delivery fields to the migrated draft endpoint without falling back',async()=>{
+    const lines=[{...command.lines[0],billedUnits:30,damagedUnits:3}];
+    vi.mocked(supabase!.rpc).mockResolvedValueOnce({data:null,error:{message:'Function not found'}} as any);
+    await expect(goodsReceivingService.saveDraft({...command,lines})).rejects.toThrow(/Function not found/);
+    expect(supabase!.rpc).toHaveBeenCalledTimes(1);
+    expect(supabase!.rpc).toHaveBeenCalledWith('save_goods_receipt_delivery_draft',expect.objectContaining({p_lines:lines}));
+  });
 
   it('posts only through the authorized receipt RPC and verifies returned identity',async()=>{
     vi.mocked(supabase!.rpc).mockResolvedValueOnce({

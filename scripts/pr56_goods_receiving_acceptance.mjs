@@ -137,4 +137,94 @@ export async function runGoodsReceivingAcceptance({
   const master=await client.query('SELECT purchase_cost FROM public.products WHERE id=$1::uuid',[productAId]);
   recordTest('GRN56-16','Receipt cost snapshot does not rewrite master cost',
     Number(master.rows[0].purchase_cost)===20,'purchase_cost='+master.rows[0].purchase_cost);
+
+  const deliveryProduct = crypto.randomUUID();
+  await client.query(
+    "INSERT INTO public.products(id,organization_id,sku,name,category,uom,purchase_cost,selling_price,tax_rate) VALUES($1,$2,'GRN-DELIVERY','Delivery Fixture','Test','Nos',20,30,5)",
+    [deliveryProduct,orgAId],
+  );
+  const checkedId = crypto.randomUUID();
+  const checkedLine = { productId:deliveryProduct,packageCounts:[40,40],looseUnits:18,unitCost:21.5,
+    billedUnits:100,damagedUnits:3,usableUnits:999,missingUnits:999 };
+  const saveChecked = (id, invoice, line = checkedLine) => client.query(
+    "SELECT public.save_goods_receipt_delivery_draft($1,$2,$3,$4,'2026-11-10'::date,'',$5::jsonb) AS result",
+    [orgAId,id,supplierA,invoice,JSON.stringify([line])],
+  );
+  const storedLine = async (id) => (await client.query(
+    'SELECT lines->0 AS line FROM public.goods_receipts WHERE id=$1',[id],
+  )).rows[0]?.line;
+
+  await asA(() => saveChecked(checkedId,'INV-DELIVERY'));
+  const savedLine = await storedLine(checkedId);
+  recordTest('GRN-DELIVERY-01','Draft derives the 98 received, 95 usable and 2 missing counts without moving stock',
+    savedLine?.totalUnits===98 && savedLine.usableUnits===95 && savedLine.billedUnits===100 &&
+    savedLine.damagedUnits===3 && savedLine.missingUnits===2 && await stock(deliveryProduct)===0,
+    JSON.stringify(savedLine));
+
+  const errorCode = async (fn) => {
+    try { await fn(); return null; }
+    catch (error) { return error.code; }
+  };
+  const damageError = await errorCode(() => asA(() => saveChecked(crypto.randomUUID(),'INV-INVALID-DAMAGE',
+    {...checkedLine,damagedUnits:99})));
+  const billError = await errorCode(() => asA(() => saveChecked(crypto.randomUUID(),'INV-INVALID-BILL',
+    {...checkedLine,billedUnits:100.5})));
+  const legacyEdit = await errorCode(() => asA(() => save(orgAId,checkedId,supplierA,
+    [{productId:deliveryProduct,packageCounts:[98],looseUnits:0,unitCost:21.5}],'INV-DELIVERY')));
+  recordTest('GRN-DELIVERY-02','Invalid quantities and legacy edits cannot overwrite a checked draft',
+    damageError==='22023' && billError==='22023' && legacyEdit==='22023' &&
+    (await storedLine(checkedId))?.usableUnits===95,
+    JSON.stringify({damageError,billError,legacyEdit}));
+  const foreignDelivery = await errorCode(() => asB(() => saveChecked(crypto.randomUUID(),'INV-FOREIGN-DELIVERY')));
+  const deliveryPermission = (await client.query(
+    "SELECT has_function_privilege('anon','public.save_goods_receipt_delivery_draft(uuid,uuid,uuid,text,date,text,jsonb)','EXECUTE') AS anon_can_save",
+  )).rows[0];
+  recordTest('GRN-DELIVERY-07','The delivery endpoint retains tenant and signed-in access controls',
+    foreignDelivery==='42501' && !deliveryPermission.anon_can_save,
+    JSON.stringify({foreignDelivery,deliveryPermission}));
+
+  const checkedPost = (await asA(() => post(orgAId,checkedId))).rows[0]?.result;
+  const checkedReplay = (await asA(() => post(orgAId,checkedId))).rows[0]?.result;
+  const postedEvidence = (await client.query(
+    "SELECT details FROM public.audit_events WHERE entity_id=$1 AND action='POST_GOODS_RECEIPT'",[checkedId],
+  )).rows;
+  const stockDelta = await stock(deliveryProduct);
+  recordTest('GRN-DELIVERY-03','Posting adds 95 units exactly once and audits missing and damaged units',
+    checkedPost?.total_units===95 && checkedReplay?.idempotent_replay===true && stockDelta===95 &&
+    postedEvidence.length===1 && postedEvidence[0].details?.received_units===98 &&
+    postedEvidence[0].details?.missing_units===2 && postedEvidence[0].details?.damaged_units===3,
+    JSON.stringify({checkedPost,checkedReplay,stockDelta,postedEvidence}));
+
+  const priceEvidence = (await client.query(
+    'SELECT unit_cost FROM public.supplier_price_history WHERE source_receipt_id=$1',[checkedId],
+  )).rows;
+  recordTest('GRN-DELIVERY-04','Usable deliveries retain their entered purchase-rate snapshot',
+    priceEvidence.length===1 && Number(priceEvidence[0].unit_cost)===21.5,JSON.stringify(priceEvidence));
+
+  const undeliveredId = crypto.randomUUID(), damagedId = crypto.randomUUID();
+  await asA(() => saveChecked(undeliveredId,'INV-NOT-DELIVERED',
+    {...checkedLine,packageCounts:[],looseUnits:0,billedUnits:10,damagedUnits:0}));
+  await asA(() => saveChecked(damagedId,'INV-ALL-DAMAGED',
+    {...checkedLine,packageCounts:[12],looseUnits:0,billedUnits:10,damagedUnits:12}));
+  await asA(() => post(orgAId,undeliveredId));
+  await asA(() => post(orgAId,damagedId));
+  const zeroUsableEvidence = (await client.query(
+    "SELECT (SELECT count(*)::int FROM public.stock_movements WHERE reference_id IN ($1,$2)) AS movements, (SELECT count(*)::int FROM public.supplier_price_history WHERE source_receipt_id IN ($1,$2)) AS prices",
+    [undeliveredId,damagedId],
+  )).rows[0];
+  recordTest('GRN-DELIVERY-05','Fully missing or damaged lines remain on posted receipts with zero stock movements',
+    zeroUsableEvidence.movements===0 && zeroUsableEvidence.prices===0 &&
+    (await storedLine(undeliveredId))?.missingUnits===10 && (await storedLine(damagedId))?.excessUnits===2 &&
+    await stock(deliveryProduct)===95,
+    JSON.stringify(zeroUsableEvidence));
+
+  const legacyId = crypto.randomUUID();
+  await client.query(
+    "INSERT INTO public.goods_receipts(id,organization_id,supplier_id,supplier_invoice_number,received_on,created_by,lines) VALUES($1,$2,$3,'INV-LEGACY-DRAFT','2026-11-10',$4,$5::jsonb)",
+    [legacyId,orgAId,supplierA,ownerAId,JSON.stringify([{productId:deliveryProduct,productName:'Delivery Fixture',
+      sku:'GRN-DELIVERY',uom:'Nos',packageCounts:[5],looseUnits:0,unitCost:21.5,totalUnits:5}])],
+  );
+  await asA(() => post(orgAId,legacyId));
+  recordTest('GRN-DELIVERY-06','A historical draft without delivery fields still posts all received units',
+    await stock(deliveryProduct)===100,'stock='+await stock(deliveryProduct));
 }

@@ -9,7 +9,7 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
   test('renders the notepad-style receiving grid with supplier reference and no fake stock posting',async({page})=>{
     await expect(page.getByRole('heading',{name:'Bulk Goods Receiving'})).toBeVisible();
     await expect(page.getByRole('region',{name:'Receiving line-item grid'})).toBeVisible();
-    const headings=['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Total units','Unit','Purchase rate','Line value'];
+    const headings=['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Received units','Unit','Delivery check','Purchase rate','Line value'];
     for(const name of headings){
       await expect(page.getByRole('columnheader',{name,exact:true})).toBeVisible();
     }
