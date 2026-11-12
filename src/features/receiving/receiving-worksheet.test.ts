@@ -55,6 +55,25 @@ describe('PR56 variable carton receiving',()=>{
     expect(()=>buildGoodsReceiptPayload(org,[{...row,product:{...product,isActive:false}}])).toThrow(/active/);
     expect(()=>buildGoodsReceiptPayload(org,[])).toThrow(/between 1 and 50/);
   });
+  it('calculates usable units and missing or extra units independently',()=>{
+    const delivery = {...row, packageText:'', looseUnits:'98', billedUnits:'100', damagedUnits:'3'};
+    expect(computeReceiptLine(delivery)).toMatchObject({
+      totalUnits:98, billedUnits:100, damagedUnits:3, usableUnits:95, missingUnits:2, excessUnits:0,
+    });
+    expect(computeReceiptLine({...delivery,billedUnits:'96'})).toMatchObject({usableUnits:95,missingUnits:0,excessUnits:2});
+    expect(computeReceiptLine({...delivery,billedUnits:''})).toMatchObject({billedUnits:null,usableUnits:95,missingUnits:0,excessUnits:0});
+    expect(buildGoodsReceiptPayload(org,[delivery])).toEqual([{
+      productId:product.id,packageCounts:[],looseUnits:98,unitCost:1120.5,billedUnits:100,damagedUnits:3,
+    }]);
+  });
+  it('accepts fully missing or damaged lines and rejects invalid discrepancies',()=>{
+    const delivery = {...row,packageText:'',looseUnits:'0',billedUnits:'10'};
+    expect(computeReceiptLine(delivery)).toMatchObject({usableUnits:0,missingUnits:10});
+    expect(computeReceiptLine({...delivery,looseUnits:'10',damagedUnits:'10'})).toMatchObject({usableUnits:0,damagedUnits:10});
+    expect(()=>computeReceiptLine({...delivery,damagedUnits:'1'})).toThrow(/cannot exceed received/);
+    expect(()=>computeReceiptLine({...delivery,billedUnits:'-1'})).toThrow(/Billed units/);
+    expect(()=>computeReceiptLine({...delivery,damagedUnits:'1.5'})).toThrow(/Damaged units/);
+  });
   it('imports a header and five standard columns for cases, units/case, loose units and rate',()=>{
     const text='Product\tCases\tUnits per case\tLoose\tPurchase rate\n' +
       'FERT-50\t10\t12\t0\t1120.50\n' +

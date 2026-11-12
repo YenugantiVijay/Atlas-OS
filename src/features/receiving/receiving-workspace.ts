@@ -48,7 +48,9 @@ export function readReceivingWorkspace(userId: string, orgId: string): Receiving
       !['NEW', 'DRAFT'].includes(value.savedState) ||
       value.rows.some((r) => !r?.product || r.product.organizationId !== orgId ||
         typeof r.product.id !== 'string' || typeof r.packageText !== 'string' ||
-        typeof r.looseUnits !== 'string' || typeof r.unitCost !== 'string')) {
+        typeof r.looseUnits !== 'string' || typeof r.unitCost !== 'string' ||
+        (r.billedUnits !== undefined && typeof r.billedUnits !== 'string') ||
+        (r.damagedUnits !== undefined && typeof r.damagedUnits !== 'string'))) {
       storage.removeItem(key);
       return null;
     }

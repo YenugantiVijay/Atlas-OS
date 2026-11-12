@@ -12,7 +12,7 @@ import { supplierPriceHistoryService, type SupplierPriceEntry } from '@/services
 import { parseSupplierRate, supplierRateChange } from '@/features/pricing/supplier-rate-utils';
 import {
   buildGoodsReceiptPayload, computeReceiptLine, parseReceivingNotebook,
-  readUniformCartons, writeUniformCartons, parsePackageCounts,
+  readUniformCartons, writeUniformCartons, parsePackageCounts, receiptDeliveryCounts,
   type ReceiptWorksheetLine,
 } from './receiving-worksheet';
 import {
@@ -251,7 +251,7 @@ export const GoodsReceivingPage: React.FC = () => {
     // Keep keyboard-driven intake fast: immediately start entering cases.
     window.setTimeout(() => document.getElementById('grn-cases-' + product.id)?.focus(), 0);
   };
-  const updateRow = (id: string, key: 'packageText' | 'looseUnits' | 'unitCost', value: string) => {
+  const updateRow = (id: string, key: Exclude<keyof ReceiptWorksheetLine, 'product'>, value: string) => {
     setRows((prev) => prev.map((row) => row.product.id === id ? { ...row, [key]: value } : row));
     markDirty();
   };
@@ -290,6 +290,7 @@ export const GoodsReceivingPage: React.FC = () => {
     catch (e) { return { data: null, error: e instanceof Error ? e.message : 'Invalid quantity' }; }
   });
   const totalUnits = calculated.reduce((sum, x) => sum + (x.data?.totalUnits ?? 0), 0);
+  const usableUnits = calculated.reduce((sum, x) => sum + (x.data?.usableUnits ?? 0), 0);
   const totalCost = calculated.reduce((sum, x) => sum + (x.data ? x.data.totalUnits * x.data.unitCost : 0), 0);
   const ready = Boolean(supplierId && invoice.trim() && date && rows.length &&
     calculated.every((x) => x.data) && editable);
@@ -318,14 +319,14 @@ export const GoodsReceivingPage: React.FC = () => {
     });
   };
   const post = async () => {
-    if (!confirmPosting || dirty || savedState !== 'DRAFT' || !editable) return;
+    if (!confirmPosting || dirty || savedState !== 'DRAFT' || !ready) return;
     await runOnce(async () => {
       const result = await goodsReceivingService.post(orgId, receiptId);
       if (activeOrgRef.current !== orgId) return;
       setSavedState('POSTED'); setConfirmPosting(false); setDirty(false);
       setSuccess(result.idempotent_replay
         ? 'This goods receipt was already posted; stock was not added twice.'
-        : 'Goods receipt posted. Stock movements were created exactly once.');
+        : 'Goods receipt posted. ' + (result.total_units ?? usableUnits).toLocaleString('en-IN') + ' usable units added to stock.');
       clearReceivingWorkspace(userId, orgId);
       clearReceivingLists(userId, orgId);
       await refresh(true);
@@ -344,6 +345,8 @@ export const GoodsReceivingPage: React.FC = () => {
         prepared.push({
           product, packageText: row.packageCounts.join(', '),
           looseUnits: String(row.looseUnits), unitCost: Number(row.unitCost).toFixed(2),
+          billedUnits: row.billedUnits === undefined ? undefined : String(row.billedUnits ?? ''),
+          damagedUnits: row.damagedUnits === undefined ? undefined : String(row.damagedUnits),
         });
       }
       if (activeOrgRef.current !== orgId) return;
@@ -513,10 +516,10 @@ export const GoodsReceivingPage: React.FC = () => {
         </div>
 
         <div className="w-full max-w-full overflow-x-auto" role="region" tabIndex={0} aria-label="Receiving line-item grid">
-          <table className="w-full min-w-[1270px] text-left text-xs">
+          <table className="w-full min-w-[1490px] text-left text-xs">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
-                {['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Total units','Unit','Purchase rate','Line value','Remove'].map((h) =>
+                {['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Received units','Unit','Delivery check','Purchase rate','Line value','Remove'].map((h) =>
                   <th key={h} scope="col" className="px-3 py-3 font-semibold">{h}</th>)}
               </tr>
             </thead>
@@ -566,7 +569,7 @@ export const GoodsReceivingPage: React.FC = () => {
                       {mixed ? 'Switch to cases × units (clears mixed counts)' : 'Different carton sizes?'}
                     </button>
                     <span className="block text-[11px] text-slate-500">
-                      {calc.data ? calc.data.packageCounts.length + ' cartons' : calc.error}
+                      {calc.data ? calc.data.packageCounts.length + ' cartons' : ''}
                     </span>
                   </td>
                   <td className="px-3 py-2">
@@ -578,6 +581,31 @@ export const GoodsReceivingPage: React.FC = () => {
                   </td>
                   <td className="px-3 py-3 font-bold tabular-nums text-teal-800">{calc.data?.totalUnits ?? '—'}</td>
                   <td className="px-3 py-3">{row.product.uom}</td>
+                  <td className="min-w-[190px] px-3 py-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="space-y-1 text-slate-600">
+                        <span>Billed</span>
+                        <input aria-label={'Billed units for ' + row.product.name} value={row.billedUnits ?? ''}
+                          onChange={(e) => updateRow(row.product.id, 'billedUnits', e.target.value)}
+                          disabled={!editable} inputMode="numeric" placeholder="Optional"
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2 text-right"/>
+                      </label>
+                      <label className="space-y-1 text-slate-600">
+                        <span>Damaged</span>
+                        <input aria-label={'Damaged units for ' + row.product.name} value={row.damagedUnits ?? ''}
+                          onChange={(e) => updateRow(row.product.id, 'damagedUnits', e.target.value)}
+                          disabled={!editable} inputMode="numeric" placeholder="0"
+                          className="h-9 w-full rounded-lg border border-slate-300 px-2 text-right"/>
+                      </label>
+                    </div>
+                    {calc.data ? (
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 tabular-nums">
+                        <span className="font-semibold text-teal-800">Usable {calc.data.usableUnits}</span>
+                        {calc.data.missingUnits > 0 && <span className="font-semibold text-amber-800">Missing {calc.data.missingUnits}</span>}
+                        {calc.data.excessUnits > 0 && <span className="font-semibold text-amber-800">Extra {calc.data.excessUnits}</span>}
+                      </div>
+                    ) : <p className="mt-1 text-rose-700">{calc.error}</p>}
+                  </td>
                   <td className="px-3 py-2">
                     <input id={'grn-rate-' + row.product.id} aria-label={'Purchase rate for ' + row.product.name} value={row.unitCost}
                       onChange={(e) => updateRow(row.product.id,'unitCost',e.target.value)}
@@ -602,17 +630,21 @@ export const GoodsReceivingPage: React.FC = () => {
                   </td>
                 </tr>;
               })}
-              {!rows.length && <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-500">Find an item above, or paste notebook rows to start receiving.</td></tr>}
+              {!rows.length && <tr><td colSpan={12} className="px-4 py-12 text-center text-slate-500">Find an item above, or paste notebook rows to start receiving.</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm">
           <div className="text-slate-500">
             <span>Use Cases × Units/case for uniform cartons, or variable counts such as 12,10,11. No assumed pack size.</span>
+            <p className="mt-1">Received units include damaged units. Enter the billed count to check for missing or extra units.</p>
             {priorRatesUnavailable && <p role="status" className="mt-1 text-amber-800">Supplier price comparison unavailable; review the rate history manually. Receipt saving remains available.</p>}
             {!priorRatesUnavailable && supplierId && rows.length > 0 && <p className="mt-1">Rate comparisons are advisory. They never change catalog prices or stock until posting.</p>}
           </div>
-          <div className="text-right"><strong>{totalUnits.toLocaleString('en-IN')} units</strong><span className="ml-3 text-slate-600">Estimated purchase value {currency(totalCost)}</span></div>
+          <div className="text-right">
+            <strong>{totalUnits.toLocaleString('en-IN')} received · {usableUnits.toLocaleString('en-IN')} usable</strong>
+            <p className="text-slate-600">Received value at entered rates {currency(totalCost)}</p>
+          </div>
         </div>
       </section>
 
@@ -620,8 +652,8 @@ export const GoodsReceivingPage: React.FC = () => {
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-teal-700"/> Receiving safeguards</h2>
           <p className="text-xs leading-5 text-slate-600">
-            Saving a draft never increases stock. Posting is a separate, permission-checked operation and produces one
-            GOODS_RECEIVED movement per product. Purchase rates are saved as receipt snapshots; they do not automatically
+            Saving a draft never increases stock. Posting adds only usable units and records any missing, damaged or extra
+            units against the receipt. Purchase rates are saved as receipt snapshots; they do not automatically
             replace selling prices, master purchase costs or accounting valuations.
           </p>
           <p className="text-xs text-slate-500">Duplicate supplier invoice numbers are rejected. Your receipt has a stable ID for safe retry after a network interruption.</p>
@@ -638,13 +670,13 @@ export const GoodsReceivingPage: React.FC = () => {
           </button>
           {savedState === 'DRAFT' && !dirty && <div>
             {!confirmPosting ? (
-              <button type="button" disabled={busy || !editable} onClick={() => setConfirmPosting(true)}
+              <button type="button" disabled={busy || !ready} onClick={() => setConfirmPosting(true)}
                 className="w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
                 Review & post stock
               </button>
             ) : (
               <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
-                <p className="text-xs font-semibold text-amber-900">Confirm: add {totalUnits} units to stock for {rows.length} products? This is permanent.</p>
+                <p className="text-xs font-semibold text-amber-900">Posting will add {usableUnits.toLocaleString('en-IN')} usable units to stock and finalize the receipt.</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => void post()} disabled={busy}
                     className="flex-1 rounded-lg bg-[#142B4D] px-3 py-2 text-xs font-bold text-white">Confirm posting</button>
@@ -670,12 +702,39 @@ export const GoodsReceivingPage: React.FC = () => {
             <div className="min-w-0">
               <strong className="block truncate">{r.supplierInvoiceNumber}</strong>
               <span className="text-xs text-slate-500">{r.receivedOn} · {r.lines.length} products · {r.status}</span>
+              {r.status === 'POSTED' && r.lines.some((line) =>
+                (line.damagedUnits ?? 0) > 0 || (line.missingUnits ?? 0) > 0 || (line.excessUnits ?? 0) > 0,
+              ) && <span className="ml-2 text-xs font-semibold text-amber-800">Supplier follow-up</span>}
             </div>
             {r.status === 'DRAFT' ? (
               <button type="button" disabled={busy || isMockAuth || !canReceive.allowed}
                 onClick={() => void loadDraft(r)}
                 className="rounded-lg border border-teal-200 px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50">Load draft</button>
-            ) : <span className="text-xs font-semibold text-emerald-700">Posted</span>}
+            ) : (
+              <details className="w-full min-w-0">
+                <summary className="cursor-pointer text-xs font-semibold text-teal-800">View delivery details</summary>
+                <div className="mt-2 max-w-full overflow-x-auto rounded-lg border border-slate-200">
+                  <table aria-label={'Delivery details for ' + r.supplierInvoiceNumber} className="w-full min-w-[600px] text-left text-xs tabular-nums">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>{['Product', 'Billed', 'Received', 'Damaged', 'Usable', 'Missing', 'Extra'].map((label) =>
+                        <th key={label} scope="col" className="px-2 py-2">{label}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {r.lines.map((line) => {
+                        const counts = receiptDeliveryCounts(line.totalUnits, line.billedUnits, line.damagedUnits);
+                        return <tr key={line.productId}>
+                          <th scope="row" className="px-2 py-2 font-medium">{line.productName} · {line.sku}</th>
+                          {[counts.billedUnits, line.totalUnits, counts.damagedUnits, counts.usableUnits,
+                            counts.billedUnits === null ? null : counts.missingUnits,
+                            counts.billedUnits === null ? null : counts.excessUnits,
+                          ].map((quantity, index) => <td key={index} className="px-2 py-2">{quantity?.toLocaleString('en-IN') ?? '—'}</td>)}
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
           </div>)}
         </div>
       </section>

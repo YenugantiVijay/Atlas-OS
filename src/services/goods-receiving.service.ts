@@ -13,6 +13,9 @@ export interface GoodsReceiptRecord {
     sku: string;
     uom: string;
     totalUnits: number;
+    usableUnits?: number;
+    missingUnits?: number;
+    excessUnits?: number;
   }>;
   status: 'DRAFT' | 'POSTED';
   postedAt?: string;
@@ -58,7 +61,9 @@ export const goodsReceivingService = {
     return (data || []).map(mapReceipt);
   },
   async saveDraft(command: SaveReceiptCommand): Promise<{ receipt_id: string; status: 'DRAFT' }> {
-    const { data, error } = await cloudOnly().rpc('save_goods_receipt_draft', {
+    const checksDelivery = command.lines.some((line) => line.billedUnits !== undefined || line.damagedUnits !== undefined);
+    const { data, error } = await cloudOnly().rpc(
+      checksDelivery ? 'save_goods_receipt_delivery_draft' : 'save_goods_receipt_draft', {
       p_org_id: command.organizationId,
       p_receipt_id: command.receiptId,
       p_supplier_id: command.supplierId,
@@ -77,6 +82,7 @@ export const goodsReceivingService = {
     receipt_id: string;
     status: 'POSTED';
     idempotent_replay: boolean;
+    total_units?: number;
   }> {
     const { data, error } = await cloudOnly().rpc('post_goods_receipt', {
       p_org_id: organizationId,
