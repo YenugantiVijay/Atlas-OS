@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, PackagePlus, Plus, Search, Trash2, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { ReceivingNewProductDialog } from './ReceivingNewProductDialog';
+import { ReceiptDeliveryDetails } from './ReceiptDeliveryDetails';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import type { Product, Supplier } from '@/types';
@@ -12,7 +13,7 @@ import { supplierPriceHistoryService, type SupplierPriceEntry } from '@/services
 import { parseSupplierRate, supplierRateChange } from '@/features/pricing/supplier-rate-utils';
 import {
   buildGoodsReceiptPayload, computeReceiptLine, parseReceivingNotebook,
-  readUniformCartons, writeUniformCartons, parsePackageCounts, receiptDeliveryCounts,
+  readUniformCartons, writeUniformCartons, parsePackageCounts,
   type ReceiptWorksheetLine,
 } from './receiving-worksheet';
 import {
@@ -411,6 +412,9 @@ export const GoodsReceivingPage: React.FC = () => {
           <p className="mt-1 text-sm text-slate-500">Notebook-style supplier stock intake · Draft first, post after review</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link to="/receiving/follow-up" className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50">
+            Supplier Follow-up
+          </Link>
           <Link to="/supplier-prices" className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50">
             Supplier Prices
           </Link>
@@ -713,26 +717,7 @@ export const GoodsReceivingPage: React.FC = () => {
             ) : (
               <details className="w-full min-w-0">
                 <summary className="cursor-pointer text-xs font-semibold text-teal-800">View delivery details</summary>
-                <div className="mt-2 max-w-full overflow-x-auto rounded-lg border border-slate-200">
-                  <table aria-label={'Delivery details for ' + r.supplierInvoiceNumber} className="w-full min-w-[600px] text-left text-xs tabular-nums">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>{['Product', 'Billed', 'Received', 'Damaged', 'Usable', 'Missing', 'Extra'].map((label) =>
-                        <th key={label} scope="col" className="px-2 py-2">{label}</th>)}</tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {r.lines.map((line) => {
-                        const counts = receiptDeliveryCounts(line.totalUnits, line.billedUnits, line.damagedUnits);
-                        return <tr key={line.productId}>
-                          <th scope="row" className="px-2 py-2 font-medium">{line.productName} · {line.sku}</th>
-                          {[counts.billedUnits, line.totalUnits, counts.damagedUnits, counts.usableUnits,
-                            counts.billedUnits === null ? null : counts.missingUnits,
-                            counts.billedUnits === null ? null : counts.excessUnits,
-                          ].map((quantity, index) => <td key={index} className="px-2 py-2">{quantity?.toLocaleString('en-IN') ?? '—'}</td>)}
-                        </tr>;
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <ReceiptDeliveryDetails invoice={r.supplierInvoiceNumber} lines={r.lines} />
               </details>
             )}
           </div>)}

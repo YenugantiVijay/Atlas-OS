@@ -227,4 +227,76 @@ export async function runGoodsReceivingAcceptance({
   await asA(() => post(orgAId,legacyId));
   recordTest('GRN-DELIVERY-06','A historical draft without delivery fields still posts all received units',
     await stock(deliveryProduct)===100,'stock='+await stock(deliveryProduct));
+
+  const unpostedId = crypto.randomUUID();
+  await asA(() => saveChecked(unpostedId,'INV-DELIVERY-UNPOSTED'));
+  const listFollowUps = (resolved, afterPostedAt = null, afterReceiptId = null) => client.query(
+    'SELECT *, posted_at::text AS cursor_at FROM public.list_goods_receipt_follow_ups($1,$2,$3,$4)',
+    [orgAId,resolved,afterPostedAt,afterReceiptId],
+  );
+  const resolveFollowUp = (id, note, organizationId = orgAId) => client.query(
+    'SELECT public.resolve_goods_receipt_follow_up($1,$2,$3) AS result',[organizationId,id,note],
+  );
+  const asSales = (fn) => withRoleContext(client,{role:'authenticated',userId:salesUserId},fn);
+  const open = (await asA(() => listFollowUps(false))).rows;
+  const checked = open.find((row) => row.receipt_id===checkedId);
+  recordTest('GRN-FOLLOW-UP-01','Only posted delivery discrepancies appear in the open queue',
+    open.length===3 && [checkedId,undeliveredId,damagedId].every((id) => open.some((row) => row.receipt_id===id)) &&
+    checked?.supplier_name==='Supplier A' && checked.lines[0]?.totalUnits===98 && checked.lines[0]?.damagedUnits===3 &&
+    !('unitCost' in checked.lines[0]),
+    JSON.stringify({open:open.map((row) => row.supplier_invoice_number),checked:checked?.lines}));
+
+  const afterFirst = open[0] ? (await asA(() => listFollowUps(false,open[0].cursor_at,open[0].receipt_id))).rows : [];
+  const badCursor = await errorCode(() => asA(() => listFollowUps(false,null,checkedId)));
+  recordTest('GRN-FOLLOW-UP-02','Follow-up pagination resumes after the full cursor and rejects partial cursors',
+    open.length===3 && afterFirst.length===2 && afterFirst.every((row,index) => row.receipt_id===open[index+1].receipt_id) &&
+    badCursor==='22023',JSON.stringify({returned:afterFirst.length,badCursor}));
+
+  const note = 'Supplier replaced 3 damaged units and issued credit CN-42 for the 2 missing units.';
+  const denied = [
+    await errorCode(() => asB(() => listFollowUps(false))),
+    await errorCode(() => asB(() => resolveFollowUp(checkedId,note))),
+    await errorCode(() => asSales(() => listFollowUps(false))),
+    await errorCode(() => asSales(() => resolveFollowUp(checkedId,note))),
+  ];
+  const grants = (await client.query(`SELECT
+    has_function_privilege('anon','public.list_goods_receipt_follow_ups(uuid,boolean,timestamptz,uuid)','EXECUTE') AS anon_read,
+    has_function_privilege('anon','public.resolve_goods_receipt_follow_up(uuid,uuid,text)','EXECUTE') AS anon_write,
+    has_table_privilege('authenticated','atlas_private.goods_receipt_follow_up_resolutions','INSERT') AS direct_insert,
+    has_table_privilege('authenticated','atlas_private.goods_receipt_follow_up_resolutions','UPDATE') AS direct_update,
+    has_table_privilege('authenticated','atlas_private.goods_receipt_follow_up_resolutions','DELETE') AS direct_delete`
+  )).rows[0];
+  recordTest('GRN-FOLLOW-UP-03','Follow-up RPCs and stored notes retain role and organization boundaries',
+    denied.every((code) => code==='42501') && Object.values(grants).every((value) => !value),
+    JSON.stringify({denied,grants}));
+
+  const cleanError = await errorCode(() => asA(() => resolveFollowUp(legacyId,note)));
+  const draftError = await errorCode(() => asA(() => resolveFollowUp(unpostedId,note)));
+  const noteError = await errorCode(() => asA(() => resolveFollowUp(checkedId,' \t\n ')));
+  recordTest('GRN-FOLLOW-UP-04','Clean or draft receipts and blank resolution notes are rejected',
+    [cleanError,draftError,noteError].every((code) => code==='22023'),JSON.stringify({cleanError,draftError,noteError}));
+
+  const firstResolution = (await asA(() => resolveFollowUp(checkedId,'  '+note+'  '))).rows[0]?.result;
+  const replayResolution = (await asA(() => resolveFollowUp(checkedId,note))).rows[0]?.result;
+  const conflict = await errorCode(() => asA(() => resolveFollowUp(checkedId,'Different resolution')));
+  const openAfter = (await asA(() => listFollowUps(false))).rows;
+  const resolved = (await asA(() => listFollowUps(true))).rows;
+  const foreignNotes = (await asB(() => client.query('SELECT receipt_id FROM atlas_private.goods_receipt_follow_up_resolutions'))).rows;
+  const salesNotes = (await asSales(() => client.query('SELECT receipt_id FROM atlas_private.goods_receipt_follow_up_resolutions'))).rows;
+  recordTest('GRN-FOLLOW-UP-05','A confirmed resolution moves the case once and keeps the original note',
+    firstResolution?.receipt_id===checkedId && firstResolution.idempotent_replay===false &&
+    replayResolution?.idempotent_replay===true && conflict==='23505' && openAfter.length===2 &&
+    !openAfter.some((row) => row.receipt_id===checkedId) && resolved.length===1 && resolved[0].receipt_id===checkedId &&
+    resolved[0].resolution_note===note && Boolean(resolved[0].resolved_at) && foreignNotes.length===0 && salesNotes.length===0,
+    JSON.stringify({firstResolution,replayResolution,conflict,resolved:resolved.length,foreignNotes:foreignNotes.length,salesNotes:salesNotes.length}));
+
+  const resolutionAudit = (await client.query(
+    "SELECT actor_id,details FROM public.audit_events WHERE entity_id=$1 AND action='RESOLVE_GOODS_RECEIPT_FOLLOW_UP'",[checkedId],
+  )).rows;
+  const priceAfterResolution = (await client.query('SELECT unit_cost FROM public.supplier_price_history WHERE source_receipt_id=$1',[checkedId])).rows;
+  recordTest('GRN-FOLLOW-UP-06','Resolution audits once and preserves the original receipt, stock and purchase rate',
+    resolutionAudit.length===1 && resolutionAudit[0].actor_id===ownerAId && resolutionAudit[0].details?.supplier_invoice==='INV-DELIVERY' &&
+    await stock(deliveryProduct)===100 && JSON.stringify(await storedLine(checkedId))===JSON.stringify(savedLine) &&
+    priceAfterResolution.length===1 && Number(priceAfterResolution[0].unit_cost)===21.5,
+    JSON.stringify({resolutionAudit,priceAfterResolution}));
 }
