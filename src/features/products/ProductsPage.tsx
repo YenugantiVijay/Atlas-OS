@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Boxes,
   Plus,
@@ -416,6 +416,7 @@ export const ProductsPage: React.FC = () => {
     setSuggestionsOpen(false);
     setSuggestionIndex(0);
   };
+  const createPermission = check('products:create');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -435,20 +436,21 @@ export const ProductsPage: React.FC = () => {
           </p>
         </div>
 
-        {(() => {
-          const createPerm = check('products:create');
-          return (
-            <Button
-              variant="primary"
-              onClick={handleOpenCreate}
-              leftIcon={<Plus className="w-4 h-4" />}
-              disabled={!createPerm.allowed}
-              title={!createPerm.allowed ? createPerm.message : undefined}
-            >
-              Add Product
-            </Button>
-          );
-        })()}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/import-preview"
+            className="inline-flex min-h-10 items-center rounded-lg border border-border bg-surface-card px-3.5 text-sm font-medium text-content-primary hover:bg-surface-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-600">
+            BUSY import preview
+          </Link>
+          <Button
+            variant="primary"
+            onClick={handleOpenCreate}
+            leftIcon={<Plus className="w-4 h-4" />}
+            disabled={!createPermission.allowed}
+            title={!createPermission.allowed ? createPermission.message : undefined}
+          >
+            Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Preparing Indicator */}
