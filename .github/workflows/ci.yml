@@ -55,8 +55,11 @@ jobs:
       - name: Production Build
         run: npm run build
 
+      # GitHub-hosted Ubuntu runners already include Chromium's system libraries.
+      # --with-deps triggers apt package downloads and can hang/fail on DNS
+      # outages at the Ubuntu mirror before any Playwright test starts.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run End-to-End Operational Tests (Playwright)
         run: npm run test:e2e

@@ -235,7 +235,28 @@ export const productsService = {
       throw new Error(`Failed to create product: ${error.message}`);
     }
 
-    return mapDbProduct(data, openingStock);
+    // The deployed create_product_atomic RPC deliberately returns a compact JSON
+    // confirmation, not the entire products row. In particular it omits
+    // category, brand, reorder_threshold and is_active. Mapping that response
+    // as if it were SELECT * incorrectly marks a freshly created product as
+    // inactive and can lose its identifying details in Goods Receiving.
+    if (!data || typeof data !== 'object' || typeof data.id !== 'string' ||
+        data.organization_id !== orgId) {
+      throw new Error('Product creation returned an incomplete confirmation. Check the SKU in Products before retrying.');
+    }
+    const confirmed = data as Record<string, unknown>;
+    const now = new Date().toISOString();
+    return mapDbProduct({
+      ...confirmed,
+      category: confirmed.category ?? input.category.trim(),
+      brand: confirmed.brand ?? input.brand?.trim() ?? null,
+      description: confirmed.description ?? input.description?.trim() ?? null,
+      hsn_code: confirmed.hsn_code ?? input.hsnCode?.trim() ?? null,
+      reorder_threshold: confirmed.reorder_threshold ?? input.reorderThreshold ?? 10,
+      is_active: confirmed.is_active ?? true, // RPC inserts is_active=TRUE.
+      created_at: confirmed.created_at ?? now,
+      updated_at: confirmed.updated_at ?? now,
+    }, openingStock);
   },
 
   async updateProduct(
