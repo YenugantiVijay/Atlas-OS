@@ -6,7 +6,6 @@ export interface InventoryValuationBarChartProps {
   products?: Product[];
   data?: BrandValuation[];
   totalCatalogValue?: number;
-  totalActiveSkus?: number;
   className?: string;
 }
 
@@ -14,7 +13,6 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
   products,
   data,
   totalCatalogValue: propTotalValue,
-  totalActiveSkus: propActiveSkus,
   className = '',
 }) => {
   // Aggregate real inventory value grouped by brand
@@ -63,15 +61,10 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
     return 0;
   }, [propTotalValue, data, products]);
 
-  const activeSkuCount = useMemo(() => {
-    if (propActiveSkus !== undefined) {
-      return propActiveSkus;
-    }
-    if (data && data.length > 0) {
-      return data.reduce((acc, b) => acc + b.skuCount, 0);
-    }
-    return products ? products.length : 0;
-  }, [propActiveSkus, data, products]);
+  const displayedSkuCount = useMemo(
+    () => brandData.reduce((total, brand) => total + brand.skuCount, 0),
+    [brandData]
+  );
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -86,7 +79,7 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
           </div>
         </div>
         <span className="text-2xs font-semibold text-content-secondary px-2.5 py-1 bg-slate-100 rounded-lg">
-          {activeSkuCount} Active SKUs
+          {displayedSkuCount} SKUs across displayed brands
         </span>
       </div>
 

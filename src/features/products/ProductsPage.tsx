@@ -591,26 +591,112 @@ export const ProductsPage: React.FC = () => {
           onAction={handleOpenCreate}
         />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SKU & Details</TableHead>
-              <TableHead>Category / Brand</TableHead>
-              <TableHead>HSN & GST</TableHead>
-              <TableHead className="text-right">Purchase Cost</TableHead>
-              <TableHead className="text-right">Selling Price</TableHead>
-              <TableHead className="text-right">Available Stock</TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          <div className="space-y-3 lg:hidden" role="list" aria-label="Products">
             {filteredProducts.map((p) => {
               const stock = p.currentStock;
               const hasStock = stock !== undefined;
               const isLowStock = hasStock && stock <= p.reorderThreshold;
 
               return (
-                <TableRow key={p.id}>
+                <article
+                  key={p.id}
+                  role="listitem"
+                  className="space-y-3 rounded-xl border border-border bg-surface-card p-4 shadow-card"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words font-semibold text-sm text-content-primary">{p.name}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="rounded border border-atlas-200/80 bg-atlas-50 px-2 py-0.5 font-mono text-xs font-semibold text-atlas-700">
+                          {p.sku}
+                        </span>
+                        <span className="text-xs text-content-muted">UOM: {p.uom}</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {hasStock ? (
+                        <div className={`font-bold text-sm tabular-nums ${isLowStock ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          {stock.toLocaleString()} {p.uom}
+                        </div>
+                      ) : (
+                        <div className="font-medium text-sm text-content-muted">—</div>
+                      )}
+                      <div className="mt-0.5 text-xs text-content-muted">
+                        {hasStock
+                          ? `${isLowStock ? 'Low stock' : 'In stock'} · Min ${p.reorderThreshold}`
+                          : 'Unavailable'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border pt-3 text-xs">
+                    <div>
+                      <dt className="text-content-muted">Category / Brand</dt>
+                      <dd className="mt-0.5 break-words font-medium text-content-primary">{p.category} / {p.brand || 'Generic'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">HSN / GST</dt>
+                      <dd className="mt-0.5 break-words font-medium text-content-primary">{p.hsnCode || '—'} / {p.taxRate}%</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">Purchase Cost</dt>
+                      <dd className="mt-0.5 font-medium tabular-nums text-content-secondary">{formatCurrency(p.purchaseCost)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">Selling Price</dt>
+                      <dd className="mt-0.5 font-bold tabular-nums text-content-primary">{formatCurrency(p.sellingPrice)}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="flex flex-wrap gap-1 border-t border-border pt-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenEdit(p)}
+                      leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                      disabled={!check('products:update').allowed}
+                      title={!check('products:update').allowed ? check('products:update').message : undefined}
+                    >
+                      Edit
+                    </Button>
+                    {!isMockAuth && check('products:update').allowed && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSearchSettingsProduct(p)}
+                        aria-label={'Search names and alternatives for ' + p.name}
+                      >
+                        Search settings
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU & Details</TableHead>
+                  <TableHead>Category / Brand</TableHead>
+                  <TableHead>HSN & GST</TableHead>
+                  <TableHead className="text-right">Purchase Cost</TableHead>
+                  <TableHead className="text-right">Selling Price</TableHead>
+                  <TableHead className="text-right">Available Stock</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((p) => {
+                  const stock = p.currentStock;
+                  const hasStock = stock !== undefined;
+                  const isLowStock = hasStock && stock <= p.reorderThreshold;
+
+                  return (
+                    <TableRow key={p.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       {p.imageUrl ? (
@@ -712,10 +798,12 @@ export const ProductsPage: React.FC = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
 
       {searchSettingsProduct && !isMockAuth && check('products:update').allowed &&
