@@ -8,7 +8,7 @@ Official public-facing marketing, product discovery, documentation, and download
 
 The website is engineered as a standalone, high-performance static web application designed for global CDN distribution via Firebase Hosting:
 
-- **Framework**: [Astro 4](https://astro.build/) with TypeScript in strict mode
+- **Framework**: [Astro 7](https://astro.build/) with TypeScript in strict mode
 - **Interactive Islands**: React 18 for interactive client components (interactive product concept previews, demo booking form, transparent download release cards, dynamic pricing toggle, FAQ accordion, contact forms)
 - **Styling**: Tailwind CSS with custom Atlas OS brand tokens (Primary Violet `#8B5CF6`, Deep Violet `#6D28D9`, Soft Violet `#EDE9FE`, High-Contrast Slate typography, custom subtle grid background)
 - **Icons**: Lucide React
@@ -137,8 +137,8 @@ Firebase Hosting uses `dist/` as its website root; the original design and route
 ## 5. Local Development & Verification
 
 ### Prerequisites
-- Node.js >= 18.18.0
-- npm >= 9.0.0
+- Node.js 24 LTS is recommended. The minimum version is 22.23.4.
+- npm >= 9.6.5
 
 ### Quality Verification Suite
 ```bash

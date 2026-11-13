@@ -22,7 +22,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "node_modules\astro\astro.js" (
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(v[0] > 22 || (v[0] === 22 && (v[1] > 23 || (v[1] === 23 && v[2] >= 4))) ? 0 : 1)"
+if errorlevel 1 (
+  echo [ERROR] Install a current Node.js 24 LTS release, then retry.
+  pause
+  exit /b 1
+)
+
+node -e "try { const installed=require('./node_modules/astro/package.json').version; const locked=require('./package-lock.json').packages['node_modules/astro'].version; process.exit(installed === locked ? 0 : 1) } catch { process.exit(1) }" >nul 2>&1
+if errorlevel 1 (
   echo [INFO] Installing website dependencies...
   call npm ci --no-audit --no-fund
   if errorlevel 1 (
