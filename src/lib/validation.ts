@@ -247,7 +247,7 @@ export const organizationSchema = z
       .optional()
       .or(z.literal('')),
     phone: z.string().min(10, 'Valid phone number is required').max(20),
-    email: z.string().email('Invalid email address').optional().or(z.literal('')),
+    email: z.email('Invalid email address').optional().or(z.literal('')),
     addressLine1: z.string().min(3, 'Address is required'),
     city: z.string().min(2, 'City is required'),
     state: z.string().min(2, 'State is required'),
@@ -266,7 +266,7 @@ export const organizationSchema = z
         const embeddedPan = gstinUpper.slice(2, 12);
         if (embeddedPan !== panUpper) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: 'Provided PAN does not match the PAN embedded within the GSTIN.',
             path: ['pan'],
           });
@@ -294,7 +294,7 @@ export const customerSchema = z.object({
   name: z.string().min(2, 'Customer name is required').max(100),
   companyName: z.string().max(100).optional(),
   phone: z.string().min(10, 'Valid phone number required').max(20),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  email: z.email('Invalid email address').optional().or(z.literal('')),
   billingAddress: z.string().min(5, 'Billing address is required'),
   deliveryAddress: z.string().optional(),
   gstin: z
@@ -311,14 +311,15 @@ export const supplierSchema = z.object({
   companyName: z.string().max(100).optional(),
   contactPerson: z.string().max(100).optional(),
   phone: z.string().min(10, 'Valid phone number required').max(20),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  email: z.email('Invalid email address').optional().or(z.literal('')),
   address: z.string().min(5, 'Address is required'),
   gstin: z.string().optional().or(z.literal('')),
   paymentTerms: z.string().optional(),
 });
 
 export const orderItemSchema = z.object({
-  productId: z.string().uuid(),
+  // Preserve the UUID-shaped IDs accepted by PostgreSQL and the previous schema.
+  productId: z.guid(),
   productName: z.string(),
   productSku: z.string(),
   uom: z.enum(['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls']),

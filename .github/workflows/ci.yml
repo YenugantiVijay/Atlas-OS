@@ -42,13 +42,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # Advisory inventory only: classify before enforcing and upgrading packages.
-      # This never changes the lockfile or blocks unrelated fixes.
-      - name: Inventory production dependency advisories
-        run: npm audit --omit=dev --audit-level=high || true
-
       - name: Inventory full dependency advisories
         run: npm audit --audit-level=high || true
+
+      - name: Block high and critical production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Repository Hygiene & Secret Exposure Gate
         run: npm run audit:repository
