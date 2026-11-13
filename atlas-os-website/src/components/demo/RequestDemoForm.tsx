@@ -138,7 +138,7 @@ export default function RequestDemoForm() {
       <TurnstileWidget action="lead_demo" onToken={setTurnstileToken} resetCounter={resetCounter} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
         <p className="max-w-[25ch] text-xs leading-relaxed text-content-secondary">We use your details to arrange the demo.</p>
-        <button type="submit" disabled={isSubmitting || !leadDeliveryConfigured} className="btn-shimmer inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-50 sm:w-auto">
+        <button type="submit" disabled={isSubmitting || !leadDeliveryConfigured || !turnstileToken} className="btn-shimmer inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-50 sm:w-auto">
           <Send size={15} aria-hidden="true" />{isSubmitting ? 'Sending…' : 'Confirm Demonstration Request'}
         </button>
       </div>

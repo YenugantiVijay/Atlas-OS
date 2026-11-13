@@ -159,9 +159,11 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     expect(await fakeLinks.count()).toBe(0);
 
     // Test notification signup form
+    const notify = page.getByRole('button', { name: 'Notify Me' });
+    await expect(notify).toBeEnabled();
     const emailInput = page.locator('input[placeholder="Enter work email..."]');
     await emailInput.fill('hardware.dealer@example.com');
-    await page.click('button:has-text("Notify Me")');
+    await notify.click();
 
     await expect(page.getByText('Your notification request was accepted for email delivery.')).toBeVisible();
   });
@@ -181,13 +183,14 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await mockLeadAcknowledgement(page, 'demo');
     await page.goto('/request-demo');
     const form = page.getByRole('form', { name: 'Request a demo' });
+    const submit = form.getByRole('button', { name: 'Confirm Demonstration Request' });
+    await expect(submit).toBeEnabled();
     await expect(form.locator('#fullName')).toHaveJSProperty('required', true);
     await expect(form.locator('#businessName')).toHaveJSProperty('required', true);
     await page.locator('#fullName').fill('Suresh Kumar');
     await page.locator('#businessName').fill('Kumar Farm Supplies');
     await page.locator('#email').fill('suresh@example.com');
     await page.locator('#city').fill('Ahmedabad');
-    const submit = form.getByRole('button', { name: 'Confirm Demonstration Request' });
     await page.locator('#phone').fill('12345');
     await submit.click();
     await expect(form.getByRole('alert')).toContainText('10 to 15 digits');

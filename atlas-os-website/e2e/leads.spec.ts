@@ -95,13 +95,15 @@ test('Demo Request only confirms genuine server acknowledgement', async ({ page 
   await page.goto('/request-demo?tier=professional');
   await expect(page.getByRole('form', { name: 'Request a demo' })).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'Request a demo', exact: true })).toHaveCount(1);
+  const submit = page.getByRole('button', { name: 'Confirm Demonstration Request' });
+  await expect(submit).toBeEnabled();
   await page.locator('#fullName').fill('Suresh Rao');
   await page.locator('#businessName').fill('Rao Hardware');
   await page.locator('#email').fill('suresh@example.com');
   await page.locator('#phone').fill('9876543210');
   await page.locator('#city').fill('Guntur');
   await page.getByLabel('Business type').selectOption('agricultural_inputs');
-  await page.getByRole('button', { name: 'Confirm Demonstration Request' }).click();
+  await submit.click();
   await expect(page.getByText('Demonstration Request Received')).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0].kind).toBe('demo');
@@ -120,8 +122,10 @@ test('Desktop release signup requires an actual server acknowledgement', async (
       body: JSON.stringify({ ok: true, reference: 'receipt-53' }) });
   });
   await page.goto('/download');
+  const notify = page.getByRole('button', { name: 'Notify Me' });
+  await expect(notify).toBeEnabled();
   await page.getByPlaceholder('Enter work email...').fill('shop@example.com');
-  await page.getByRole('button', { name: 'Notify Me' }).click();
+  await notify.click();
   await expect(page.getByText('Your notification request was accepted for email delivery.')).toBeVisible();
   expect(kind).toBe('release');
   expect(await page.evaluate(() => localStorage.getItem('atlas_download_subscribers'))).toBeNull();
