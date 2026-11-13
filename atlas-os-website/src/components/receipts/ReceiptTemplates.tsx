@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ReceiptSheet, type ReceiptData } from '../../../../src/features/payments/ReceiptSheet';
+import { ReceiptSheet, type ReceiptData } from './ReceiptSheet';
 
 const SAMPLE: ReceiptData = {
   businessName: 'Your Business', businessAddress: 'Guntur, Andhra Pradesh', template: 'classic',

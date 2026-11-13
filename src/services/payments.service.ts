@@ -4,7 +4,7 @@ import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, Pagi
 import { roundMoney } from '@/lib/money';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
-import type { ReceiptData } from '@/features/payments/ReceiptSheet';
+import type { ReceiptData } from '../../atlas-os-website/src/components/receipts/ReceiptSheet';
 
 export interface PaymentReceiptPrintData extends ReceiptData {
   organizationId: string;

@@ -5,7 +5,8 @@ import { Printer } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { paymentsService } from '@/services/payments.service';
-import { ReceiptSheet } from './ReceiptSheet';
+import { ReceiptSheet } from '../../../atlas-os-website/src/components/receipts/ReceiptSheet';
+import './receipt-print.css';
 
 export function PaymentReceiptDialog({ organizationId, paymentId, scope, onClose }: {
   organizationId: string; paymentId: string; scope: string; onClose: () => void;
