@@ -78,11 +78,6 @@ const { currentPath = Astro.url.pathname } = Astro.props;
                   }`}
                 >
                   <span>{item.label}</span>
-                  {item.badge && (
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-brand-100 text-brand-700">
-                      {item.badge}
-                    </span>
-                  )}
                 </a>
               );
             })
@@ -152,11 +147,6 @@ const { currentPath = Astro.url.pathname } = Astro.props;
                 class="flex items-center justify-between py-2 text-base font-semibold text-content-primary hover:text-brand-600"
               >
                 <span>{item.label}</span>
-                {item.badge && (
-                  <span class="px-2 py-0.5 text-xs font-bold rounded-md bg-brand-100 text-brand-700">
-                    {item.badge}
-                  </span>
-                )}
               </a>
               {hasDropdown && (
                 <div class="pl-3 py-1 space-y-1.5">
