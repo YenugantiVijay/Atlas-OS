@@ -4,6 +4,7 @@ import { defineConfig } from "astro/config";
 import tailwind from "@astrojs/tailwind";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
+import { getPreviewVersion, previewVersionHeader } from "./scripts/dev-preview-version.mjs";
 
 // https://astro.build/config
 export default defineConfig({
@@ -18,5 +19,17 @@ export default defineConfig({
   ],
   build: {
     format: "directory",
+  },
+  vite: {
+    plugins: [{
+      name: "atlas-dev-preview-version",
+      configureServer(server) {
+        const version = getPreviewVersion();
+        server.middlewares.use((_request, response, next) => {
+          response.setHeader(previewVersionHeader, version);
+          next();
+        });
+      },
+    }],
   },
 });
