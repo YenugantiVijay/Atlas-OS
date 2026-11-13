@@ -67,5 +67,5 @@ jobs:
         run: ../node_modules/.bin/playwright install --with-deps chromium
 
       - name: Verify real Astro homepage, navigation and website lead forms
-        run: ../node_modules/.bin/playwright test e2e/canonical-home.spec.ts e2e/leads.spec.ts
+        run: ../node_modules/.bin/playwright test
 

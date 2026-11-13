@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -59,6 +59,22 @@ test.afterAll(async () => {
   });
 });
 
+async function mockLeadAcknowledgement(page: Page, expectedKind: string) {
+  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js**', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: "window.turnstile = { render: (_element, opts) => { queueMicrotask(() => opts.callback('ci-verified-token')); return 'ci-widget'; }, remove: () => {} };",
+  }));
+  await page.route('https://api.example.test/**', (route) => {
+    const request = route.request().postDataJSON();
+    expect(request.kind).toBe(expectedKind);
+    expect(request.token).toBe('ci-verified-token');
+    return route.fulfill({
+      json: { ok: true, reference: 'atlas-ci-reference' },
+      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+    });
+  });
+}
+
 test.describe('Atlas OS Official Website E2E Tests', () => {
   test('1. Core routes load successfully with proper titles', async ({ page }) => {
     const routes = [
@@ -68,6 +84,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
       { path: '/solutions', titleContains: 'Industry Solutions' },
       { path: '/download', titleContains: 'Download' },
       { path: '/pricing', titleContains: 'Pricing' },
+      { path: '/receipt-templates', titleContains: 'Receipt Templates' },
       { path: '/request-demo', titleContains: 'Request a Personalized Live Demo' },
       { path: '/about', titleContains: 'About Us' },
       { path: '/security', titleContains: 'Security' },
@@ -126,6 +143,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
   });
 
   test('3. Download center displays honest packaging preview and email registration works', async ({ page }) => {
+    await mockLeadAcknowledgement(page, 'release');
     await page.goto('/download');
 
     // Verify packaging preview status badge
@@ -145,48 +163,42 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await emailInput.fill('hardware.dealer@example.com');
     await page.click('button:has-text("Notify Me")');
 
-    await expect(page.locator('text=You are registered for release notifications!')).toBeVisible();
+    await expect(page.getByText('Your notification request was accepted for email delivery.')).toBeVisible();
   });
 
-  test('4. Pricing interval toggle updates plan amounts and shows annual discount', async ({ page }) => {
+  test('4. Pricing shows the three proposed editions and their receipt options', async ({ page }) => {
     await page.goto('/pricing');
-
-    // Verify plans and launch discount badge
-    await expect(page.locator('text=Starter Edition')).toBeVisible();
-    await expect(page.locator('text=Professional Edition')).toBeVisible();
-    await expect(page.locator('text=Save 20% on Launch')).toBeVisible();
-
-    // Toggle to Annual
-    await page.click('button:has-text("Annual Billing")');
-    await expect(page.locator('text=Save 20% on Launch')).toBeVisible();
-
-    // Verify commercial trial promise
-    await expect(page.locator('text=7-day complimentary commercial trial')).toBeVisible();
+    const plans = page.locator('#tiers article');
+    await expect(plans).toHaveCount(3);
+    await expect(plans.nth(0)).toContainText('Branded customer receipt and daily totals');
+    await expect(plans.nth(1)).toContainText('Customer and counter receipts on one sheet');
+    await expect(plans.nth(2)).toContainText('Customer and counter receipts on one sheet');
+    await expect(page.getByText(/proposed launch pricing/i)).toBeVisible();
+    await expect(page.getByText(/seven-day trial for eligible businesses/i)).toBeVisible();
   });
 
-  test('5. Request Demo form enforces validation and accepts genuine submission', async ({ page }) => {
+  test('5. Request Demo form validates contact details and shows the server reference', async ({ page }) => {
+    await mockLeadAcknowledgement(page, 'demo');
     await page.goto('/request-demo');
-
-    // Submit empty form to trigger validation errors
-    await page.click('button:has-text("Confirm Demonstration Request")');
-    await expect(page.locator('text=Please enter your full name.')).toBeVisible();
-    await expect(page.locator('text=Please enter your enterprise or trade name.')).toBeVisible();
-
-    // Fill valid submission details
+    const form = page.getByRole('form', { name: 'Request a demo' });
+    await expect(form.locator('#fullName')).toHaveJSProperty('required', true);
+    await expect(form.locator('#businessName')).toHaveJSProperty('required', true);
     await page.locator('#fullName').fill('Suresh Kumar');
-    await page.locator('#businessName').fill('Kumar Electrical Wholesale');
-    await page.locator('#email').fill('suresh@kumarelectrical.com');
-    await page.locator('#phone').fill('9876543210');
+    await page.locator('#businessName').fill('Kumar Farm Supplies');
+    await page.locator('#email').fill('suresh@example.com');
     await page.locator('#city').fill('Ahmedabad');
-
-    await page.click('button:has-text("Confirm Demonstration Request")');
-
-    // Verify success confirmation card
-    await expect(page.locator('text=Demonstration Request Received')).toBeVisible();
-    await expect(page.locator('text=Suresh Kumar').first()).toBeVisible();
+    const submit = form.getByRole('button', { name: 'Confirm Demonstration Request' });
+    await page.locator('#phone').fill('12345');
+    await submit.click();
+    await expect(form.getByRole('alert')).toContainText('10 to 15 digits');
+    await page.locator('#phone').fill('9876543210');
+    await submit.click();
+    await expect(page.getByText('Demonstration Request Received')).toBeVisible();
+    await expect(page.getByText('atlas-ci-reference')).toBeVisible();
   });
 
   test('6. Contact form handles validation and message delivery', async ({ page }) => {
+    await mockLeadAcknowledgement(page, 'contact');
     await page.goto('/contact');
 
     // Trigger validation

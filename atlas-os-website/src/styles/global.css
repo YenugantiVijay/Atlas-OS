@@ -115,7 +115,7 @@
 
 .site-header-cta { min-height: 44px; gap: 9px; padding: 10px 16px; line-height: 1.25; white-space: nowrap; }
 .site-header-cta svg { flex-shrink: 0; }
-.footer-heading { font-size: 1rem; line-height: 1.35; }
+.footer-heading { font-size: 1.125rem; line-height: 1.35; }
 .footer-link { font-size: .875rem; line-height: 1.45; }
 @media (min-width: 1024px) {
   .site-footer-grid.grid { grid-template-columns: minmax(180px,1.6fr) repeat(4,minmax(0,1fr)); }
