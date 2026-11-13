@@ -153,7 +153,7 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 |---:|---|:---:|:---:|
 | F-026 | Quick inventory spreadsheet-style entry | P | W1 |
 | F-027 | Complete bulk stock receiving workflow | P | W1 |
-| F-028 | Purchase orders | N | W1 |
+| F-028 | Purchase orders | P | W1 |
 | F-029 | Goods receipt note (GRN) | N | W1 |
 | F-030 | Supplier invoice/PO/GRN matching | N | W1 |
 | F-031 | Duplicate supplier bill prevention | N | W1 |
@@ -171,6 +171,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 | F-043 | Expiry-date management | F | W4 |
 | F-044 | FEFO stock allocation | F | W4 |
 | F-045 | Expiry-risk dashboard | F | W4 |
+
+**F-028 first slice.** Purchase Orders supports supplier drafts, reference rates, and an audited transition to a numbered order. Migration `053_purchase_orders.sql` and `scripts/purchase_orders_acceptance.mjs` cover the database workflow. Receipt matching and staging acceptance are pending.
 
 ### Wholesale, Retail, Payments
 

@@ -35,6 +35,7 @@ import { runGoodsReceivingAcceptance } from './pr56_goods_receiving_acceptance.m
 import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history_acceptance.mjs';
 import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
 import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
+import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1413,6 +1414,18 @@ async function runAcceptance() {
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
       sourceProductId: prodA1Id, alternativeProductId: prodA2Id, foreignProductId: prodB1Id,
+    });
+
+    await runPurchaseOrdersAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, foreignProductId: prodB1Id,
+      connectPeer: async () => {
+        const url = new URL(DATABASE_URL);
+        url.pathname = '/' + testDbName;
+        const peer = new Client({ connectionString: url.toString(), connectionTimeoutMillis: 5000, statement_timeout: 10000 });
+        await peer.connect();
+        return peer;
+      },
     });
 
     // PR #51: service-only website lead limiter; no genuine visitor data.
