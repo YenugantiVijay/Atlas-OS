@@ -11,7 +11,7 @@ interface Props {
 const { currentPath = Astro.url.pathname } = Astro.props;
 ---
 
-<header class="sticky top-0 z-50 w-full glass-card border-b border-border transition-all duration-200" id="site-header">
+<header class="sticky top-0 z-50 w-full border-b border-border bg-white" id="site-header">
   <Container size="default">
     <div class="flex items-center justify-between h-20">
       <!-- Brand Logo -->
@@ -180,6 +180,7 @@ const { currentPath = Astro.url.pathname } = Astro.props;
       </Button>
     </div>
   </div>
+  <div class="atlas-scroll-progress" aria-hidden="true"></div>
 </header>
 
 <script>

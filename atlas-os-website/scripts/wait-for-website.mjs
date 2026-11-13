@@ -1,52 +1,57 @@
 import http from 'node:http';
+import { getPreviewVersion, previewVersionHeader } from './dev-preview-version.mjs';
 
-const URL = 'http://127.0.0.1:4321/';
+const port = Number(process.argv.find(arg => arg.startsWith('--port='))?.split('=')[1] ?? 4321);
+const url = `http://127.0.0.1:${port}/`;
 const probeOnly = process.argv.includes('--probe');
+const expectedVersion = getPreviewVersion();
 
 function probe() {
   return new Promise((resolve) => {
-    const req = http.get(URL, { timeout: 1400 }, (res) => {
+    const req = http.get(url, { timeout: 1400, headers: { 'Cache-Control': 'no-cache' } }, (res) => {
+      if (res.headers[previewVersionHeader] !== expectedVersion) {
+        res.resume();
+        resolve('occupied');
+        return;
+      }
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
-        // Only the beginning of the HTML is needed; consume the rest safely.
-        if (body.length < 120000) body += chunk.slice(0, 120000 - body.length);
+        // Astro's development HTML includes inline styles ahead of these markers.
+        if (body.length < 512000) body += chunk.slice(0, 512000 - body.length);
       });
       res.on('end', () => {
-        // Do not open an unrelated application that happens to occupy port 4321.
-        resolve(res.statusCode === 200 &&
+        const ready = res.statusCode === 200 &&
           /<title>[^<]*Atlas OS/i.test(body) &&
-          /<html/i.test(body) &&
-          // Require signature markup of the actual Astro design. A random
-          // dev server or the removed standalone HTML copy is NOT accepted.
           body.includes('capability-orbit') &&
-          body.includes('Connected Business Workflow'));
+          body.includes('Connected Business Workflow');
+        resolve(ready ? 'ready' : 'waiting');
       });
-      res.on('error', () => resolve(false));
+      res.on('error', () => resolve('waiting'));
     });
     req.on('timeout', () => req.destroy());
-    req.on('error', () => resolve(false));
+    req.on('error', () => resolve('waiting'));
   });
 }
 
-if (probeOnly) {
-  process.exit((await probe()) ? 0 : 1);
-}
-
-let ready = false;
-for (let attempt = 0; attempt < 50; attempt += 1) {
-  if (await probe()) {
-    ready = true;
-    break;
-  }
+let status = await probe();
+for (let attempt = 1; !probeOnly && status === 'waiting' && attempt < 50; attempt += 1) {
   await new Promise((resolve) => setTimeout(resolve, 350));
+  status = await probe();
 }
 
-if (!ready) {
-  console.error('[ERROR] Atlas OS website did not become available at ' + URL);
-  console.error('Open the "Atlas OS Website Live Server" terminal to inspect any startup error.');
-  console.error('The browser was NOT opened because this address is not serving the website.');
+if (status === 'occupied') {
+  console.error(`[ERROR] Port ${port} is serving a different or older preview.`);
+  console.error('Close the terminal running that preview, then open preview-website.cmd again from this checkout.');
+  process.exit(2);
+}
+
+if (status !== 'ready') {
+  if (!probeOnly) {
+    console.error('[ERROR] Atlas OS website did not become available at ' + url);
+    console.error('Open the "Atlas OS Website Live Server" terminal to inspect the startup error.');
+  }
   process.exit(1);
 }
 
-console.log('[OK] Verified the actual Atlas OS homepage at ' + URL);
+if (!probeOnly) console.log('[OK] Verified the Atlas OS preview from this checkout at ' + url);

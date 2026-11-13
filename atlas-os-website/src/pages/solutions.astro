@@ -28,7 +28,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
     <Container size="default">
       <div class="space-y-20">
         {INDUSTRY_SOLUTIONS.map((industry) => (
-          <div id={industry.id} class="space-y-8 scroll-mt-28">
+          <div id={industry.id} class="space-y-8">
             <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-6 border-b border-border" data-reveal>
               <div class="space-y-2">
                 <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
@@ -48,7 +48,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
             </p>
 
             {/* Challenges vs Atlas Solutions Grid */}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div data-reveal-group class="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Challenges */}
               <div class="p-6 sm:p-8 rounded-3xl border border-red-200 bg-red-50/20 space-y-4">
                 <h3 class="text-sm font-bold uppercase tracking-wider text-red-900 font-heading flex items-center gap-2">

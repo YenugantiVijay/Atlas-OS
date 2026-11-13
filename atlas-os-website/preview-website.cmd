@@ -32,7 +32,11 @@ if not exist "node_modules\astro\astro.js" (
   )
 )
 
-node scripts\wait-for-website.mjs --probe >nul 2>&1
+node scripts\wait-for-website.mjs --probe
+if errorlevel 2 (
+  pause
+  exit /b 1
+)
 if errorlevel 1 (
   echo [INFO] Starting the official Astro development server...
   start "Atlas OS Website Live Server" cmd /k "npm run dev -- --host 127.0.0.1 --port 4321"
