@@ -36,6 +36,7 @@ import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history
 import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
 import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
 import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
+import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -4680,6 +4681,8 @@ async function runAcceptance() {
       withRoleContext,
       recordTest,
     });
+
+    await runIndustryReceiptsAcceptance({ client: testClient, withRoleContext, recordTest });
 
     // ------------------------------------------------------------------------
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030

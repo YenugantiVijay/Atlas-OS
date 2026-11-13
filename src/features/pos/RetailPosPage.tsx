@@ -267,6 +267,9 @@ export const RetailPosPage: React.FC = () => {
           <Link to="/orders" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-[#142B4D] hover:border-teal-300 hover:text-teal-700">
             Sales Orders <ArrowRight size={14}/>
           </Link>
+          {!isMockAuth && check('reports:financial').allowed && (
+            <Link to="/payments" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-[#142B4D] hover:border-teal-300 hover:text-teal-700">Payment receipts</Link>
+          )}
         </div>
       </div>
 

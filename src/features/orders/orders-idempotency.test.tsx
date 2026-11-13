@@ -130,6 +130,8 @@ describe('OrdersPage — Frontend Submission Idempotency & Retry Integrity', () 
       memberships: [],
       signIn: vi.fn(),
       signUp: vi.fn(),
+      sendEmailCode: vi.fn(),
+      verifyEmailCode: vi.fn(),
       signOut: vi.fn(),
       enterDemoMode: vi.fn(),
       exitDemoMode: vi.fn(),

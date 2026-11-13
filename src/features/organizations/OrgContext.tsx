@@ -13,6 +13,7 @@ import {
   OrganizationSubscription,
 } from '@/types';
 import { storage } from '@/lib/storage';
+import { BUSINESS_CATEGORIES } from '@/lib/business-categories';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { queryClient } from '@/app/query-client';
 
@@ -52,8 +53,10 @@ export interface OrgContextType {
   updateCurrentUser: (updates: Partial<User>) => Promise<User>;
   refreshOrgData: () => Promise<void>;
   memberships: Membership[];
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ error?: string; needsVerification?: boolean }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string; sessionPresent: boolean }>;
+  sendEmailCode: (email: string, purpose: 'signin' | 'signup') => Promise<{ error?: string }>;
+  verifyEmailCode: (email: string, code: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   enterDemoMode: () => void;
   exitDemoMode: () => void;
@@ -123,6 +126,8 @@ export interface DbOrganizationRow {
   pincode?: string | null;
   currency?: string | null;
   logo_url?: string | null;
+  receipt_template?: string | null;
+  receipt_message?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -158,6 +163,8 @@ export function mapDbOrg(row: DbOrganizationRow | CreateOrganizationRpcResponse)
     pincode: ('pincode' in row && row.pincode) ? row.pincode : undefined,
     currency: row.currency || 'INR',
     logoUrl: ('logo_url' in row && row.logo_url) ? row.logo_url : undefined,
+    receiptTemplate: 'receipt_template' in row && row.receipt_template === 'compact' ? 'compact' : 'classic',
+    receiptMessage: 'receipt_message' in row ? row.receipt_message ?? '' : '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -760,7 +767,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
+  const signIn: OrgContextType['signIn'] = async (email, password) => {
     if (!supabase) {
       return { error: 'Supabase is not configured in this environment.' };
     }
@@ -772,7 +779,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (error) {
-        return { error: error.message };
+        return { error: error.message, needsVerification: error.code === 'email_not_confirmed' };
       }
 
       if (data.session) {
@@ -783,7 +790,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await loadRemoteData(data.session);
       }
 
-      return {};
+      return data.session ? {} : { error: 'Cloud sign-in did not return a session. Try again.' };
     } catch (err: unknown) {
       return { error: err instanceof Error ? err.message : String(err) };
     }
@@ -809,9 +816,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       });
 
-      if (error) {
-        return { error: error.message, sessionPresent: false };
-      }
+      if (error) return { error: error.message, sessionPresent: false };
 
       if (data.session) {
         setSession(data.session);
@@ -826,6 +831,33 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: unknown) {
       return { error: err instanceof Error ? err.message : String(err), sessionPresent: false };
     }
+  };
+
+  const sendEmailCode: OrgContextType['sendEmailCode'] = async (email, purpose) => {
+    if (!supabase) return { error: 'Cloud sign-in is unavailable in this environment.' };
+    const { error } = purpose === 'signup'
+      ? await supabase.auth.resend({ email, type: 'signup' })
+      : await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+    if (!error) return {};
+    if (error.status === 429) return { error: 'Too many requests. Wait before requesting another code.' };
+    if (error.code === 'otp_disabled' || error.code === 'signup_disabled' || error.code === 'user_not_found' || error.code === 'user_already_exists' || error.code === 'email_not_confirmed') {
+      return {};
+    }
+    return { error: 'The email code could not be requested. Try again in a moment.' };
+  };
+
+  const verifyEmailCode: OrgContextType['verifyEmailCode'] = async (email, code) => {
+    if (!supabase) return { error: 'Cloud sign-in is unavailable in this environment.' };
+    const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    if (error?.status === 429) return { error: 'Too many attempts. Wait before trying again.' };
+    if (error || !data.session) return { error: 'The code is incorrect or expired. Check the code or request a new one.' };
+
+    setSession(data.session);
+    setIsDemoMode(false);
+    localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
+    queryClient.clear();
+    await loadRemoteData(data.session);
+    return {};
   };
 
   const signOut = async () => {
@@ -1077,7 +1109,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.state !== undefined) dbPayload.state = updates.state;
     if (updates.pincode !== undefined) dbPayload.pincode = updates.pincode;
     if (updates.currency !== undefined) dbPayload.currency = updates.currency;
-    if (updates.logoUrl !== undefined) dbPayload.logo_url = updates.logoUrl;
+    if (updates.logoUrl !== undefined) dbPayload.logo_url = updates.logoUrl || null;
+    if (updates.receiptTemplate !== undefined) dbPayload.receipt_template = updates.receiptTemplate;
+    if (updates.receiptMessage !== undefined) dbPayload.receipt_message = updates.receiptMessage;
 
     const { data: updatedRows, error } = await supabase
       .from('organizations')
@@ -1153,11 +1187,11 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (params.businessCategory === 'other_unsupported') {
         newStatus = 'rejected';
         rejectionReason =
-          'Unsupported business category. ATLAS OS is exclusively designed for electrical retailers, wholesalers/distributors, and hardware stores selling electrical goods.';
-      } else if (!params.sellsElectricalProducts) {
+          'Choose a supported business category or contact Atlas OS about a specialized workflow.';
+      } else if (BUSINESS_CATEGORIES[params.businessCategory].electrical && !params.sellsElectricalProducts) {
         newStatus = 'rejected';
         rejectionReason =
-          'Business does not sell electrical goods. ATLAS OS is exclusively for businesses selling electrical products.';
+          'Choose a category that reflects the products your business sells.';
       } else if (!params.productLines || params.productLines.length === 0) {
         newStatus = 'review_required';
         reviewerNotes = 'Self-declaration lacked declared product lines. Flagged for manual review.';
@@ -1301,6 +1335,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         memberships,
         signIn,
         signUp,
+        sendEmailCode,
+        verifyEmailCode,
         signOut,
         enterDemoMode,
         exitDemoMode,

@@ -84,22 +84,30 @@ test('Contact form reports server failure without false success or localStorage 
 });
 
 test('Demo Request only confirms genuine server acknowledgement', async ({ page }) => {
-  let kind = '';
+  const requests: Array<{ kind: string; data: { industry: string; additionalMessage: string } }> = [];
   await page.route('https://api.example.test/**', async (route) => {
-    kind = route.request().postDataJSON().kind;
+    requests.push(route.request().postDataJSON());
     await route.fulfill({ status: 200, contentType: 'application/json',
       headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
       body: JSON.stringify({ ok: true, reference: 'receipt-52' }) });
   });
-  await page.goto('/request-demo');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/request-demo?tier=professional');
+  await expect(page.getByRole('form', { name: 'Request a demo' })).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Request a demo', exact: true })).toHaveCount(1);
   await page.locator('#fullName').fill('Suresh Rao');
   await page.locator('#businessName').fill('Rao Hardware');
   await page.locator('#email').fill('suresh@example.com');
   await page.locator('#phone').fill('9876543210');
   await page.locator('#city').fill('Guntur');
+  await page.getByLabel('Business type').selectOption('agricultural_inputs');
   await page.getByRole('button', { name: 'Confirm Demonstration Request' }).click();
   await expect(page.getByText('Demonstration Request Received')).toBeVisible();
-  expect(kind).toBe('demo');
+  expect(requests).toHaveLength(1);
+  expect(requests[0].kind).toBe('demo');
+  expect(requests[0].data.industry).toBe('agricultural_inputs');
+  expect(requests[0].data.additionalMessage).toContain('Atlas Professional');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
   expect(await page.evaluate(() => localStorage.getItem('atlas_saved_enquiries'))).toBeNull();
 });
 

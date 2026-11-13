@@ -1,0 +1,46 @@
+.atlas-receipt-sheet {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+.atlas-receipt {
+  --receipt-accent: #08766e;
+  padding: 16px;
+  border: 1px solid #d9e3eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #142b4d;
+  font: 13px/1.45 Inter, system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+.atlas-receipt p, .atlas-receipt h3, .atlas-receipt dl, .atlas-receipt dd { margin: 0; }
+.atlas-receipt h3 { color: inherit; font: 700 17px/1.2 Inter, system-ui, sans-serif; }
+.atlas-receipt__heading { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+.atlas-receipt__heading > div { flex: 1 1 150px; min-width: 0; }
+.atlas-receipt__heading img { flex: none; object-fit: contain; }
+.atlas-receipt__heading p, .atlas-receipt__details dt { color: #475569; font-size: .88em; }
+.atlas-receipt__copy { color: var(--receipt-accent); font-size: .85em; font-weight: 700; }
+.atlas-receipt__identity, .atlas-receipt__amount { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 8px 0; }
+.atlas-receipt__identity { margin-top: 9px; border-top: 1px solid #d9e3eb; }
+.atlas-receipt__details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 12px; }
+.atlas-receipt__details dd { font-weight: 600; }
+.atlas-receipt__amount { background: #edf8f6; border-radius: 6px; align-items: center; margin-top: 8px; padding-inline: 9px; }
+.atlas-receipt__amount strong { font-size: 1.14em; font-variant-numeric: tabular-nums; }
+.atlas-receipt p.atlas-receipt__message { margin-top: 6px; color: #475569; white-space: pre-wrap; }
+.atlas-receipt--compact { --receipt-accent: #475569; border-top: 3px solid #142b4d; padding: 11px 14px; }
+.atlas-receipt--compact .atlas-receipt__heading img { width: 36px; height: 36px; }
+.atlas-receipt--compact .atlas-receipt__identity, .atlas-receipt--compact .atlas-receipt__amount { padding-block: 5px; }
+.atlas-receipt--compact .atlas-receipt__amount { background: #f1f5f9; }
+.atlas-receipt-cut { border-top: 1px dashed #94a3b8; }
+.atlas-receipt-print-root { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  body:has(> .atlas-receipt-print-root) { display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body:has(> .atlas-receipt-print-root) > :not(.atlas-receipt-print-root) { display: none !important; }
+  .atlas-receipt-print-root { display: block !important; }
+  .atlas-receipt-sheet { gap: 4mm; }
+  .atlas-receipt { font-size: 9.5pt; padding: 4mm; break-inside: avoid; print-color-adjust: exact; }
+  .atlas-receipt__details { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .atlas-receipt p.atlas-receipt__message { white-space: normal; }
+}

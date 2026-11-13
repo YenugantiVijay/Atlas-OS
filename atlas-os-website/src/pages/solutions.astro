@@ -6,22 +6,18 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 ---
 
 <BaseLayout
-  title="Industry Solutions — Atlas OS for Wholesale & Trade Distribution"
-  description="Discover how Atlas OS is tailored for Electrical Wholesale Distributors, Electronics Dealers, Hardware Merchants, and Combined Retail-Wholesale Trade Counters."
+  title="Industry Solutions — Atlas OS for Retail, Wholesale & Distribution"
+  description="Explore Atlas OS for small shops, fertilizer and agri-input dealers, general trade, electrical, electronics, and hardware businesses."
 >
   {/* HERO */}
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-4">
-        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cream-200 text-cream-700">
-          Tailored Industry Solutions
-        </span>
+      <div class="text-center max-w-3xl mx-auto space-y-4" data-enter>
         <h1 class="text-4xl sm:text-5xl font-extrabold font-heading tracking-tight text-content-primary">
-          Engineered for the Specific Needs of <span class="text-gradient">Wholesale Trade</span>
+          Atlas OS for <span class="text-gradient">shops and distributors</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          Generic ERP templates fail because they treat electrical wires the same as books. Atlas OS is built with
-          specialized awareness of coil conversions, trade discounts, and contractor credit aging.
+          See how to receive stock, quote prices, bill customers, and reconcile payments in your line of trade.
         </p>
       </div>
     </Container>
@@ -33,7 +29,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
       <div class="space-y-20">
         {INDUSTRY_SOLUTIONS.map((industry) => (
           <div id={industry.id} class="space-y-8 scroll-mt-28">
-            <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-6 border-b border-border">
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-6 border-b border-border" data-reveal>
               <div class="space-y-2">
                 <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
                   {industry.badge}
@@ -43,7 +39,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
               </div>
 
               <Button href="/request-demo" variant="outline" size="sm" class="font-semibold text-brand-700 border-brand-300 hover:bg-brand-50">
-                <span>Request {industry.title.split(' ')[0]} Demo</span>
+                <span>Request a demo</span>
               </Button>
             </div>
 
@@ -112,14 +108,10 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
         ))}
       </div>
 
-      {/* Honest Scope Disclosure Note */}
       <div class="mt-20 p-6 rounded-3xl border border-border bg-surface-secondary text-xs text-content-secondary space-y-2">
-        <p class="font-bold text-content-primary">Industry Scope & Compliance Boundary Disclosure:</p>
+        <p class="font-bold text-content-primary">Agri-input workflow scope</p>
         <p class="leading-relaxed">
-          Atlas OS is currently optimized for electrical wholesale distributors, electronics merchants, hardware dealers,
-          and dual-format trade counters. We do not claim to support all specialized regulatory mandates across unrelated
-          sectors. Specialized distribution domains such as chemical, pharmaceutical, or agricultural fertilizer batch-expiry
-          tracking are part of our future roadmap and are not marketed as current features.
+          Agri-input setup covers catalog, receiving, supplier rates, sales, and collections. Batch and expiry tracking and fertilizer licensing workflows require separate tools today.
         </p>
       </div>
     </Container>

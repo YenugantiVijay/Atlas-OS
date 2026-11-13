@@ -2,146 +2,40 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import RequestDemoForm from '../components/demo/RequestDemoForm';
-import { 
-  CheckCircle2, 
-  Calendar, 
-  ShieldCheck 
-} from 'lucide-react';
+import { Boxes, ClipboardList, IndianRupee } from 'lucide-react';
+
+const topics = [
+  { icon: Boxes, title: 'Stock and purchasing', detail: 'Find items, compare supplier rates, and track incoming deliveries.' },
+  { icon: ClipboardList, title: 'Sales and billing', detail: 'Follow a quote or sales order through to an invoice.' },
+  { icon: IndianRupee, title: 'Collections and receipts', detail: 'Record a payment, print a receipt, and review daily totals.' },
+];
 ---
 
-<BaseLayout 
-  title="Request a Personalized Live Demo | Atlas OS"
-  description="Book a 30-minute tailored walkthrough of Atlas OS with our product architects. See how Atlas OS manages your exact electrical, electronics, or hardware wholesale operations."
-  canonicalUrl="https://atlas-os.web.app/request-demo"
->
-  <!-- Hero Section -->
-  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50 relative overflow-hidden">
+<BaseLayout title="Request a Personalized Live Demo | Atlas OS"
+  description="Request a walkthrough of Atlas OS for your shop, wholesale business, or distribution team.">
+  <section class="bg-radial-glow py-8 sm:py-12 lg:py-16">
     <Container>
-      <div class="max-w-3xl mx-auto text-center space-y-4">
-        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
-          <Calendar className="w-3.5 h-3.5 mr-1 text-brand-700" />
-          Live 1-on-1 Product Walkthrough
-        </span>
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-primary tracking-tight font-heading leading-tight">
-          See Atlas OS in action on <span class="text-gradient">your business terms</span>.
-        </h1>
-        <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          Book a focused 30-minute demonstration tailored specifically to your trade — electrical distribution, electronics wholesale, or retail-wholesale counters. No high-pressure sales pitch.
-        </p>
-      </div>
-    </Container>
-  </section>
-
-  <!-- Main Content & Form Grid -->
-  <section class="py-16 sm:py-24 bg-surface-secondary/40">
-    <Container>
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-        <!-- Left Column: What to Expect & Value Props -->
-        <div class="lg:col-span-5 space-y-8">
+      <div class="mx-auto grid max-w-6xl items-start gap-7 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:gap-12">
+        <div class="min-w-0 space-y-6 lg:py-5" data-enter>
           <div>
-            <h2 class="text-2xl sm:text-3xl font-bold text-content-primary font-heading mb-4">
-              What happens during the demo?
-            </h2>
-            <p class="text-sm sm:text-base text-content-secondary leading-relaxed mb-6">
-              Our engineering specialists walk you through a live, working environment pre-populated with realistic hardware & distribution data, or customized to sample items you share.
-            </p>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+              See Atlas OS with <span class="text-gradient">your workflow.</span>
+            </h1>
+            <p class="mt-3 max-w-md text-sm leading-relaxed text-content-secondary sm:text-base">Tell us how you work. We’ll tailor the walkthrough to the tools you use every day.</p>
           </div>
-
-          <!-- Feature Breakdown Steps -->
-          <div class="space-y-4">
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
-                1
-              </div>
-              <div>
-                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Workflow Diagnostic</h3>
-                <p class="text-xs text-content-secondary leading-relaxed">
-                  We review your current billing speed bottlenecks, multi-rate GST complexities, ledger reconciliation pain points, or stock discrepancy challenges.
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
-                2
-              </div>
-              <div>
-                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Live Product Simulation</h3>
-                <p class="text-xs text-content-secondary leading-relaxed">
-                  Watch multi-UOM inventory conversion (boxes to meters), rapid counter POS keyboard entry, customer credit limit enforcement, and instantaneous invoice generation.
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
-                3
-              </div>
-              <div>
-                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Financial Reconciliation Walkthrough</h3>
-                <p class="text-xs text-content-secondary leading-relaxed">
-                  See how partial customer receipts allocate accurately across oldest pending invoices with automated unapplied balance tracking and one-click Excel audit exports.
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4 p-4 rounded-2xl bg-white border border-border shadow-2xs hover:border-brand-200 transition-colors">
-              <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0 font-bold font-heading">
-                4
-              </div>
-              <div>
-                <h3 class="font-bold font-heading text-content-primary mb-1 text-sm">Clear Q&A & Migration Assessment</h3>
-                <p class="text-xs text-content-secondary leading-relaxed">
-                  Ask every technical, hardware compatibility, and data migration question directly. We provide a transparent assessment of fit and timeline.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Trust Badges -->
-          <div class="p-6 rounded-2xl bg-surface-dark text-white space-y-4 border border-brand-500/20 shadow-sm">
-            <div class="flex items-center gap-2 text-brand-300 font-bold text-sm font-heading">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <span>Atlas OS Demonstration Guarantee</span>
-            </div>
-            <ul class="text-xs text-slate-300 space-y-2">
-              <li class="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Zero obligation, no persistent spam calls, strictly professional conduct.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Demonstration conducted by technical specialists who understand ERP workflows.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Direct access to a live interactive sandbox environment following the session.</span>
-              </li>
+          <div class="space-y-3 border-t border-border pt-4">
+            <h2 class="text-base font-bold">What we can walk through</h2>
+            <ul class="space-y-3">
+              {topics.map(({ icon: Icon, title, detail }) => (
+                <li class="flex gap-3">
+                  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700"><Icon size={16} aria-hidden="true" /></span>
+                  <div><h3 class="text-sm font-semibold">{title}</h3><p class="mt-0.5 text-xs leading-relaxed text-content-secondary">{detail}</p></div>
+                </li>
+              ))}
             </ul>
           </div>
-
-          <!-- Quick Contact -->
-          <div class="pt-4 border-t border-border">
-            <p class="text-xs text-content-secondary">
-              Prefer an immediate conversation? Reach our sales engineering desk directly at <a href="mailto:demo@atlasos.business" class="text-brand-700 font-semibold hover:underline">demo@atlasos.business</a>.
-            </p>
-          </div>
         </div>
-
-        <!-- Right Column: Interactive Demo Form -->
-        <div class="lg:col-span-7">
-          <div class="bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-md relative">
-            <div class="mb-8 space-y-1">
-              <h3 class="text-2xl font-bold text-content-primary font-heading">Schedule Your Walkthrough</h3>
-              <p class="text-sm text-content-secondary">
-                Share your requirements to request a session. Our team will follow up when scheduling is available.
-              </p>
-            </div>
-
-            <!-- React Form Component -->
-            <RequestDemoForm client:load />
-          </div>
-        </div>
+        <div class="min-w-0" data-enter data-delay="1"><RequestDemoForm client:load /></div>
       </div>
     </Container>
   </section>

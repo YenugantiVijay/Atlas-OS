@@ -14,6 +14,7 @@ const expectedRoutes = [
   { path: 'solutions/index.html', titleKeyword: 'Industry Solutions', descKeyword: 'Wholesale' },
   { path: 'download/index.html', titleKeyword: 'Download Atlas OS', descKeyword: 'Distribution' },
   { path: 'pricing/index.html', titleKeyword: 'Pricing', descKeyword: 'pricing' },
+  { path: 'receipt-templates/index.html', titleKeyword: 'Receipt Templates', descKeyword: 'receipt' },
   { path: 'request-demo/index.html', titleKeyword: 'Request a Personalized Live Demo', descKeyword: 'walkthrough' },
   { path: 'about/index.html', titleKeyword: 'About Us', descKeyword: 'Story' },
   { path: 'security/index.html', titleKeyword: 'Security, Privacy', descKeyword: 'Row-Level Security' },
@@ -81,6 +82,7 @@ if (fs.existsSync(sitemapPath)) {
     '/solutions',
     '/download',
     '/pricing',
+    '/receipt-templates',
     '/request-demo',
     '/about',
     '/security',
@@ -131,9 +133,9 @@ if (fakeInstallerRegex.test(downloadHtml)) {
 
 // 6. Verify the public edition presentation is readable and truthful.
 const pricingHtml = fs.readFileSync(path.join(distDir, 'pricing/index.html'), 'utf8');
-for (const edition of ['Atlas Essentials', 'Atlas Professional']) {
-  if (!pricingHtml.includes(edition)) {
-    console.error(`[FAIL] Pricing page missing edition: ${edition}`);
+for (const detail of ['Atlas Starter', 'Atlas Professional', 'Enterprise Network', '₹999', '₹2,499', 'Custom quote', 'Proposed launch pricing in INR']) {
+  if (!pricingHtml.includes(detail)) {
+    console.error(`[FAIL] Pricing page missing plan detail: ${detail}`);
     failedChecks++;
   }
 }
@@ -142,12 +144,6 @@ for (const prematureClaim of ['Save 20% on Launch', '99.9% uptime SLA', 'Unlimit
     console.error(`[FAIL] Pricing page contains unapproved commercial claim: ${prematureClaim}`);
     failedChecks++;
   }
-}
-if (!pricingHtml.includes('Pricing to be announced')) {
-  console.error('[FAIL] Pricing page does not clearly state commercial prices are not yet available');
-  failedChecks++;
-} else {
-  console.log('[PASS] Honest two-edition pricing presentation verified.');
 }
 
 // 7. The Astro homepage is the ONLY source of website design.

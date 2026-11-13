@@ -107,6 +107,8 @@ describe('InvoicesPage — Statutory Tax Invoice Presentation and Compliance', (
       memberships: [],
       signIn: vi.fn(),
       signUp: vi.fn(),
+      sendEmailCode: vi.fn(),
+      verifyEmailCode: vi.fn(),
       signOut: vi.fn(),
       enterDemoMode: vi.fn(),
       exitDemoMode: vi.fn(),

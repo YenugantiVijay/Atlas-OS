@@ -12,7 +12,7 @@ import { ALL_FEATURES } from '../data/features';
   {/* HERO */}
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-4">
+      <div data-enter class="text-center max-w-3xl mx-auto space-y-4">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-lavender-100 text-lavender-700">
           Module & Feature Directory
         </span>
@@ -42,6 +42,7 @@ import { ALL_FEATURES } from '../data/features';
           return (
             <div
               id={feat.id}
+              data-reveal
               class="p-7 sm:p-9 rounded-3xl border border-border bg-surface-secondary/40 shadow-sm flex flex-col lg:flex-row items-start justify-between gap-8 scroll-mt-28 hover:bg-white hover:border-brand-300 transition-all duration-200"
             >
               {/* Feature Info */}
@@ -119,7 +120,7 @@ import { ALL_FEATURES } from '../data/features';
       <div class="text-center max-w-2xl mx-auto space-y-4">
         <h3 class="text-2xl font-bold font-heading text-content-primary">Want to test these features with your real data?</h3>
         <p class="text-sm text-content-secondary leading-relaxed">
-          Schedule a live demonstration where our engineers demonstrate Atlas OS using your electrical brand SKUs and tax settings.
+          Bring your sample products and tax settings to a live walkthrough of your everyday workflows.
         </p>
         <div class="pt-2 flex justify-center gap-3">
           <Button href="/request-demo" variant="primary" size="md" class="font-semibold">

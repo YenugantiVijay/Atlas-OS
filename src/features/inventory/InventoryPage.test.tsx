@@ -121,6 +121,8 @@ describe('InventoryPage — Component-Level Idempotency and Submission Integrity
       memberships: [],
       signIn: vi.fn(),
       signUp: vi.fn(),
+      sendEmailCode: vi.fn(),
+      verifyEmailCode: vi.fn(),
       signOut: vi.fn(),
       enterDemoMode: vi.fn(),
       exitDemoMode: vi.fn(),

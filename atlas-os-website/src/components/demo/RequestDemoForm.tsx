@@ -1,396 +1,147 @@
-import React, { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { AlertCircle, CheckCircle2, Send } from 'lucide-react';
 import TurnstileWidget from '../common/TurnstileWidget';
 import { getOrCreateRequestId, leadDeliveryConfigured, submitWebsiteLead } from '../../lib/websiteLeads';
-import { CheckCircle2, AlertCircle, Send, ShieldCheck, Phone, Mail, Building2, User } from 'lucide-react';
+import { PRICING_TIERS } from '../../data/pricing';
 import type { DemoRequestPayload } from '../../types';
 
-export default function RequestDemoForm() {
-  const [formData, setFormData] = useState<DemoRequestPayload>({
-    fullName: '',
-    businessName: '',
-    email: '',
-    phone: '',
-    industry: 'electrical_wholesale',
-    businessSize: '6_to_20',
-    city: '',
-    primaryRequirement: 'inventory_and_gst_billing',
-    additionalMessage: '',
-  });
+const EMPTY_FORM: DemoRequestPayload = {
+  fullName: '', businessName: '', email: '', phone: '', city: '',
+  industry: 'general_retail', businessSize: '1_to_5', primaryRequirement: 'stock_billing_payments', additionalMessage: '',
+};
+const CONTACT_FIELDS = [
+  { id: 'fullName', label: 'Full name', autoComplete: 'name', maxLength: 120 },
+  { id: 'businessName', label: 'Business name', autoComplete: 'organization', maxLength: 160 },
+  { id: 'email', label: 'Email', type: 'email', autoComplete: 'email', maxLength: 254 },
+  { id: 'phone', label: 'Phone / WhatsApp', type: 'tel', autoComplete: 'tel', maxLength: 40 },
+  { id: 'city', label: 'City / region', autoComplete: 'address-level2', maxLength: 120 },
+] as const;
+const INDUSTRIES = [
+  ['general_retail', 'Small shop / general retail'], ['agricultural_inputs', 'Fertilizers & agri inputs'],
+  ['general_wholesale', 'General wholesale & distribution'], ['electrical_wholesale', 'Electrical wholesale'],
+  ['electronics', 'Electronics & components'], ['hardware', 'Hardware & tools'], ['other', 'Other business'],
+];
+const TEAM_SIZES = [['1_to_5', '1–5 people'], ['6_to_20', '6–20 people'], ['21_to_50', '21–50 people'], ['51_plus', '51+ people']];
+const PRIORITIES = [
+  ['stock_billing_payments', 'Stock, billing and payments'],
+  ['purchasing', 'Purchasing and supplier rates'],
+  ['receipts_and_collections', 'Receipts and collections'],
+  ['migration', 'Moving from Excel or an ERP'],
+  ['other', 'Something else'],
+];
+const CONTROL = 'block min-h-10 w-full min-w-0 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm font-normal text-content-primary focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
 
-  // Anti-spam honeypot field
+export default function RequestDemoForm() {
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [plan, setPlan] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [resetCounter, setResetCounter] = useState(0);
-  const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
-
-  // UI States
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [reference, setReference] = useState('');
+  const [error, setError] = useState('');
+  const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
+  const sending = useRef(false);
 
-  const validate = (): boolean => {
-    const errors: Record<string, string> = {};
+  useEffect(() => {
+    const selected = new URLSearchParams(location.search).get('tier');
+    const tier = PRICING_TIERS.find((item) => item.id === (selected === 'essentials' ? 'starter' : selected));
+    setPlan(tier?.name ?? '');
+  }, []);
 
-    if (!formData.fullName.trim()) {
-      errors.fullName = 'Please enter your full name.';
-    }
+  const update = (key: keyof DemoRequestPayload, value: string) => setFormData((current) => ({ ...current, [key]: value }));
 
-    if (!formData.businessName.trim()) {
-      errors.businessName = 'Please enter your enterprise or trade name.';
-    }
-
-    if (!formData.email.trim()) {
-      errors.email = 'Please provide a valid business email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      errors.email = 'Please enter a valid email format (e.g., name@business.com).';
-    }
-
-    // Phone validation supporting Indian 10-digit mobile (+91) and international formats
-    const cleanedPhone = formData.phone.replace(/[\s\-\(\)\+]/g, '');
-    if (!formData.phone.trim()) {
-      errors.phone = 'Please provide a valid phone or WhatsApp contact number.';
-    } else if (cleanedPhone.length < 10 || cleanedPhone.length > 13) {
-      errors.phone = 'Please enter a valid 10-digit mobile number or standard phone.';
-    }
-
-    if (!formData.city.trim()) {
-      errors.city = 'Please enter your business city/location.';
-    }
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-    setErrorMessage(null);
-    if (honeypot) {
-      setErrorMessage('Verification failed. Please try again.');
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (sending.current) return;
+    setError('');
+    if (honeypot) { setError('Verification failed. Please try again.'); return; }
+    if (CONTACT_FIELDS.some(({ id }) => !formData[id].trim())) {
+      setError('Complete the contact details before sending your request.');
       return;
     }
-    if (!validate()) return;
-
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    const digits = formData.phone.replace(/\D/g, '');
+    if (!/^[+\d\s()-]+$/.test(formData.phone) || digits.length < 10 || digits.length > 15) {
+      setError('Enter a phone number with 10 to 15 digits.');
+      return;
+    }
+    const data = {
+      ...formData,
+      additionalMessage: [plan && 'Plan interest: ' + plan, formData.additionalMessage?.trim()].filter(Boolean).join('\n'),
+    };
+    sending.current = true;
     setIsSubmitting(true);
     try {
-      const request = getOrCreateRequestId(requestRef.current, formData);
+      const request = getOrCreateRequestId(requestRef.current, data);
       requestRef.current = request;
-      await submitWebsiteLead('demo', formData, turnstileToken, request.requestId);
-      setIsSuccess(true);
+      setReference(await submitWebsiteLead('demo', data, turnstileToken, request.requestId));
       requestRef.current = null;
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Your request was not delivered. Please retry.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Your request could not be delivered. Try again.');
       setTurnstileToken('');
-      setResetCounter((n) => n + 1);
+      setResetCounter((value) => value + 1);
     } finally {
       setIsSubmitting(false);
+      sending.current = false;
     }
   };
 
-  if (isSuccess) {
-    return (
-      <div className="p-8 sm:p-12 rounded-3xl border border-brand-200 bg-white shadow-xl text-center space-y-6 animate-fade-in">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
-          <CheckCircle2 className="w-8 h-8" />
-        </div>
-        <div className="space-y-2 max-w-md mx-auto">
-          <h3 className="text-2xl font-bold font-display text-content-primary">
-            Demonstration Request Received
-          </h3>
-          <p className="text-sm text-content-secondary leading-relaxed">
-            Thank you, <strong className="text-content-primary">{formData.fullName}</strong>. Your enquiry for{' '}
-            <strong className="text-content-primary">{formData.businessName}</strong> was accepted for email delivery to our team.
-          </p>
-        </div>
-
-        <div className="p-4 rounded-xl bg-surface-secondary border border-border text-xs text-left max-w-md mx-auto space-y-1.5">
-          <div className="flex items-center justify-between font-semibold text-content-primary">
-            <span>Contact Number:</span>
-            <span>{formData.phone}</span>
-          </div>
-          <div className="flex items-center justify-between font-semibold text-content-primary">
-            <span>Business Email:</span>
-            <span>{formData.email}</span>
-          </div>
-          <div className="flex items-center justify-between font-semibold text-content-primary">
-            <span>Location:</span>
-            <span>{formData.city}</span>
-          </div>
-        </div>
-
-        <p className="text-xs text-content-muted">
-          Our team will follow up using the contact details you supplied. Please keep your enquiry reference if requested.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => {
-            setIsSuccess(false);
-            setTurnstileToken('');
-            setResetCounter((n) => n + 1);
-            setFormData({
-              fullName: '',
-              businessName: '',
-              email: '',
-              phone: '',
-              industry: 'electrical_wholesale',
-              businessSize: '6_to_20',
-              city: '',
-              primaryRequirement: 'inventory_and_gst_billing',
-              additionalMessage: '',
-            });
-          }}
-          className="text-xs text-brand-700 hover:text-brand-800 font-semibold underline cursor-pointer"
-        >
-          Submit another enquiry
-        </button>
-      </div>
-    );
-  }
+  if (reference) return (
+    <div role="status" className="space-y-3 rounded-2xl border border-brand-200 bg-white p-6 shadow-sm">
+      <CheckCircle2 className="text-brand-700" size={28} aria-hidden="true" />
+      <h2 className="text-xl font-bold">Demonstration Request Received</h2>
+      <p className="text-sm text-content-secondary">We’ll use your contact details to arrange the walkthrough.</p>
+      <p className="break-all text-xs text-content-secondary">Reference <strong>{reference}</strong></p>
+      <button type="button" className="text-sm font-semibold text-brand-700 underline" onClick={() => {
+        setFormData(EMPTY_FORM); setReference(''); setTurnstileToken(''); setResetCounter((value) => value + 1);
+      }}>Submit another enquiry</button>
+    </div>
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="p-6 sm:p-10 rounded-3xl border border-border bg-white shadow-xl space-y-6" noValidate>
-      {/* Form Header */}
-      <div className="space-y-1 border-b border-border pb-5">
-        <h2 className="text-xl sm:text-2xl font-bold font-display text-content-primary">
-          Schedule a Guided Product Walkthrough
-        </h2>
-        <p className="text-xs sm:text-sm text-content-secondary">
-          See how Atlas OS handles your actual SKUs, pricing models, contractor credit limits, and GST reporting.
-        </p>
+    <form onSubmit={submit} aria-label="Request a demo" className="space-y-4 rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+      <div className="space-y-1 border-b border-border pb-3">
+        <h2 className="text-xl font-bold">Request a demo</h2>
+        <p className="text-sm text-content-secondary">{plan ? 'Discuss ' + plan + ' with our team.' : 'Leave your details and we’ll get in touch.'}</p>
       </div>
-
-      {errorMessage && (
-        <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* Hidden Honeypot Field */}
-      <div className="hidden" aria-hidden="true">
+      {error && <p role="alert" className="flex gap-2 rounded-lg bg-red-50 p-2.5 text-sm text-red-800"><AlertCircle size={17} className="shrink-0" />{error}</p>}
+      {!leadDeliveryConfigured && <p role="status" className="rounded-lg bg-surface-secondary p-2.5 text-sm text-content-secondary">Online requests are currently unavailable. <a href="/contact" className="font-semibold text-brand-700 underline">Contact Atlas OS</a>.</p>}
+      <div hidden aria-hidden="true">
         <label htmlFor="website-trap">Leave this blank</label>
-        <input
-          id="website-trap"
-          type="text"
-          value={honeypot}
-          onChange={(e) => setHoneypot(e.target.value)}
-          tabIndex={-1}
-          autoComplete="off"
-        />
+        <input id="website-trap" type="text" value={honeypot} onChange={(event) => setHoneypot(event.target.value)} tabIndex={-1} autoComplete="off" />
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Full Name */}
-        <div className="space-y-1.5">
-          <label htmlFor="fullName" className="block text-xs font-semibold text-content-primary">
-            Full Name <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              id="fullName"
-              type="text"
-              required
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              placeholder="e.g. Ramesh Kumar"
-              className={`w-full h-11 rounded-xl border bg-surface-secondary px-3.5 pl-10 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all ${
-                fieldErrors.fullName ? 'border-red-400 bg-red-50/20' : 'border-border'
-              }`}
-            />
-            <User className="w-4 h-4 text-content-muted absolute left-3.5 top-3.5" />
-          </div>
-          {fieldErrors.fullName && <p className="text-[11px] text-red-600">{fieldErrors.fullName}</p>}
-        </div>
-
-        {/* Business Name */}
-        <div className="space-y-1.5">
-          <label htmlFor="businessName" className="block text-xs font-semibold text-content-primary">
-            Business / Trade Name <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              id="businessName"
-              type="text"
-              required
-              value={formData.businessName}
-              onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-              placeholder="e.g. Sri Lakshmi Electricals"
-              className={`w-full h-11 rounded-xl border bg-surface-secondary px-3.5 pl-10 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all ${
-                fieldErrors.businessName ? 'border-red-400 bg-red-50/20' : 'border-border'
-              }`}
-            />
-            <Building2 className="w-4 h-4 text-content-muted absolute left-3.5 top-3.5" />
-          </div>
-          {fieldErrors.businessName && <p className="text-[11px] text-red-600">{fieldErrors.businessName}</p>}
-        </div>
-
-        {/* Business Email */}
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-xs font-semibold text-content-primary">
-            Business Email <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              id="email"
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="e.g. contact@srilakshmielectricals.com"
-              className={`w-full h-11 rounded-xl border bg-surface-secondary px-3.5 pl-10 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all ${
-                fieldErrors.email ? 'border-red-400 bg-red-50/20' : 'border-border'
-              }`}
-            />
-            <Mail className="w-4 h-4 text-content-muted absolute left-3.5 top-3.5" />
-          </div>
-          {fieldErrors.email && <p className="text-[11px] text-red-600">{fieldErrors.email}</p>}
-        </div>
-
-        {/* Phone Number */}
-        <div className="space-y-1.5">
-          <label htmlFor="phone" className="block text-xs font-semibold text-content-primary">
-            Phone / WhatsApp Number <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              id="phone"
-              type="tel"
-              required
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="e.g. +91 98765 43210"
-              className={`w-full h-11 rounded-xl border bg-surface-secondary px-3.5 pl-10 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all ${
-                fieldErrors.phone ? 'border-red-400 bg-red-50/20' : 'border-border'
-              }`}
-            />
-            <Phone className="w-4 h-4 text-content-muted absolute left-3.5 top-3.5" />
-          </div>
-          {fieldErrors.phone && <p className="text-[11px] text-red-600">{fieldErrors.phone}</p>}
-        </div>
-
-        {/* Primary Industry */}
-        <div className="space-y-1.5">
-          <label htmlFor="industry" className="block text-xs font-semibold text-content-primary">
-            Primary Industry
-          </label>
-          <select
-            id="industry"
-            value={formData.industry}
-            onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-            className="w-full h-11 rounded-xl border border-border bg-surface-secondary px-3.5 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-          >
-            <option value="electrical_wholesale">Electrical Wholesale & Distribution</option>
-            <option value="electronics_dealer">Electronics Components & Lighting</option>
-            <option value="hardware_tools">Hardware, Fasteners & Industrial Tools</option>
-            <option value="retail_trade_counter">Combined Wholesale & Retail Counter</option>
-            <option value="other_distribution">Other Distribution Business</option>
+      <fieldset disabled={isSubmitting} className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+        {CONTACT_FIELDS.map((item) => <label key={item.id} htmlFor={item.id} className="min-w-0 space-y-1 text-xs font-semibold">
+          <span>{item.label}</span>
+          <input id={item.id} className={CONTROL} type={'type' in item ? item.type : 'text'} required autoComplete={item.autoComplete}
+            maxLength={item.maxLength} value={formData[item.id]} onChange={(event) => update(item.id, event.target.value)} />
+        </label>)}
+        {([
+          ['industry', 'Business type', INDUSTRIES], ['businessSize', 'Team size', TEAM_SIZES],
+          ['primaryRequirement', 'What would you like to see?', PRIORITIES],
+        ] as const).map(([key, label, options]) => <label key={key} htmlFor={key} className="min-w-0 space-y-1 text-xs font-semibold">
+          <span>{label}</span>
+          <select id={key} className={CONTROL} value={formData[key]} onChange={(event) => update(key, event.target.value)}>
+            {options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
           </select>
-        </div>
-
-        {/* Business Size */}
-        <div className="space-y-1.5">
-          <label htmlFor="businessSize" className="block text-xs font-semibold text-content-primary">
-            Team Size (Staff & Billing Counters)
-          </label>
-          <select
-            id="businessSize"
-            value={formData.businessSize}
-            onChange={(e) => setFormData({ ...formData, businessSize: e.target.value })}
-            className="w-full h-11 rounded-xl border border-border bg-surface-secondary px-3.5 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-          >
-            <option value="1_to_5">1 – 5 team members (Single counter)</option>
-            <option value="6_to_20">6 – 20 team members (Wholesale godown)</option>
-            <option value="21_to_50">21 – 50 team members (Multi-counter)</option>
-            <option value="50_plus">50+ team members (Multi-branch network)</option>
-          </select>
-        </div>
-
-        {/* Business Location / City */}
-        <div className="space-y-1.5 sm:col-span-2">
-          <label htmlFor="city" className="block text-xs font-semibold text-content-primary">
-            City, State & Region <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="city"
-            type="text"
-            required
-            value={formData.city}
-            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-            placeholder="e.g. Hyderabad, Telangana or Vijayawada, Andhra Pradesh"
-            className={`w-full h-11 rounded-xl border bg-surface-secondary px-3.5 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all ${
-              fieldErrors.city ? 'border-red-400 bg-red-50/20' : 'border-border'
-            }`}
-          />
-          {fieldErrors.city && <p className="text-[11px] text-red-600">{fieldErrors.city}</p>}
-        </div>
-
-        {/* Primary Requirement */}
-        <div className="space-y-1.5 sm:col-span-2">
-          <label htmlFor="primaryRequirement" className="block text-xs font-semibold text-content-primary">
-            What is your most critical operational priority?
-          </label>
-          <select
-            id="primaryRequirement"
-            value={formData.primaryRequirement}
-            onChange={(e) => setFormData({ ...formData, primaryRequirement: e.target.value })}
-            className="w-full h-11 rounded-xl border border-border bg-surface-secondary px-3.5 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-          >
-            <option value="inventory_and_gst_billing">Managing thousands of electrical SKUs & fast GST invoicing</option>
-            <option value="receivables_and_credit">Tracking contractor credit limits & outstanding receivables</option>
-            <option value="excel_and_accounting">Generating clean Excel workbooks for tax auditor & accountant</option>
-            <option value="multi_org">Managing multiple firms or branches from one login</option>
-            <option value="replacing_legacy_erp">Replacing slow, complicated legacy desktop accounting software</option>
-          </select>
-        </div>
-
-        {/* Additional Message */}
-        <div className="space-y-1.5 sm:col-span-2">
-          <label htmlFor="additionalMessage" className="block text-xs font-semibold text-content-primary">
-            Specific Requirements or Notes (Optional)
-          </label>
-          <textarea
-            id="additionalMessage"
-            rows={3}
-            value={formData.additionalMessage}
-            onChange={(e) => setFormData({ ...formData, additionalMessage: e.target.value })}
-            placeholder="Tell us about your current software or special workflow needs (e.g. Polycab wire coil conversions, RTGS payment matching)..."
-            className="w-full rounded-xl border border-border bg-surface-secondary p-3 text-sm text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-          />
-        </div>
-      </div>
-
-      {/* Privacy Notice & Security Badge */}
-      <div className="flex items-start gap-2.5 pt-2 text-[11px] text-content-secondary border-t border-border">
-        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-        <p>
-          We respect commercial confidentiality. Your enquiry is sent over HTTPS to our designated email provider to coordinate a product demonstration. Cloudflare Turnstile processes verification data.
-        </p>
-      </div>
-
+        </label>)}
+        <label htmlFor="additionalMessage" className="space-y-1 text-xs font-semibold sm:col-span-2">
+          <span>Notes <span className="font-normal text-content-secondary">(optional)</span></span>
+          <textarea id="additionalMessage" rows={2} maxLength={1800} className={CONTROL + ' resize-y'} value={formData.additionalMessage}
+            placeholder="Tell us about a workflow you want to see." onChange={(event) => update('additionalMessage', event.target.value)} />
+        </label>
+      </fieldset>
       <TurnstileWidget action="lead_demo" onToken={setTurnstileToken} resetCounter={resetCounter} />
-      {!leadDeliveryConfigured && (
-        <p role="status" className="text-sm text-amber-800">Demo requests are unavailable until secure email delivery is configured. Nothing is saved locally.</p>
-      )}
-      {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={isSubmitting || !leadDeliveryConfigured || !turnstileToken}
-        className="w-full h-12 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-display font-semibold text-sm shadow-md hover:shadow-glow transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:scale-[0.99] btn-shimmer"
-      >
-        {isSubmitting ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            <span>Submitting Request...</span>
-          </>
-        ) : (
-          <>
-            <Send className="w-4 h-4" />
-            <span>Confirm Demonstration Request</span>
-          </>
-        )}
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <p className="max-w-[25ch] text-xs leading-relaxed text-content-secondary">We use your details to arrange the demo.</p>
+        <button type="submit" disabled={isSubmitting || !leadDeliveryConfigured} className="btn-shimmer inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-50 sm:w-auto">
+          <Send size={15} aria-hidden="true" />{isSubmitting ? 'Sending…' : 'Confirm Demonstration Request'}
+        </button>
+      </div>
     </form>
   );
 }

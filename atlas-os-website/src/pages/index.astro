@@ -9,33 +9,32 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 
 <BaseLayout
   title="Atlas OS — Run Your Business Without the Complications"
-  description="Manage multi-brand inventory, sales orders, GST invoices, and customer payments in one simple place. Engineered for electrical, electronics, and hardware businesses."
+  description="Manage inventory, sales orders, GST invoices, and customer payments in one workspace for shops, wholesalers, and distributors."
 >
   {/* SECTION 1: HERO */}
   <section class="relative pt-12 pb-16 md:pt-18 md:pb-24 overflow-hidden bg-radial-glow border-b border-border/50">
     <Container size="default">
       <div class="flex flex-col items-center text-center space-y-6 max-w-4xl mx-auto">
         <!-- Top Announcement Badge -->
-        <div class="animate-fade-in">
+        <div data-enter>
           <span class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full text-xs font-semibold bg-brand-50 text-brand-800 border border-brand-200 shadow-sm">
             <span class="w-2 h-2 rounded-full bg-brand-600 animate-pulse"></span>
-            <span>Modern Business Operating System for Distributors</span>
+            <span>Business software for shops and distributors</span>
           </span>
         </div>
 
         <!-- Main Headline -->
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-content-primary leading-[1.14] animate-fade-up">
+        <h1 data-enter data-delay="1" class="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-content-primary leading-[1.14]">
           Run Your Business. <span class="text-gradient">Without the Complications.</span>
         </h1>
 
         <!-- Supporting Text -->
-        <p class="text-base sm:text-lg md:text-xl text-content-secondary leading-relaxed max-w-3xl animate-fade-up font-normal">
-          Manage your stock, sales, invoices, and customer payments in one simple place.
-          Atlas OS helps electrical, electronics, and hardware businesses stay organized and work faster.
+        <p data-enter data-delay="2" class="text-base sm:text-lg md:text-xl text-content-secondary leading-relaxed max-w-3xl font-normal">
+          Manage your stock, sales, invoices, and customer payments in one workspace for retail, wholesale, and distribution.
         </p>
 
         <!-- Call to Action Buttons -->
-        <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 animate-fade-up">
+        <div data-enter data-delay="3" class="flex flex-wrap items-center justify-center gap-3.5 pt-2">
           <Button href="/product" variant="primary" size="lg" class="shadow-glow font-semibold">
             <span>Explore Atlas OS</span>
             <svg class="w-4 h-4 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,7 +96,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   {/* SECTION 2: PRODUCT STORYTELLING — ONE PLACE FOR YOUR DAILY BUSINESS */}
   <section class="py-16 md:py-24 bg-mint-50/60 border-b border-mint-200/60 relative overflow-hidden">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
+      <div data-reveal class="text-center max-w-3xl mx-auto space-y-3 mb-14">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-mint-200 text-mint-700">
           Connected Business Workflow
         </span>
@@ -110,7 +109,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
       </div>
 
       <!-- 5-Step Connected Workflow Journey -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+      <div data-reveal class="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
         <!-- Step 1 -->
         <div class="p-5 rounded-2xl bg-white border border-mint-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 group">
           <div>
@@ -222,7 +221,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   {/* SECTION 3: PRODUCT SHOWCASE — SHOW THE REAL TOOL */}
   <section class="py-16 md:py-24 bg-white border-b border-border">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-3 mb-12">
+      <div data-reveal class="text-center max-w-3xl mx-auto space-y-3 mb-12">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-100 text-sky-700">
           Interactive Product Showcase
         </span>
@@ -248,7 +247,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   {/* SECTION 4: FEATURES SECTION — SIMPLE, COLORFUL & BENEFIT-DRIVEN */}
   <section class="py-16 md:py-24 bg-surface-secondary/60 border-b border-border">
     <Container size="default">
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+      <div data-reveal class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div class="space-y-2 max-w-2xl">
           <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-lavender-100 text-lavender-700">
             Core Business Capabilities
@@ -433,21 +432,18 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   {/* SECTION 5: INDUSTRY SOLUTIONS — WARM NEUTRAL & RELATABLE */}
   <section class="py-16 md:py-24 bg-cream-50/70 border-b border-cream-200">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-3 mb-14">
-        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cream-200 text-cream-700">
-          Targeted Distribution
-        </span>
+      <div data-reveal class="text-center max-w-3xl mx-auto space-y-3 mb-14">
         <h2 class="text-3xl sm:text-4xl font-extrabold font-heading text-content-primary">
           Built for Businesses Like Yours
         </h2>
         <p class="text-base text-content-secondary leading-relaxed">
-          From coil packaging conversions to contractor credit aging, Atlas OS is architected around your specific trade operations.
+          See how a small shop, a fertilizer dealer, or a wholesaler can receive stock, bill customers, and track collections.
         </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         {INDUSTRY_SOLUTIONS.map((sol) => (
-          <div class="p-6 sm:p-8 rounded-3xl border border-cream-200/90 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-6 flex flex-col justify-between">
+          <div data-reveal class="p-6 sm:p-8 rounded-3xl border border-cream-200/90 bg-white shadow-sm hover:shadow-md transition-all duration-200 space-y-6 flex flex-col justify-between">
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
@@ -497,7 +493,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   <section class="py-18 md:py-24 bg-surface-dark text-white relative overflow-hidden border-b border-navy-800">
     <div class="absolute inset-0 bg-radial-glow-dark opacity-60 pointer-events-none"></div>
     <Container size="default">
-      <div class="relative z-10 flex flex-col items-center text-center space-y-4 max-w-3xl mx-auto mb-14">
+      <div data-reveal class="relative z-10 flex flex-col items-center text-center space-y-4 max-w-3xl mx-auto mb-14">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-500/20 text-brand-300 border border-brand-500/30">
           Enterprise Security & Data Isolation
         </span>
@@ -553,7 +549,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
   <section class="py-18 md:py-24 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-800 text-white relative overflow-hidden">
     <div class="absolute inset-0 bg-radial-glow opacity-30 pointer-events-none"></div>
     <Container size="default">
-      <div class="relative z-10 flex flex-col items-center text-center space-y-6 max-w-3xl mx-auto">
+      <div data-reveal class="relative z-10 flex flex-col items-center text-center space-y-6 max-w-3xl mx-auto">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 text-white border border-white/30 backdrop-blur-sm">
           Get Started with Atlas OS
         </span>

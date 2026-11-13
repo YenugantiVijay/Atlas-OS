@@ -53,7 +53,7 @@ test.describe('ATLAS OS — Complete Distributor Transaction Lifecycle (Phase A3
     await page.getByRole('button', { name: 'Add Product' }).click();
     const prodDialog = page.getByRole('dialog');
     await expect(prodDialog).toBeVisible();
-    await expect(prodDialog.getByText('Add New Electrical SKU')).toBeVisible();
+    await expect(prodDialog.getByText('Add New Product')).toBeVisible();
 
     await prodDialog.getByLabel('SKU Code').fill('FIN-CBL-4SQ-BL');
     await prodDialog.getByLabel('Product Title & Description').fill('Finolex 4.0 sq mm Industrial Copper Cable (90m Blue)');
