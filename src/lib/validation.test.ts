@@ -4,6 +4,8 @@ import {
   productSchema,
   customerSchema,
   paymentRecordSchema,
+  quotationFormSchema,
+  salesOrderFormSchema,
   stockAdjustmentSchema,
   validatePan,
   validateGstin,
@@ -45,6 +47,43 @@ describe('Domain Input Validation Schemas', () => {
       currency: 'INR',
     };
     expect(organizationSchema.safeParse(invalidOrg).success).toBe(false);
+  });
+
+  it('preserves the currency default and the PAN mismatch error path', () => {
+    const organization = {
+      name: 'Balaji Electricals',
+      gstin: '29ABCDE1234F1Z5',
+      phone: '+91 98450 12345',
+      addressLine1: 'BVK Iyengar Road',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      email: '',
+    };
+    expect(organizationSchema.parse(organization).currency).toBe('INR');
+    const mismatched = organizationSchema.safeParse({ ...organization, pan: 'AAAAA1234A' });
+    expect(mismatched.error?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: ['pan'], message: 'Provided PAN does not match the PAN embedded within the GSTIN.' }),
+    ]));
+  });
+
+  it('preserves legacy product IDs and line-item validation on quotes and orders', () => {
+    const item = {
+      productId: '12345678-1234-1234-1234-123456789abc',
+      productName: 'Wall Switch',
+      productSku: 'SW-01',
+      uom: 'Nos',
+      quantity: 2,
+      unitPrice: 25,
+      discountPercent: 0,
+      taxRate: 18,
+    };
+    const form = { customerId: 'customer-1', validUntil: '2026-11-30', orderDate: '2026-11-13', items: [item] };
+    for (const schema of [quotationFormSchema, salesOrderFormSchema]) {
+      expect(schema.safeParse(form).success).toBe(true);
+      expect(schema.safeParse({ ...form, items: [] }).success).toBe(false);
+      expect(schema.safeParse({ ...form, items: [{ ...item, productId: 'invalid' }] }).success).toBe(false);
+      expect(schema.safeParse({ ...form, items: [{ ...item, quantity: 0 }] }).success).toBe(false);
+    }
   });
 
   it('validates customer account schema', () => {
