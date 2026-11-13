@@ -1,16 +1,12 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const websiteDir = path.resolve(__dirname, '..');
 const cacheDir = path.resolve(websiteDir, '.astro-cache');
-
-// Ensure patch is applied
-spawnSync(process.execPath, [path.resolve(__dirname, 'patch-sitemap.mjs')], {
-  stdio: 'inherit',
-  cwd: websiteDir,
-});
 
 const env = {
   ...process.env,
@@ -21,7 +17,10 @@ const env = {
 };
 
 const args = process.argv.slice(2);
-const astroBin = path.resolve(websiteDir, 'node_modules/astro/astro.js');
+const require = createRequire(import.meta.url);
+const manifestPath = require.resolve('astro/package.json');
+const { bin } = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const astroBin = path.resolve(path.dirname(manifestPath), typeof bin === 'string' ? bin : bin.astro);
 
 const result = spawnSync(process.execPath, [astroBin, ...args], {
   stdio: 'inherit',

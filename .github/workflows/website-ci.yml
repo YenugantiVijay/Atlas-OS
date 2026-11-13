@@ -30,12 +30,15 @@ jobs:
       - name: Set up compatible Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: atlas-os-website/package-lock.json
 
       - name: Install locked website dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Block high and critical website dependency advisories
+        run: npm audit --audit-level=high
 
       - name: Verify TypeScript
         run: npm run typecheck
