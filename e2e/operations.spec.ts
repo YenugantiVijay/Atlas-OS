@@ -23,8 +23,9 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);
     await expect(page.getByText('Products & Catalog')).toBeVisible();
-    await expect(page.getByText('POL-W-2.5-RD')).toBeVisible();
-    await expect(page.getByText('Havells 32A Double Pole C-Curve MCB')).toBeVisible();
+    const productsTable = page.getByRole('table');
+    await expect(productsTable.getByText('POL-W-2.5-RD')).toBeVisible();
+    await expect(productsTable.getByText('Havells 32A Double Pole C-Curve MCB')).toBeVisible();
   });
 
   test('opens command palette using keyboard shortcut Ctrl+K', async ({ page }) => {

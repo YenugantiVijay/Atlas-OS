@@ -39,13 +39,13 @@ test.describe('ATLAS OS — Restart, Recovery & Multi-Tenant Isolation (Phase A3
     test('preserves sub-route and data after browser reload on products page', async ({ page }) => {
       await page.goto('/#/products');
       await expect(page.getByRole('heading', { name: 'Products & Catalog' })).toBeVisible();
-      await expect(page.getByText('POL-W-2.5-RD')).toBeVisible();
+      await expect(page.getByRole('table').getByText('POL-W-2.5-RD')).toBeVisible();
 
       await page.reload();
 
       await expect(page).toHaveURL(/.*#\/products/);
       await expect(page.getByRole('heading', { name: 'Products & Catalog' })).toBeVisible();
-      await expect(page.getByText('POL-W-2.5-RD')).toBeVisible();
+      await expect(page.getByRole('table').getByText('POL-W-2.5-RD')).toBeVisible();
     });
 
     test('preserves sub-route and data after browser reload on invoices page', async ({ page }) => {
@@ -178,7 +178,7 @@ test.describe('ATLAS OS — Restart, Recovery & Multi-Tenant Isolation (Phase A3
 
       // Clearing search restores catalog
       await searchInput.fill('');
-      await expect(page.getByText('POL-W-2.5-RD')).toBeVisible();
+      await expect(page.getByRole('table').getByText('POL-W-2.5-RD')).toBeVisible();
     });
   });
 });

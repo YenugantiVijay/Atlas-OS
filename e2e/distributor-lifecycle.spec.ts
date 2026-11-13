@@ -62,7 +62,7 @@ test.describe('ATLAS OS — Complete Distributor Transaction Lifecycle (Phase A3
 
     await prodDialog.getByRole('button', { name: 'Create Product' }).click();
     await expect(prodDialog).not.toBeVisible();
-    await expect(page.getByText('FIN-CBL-4SQ-BL', { exact: true })).toBeVisible();
+    await expect(page.getByRole('table').getByText('FIN-CBL-4SQ-BL', { exact: true })).toBeVisible();
 
     // ------------------------------------------------------------------------
     // Step 3: Record Initial Inward Stock Adjustment
