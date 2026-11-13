@@ -207,10 +207,10 @@ test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Ph
       await dialog.getByRole('button', { name: 'Create Product' }).click();
       await expect(dialog).not.toBeVisible();
 
-      await expect(page.getByText('TEST-SKU-999', { exact: true })).toBeVisible();
+      await expect(page.getByRole('table').getByText('TEST-SKU-999', { exact: true })).toBeVisible();
 
       await page.reload();
-      await expect(page.getByText('TEST-SKU-999', { exact: true })).toBeVisible();
+      await expect(page.getByRole('table').getByText('TEST-SKU-999', { exact: true })).toBeVisible();
     });
 
     test('Creates sales order with multiple items and verifies persistence', async ({ page }) => {
