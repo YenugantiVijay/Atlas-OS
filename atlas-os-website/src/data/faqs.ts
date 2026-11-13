@@ -4,19 +4,19 @@ export const FAQS: FaqItem[] = [
   {
     id: 'what-is-atlas-os',
     question: 'What is Atlas OS?',
-    answer: 'Atlas OS is a modern, AI-native business operating system specifically engineered for electrical, electronics, and hardware distributors, wholesalers, and retailers. It unifies inventory control, commercial sales orders, statutory GST invoicing, customer receivables ledgers, payment settlement allocations, and financial reporting into one connected, lightning-fast workspace.',
+    answer: 'Atlas OS brings inventory, sales orders, GST invoices, customer balances, payments, and reporting into one workspace for retailers, wholesalers, and distributors.',
     category: 'General',
   },
   {
     id: 'target-audience',
     question: 'Who is Atlas OS designed for?',
-    answer: 'Atlas OS is initially focused on electrical wholesale distributors, electronics component dealers, hardware and tool merchants, and combined retail-wholesale trade counters. Its workflows are tailored specifically around real commercial distribution challenges: managing thousands of technical SKUs, volatile pricing, multi-UOM packaging (Coils, Meters, Bundles), contractor credit limits, and complex payment allocations.',
+    answer: 'Atlas OS supports common inventory, sales, and collection workflows for small shops, general wholesalers, agri-input distributors, hardware suppliers, and electrical and electronics businesses.',
     category: 'General',
   },
   {
     id: 'wholesale-and-retail',
     question: 'Can I use Atlas OS for both wholesale and retail operations?',
-    answer: 'Atlas OS currently provides sales orders, customer accounts, invoices, inventory and payment tracking for distributor workflows. A dedicated fast retail counter, walk-in checkout and advanced credit policies are planned, and are not yet part of a verified retail release.',
+    answer: 'Yes. Retail Counter creates draft orders from your catalog for existing customers. Invoices and collections have dedicated screens. Open a recorded payment to print its receipt, then review collections by payment method at the end of the day.',
     category: 'Product & Features',
   },
   {
@@ -52,13 +52,13 @@ export const FAQS: FaqItem[] = [
   {
     id: 'trial-availability',
     question: 'Is a free trial available?',
-    answer: 'Yes. Our commercial model includes a complimentary 7-day trial of Atlas OS upon general availability, allowing distributors to test all operational workflows with zero initial payment details required. Contact our sales team via the Request Demo page to receive priority onboarding access.',
+    answer: 'Atlas OS offers a seven-day trial for eligible businesses. Trial workspaces can print a customer receipt and review daily totals. Request a demo to see the two-copy receipt workflow.',
     category: 'Pricing & Trials',
   },
   {
     id: 'pricing-structure',
     question: 'How will Atlas OS be priced?',
-    answer: 'We are preparing Atlas Essentials for everyday shop workflows and Atlas Professional for more involved distribution workflows. Pricing, commercial entitlements and purchase options are not live yet. The current Simple View / Full Navigation selector changes menu layout only, not subscription access.',
+    answer: 'Starter covers everyday shop workflows. Professional adds purchasing and supplier controls, and Enterprise Network is scoped by quote. The pricing page shows proposed launch prices. Request a demo to confirm terms.',
     category: 'Pricing & Trials',
   },
 ];

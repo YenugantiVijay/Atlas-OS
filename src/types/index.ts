@@ -21,6 +21,8 @@ export interface Organization {
   pincode?: string;
   currency: string;
   logoUrl?: string;
+  receiptTemplate?: 'classic' | 'compact';
+  receiptMessage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -358,6 +360,11 @@ export type BusinessCategory =
   | 'electrical_retail'
   | 'electrical_wholesale_distributor'
   | 'hardware_electrical'
+  | 'agricultural_inputs'
+  | 'general_retail'
+  | 'general_wholesale'
+  | 'electronics_trade'
+  | 'hardware_trade'
   | 'other_unsupported';
 
 export type EligibilityStatus =

@@ -78,11 +78,6 @@ const { currentPath = Astro.url.pathname } = Astro.props;
                   }`}
                 >
                   <span>{item.label}</span>
-                  {item.badge && (
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-brand-100 text-brand-700">
-                      {item.badge}
-                    </span>
-                  )}
                 </a>
               );
             })
@@ -92,7 +87,7 @@ const { currentPath = Astro.url.pathname } = Astro.props;
 
       <!-- Action Buttons -->
       <div class="hidden sm:flex items-center gap-3">
-        <Button href="/download" variant="outline" size="sm" class="hidden md:inline-flex">
+        <Button href="/download" variant="outline" size="md" class="site-header-cta hidden md:inline-flex">
           <svg class="w-4 h-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
@@ -100,9 +95,9 @@ const { currentPath = Astro.url.pathname } = Astro.props;
           </svg>
           <span>Download</span>
         </Button>
-        <Button href="/request-demo" variant="primary" size="sm">
+        <Button href="/request-demo" variant="primary" size="md" class="site-header-cta">
           <span>Request Demo</span>
-          <svg class="w-4 h-4 ml-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"></line>
             <polyline points="12 5 19 12 12 19"></polyline>
           </svg>
@@ -111,7 +106,7 @@ const { currentPath = Astro.url.pathname } = Astro.props;
 
       <!-- Mobile Hamburger Button -->
       <div class="flex items-center lg:hidden gap-2">
-        <Button href="/request-demo" variant="primary" size="sm" class="sm:hidden text-xs px-2.5 py-1.5">
+        <Button href="/request-demo" variant="primary" size="sm" class="site-header-cta sm:hidden">
           <span>Demo</span>
         </Button>
         <button
@@ -152,11 +147,6 @@ const { currentPath = Astro.url.pathname } = Astro.props;
                 class="flex items-center justify-between py-2 text-base font-semibold text-content-primary hover:text-brand-600"
               >
                 <span>{item.label}</span>
-                {item.badge && (
-                  <span class="px-2 py-0.5 text-xs font-bold rounded-md bg-brand-100 text-brand-700">
-                    {item.badge}
-                  </span>
-                )}
               </a>
               {hasDropdown && (
                 <div class="pl-3 py-1 space-y-1.5">

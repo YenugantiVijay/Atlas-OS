@@ -115,6 +115,8 @@ describe('SalesReceiptsReportPage — UI & Interaction Test Suite', () => {
       signOut: vi.fn(),
       signIn: vi.fn(),
       signUp: vi.fn(),
+      sendEmailCode: vi.fn(),
+      verifyEmailCode: vi.fn(),
       enterDemoMode: vi.fn(),
       exitDemoMode: vi.fn(),
       declareEligibility: vi.fn(),

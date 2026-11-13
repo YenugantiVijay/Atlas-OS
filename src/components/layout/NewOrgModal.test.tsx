@@ -33,7 +33,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
     // Fill form fields
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const legalNameInput = screen.getByLabelText(/Legal Entity Name/i);
     const gstinInput = screen.getByLabelText(/GSTIN/i);
     const panInput = screen.getByLabelText(/PAN/i);
@@ -106,7 +106,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     const { rerender } = render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const gstinInput = screen.getByLabelText(/GSTIN/i);
 
     fireEvent.change(nameInput, { target: { value: 'Venkata Electrical Store' } });
@@ -131,7 +131,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     // Simulate reopen to verify form was reset
     rerender(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
-    const reopenedNameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const reopenedNameInput = screen.getByLabelText(/Business Name/i);
     expect((reopenedNameInput as HTMLInputElement).value).toBe('');
   });
 
@@ -145,7 +145,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const panInput = screen.getByLabelText(/PAN/i);
     const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
@@ -193,7 +193,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const panInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(nameInput, { target: { value: 'Retry Success Org' } });
     fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
@@ -231,7 +231,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     const { rerender } = render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const panInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(nameInput, { target: { value: 'Org One' } });
     fireEvent.change(panInput, { target: { value: 'ABCDE1234F' } });
@@ -255,7 +255,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
     });
 
     rerender(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
-    const reopenedNameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const reopenedNameInput = screen.getByLabelText(/Business Name/i);
     const reopenedPanInput = screen.getByLabelText(/PAN/i);
     fireEvent.change(reopenedNameInput, { target: { value: 'Org Two' } });
     fireEvent.change(reopenedPanInput, { target: { value: 'ABCDE1234F' } });
@@ -283,7 +283,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const panInput = screen.getByLabelText(/PAN/i);
     const phoneInput = screen.getByLabelText(/Phone/i);
     const cityInput = screen.getByLabelText(/City/i);
@@ -333,7 +333,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     const gstinInput = screen.getByLabelText(/GSTIN/i);
     const phoneInput = screen.getByLabelText(/Phone/i);
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
@@ -418,7 +418,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
   it('Validates required organization name and rejects empty submission with toast error', async () => {
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    const nameInput = screen.getByLabelText(/Distributor Business Name/i);
+    const nameInput = screen.getByLabelText(/Business Name/i);
     fireEvent.change(nameInput, { target: { value: '   ' } });
 
     const submitBtn = screen.getByRole('button', { name: /Create Organization/i });
@@ -444,7 +444,7 @@ describe('Phase 2.2 / 2.5: NewOrgModal Form, Idempotency & Error Handling Integr
 
     render(<NewOrgModal isOpen={true} onClose={defaultOnClose} />);
 
-    fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+    fireEvent.change(screen.getByLabelText(/Business Name/i), {
       target: { value: 'Pioneer Wholesale Cables' },
     });
 

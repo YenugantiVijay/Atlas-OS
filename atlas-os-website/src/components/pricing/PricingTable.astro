@@ -1,0 +1,25 @@
+---
+import { PRICING_TIERS } from '../../data/pricing';
+import Button from '../common/Button.astro';
+---
+<div class="space-y-5">
+  <p class="text-center text-sm text-content-secondary">Proposed launch pricing in INR. Request a demo for confirmed terms.</p>
+  <div class="grid gap-4 md:grid-cols-3">
+    {PRICING_TIERS.map((tier) => (
+      <article data-reveal class:list={['flex min-w-0 flex-col rounded-2xl border bg-white p-5 shadow-sm sm:p-6', tier.isFeatured ? 'border-brand-500 ring-1 ring-brand-500' : 'border-border']}>
+        <h2 class="text-xl font-bold text-content-primary">{tier.name}</h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-content-secondary">{tier.description}</p>
+        <div class="mb-4 mt-5 flex flex-wrap items-baseline gap-1.5 border-b border-border pb-4">
+          <strong class="text-3xl font-extrabold tracking-tight text-content-primary">{tier.priceDisplay}</strong>
+          {tier.billingPeriod && <span class="text-sm text-content-secondary">{tier.billingPeriod}</span>}
+        </div>
+        <ul class="mb-5 space-y-2.5 text-sm">
+          {tier.features.map((feature) => <li class="flex items-start gap-2"><span aria-hidden="true" class="font-semibold text-brand-700">✓</span><span>{feature}</span></li>)}
+        </ul>
+        <Button href={'/request-demo?tier=' + tier.id} variant={tier.isFeatured ? 'primary' : 'outline'} class="mt-auto w-full">
+          {tier.id === 'enterprise-network' ? 'Request a quote' : 'Discuss ' + tier.name.replace('Atlas ', '')}
+        </Button>
+      </article>
+    ))}
+  </div>
+</div>

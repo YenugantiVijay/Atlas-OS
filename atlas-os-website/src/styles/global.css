@@ -113,6 +113,27 @@
   }
 }
 
+.site-header-cta { min-height: 44px; gap: 9px; padding: 10px 16px; line-height: 1.25; white-space: nowrap; }
+.site-header-cta svg { flex-shrink: 0; }
+.footer-heading { font-size: 1.125rem; line-height: 1.35; }
+.footer-link { font-size: .875rem; line-height: 1.45; }
+@media (min-width: 1024px) {
+  .site-footer-grid.grid { grid-template-columns: minmax(180px,1.6fr) repeat(4,minmax(0,1fr)); }
+  .site-footer-grid .site-footer-brand { grid-column: span 1; }
+}
+@media (max-width: 380px) { .site-header-cta { padding-inline: 12px; } }
+
+@keyframes atlas-enter {
+  from { opacity: .3; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-enter], .atlas-revealed { animation: atlas-enter 470ms cubic-bezier(.2,.72,.32,1) backwards; }
+  [data-enter][data-delay="1"] { animation-delay: 70ms; }
+  [data-enter][data-delay="2"] { animation-delay: 130ms; }
+  [data-enter][data-delay="3"] { animation-delay: 190ms; }
+}
+
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .btn-shimmer::after {

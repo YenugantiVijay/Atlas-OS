@@ -30,9 +30,18 @@ import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
 import { validateMoneyInput, validateTaxRateInput, parseStrictNumber } from '@/lib/validation';
 import { ProductSearchSettings } from './ProductSearchSettings';
+import { BUSINESS_CATEGORIES, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
 
 const CATEGORIES = [
   'All Categories',
+  'General Merchandise',
+  'Packaged Goods',
+  'Fertilizers',
+  'Seeds',
+  'Soil Nutrients',
+  'Farm Supplies',
+  'Tools & Hardware',
+  'Electronics',
   'Wires & Cables',
   'Switchgear',
   'Modular Switches',
@@ -45,7 +54,9 @@ const CATEGORIES = [
 const UOM_OPTIONS: UOM[] = ['Nos', 'Bags', 'Kg', 'Litres', 'Packs', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
-  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations, eligibility } = useOrg();
+  const business = BUSINESS_CATEGORIES[eligibility?.businessCategory ?? DEFAULT_BUSINESS_CATEGORY] ?? BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY];
+  const defaultTaxRate = business.electrical ? '18' : '';
   const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,6 +71,7 @@ export const ProductsPage: React.FC = () => {
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const latestCatalogRequest = useRef(0);
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
+  const categories = [...new Set([...CATEGORIES, ...business.products, ...products.map((product) => product.category), selectedCategory])];
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -75,11 +87,11 @@ export const ProductsPage: React.FC = () => {
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
-  const [category, setCategory] = useState('Wires & Cables');
-  const [uom, setUom] = useState<UOM>('Nos');
+  const [category, setCategory] = useState(business.products[0] ?? 'General Merchandise');
+  const [uom, setUom] = useState<UOM>(business.unit);
   const [purchaseCost, setPurchaseCost] = useState('0');
   const [sellingPrice, setSellingPrice] = useState('0');
-  const [taxRate, setTaxRate] = useState('18');
+  const [taxRate, setTaxRate] = useState(defaultTaxRate);
   const [hsnCode, setHsnCode] = useState('');
   const [reorderThreshold, setReorderThreshold] = useState('10');
   const [openingStock, setOpeningStock] = useState('0');
@@ -99,14 +111,14 @@ export const ProductsPage: React.FC = () => {
       setBrand('');
       setPurchaseCost('0');
       setSellingPrice('0');
-      setTaxRate('18');
+      setTaxRate(defaultTaxRate);
       setHsnCode('');
       setReorderThreshold('10');
       setOpeningStock('0');
       setImageUrl('');
       setPage(1);
     }
-  }, [currentOrg?.id]);
+  }, [currentOrg?.id, defaultTaxRate]);
 
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
@@ -187,11 +199,11 @@ export const ProductsPage: React.FC = () => {
     setSku('');
     setName('');
     setBrand('');
-    setCategory('Wires & Cables');
-    setUom('Nos');
+    setCategory(business.products[0] ?? 'General Merchandise');
+    setUom(business.unit);
     setPurchaseCost('0');
     setSellingPrice('0');
-    setTaxRate('18');
+    setTaxRate(defaultTaxRate);
     setHsnCode('');
     setReorderThreshold('10');
     setOpeningStock('0');
@@ -199,7 +211,7 @@ export const ProductsPage: React.FC = () => {
     setEditingProduct(null);
     setIsCreateModalOpen(true);
     clearActionParam();
-  }, [check, clearActionParam, showToast]);
+  }, [business.products, business.unit, check, clearActionParam, defaultTaxRate, showToast]);
 
   const checkRef = useRef(check);
   checkRef.current = check;
@@ -281,8 +293,8 @@ export const ProductsPage: React.FC = () => {
       showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
-    if (!sku.trim() || !name.trim()) {
-      showToast('error', 'Validation Error', 'SKU and Product Name are required.');
+    if (!sku.trim() || !name.trim() || !category.trim()) {
+      showToast('error', 'Validation Error', 'SKU, product name, and category are required.');
       return;
     }
 
@@ -344,7 +356,7 @@ export const ProductsPage: React.FC = () => {
             sku: sku.trim().toUpperCase(),
             name: name.trim(),
             brand: brand.trim() || undefined,
-            category,
+            category: category.trim(),
             uom,
             purchaseCost: costVal.value ?? 0,
             sellingPrice: priceVal.value ?? 0,
@@ -363,7 +375,7 @@ export const ProductsPage: React.FC = () => {
             sku: sku.trim().toUpperCase(),
             name: name.trim(),
             brand: brand.trim() || undefined,
-            category,
+            category: category.trim(),
             uom,
             purchaseCost: costVal.value ?? 0,
             sellingPrice: priceVal.value ?? 0,
@@ -432,7 +444,7 @@ export const ProductsPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
-            Electrical components catalog with HSN codes, GST classification, and real-time inventory balances.
+            Manage product categories, prices, tax rates, and stock balances.
           </p>
         </div>
 
@@ -538,7 +550,7 @@ export const ProductsPage: React.FC = () => {
               }}
               className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -573,7 +585,7 @@ export const ProductsPage: React.FC = () => {
           description={
             searchQuery || selectedCategory !== 'All Categories'
               ? 'No products match your current search and filter criteria.'
-              : 'Your product catalog is empty. Add your first electrical SKU to begin tracking inventory and issuing quotations.'
+              : 'Add your first product to start tracking stock and preparing sales.'
           }
           actionLabel={!check('products:create').allowed ? undefined : "Add Product"}
           onAction={handleOpenCreate}
@@ -735,7 +747,7 @@ export const ProductsPage: React.FC = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title={editingProduct ? 'Edit Product SKU' : 'Add New Electrical SKU'}
+        title={editingProduct ? 'Edit Product SKU' : 'Add New Product'}
         description="Configure product specifications, tax classification, and inventory thresholds."
         maxWidth="xl"
       >
@@ -754,13 +766,13 @@ export const ProductsPage: React.FC = () => {
               required
               value={sku}
               onChange={(e) => setSku(e.target.value)}
-              placeholder="e.g. POL-W-2.5-RD"
+              placeholder="e.g. ITEM-001"
             />
             <Input
               label="Brand / Manufacturer"
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              placeholder="e.g. Polycab, Havells, Schneider"
+              placeholder="Optional"
             />
           </div>
 
@@ -769,19 +781,19 @@ export const ProductsPage: React.FC = () => {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. 2.5 sq mm FR PVC Insulated Copper Wire (90m Red)"
+            placeholder="Item name and pack size"
           />
 
           <div className="grid grid-cols-2 gap-3">
-            <Select
+            <Input
               label="Category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              options={CATEGORIES.filter((c) => c !== 'All Categories').map((c) => ({
-                value: c,
-                label: c,
-              }))}
+              required maxLength={100} list="atlas-product-categories"
             />
+            <datalist id="atlas-product-categories">
+              {[...new Set([...business.products, ...CATEGORIES.slice(1)])].map((item) => <option key={item} value={item} />)}
+            </datalist>
             <Select
               label="Unit of Measurement (UOM)"
               value={uom}
@@ -810,6 +822,9 @@ export const ProductsPage: React.FC = () => {
             <Input
               label="GST Tax Rate (%)"
               type="number"
+              min={0}
+              max={40}
+              step="0.01"
               required
               value={taxRate}
               onChange={(e) => setTaxRate(e.target.value)}

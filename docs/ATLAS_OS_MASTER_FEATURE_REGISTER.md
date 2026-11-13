@@ -174,6 +174,8 @@ See [Edition & Navigation Design](./ATLAS_OS_EDITION_AND_NAVIGATION_DESIGN.md).
 
 **F-028 first slice.** Purchase Orders supports supplier drafts, reference rates, and an audited transition to a numbered order. Migration `053_purchase_orders.sql` and `scripts/purchase_orders_acceptance.mjs` cover the database workflow. Receipt matching and staging acceptance are pending.
 
+**Email verification, general trade, and receipts.** Signup and optional email-code sign-in use a six-digit code. See the [Auth rollout instructions](./auth-email/README.md). Migrations `054` and `055` add general retail, wholesale, agri-input, electronics, and hardware categories with the existing identity and trial checks. Shop essentials links to everyday work. F-063 includes branded A4 printouts from recorded payments and daily payment totals by method. Active Professional and Enterprise Network subscriptions enable the counter copy. Retail Counter saves draft orders and links authorized roles to Payments. Hosted Auth delivery, migrations, and staging acceptance are pending. Website prices are proposed and sales enquiries use the existing demo form.
+
 ### Wholesale, Retail, Payments
 
 | ID | Feature | Status | Wave |

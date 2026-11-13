@@ -30,6 +30,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
+import { PaymentReceiptDialog } from './PaymentReceiptDialog';
+import { DailyReceiptTotals } from './DailyReceiptTotals';
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   'UPI',
@@ -41,7 +43,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 export const PaymentsPage: React.FC = () => {
-  const { currentOrg, isMockAuth, currentRole, canWriteOperations } = useOrg();
+  const { currentOrg, currentUser, isMockAuth, currentRole, canWriteOperations } = useOrg();
   const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -63,6 +65,16 @@ export const PaymentsPage: React.FC = () => {
 
   // Modal State — bounded & searchable lookup
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [receiptView, setReceiptView] = useState<{ scope: string; id: string } | null>(null);
+  const [totalsScope, setTotalsScope] = useState<string | null>(null);
+  const printScope = [currentUser?.id, currentOrg?.id, currentRole].join(':');
+  const canReadReceipts = !isMockAuth && Boolean(currentOrg) && check('reports:financial').allowed;
+  const activePrintScopeRef = useRef<string | null>(null);
+  activePrintScopeRef.current = canReadReceipts ? printScope : null;
+  useEffect(() => {
+    setReceiptView(null);
+    setTotalsScope(null);
+  }, [printScope, canReadReceipts]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [eligibleInvoices, setEligibleInvoices] = useState<Invoice[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -534,6 +546,7 @@ export const PaymentsPage: React.FC = () => {
       );
       setIsModalOpen(false);
       setPaymentIdempotencyKey('');
+      if (activePrintScopeRef.current === printScope) setReceiptView({ scope: printScope, id: p.id });
       await loadData();
     } catch (err: any) {
       // Ambiguous network outcome recovery: check if payment committed under keyToUse
@@ -552,6 +565,7 @@ export const PaymentsPage: React.FC = () => {
             );
             setIsModalOpen(false);
             setPaymentIdempotencyKey('');
+            if (activePrintScopeRef.current === printScope) setReceiptView({ scope: printScope, id: recovery.payment.id });
             await loadData();
             return;
           }
@@ -598,7 +612,9 @@ export const PaymentsPage: React.FC = () => {
           </p>
         </div>
 
-        {(() => {
+        <div className="flex flex-wrap items-center gap-2">
+          {canReadReceipts && <Button type="button" variant="outline" onClick={() => setTotalsScope(printScope)}>Daily receipt totals</Button>}
+          {(() => {
           const recordPerm = check('payments:record');
           return (
             <Button
@@ -611,7 +627,8 @@ export const PaymentsPage: React.FC = () => {
               Record Payment
             </Button>
           );
-        })()}
+          })()}
+        </div>
       </div>
 
       {/* Preparing Indicator */}
@@ -729,9 +746,12 @@ export const PaymentsPage: React.FC = () => {
             {filteredPayments.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
-                    {p.paymentNumber}
-                  </span>
+                  {canReadReceipts && p.organizationId === currentOrg?.id ? (
+                    <button type="button" aria-label={'Open receipt ' + p.paymentNumber} onClick={() => setReceiptView({ scope: printScope, id: p.id })}
+                      className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-1 rounded border border-atlas-200/80 hover:underline focus-visible:ring-2 focus-visible:ring-teal-600">
+                      {p.paymentNumber}
+                    </button>
+                  ) : <span className="font-mono font-bold text-xs text-atlas-800">{p.paymentNumber}</span>}
                 </TableCell>
 
                 <TableCell>
@@ -792,6 +812,11 @@ export const PaymentsPage: React.FC = () => {
       )}
 
       {/* Record Payment Modal */}
+      {currentOrg && canReadReceipts && receiptView?.scope === printScope && <PaymentReceiptDialog
+        key={printScope + receiptView.id} scope={printScope} organizationId={currentOrg.id} paymentId={receiptView.id}
+        onClose={() => setReceiptView(null)} />}
+      {currentOrg && canReadReceipts && totalsScope === printScope && <DailyReceiptTotals
+        key={printScope} scope={printScope} organizationId={currentOrg.id} currency={currentOrg.currency} onClose={() => setTotalsScope(null)} />}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

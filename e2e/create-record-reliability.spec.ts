@@ -45,7 +45,7 @@ test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Ph
       await expect(page).toHaveURL(/.*#\/products/);
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
-      await expect(dialog.getByText('Add New Electrical SKU')).toBeVisible();
+      await expect(dialog.getByText('Add New Product')).toBeVisible();
       await page.keyboard.press('Escape');
     });
 

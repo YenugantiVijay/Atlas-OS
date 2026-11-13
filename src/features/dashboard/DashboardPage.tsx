@@ -27,7 +27,7 @@ import { DashboardMetrics, SalesTrendPoint, ReceivablesSummary, BrandValuation }
 import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
 
 export const DashboardPage: React.FC = () => {
-  const { currentOrg, isMockAuth, currentRole } = useOrg();
+  const { currentOrg, isMockAuth, currentRole, eligibility } = useOrg();
   const canSeeFinancialBalances = hasPermission(currentRole, 'reports:financial');
   const { check } = useActionPermission();
   const navigate = useNavigate();
@@ -176,6 +176,20 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {eligibility?.businessCategory === 'general_retail' && <Card>
+        <CardHeader><CardTitle>Shop essentials</CardTitle></CardHeader>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { label: 'Products & stock', path: '/products', allowed: check('data:read').allowed },
+            { label: 'Sales counter', path: '/pos', allowed: hasPermission(currentRole, 'orders:create') },
+            { label: 'Customers', path: '/customers', allowed: check('data:read').allowed },
+            { label: 'Invoices', path: '/invoices', allowed: canSeeFinancialBalances },
+            { label: 'Payments & receipts', path: '/payments', allowed: canSeeFinancialBalances },
+          ].filter((item) => item.allowed).map((item) => <Button key={item.path} type="button" variant="outline" size="sm"
+            className="h-auto min-h-10 whitespace-normal px-2" onClick={() => navigate(item.path)}>{item.label}</Button>)}
+        </div>
+      </Card>}
 
       {/* Actionable Alerts (Low Stock Warning Banner) */}
       {metrics.lowStockItemsCount > 0 && (
@@ -453,10 +467,10 @@ export const DashboardPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Quick Launchpad: Standard Distribution Workflows */}
+      {/* Everyday workspace shortcuts */}
       <Card>
         <CardHeader>
-          <CardTitle>Distribution Workflows</CardTitle>
+          <CardTitle>Business Workflows</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {(() => {
@@ -508,7 +522,7 @@ export const DashboardPage: React.FC = () => {
                   <Boxes className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-content-primary">Add Product SKU</span>
-                <span className="text-xs text-content-secondary mt-0.5">Cables, MCBs, lighting</span>
+                <span className="text-xs text-content-secondary mt-0.5">Add an item to your catalog</span>
               </button>
             );
           })()}

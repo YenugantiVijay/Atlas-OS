@@ -62,6 +62,8 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
   const mockCreateOrganization = vi.fn();
   const mockSignIn = vi.fn();
   const mockSignUp = vi.fn();
+  const mockSendEmailCode = vi.fn();
+  const mockVerifyEmailCode = vi.fn();
   const mockSignOut = vi.fn();
   const mockSwitchOrganization = vi.fn();
   const mockEnterDemoMode = vi.fn();
@@ -98,6 +100,8 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       memberships: [],
       signIn: mockSignIn,
       signUp: mockSignUp,
+      sendEmailCode: mockSendEmailCode,
+      verifyEmailCode: mockVerifyEmailCode,
       signOut: mockSignOut,
       enterDemoMode: mockEnterDemoMode,
       exitDemoMode: mockExitDemoMode,
@@ -134,31 +138,74 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       });
     });
 
-    it('2. Signup requiring email verification does not attempt organization creation prematurely', async () => {
+    it('2. Gmail address signup waits for a valid six-digit code before onboarding', async () => {
       setupOrgContextMock({ isAuthenticated: false });
-      mockSignUp.mockResolvedValueOnce({ sessionPresent: false }); // No active session yet
+      mockSignUp.mockResolvedValueOnce({ sessionPresent: false });
+      mockVerifyEmailCode.mockResolvedValueOnce({ error: 'The code is incorrect or expired.' }).mockResolvedValueOnce({});
 
       const onClose = vi.fn();
       render(
         <MemoryRouter initialEntries={['/']}>
           <AuthModal isOpen={true} onClose={onClose} initialMode="signup" />
+          <Routes>
+            <Route path="/" element={null} />
+            <Route path="/onboarding" element={<p>Set up your workspace</p>} />
+          </Routes>
         </MemoryRouter>
       );
 
       fireEvent.change(screen.getByLabelText(/Full Name/i), { target: { value: 'Rajesh Sharma' } });
-      fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'rajesh@sharma.in' } });
+      fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'rajesh@gmail.com' } });
       fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'securePass123' } });
 
       fireEvent.click(screen.getByRole('button', { name: /Create Verified Account/i }));
 
-      await waitFor(() => {
-        expect(mockSignUp).toHaveBeenCalled();
-        // Modal must NOT close and must display the verification message
-        expect(onClose).not.toHaveBeenCalled();
-        expect(screen.getByText(/Confirmation link sent to your email/i)).toBeInTheDocument();
-        // Zero organization creation attempted
-        expect(mockCreateOrganization).not.toHaveBeenCalled();
-      });
+      const code = await screen.findByLabelText('6-digit code');
+      const verify = screen.getByRole('button', { name: 'Verify code' });
+      expect(mockSignUp).toHaveBeenCalledWith('rajesh@gmail.com', 'securePass123', 'Rajesh Sharma');
+      expect(onClose).not.toHaveBeenCalled();
+      expect(mockCreateOrganization).not.toHaveBeenCalled();
+      expect(verify).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Resend in/ })).toBeDisabled();
+      fireEvent.paste(code, { clipboardData: { getData: () => '001 234' } });
+      expect(code).toHaveValue('001234');
+      fireEvent.click(verify);
+      expect(await screen.findByRole('alert')).toHaveTextContent('The code is incorrect or expired.');
+      expect(mockVerifyEmailCode).toHaveBeenNthCalledWith(1, 'rajesh@gmail.com', '001234');
+      expect(onClose).not.toHaveBeenCalled();
+      fireEvent.change(code, { target: { value: '654321' } });
+      fireEvent.click(verify);
+      expect(await screen.findByText('Set up your workspace')).toBeInTheDocument();
+      expect(mockVerifyEmailCode).toHaveBeenNthCalledWith(2, 'rajesh@gmail.com', '654321');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers a signup resend when password sign-in encounters an unverified email', async () => {
+      setupOrgContextMock({ isAuthenticated: false });
+      mockSignIn.mockResolvedValueOnce({ needsVerification: true });
+      mockSendEmailCode.mockResolvedValueOnce({});
+      render(<MemoryRouter><AuthModal isOpen onClose={vi.fn()} /></MemoryRouter>);
+      fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'rajesh@gmail.com' } });
+      fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'securePass123' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Sign In to Live Cloud' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Resend code' }));
+      expect(await screen.findByRole('status')).toHaveTextContent('Check your inbox for a fresh code.');
+      expect(mockSendEmailCode).toHaveBeenCalledWith('rajesh@gmail.com', 'signup');
+    });
+
+    it('offers an email sign-in code without asking for a password or creating an account', async () => {
+      setupOrgContextMock({ isAuthenticated: false });
+      mockSendEmailCode.mockResolvedValueOnce({});
+      const onClose = vi.fn();
+      render(<MemoryRouter><AuthModal isOpen onClose={onClose} /></MemoryRouter>);
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in with an email code' }));
+      expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'rajesh@gmail.com' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send sign-in code' }));
+      expect(await screen.findByLabelText('6-digit code')).toBeInTheDocument();
+      expect(mockSendEmailCode).toHaveBeenCalledWith('rajesh@gmail.com', 'signin');
+      expect(mockSignUp).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     });
   });
 
@@ -295,10 +342,10 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       );
 
       // Verify form elements rendered
-      expect(screen.getByText(/Set Up Your Distributor Organization/i)).toBeInTheDocument();
+      expect(screen.getByText(/Set up your business/i)).toBeInTheDocument();
 
       // Enter organization details
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'Sri Krishna Electricals' },
       });
       fireEvent.change(screen.getByLabelText(/GSTIN/i), {
@@ -351,7 +398,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
         </MemoryRouter>
       );
 
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'Nandi Electrical Agency' },
       });
       fireEvent.change(screen.getByLabelText(/GSTIN/i), {
@@ -370,7 +417,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       });
 
       // Inputs MUST be preserved
-      expect((screen.getByLabelText(/Distributor Business Name/i) as HTMLInputElement).value).toBe(
+      expect((screen.getByLabelText(/Business Name/i) as HTMLInputElement).value).toBe(
         'Nandi Electrical Agency'
       );
       expect((screen.getByLabelText(/Street \/ Shop \/ Warehouse Address/i) as HTMLInputElement).value).toBe(
@@ -416,7 +463,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
         </MemoryRouter>
       );
 
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'Apex Electricals' },
       });
       fireEvent.change(screen.getByLabelText(/GSTIN/i), {
@@ -489,7 +536,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       );
 
       expect(screen.getByTestId('dashboard-content')).toBeInTheDocument();
-      expect(screen.queryByText(/Set Up Your Distributor Organization/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Set up your business/i)).not.toBeInTheDocument();
     });
 
     it('11. Visiting /onboarding when authError is present renders recoverable error state and prevents duplicate org creation', () => {
@@ -513,7 +560,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
 
       expect(screen.getByText(/Unable to Verify Organizations/i)).toBeInTheDocument();
       expect(screen.getByText(/Failed to verify organization status: 503 Service Unavailable/i)).toBeInTheDocument();
-      expect(screen.queryByText(/Set Up Your Distributor Organization/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Set up your business/i)).not.toBeInTheDocument();
 
       const retryBtn = screen.getByRole('button', { name: /Retry Connection/i });
       fireEvent.click(retryBtn);
@@ -574,7 +621,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
       );
 
       // Business name
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'Venkata Power Distributors' },
       });
       fireEvent.change(screen.getByLabelText(/GSTIN/i), {
@@ -767,7 +814,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
         </MemoryRouter>
       );
 
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'No PAN Enterprises' },
       });
 
@@ -802,7 +849,7 @@ describe('ATLAS OS Organization Onboarding Flow & Routing Gating Suite', () => {
         </MemoryRouter>
       );
 
-      fireEvent.change(screen.getByLabelText(/Distributor Business Name/i), {
+      fireEvent.change(screen.getByLabelText(/Business Name/i), {
         target: { value: 'Govt Electrical Supply Undertaking' },
       });
 

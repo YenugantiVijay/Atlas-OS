@@ -4,6 +4,14 @@ import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, Pagi
 import { roundMoney } from '@/lib/money';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
+import type { ReceiptData } from '../../atlas-os-website/src/components/receipts/ReceiptSheet';
+
+export interface PaymentReceiptPrintData extends ReceiptData {
+  organizationId: string;
+  counterCopyAllowed: boolean;
+}
+
+export interface DailyReceiptTotal { method: PaymentMethod; count: number; amount: number }
 
 export function mapDbPaymentAllocation(row: any): PaymentAllocation {
   return {
@@ -34,6 +42,27 @@ export function mapDbPayment(row: any, allocations: PaymentAllocation[] = []): P
 }
 
 export const paymentsService = {
+  async getReceiptPrintData(orgId: string, paymentId: string, signal: AbortSignal): Promise<PaymentReceiptPrintData> {
+    if (!supabase) throw new Error('Cloud receipts are unavailable.');
+    const { data, error } = await supabase.rpc('get_payment_receipt_print_data', {
+      p_org_id: orgId, p_payment_id: paymentId,
+    }).abortSignal(signal);
+    if (error) throw new Error(error.code === 'PGRST202' ? 'Receipt printing is unavailable on this database.' : error.message);
+    if (data?.organizationId !== orgId || typeof data.counterCopyAllowed !== 'boolean' ||
+      typeof data.number !== 'string' || !Number.isFinite(Number(data.amount))) throw new Error('The database did not confirm this receipt.');
+    return { ...data, amount: Number(data.amount) };
+  },
+
+  async getDailyReceiptTotals(orgId: string, date: string, signal: AbortSignal): Promise<DailyReceiptTotal[]> {
+    if (!supabase) throw new Error('Cloud receipt totals are unavailable.');
+    const { data, error } = await supabase.rpc('get_daily_payment_receipt_totals', {
+      p_org_id: orgId, p_day: date,
+    }).abortSignal(signal);
+    if (error) throw new Error(error.code === 'PGRST202' ? 'Daily receipt totals are unavailable on this database.' : error.message);
+    if (!Array.isArray(data)) throw new Error('The database did not confirm daily receipt totals.');
+    return data.map((row) => ({ method: row.payment_method, count: Number(row.receipt_count), amount: Number(row.total) }));
+  },
+
   async getPaymentsPaginated(
     orgId: string,
     params: PaginationParams = {},

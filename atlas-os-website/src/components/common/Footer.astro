@@ -4,15 +4,14 @@ import Container from './Container.astro';
 import { FOOTER_SECTIONS } from '../../data/navigation';
 ---
 
-<footer class="bg-surface-secondary border-t border-border mt-auto pt-16 pb-12 text-content-primary">
+<footer class="bg-surface-secondary border-t border-border mt-auto py-9 sm:py-12 text-content-primary">
   <Container size="default">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-8 lg:gap-10 pb-12 border-b border-border">
+    <div class="site-footer-grid grid grid-cols-1 gap-x-7 gap-y-7 border-b border-border pb-8 sm:grid-cols-2">
       <!-- Brand & Mission Column -->
-      <div class="sm:col-span-2 lg:col-span-2 space-y-4">
-        <BrandLogo size="lg" />
+      <div class="site-footer-brand space-y-3 sm:col-span-2">
+        <BrandLogo size="md" />
         <p class="text-sm text-content-secondary leading-relaxed max-w-sm">
-          The AI-native business operating system for modern electrical, electronics, and hardware distributors.
-          Manage inventory, sales orders, GST invoices, and accounts receivable from one connected workspace.
+          Manage stock, sales, invoices, and payments in one workspace for shops, wholesalers, and distributors.
         </p>
 
         <div class="pt-2 space-y-2">
@@ -29,16 +28,16 @@ import { FOOTER_SECTIONS } from '../../data/navigation';
       <!-- Navigation Columns -->
       {
         FOOTER_SECTIONS.map((section) => (
-          <div class="space-y-4">
-            <h4 class="footer-heading text-[17px] sm:text-[18px] font-bold font-heading text-[#142B4D] tracking-tight">
+          <div class="min-w-0 space-y-2.5">
+            <h2 class="footer-heading font-semibold text-content-primary">
               {section.title}
-            </h4>
-            <ul class="space-y-2.5 text-[14.5px] sm:text-[15px]">
+            </h2>
+            <ul class="space-y-1">
               {section.links.map((link) => (
                 <li>
                   <a
                     href={link.href}
-                    class="footer-link text-content-secondary hover:text-brand-600 transition-all duration-150 hover:translate-x-1 inline-block py-0.5"
+                    class="footer-link inline-block py-1 text-content-secondary hover:text-brand-700 hover:underline"
                   >
                     {link.label}
                   </a>
@@ -51,15 +50,12 @@ import { FOOTER_SECTIONS } from '../../data/navigation';
     </div>
 
     <!-- Bottom Attribution & Disclosures -->
-    <div class="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-content-secondary">
+    <div class="pt-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-content-secondary">
       <div class="space-y-1 text-center sm:text-left">
         <p>© {new Date().getFullYear()} Atlas OS Technologies. All rights reserved.</p>
-        <p class="text-[11px] text-content-secondary/80">
-          Built for electrical, electronics, and hardware distributors, wholesalers, and retail trade counters.
-        </p>
       </div>
 
-      <div class="flex items-center gap-6">
+      <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
         <a href="/security" class="hover:text-brand-600 transition-colors">Security Architecture</a>
         <a href="/support" class="hover:text-brand-600 transition-colors">Help Center</a>
         <a href="/contact" class="hover:text-brand-600 transition-colors">Contact Sales</a>

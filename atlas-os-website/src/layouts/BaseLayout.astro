@@ -13,7 +13,7 @@ interface Props {
 
 const {
   title,
-  description = 'Atlas OS is the AI-native business operating system for electrical, electronics, and hardware distributors. One connected workspace for inventory, sales, invoicing, and reporting.',
+  description = 'Atlas OS connects inventory, sales, invoicing, and payments for shops, wholesalers, and distributors.',
   ogImage = '/favicon.svg',
   canonicalUrl = Astro.url.href,
   type = 'website',
@@ -67,7 +67,7 @@ const structuredData = {
     <title>{siteTitle}</title>
     <meta name="title" content={siteTitle} />
     <meta name="description" content={description} />
-    <meta name="keywords" content="Atlas OS, electrical distributor software, hardware inventory management, wholesale billing software, GST invoicing, B2B ERP India" />
+    <meta name="keywords" content="Atlas OS, small shop software, agri-input and fertilizer inventory, wholesale billing, GST invoicing, ERP India" />
     <meta name="author" content="Atlas OS Technologies" />
     <meta name="theme-color" content="#142B4D" />
 
@@ -119,5 +119,17 @@ const structuredData = {
 
     <!-- Footer -->
     <Footer />
+    <script>
+      if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const observer = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add('atlas-revealed');
+            observer.unobserve(entry.target);
+          }
+        }, { threshold: 0.12 });
+        document.querySelectorAll('[data-reveal]').forEach((element) => observer.observe(element));
+      }
+    </script>
   </body>
 </html>

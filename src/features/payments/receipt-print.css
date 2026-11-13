@@ -1,0 +1,11 @@
+.atlas-receipt-print-root { display: none; }
+
+@media print {
+  body:has(> .atlas-receipt-print-root) { display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body:has(> .atlas-receipt-print-root) > :not(.atlas-receipt-print-root) { display: none !important; }
+  .atlas-receipt-print-root { display: block !important; }
+  .atlas-receipt-print-root .atlas-receipt-sheet { gap: 4mm; }
+  .atlas-receipt-print-root .atlas-receipt { font-size: 9.5pt; padding: 4mm; break-inside: avoid; print-color-adjust: exact; }
+  .atlas-receipt-print-root .atlas-receipt__details { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .atlas-receipt-print-root .atlas-receipt p.atlas-receipt__message { white-space: normal; }
+}

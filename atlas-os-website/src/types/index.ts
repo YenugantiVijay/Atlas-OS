@@ -53,22 +53,13 @@ export interface IndustrySolution {
 }
 
 export interface PricingTier {
-  id: string;
+  id: 'starter' | 'professional' | 'enterprise-network';
   name: string;
-  tagline: string;
-  badge?: string;
-  statusText: string;
+  description: string;
   priceDisplay: string;
   billingPeriod: string;
-  description: string;
-  isFeatured: boolean;
-  features: {
-    name: string;
-    included: boolean;
-    note?: string;
-  }[];
-  ctaText: string;
-  ctaHref: string;
+  isFeatured?: boolean;
+  features: string[];
 }
 
 export interface FaqItem {
