@@ -107,15 +107,44 @@ test('the home introduction and scroll motion respect reduced motion', async ({ 
   const heading = page.getByRole('heading', { level: 1 });
   const workflow = page.getByText('Connected Business Workflow', { exact: true }).locator('..');
   await expect(heading).toHaveCSS('animation-name', 'atlas-enter');
-  await expect(workflow).not.toHaveClass(/atlas-revealed/);
-  await workflow.scrollIntoViewIfNeeded();
+  await expect(page.locator('html')).toHaveCSS('scroll-behavior', 'smooth');
+  await expect(workflow).toHaveClass(/atlas-pending/);
+  await page.mouse.move(700, 350);
+  await page.mouse.wheel(0, 360);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await workflow.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await expect(workflow).toHaveClass(/atlas-revealed/);
+  await expect(workflow).toHaveCSS('animation-name', 'atlas-scroll-reveal');
+  await expect(workflow).toHaveCSS('opacity', '1');
+  const progress = page.locator('.atlas-scroll-progress');
+  if (await page.evaluate(() => CSS.supports('animation-timeline', 'scroll(root block)'))) {
+    await expect.poll(() => progress.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)).toBeGreaterThan(0);
+  }
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await expect(workflow).toHaveClass(/atlas-revealed/);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
   await expect(heading).toHaveCSS('animation-name', 'none');
-  await workflow.scrollIntoViewIfNeeded();
-  await expect(workflow).toBeVisible();
+  await expect(page.locator('html')).toHaveCSS('scroll-behavior', 'auto');
+  await expect(progress).toBeHidden();
+  await expect(workflow).toHaveCSS('opacity', '1');
   await expect(workflow).not.toHaveClass(/atlas-revealed/);
+});
+
+test('mobile cards reveal as they enter the screen and anchors clear the header', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const card = page.getByRole('heading', { name: 'Understand Your Business' }).locator('..').locator('..');
+  await expect(card).toHaveClass(/atlas-pending/);
+  await card.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await expect(card).toHaveClass(/atlas-revealed/);
+  await expect(card).toHaveCSS('--atlas-reveal-distance', '12px');
+  await expect(card).toHaveCSS('opacity', '1');
+
+  await page.goto('/solutions#agricultural-inputs');
+  await expect.poll(() => page.locator('#agricultural-inputs').evaluate((target) => {
+    const offset = target.getBoundingClientRect().top - document.getElementById('site-header')!.getBoundingClientRect().bottom;
+    return offset >= 0 && offset <= 32;
+  })).toBe(true);
 });
 
 test('receipt template preview updates branding, layout and copies on mobile', async ({ page }) => {

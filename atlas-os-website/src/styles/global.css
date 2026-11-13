@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
     color: #172B4D;
     background-color: #FFFFFF;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -124,14 +124,66 @@
 @media (max-width: 380px) { .site-header-cta { padding-inline: 12px; } }
 
 @keyframes atlas-enter {
-  from { opacity: .3; transform: translateY(12px); }
+  from { opacity: .2; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+@keyframes atlas-scroll-reveal {
+  from { opacity: 0; transform: translateY(var(--atlas-reveal-distance)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.atlas-scroll-progress { display: none; }
+
 @media (prefers-reduced-motion: no-preference) {
-  [data-enter], .atlas-revealed { animation: atlas-enter 470ms cubic-bezier(.2,.72,.32,1) backwards; }
+  html { scroll-behavior: smooth; }
+  [data-enter] { animation: atlas-enter 520ms cubic-bezier(.2,.72,.32,1) backwards; }
   [data-enter][data-delay="1"] { animation-delay: 70ms; }
   [data-enter][data-delay="2"] { animation-delay: 130ms; }
   [data-enter][data-delay="3"] { animation-delay: 190ms; }
+
+  .atlas-pending, .atlas-revealed {
+    --atlas-reveal-distance: 20px;
+    --atlas-reveal-delay: 0ms;
+  }
+
+  .atlas-pending:not(:focus-within, :target) { opacity: 0; }
+  .atlas-revealed:not(:focus-within, :target) {
+    animation: atlas-scroll-reveal 540ms cubic-bezier(.2,.72,.32,1) var(--atlas-reveal-delay) backwards;
+  }
+
+  @media (min-width: 768px) {
+    [data-reveal-group] > :nth-child(3n+2) { --atlas-reveal-delay: 70ms; }
+    [data-reveal-group] > :nth-child(3n+3) { --atlas-reveal-delay: 140ms; }
+  }
+
+  @media (max-width: 767px) {
+    .atlas-pending, .atlas-revealed { --atlas-reveal-distance: 12px; }
+  }
+
+  @supports (animation-timeline: scroll(root block)) {
+    .atlas-scroll-progress {
+      display: block;
+      position: absolute;
+      inset: auto 0 0;
+      block-size: 2px;
+      pointer-events: none;
+      background: linear-gradient(90deg, #14b8a6, #0f766e);
+      transform-origin: left;
+      animation: atlas-scroll-progress 1s linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+}
+
+@keyframes atlas-scroll-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media print {
+  .atlas-pending, .atlas-revealed, [data-enter] { opacity: 1 !important; animation: none !important; }
+  .atlas-scroll-progress { display: none !important; }
 }
 
 /* Reduced motion preference */
