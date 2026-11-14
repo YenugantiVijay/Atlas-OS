@@ -2185,7 +2185,7 @@ class StorageEngine {
 
     // Total inventory valuation
     const totalStockValue = products.reduce(
-      (sum, p) => sum + (p.currentStock || 0) * p.purchaseCost,
+      (sum, p) => sum + Math.max(p.currentStock ?? 0, 0) * p.purchaseCost,
       0
     );
 

@@ -62,14 +62,14 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
 
     const recon = await reconciliationService.reconcileFinancials(orgA, true);
 
-    expect(recon.status).toBe('BALANCED');
     expect(recon.varianceAmount).toBe(0);
     expect(recon.totalPaid).toBe(5000);
     expect(recon.totalOutstanding).toBe(invoice1.totalAmount - 5000);
     expect(recon.totalInvoiced).toBe(invoice1.totalAmount);
     expect(recon.discrepancies.length).toBe(0);
     expect(recon.asOf).toBeDefined();
-    expect(recon.formattedAsOf).toBeDefined();
+    expect(recon.totalAllocated).toBe(5000);
+    expect(recon.receiptIssueCount).toBe(0);
   });
 
   it('preserves strict tenant isolation: never mixes records across organizations', async () => {
@@ -135,7 +135,7 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
     expect(reconA.totalInvoiced).not.toBe(reconB.totalInvoiced);
   });
 
-  it('verifies inventory reconciliation matching physical stock against ledger history', async () => {
+  it('uses the same movement-backed stock as the product catalog', async () => {
     const product = storage.createProduct(
       orgA,
       {
@@ -153,9 +153,9 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
     );
 
     // Initial state: perfectly balanced
-    const recon1 = await reconciliationService.reconcileInventory(orgA, true);
-    expect(recon1.status).toBe('VERIFIED');
-    expect(recon1.discrepancies.length).toBe(0);
+    const recon1 = await reconciliationService.getStockLedgerSummary(orgA, true);
+    expect(recon1.productCount).toBe(1);
+    expect(recon1.catalogCostValue).toBe(2000);
 
     // Record legitimate stock adjustment via ledger
     storage.adjustStock(
@@ -166,8 +166,8 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'
     );
 
-    const recon2 = await reconciliationService.reconcileInventory(orgA, true);
-    expect(recon2.status).toBe('VERIFIED');
+    const recon2 = await reconciliationService.getStockLedgerSummary(orgA, true);
+    expect(recon2.catalogCostValue).toBe(1900);
     expect(storage.getProductById(orgA, product.id)?.currentStock).toBe(95);
   });
 });

@@ -29,7 +29,7 @@ import { ReconciliationCard } from '@/features/dashboard/ReconciliationCard';
 import { QuickStartGuide } from '@/features/onboarding/QuickStartGuide';
 
 export const DashboardPage: React.FC = () => {
-  const { currentOrg, isMockAuth, currentRole, eligibility } = useOrg();
+  const { currentOrg, isMockAuth, currentRole, eligibility, currentUser } = useOrg();
   const canSeeFinancialBalances = hasPermission(currentRole, 'reports:financial');
   const { check } = useActionPermission();
   const navigate = useNavigate();
@@ -227,6 +227,7 @@ export const DashboardPage: React.FC = () => {
       {currentOrg && (
         <ReconciliationCard
           orgId={currentOrg.id}
+          userId={currentUser?.id}
           isMockAuth={isMockAuth}
           canSeeFinancialBalances={canSeeFinancialBalances}
         />
@@ -325,7 +326,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-xs text-content-secondary mt-3 pt-3 border-t border-border">
-            <span>Calculated from active cost ledger</span>
+            <span>Recorded stock at current catalog cost</span>
           </div>
         </Card>
       </div>

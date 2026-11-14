@@ -11,14 +11,11 @@
 
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import { Role, Product, Invoice, SalesOrder, Customer } from '@/types';
-import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
-import { isInvoiceOverdue } from '@/lib/dates';
+import { Role, SalesOrder } from '@/types';
+import { formatCurrency, fromPaise, toPaise } from '@/lib/money';
 import { hasPermission } from '@/lib/permissions';
-import { mapDbCustomer } from './customers.service';
-import { mapDbInvoice } from './invoices.service';
 import { mapDbSalesOrder } from './orders.service';
-import { mapDbProduct } from './products.service';
+import { reconciliationService } from './reconciliation.service';
 
 export interface CitationRecord {
   type: 'invoice' | 'order' | 'product' | 'customer';
@@ -99,137 +96,77 @@ export const aiAssistantService = {
         };
       }
 
-      let invoices: Invoice[] = [];
-      let customers: Customer[] = [];
-
-      if (isMockAuth) {
-        invoices = storage.getInvoices(orgId);
-        customers = storage.getCustomers(orgId);
-      } else {
-        if (!supabase) throw new Error('Cloud backend is not configured.');
-        const [invRes, custRes] = await Promise.all([
-          supabase.from('invoices').select('*').eq('organization_id', orgId),
-          supabase.from('customers').select('*').eq('organization_id', orgId),
-        ]);
-        if (invRes.error) throw new Error(`Failed to load invoices: ${invRes.error.message}`);
-        if (custRes.error) throw new Error(`Failed to load customers: ${custRes.error.message}`);
-        invoices = (invRes.data || []).map((row) => mapDbInvoice(row));
-        customers = (custRes.data || []).map(mapDbCustomer);
-      }
-
-      const overdueInvoices = invoices.filter((inv) => {
-        const bal = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
-        return isInvoiceOverdue(inv.dueDate) && bal > 0 && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
-      });
-
-      const citations: CitationRecord[] = overdueInvoices.map((inv) => ({
-        type: 'invoice',
-        id: inv.id,
-        label: `Invoice ${inv.invoiceNumber}`,
-        url: `/invoices?search=${encodeURIComponent(inv.invoiceNumber)}`,
-        detail: `Overdue by ${calculateInvoiceBalance(inv.totalAmount, inv.totalPaid)} (Due ${inv.dueDate})`,
-      }));
-
-      const totalOverdue = overdueInvoices.reduce(
-        (sum, inv) => sum + calculateInvoiceBalance(inv.totalAmount, inv.totalPaid),
-        0
-      );
-
-      const calculations: CalculationStep[] = [
-        {
-          label: 'Total Overdue Receivables',
-          formula: 'SUM(invoice.total_amount - invoice.total_paid) WHERE due_date < TODAY AND status != PAID',
-          value: formatCurrency(totalOverdue),
-          explanation: `Calculated from ${overdueInvoices.length} overdue invoices in organization ledger.`,
-        },
-      ];
-
-      if (overdueInvoices.length === 0) {
+      const snapshot = await reconciliationService.reconcileFinancials(orgId, isMockAuth);
+      if (snapshot.discrepancyCount > 0 || snapshot.receiptIssueCount > 0) {
         return {
-          answer: 'All customer tax invoices are within agreed credit terms. There are currently zero overdue receivables recorded.',
+          answer: 'Review the financial discrepancies in the dashboard before relying on receivables totals.',
           citations: [],
-          calculations,
-          confidence: 'GROUNDED',
+          confidence: 'REFUSED_UNSUPPORTED',
+          refusalReason: 'FINANCIAL_DISCREPANCIES',
         };
       }
 
-      const customerNames = new Set(
-        overdueInvoices.map((inv) => customers.find((c) => c.id === inv.customerId)?.name || 'Contractor')
-      );
-
       return {
-        answer: `Identified ${overdueInvoices.length} overdue invoice(s) totaling ${formatCurrency(totalOverdue)} across ${customerNames.size} customer account(s). All figures are computed net of recorded payment receipts.`,
-        citations,
-        calculations,
+        answer: snapshot.overdueCount === 0
+          ? 'There are zero overdue receivables recorded.'
+          : `Identified ${snapshot.overdueCount} overdue invoice(s) totaling ${formatCurrency(snapshot.overdueTotal)}.`,
+        citations: snapshot.overdue.map((invoice) => ({
+          type: 'invoice',
+          id: invoice.id,
+          label: `Invoice ${invoice.invoiceNumber}`,
+          url: `/invoices?search=${encodeURIComponent(invoice.invoiceNumber)}`,
+          detail: `${formatCurrency(invoice.outstanding)} outstanding (due ${invoice.dueDate})`,
+        })),
+        calculations: [{
+          label: 'Total Overdue Receivables',
+          formula: 'SUM(outstanding from applicable payment allocations) for overdue issued and partially paid invoices',
+          value: formatCurrency(snapshot.overdueTotal),
+          explanation: `Calculated from all ${snapshot.overdueCount} overdue invoices. Showing ${snapshot.overdue.length} references.`,
+        }],
         confidence: 'GROUNDED',
       };
     }
 
-    // 3. Stock Level & Low-Stock Replenishment
     if (q.includes('stock') || q.includes('reorder') || q.includes('inventory') || q.includes('replenish')) {
-      let products: Product[] = [];
-      if (isMockAuth) {
-        products = storage.getProducts(orgId);
-      } else {
-        if (!supabase) throw new Error('Cloud backend is not configured.');
-        const res = await supabase.from('products').select('*').eq('organization_id', orgId);
-        if (res.error) throw new Error(`Failed to load products: ${res.error.message}`);
-        products = (res.data || []).map((row) => mapDbProduct(row, Number(row.current_stock ?? 0)));
-      }
-
-      const lowStock = products.filter((p) => p.isActive && (p.currentStock ?? 0) <= p.reorderThreshold);
-      const activeProducts = products.filter((p) => p.isActive);
-
-      const citations: CitationRecord[] = lowStock.map((p) => ({
-        type: 'product',
-        id: p.id,
-        label: `${p.name} (${p.sku})`,
-        url: `/products?search=${encodeURIComponent(p.sku)}`,
-        detail: `Current: ${p.currentStock ?? 0} ${p.uom} (Threshold: ${p.reorderThreshold} ${p.uom})`,
-      }));
-
-      const totalValue = activeProducts.reduce((sum, p) => sum + (p.currentStock ?? 0) * (p.purchaseCost || 0), 0);
-
-      const calculations: CalculationStep[] = [
-        {
-          label: 'Total Inventory Valuation',
-          formula: 'SUM(product.current_stock * product.purchase_cost) WHERE is_active = true',
-          value: formatCurrency(totalValue),
-          explanation: `Computed across ${activeProducts.length} active catalog SKUs.`,
-        },
-      ];
-
-      if (lowStock.length === 0) {
-        return {
-          answer: `All ${activeProducts.length} active electrical SKUs are healthy with stock above configured reorder thresholds. Total catalog inventory valuation is ${formatCurrency(totalValue)}.`,
-          citations: [],
-          calculations,
-          confidence: 'GROUNDED',
-        };
-      }
-
-      const writeProposal: ConsequentialWriteProposal = {
-        proposalId: `prop_${Date.now()}`,
-        type: 'REPLENISHMENT_PROPOSAL',
-        title: 'Replenishment Suggestion',
-        impactSummary: `Suggests replenishment quantities for ${lowStock.length} low-stock SKU(s). Confirming this suggestion only records an audit event; it does not create a purchase requisition or change stock.`,
-        roleRequired: ['owner', 'admin', 'inventory'],
-        payload: {
-          items: lowStock.map((p) => ({
-            productId: p.id,
-            sku: p.sku,
-            name: p.name,
-            qty: Math.max(20, Math.ceil(p.reorderThreshold * 2)),
-            uom: p.uom,
-          })),
-        },
-      };
+      const snapshot = await reconciliationService.getStockLedgerSummary(orgId, isMockAuth);
+      const canSeeCosts = hasPermission(userRole, 'supplier-prices:read');
+      const value = canSeeCosts ? snapshot.catalogCostValue : null;
+      const valuation = value === null ? '' : ` Inventory at catalog cost is ${formatCurrency(value)}.`;
+      const stockAnswer = snapshot.activeProductCount === 0
+        ? 'No active products are recorded.'
+        : `${snapshot.lowStockCount} of ${snapshot.activeProductCount} active SKUs are at or below their reorder threshold.`;
+      const proposalRoles: Role[] = ['owner', 'admin', 'inventory'];
+      const proposedWrite: ConsequentialWriteProposal | undefined =
+        snapshot.lowStock.length > 0 && proposalRoles.includes(userRole) ? {
+          proposalId: `prop_${Date.now()}`,
+          type: 'REPLENISHMENT_PROPOSAL',
+          title: 'Replenishment Suggestion',
+          impactSummary: `Suggests replenishment for ${snapshot.lowStock.length} of ${snapshot.lowStockCount} low-stock SKU(s). Confirmation records an audit event only.`,
+          roleRequired: proposalRoles,
+          payload: {
+            items: snapshot.lowStock.map((p) => ({
+              productId: p.id, sku: p.sku, name: p.name, uom: p.uom,
+              qty: Math.max(20, Math.ceil(p.reorderThreshold * 2)),
+            })),
+          },
+        } : undefined;
 
       return {
-        answer: `There are ${lowStock.length} active electrical SKU(s) at or below their reorder threshold. Total inventory valuation at cost is ${formatCurrency(totalValue)}. A replenishment suggestion is prepared below for review.`,
-        citations,
-        calculations,
-        proposedWrite: writeProposal,
+        answer: stockAnswer + valuation,
+        citations: snapshot.lowStock.map((p) => ({
+          type: 'product',
+          id: p.id,
+          label: `${p.name} (${p.sku})`,
+          url: `/products?search=${encodeURIComponent(p.sku)}`,
+          detail: `Current: ${p.quantity} ${p.uom} (Threshold: ${p.reorderThreshold})`,
+        })),
+        calculations: value === null ? undefined : [{
+          label: 'Inventory at Catalog Cost',
+          formula: 'SUM(MAX(ledger_quantity, 0) × catalog_purchase_cost)',
+          value: formatCurrency(value),
+          explanation: `Current positive ledger quantities at catalog cost. Showing ${snapshot.lowStock.length} of ${snapshot.lowStockCount} low-stock references.`,
+        }],
+        proposedWrite,
         confidence: 'GROUNDED',
       };
     }
@@ -241,13 +178,16 @@ export const aiAssistantService = {
         orders = storage.getSalesOrders(orgId);
       } else {
         if (!supabase) throw new Error('Cloud backend is not configured.');
-        const res = await supabase.from('sales_orders').select('*').eq('organization_id', orgId);
+        const res = await supabase.from('sales_orders').select('*', { count: 'exact' }).eq('organization_id', orgId);
         if (res.error) throw new Error(`Failed to load sales orders: ${res.error.message}`);
-        orders = (res.data || []).map((row) => mapDbSalesOrder(row));
+        if (!Array.isArray(res.data) || res.count !== res.data.length) {
+          throw new Error('A complete sales order summary is unavailable.');
+        }
+        orders = res.data.map((row) => mapDbSalesOrder(row));
       }
 
       const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
-      const totalOrderValue = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+      const totalOrderValue = fromPaise(activeOrders.reduce((sum, o) => sum + toPaise(o.totalAmount), 0));
 
       const citations: CitationRecord[] = activeOrders.slice(0, 5).map((o) => ({
         type: 'order',
@@ -262,7 +202,7 @@ export const aiAssistantService = {
           label: 'Total Active Sales Order Volume',
           formula: 'SUM(sales_orders.total_amount) WHERE status != CANCELLED',
           value: formatCurrency(totalOrderValue),
-          explanation: `Aggregated across ${activeOrders.length} confirmed and fulfilled sales orders.`,
+          explanation: `Aggregated across ${activeOrders.length} non-cancelled sales orders.`,
         },
       ];
 
