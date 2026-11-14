@@ -20,3 +20,13 @@ Before any milestone is declared complete, the following gates must be met:
 - Atomic order confirmation: checks available stock, deducts via movements, prevents double confirmation.
 - Payment allocation: prevents overpayments, calculates remaining receivables accurately.
 - Multi-tenant boundary verification: confirms queries with Org A credentials cannot leak Org B records.
+
+## 3. Hosted migration history
+
+From the intended release checkout, export a fresh list of applied migrations for the target project using the [Supabase Management API migration history endpoint](https://supabase.com/docs/reference/api/v1-list-migration-history) or the Supabase list-migrations connector. Keep the project reference and capture time with the release evidence. Save only the migration history rows as JSON, then run:
+
+```sh
+npm run check:migrations -- /path/to/staging-migration-history.json
+```
+
+The checker reads the release checkout and supplied history. It fails on missing, unexpected, duplicate, malformed, or out-of-order entries. It accepts the historical naming conventions where Supabase recorded a timestamp different from the filename prefix. CI tests the checker against fixtures and the current checked-in filenames. Hosted release verification uses a fresh export because CI does not connect to a hosted database. Record the result with the release commit. Migration history confirms recorded application order. Check deployed SQL definitions and run the staging workflow tests to verify runtime behavior.

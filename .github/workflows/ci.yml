@@ -51,6 +51,9 @@ jobs:
       - name: Repository Hygiene & Secret Exposure Gate
         run: npm run audit:repository
 
+      - name: Test migration history comparison
+        run: node --test scripts/check-migration-parity.test.mjs
+
       - name: ESLint & React Hooks Check
         run: npm run lint
 
