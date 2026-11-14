@@ -14,7 +14,7 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await expect(page).toHaveTitle(/ATLAS OS/);
     await expect(page.getByRole('heading', { name: 'Sri Lakshmi Electrical Distributors' })).toBeVisible();
     await expect(page.getByText("Today's Sales")).toBeVisible();
-    await expect(page.getByText('Outstanding Receivables')).toBeVisible();
+    await expect(page.getByText('Outstanding Receivables', { exact: true })).toBeVisible();
     await expect(page.getByText('Total Orders')).toBeVisible();
     await expect(page.getByText('Inventory Valuation')).toBeVisible();
   });
@@ -53,19 +53,19 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await page.getByRole('link', { name: /ATLAS AI Assistant/ }).click();
     await expect(page).toHaveURL(/.*#\/ai/);
     await expect(page.getByRole('heading', { name: 'ATLAS AI Assistant' })).toBeVisible();
-    await page.click("text=Summarize today's sales & orders");
-    await expect(page.getByText('Operational Sales Summary for Sri Lakshmi Electrical Distributors')).toBeVisible({ timeout: 5000 });
+    await page.click('text=Summarize active orders and sales');
+    await expect(page.getByText(/Found \d+ total orders/)).toBeVisible({ timeout: 5000 });
   });
 
-  test('verifies AI replenishment suggests purchase requisition proposal without direct stock inflation', async ({ page }) => {
+  test('verifies AI labels replenishment as an audit-only suggestion', async ({ page }) => {
     await page.getByRole('link', { name: /ATLAS AI Assistant/ }).click();
     await expect(page).toHaveURL(/.*#\/ai/);
     await page.click('text=Low-stock reorder suggestions');
-    await expect(page.getByText('Generate Purchase Requisition Proposal')).toBeVisible({ timeout: 5000 });
-    const approveBtn = page.getByRole('button', { name: 'Approve Requisition Proposal' });
-    await expect(approveBtn).toBeVisible();
-    await approveBtn.click();
-    await expect(page.getByRole('heading', { name: 'Requisition Proposal Approved' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Replenishment Suggestion', { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Review & Log Suggestion' }).click();
+    await expect(page.getByText(/No purchase requisition will be created/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Log Suggestion', exact: true }).click();
+    await expect(page.getByText(/No purchase requisition was created/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('verifies dashboard charts and server-side pagination controls across product catalog', async ({ page }) => {

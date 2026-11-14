@@ -86,15 +86,15 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
 
   return (
     <div className="rounded-2xl border border-teal-200/80 bg-gradient-to-r from-teal-50/50 via-white to-slate-50 p-4 sm:p-5 shadow-xs transition-all">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-start justify-between gap-3 sm:items-center">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div className="p-2 rounded-xl bg-teal-600 text-white shadow-xs">
             <Sparkles className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold text-navy-800">Fast-Track Setup Guide</h3>
-              <Badge variant="teal" size="sm">
+              <Badge variant="teal" size="sm" className="min-w-0 whitespace-normal">
                 Indian Electrical Retail & Distribution
               </Badge>
             </div>
@@ -107,7 +107,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+          className="shrink-0 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
           aria-label={isExpanded ? 'Collapse Quick Start' : 'Expand Quick Start'}
         >
           {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -167,14 +167,14 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                 </p>
               </div>
 
-              <div className="mt-3 pt-2 border-t border-teal-200/50 flex gap-2">
+              <div className="mt-3 pt-2 border-t border-teal-200/50 flex flex-col gap-2 md:flex-row">
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={handleSeedCatalog}
                   disabled={isSeeding}
                   leftIcon={<PackagePlus className="w-3.5 h-3.5" />}
-                  className="flex-1 text-xs h-7 bg-teal-600 hover:bg-teal-700 text-white"
+                  className="w-full text-xs h-7 bg-teal-600 hover:bg-teal-700 text-white md:w-auto md:flex-1"
                 >
                   {isSeeding ? 'Seeding...' : '1-Click Starter SKUs'}
                 </Button>
@@ -184,7 +184,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                     size="sm"
                     onClick={onOpenImportModal}
                     leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" />}
-                    className="text-xs h-7 border-teal-300 bg-white"
+                    className="w-full text-xs h-7 border-teal-300 bg-white md:w-auto"
                   >
                     Import Excel
                   </Button>
@@ -203,13 +203,13 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                   Open Retail Counter for fast OTC billing or create a B2B contractor tax invoice.
                 </p>
               </div>
-              <div className="mt-3 pt-2 border-t border-slate-100 flex gap-2">
+              <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-2 md:flex-row">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => navigate('/pos')}
                   rightIcon={<ArrowRight className="w-3 h-3" />}
-                  className="flex-1 text-xs h-7 text-navy-800"
+                  className="w-full text-xs h-7 text-navy-800 md:w-auto md:flex-1"
                 >
                   Retail Counter
                 </Button>
@@ -217,7 +217,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                   variant="outline"
                   size="sm"
                   onClick={() => navigate('/invoices')}
-                  className="text-xs h-7"
+                  className="w-full text-xs h-7 md:w-auto"
                 >
                   Invoices
                 </Button>

@@ -122,7 +122,7 @@ export const DashboardPage: React.FC = () => {
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 border border-white/10 p-5 sm:p-6 md:p-7 text-white shadow-sm">
         {/* Subtle decorative radial teal accent */}
         <div
-          className="pointer-events-none absolute -right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
+          className="pointer-events-none absolute right-0 sm:-right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
           aria-hidden="true"
         />
 
