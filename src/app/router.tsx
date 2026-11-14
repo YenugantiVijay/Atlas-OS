@@ -149,7 +149,14 @@ export const router = createHashRouter([
           </RequirePermission>
         ),
       },
-      { path: 'integrations', element: <IntegrationsPage /> },
+      {
+        path: 'integrations',
+        element: (
+          <RequirePermission action="org:manage">
+            <IntegrationsPage />
+          </RequirePermission>
+        ),
+      },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
