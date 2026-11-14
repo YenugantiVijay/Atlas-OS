@@ -1,10 +1,8 @@
 /**
  * ATLAS OS — India Compliance & GST Ecosystem Service
  *
- * Implements:
- * 1. GST E-Invoice (NIC Schema v1.03) readiness validation and JSON payload generation.
- * 2. E-Way Bill (EWB) statutory ₹50,000 threshold checking and Part A/B payload preparation.
- * 3. Safe sandbox simulation state (strictly avoids live external network calls).
+ * Provides sandbox-only payload drafting helpers. These checks do not determine
+ * statutory applicability, validate data with NIC, or file documents.
  */
 
 import { Organization, Customer, Invoice } from '@/types';
@@ -75,17 +73,17 @@ export interface NicEInvoicePayload {
 }
 
 export interface EInvoiceValidationResult {
-  eligible: boolean;
-  compliant: boolean;
+  eligible: boolean | null;
+  fieldsComplete: boolean;
   missingFields: string[];
   payload?: NicEInvoicePayload;
   reason?: string;
 }
 
 export interface EWayBillValidationResult {
-  required: boolean;
+  required: boolean | null;
   thresholdExceeded: boolean;
-  compliant: boolean;
+  fieldsComplete: boolean;
   missingFields: string[];
   payload?: {
     supplyType: 'O'; // Outward
@@ -108,7 +106,7 @@ export interface EWayBillValidationResult {
 
 function formatNicDate(dateStr: string): string {
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '01/04/2026';
+  if (isNaN(d.getTime())) return '';
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
@@ -117,7 +115,7 @@ function formatNicDate(dateStr: string): string {
 
 export const indiaComplianceService = {
   /**
-   * Validates invoice against NIC E-Invoice Schema v1.03 requirements.
+   * Checks source fields needed for a draft; it does not perform official NIC validation.
    */
   validateEInvoiceReadiness(
     org: Organization,
@@ -127,28 +125,34 @@ export const indiaComplianceService = {
     const missingFields: string[] = [];
 
     // Seller checks
-    if (!org.gstin || org.gstin.trim().length !== 15) {
+    if (!org.gstin || !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/.test(org.gstin.trim())) {
       missingFields.push('Seller GSTIN (must be a valid 15-character GSTIN)');
     }
-    if (!org.name) missingFields.push('Seller Legal Name');
-    if (!org.pincode) missingFields.push('Seller PIN Code');
+    if (!org.legalName) missingFields.push('Seller Legal Name');
+    if (!org.addressLine1) missingFields.push('Seller Address');
+    if (!org.city) missingFields.push('Seller Location');
+    if (!org.pincode || !/^\d{6}$/.test(org.pincode)) missingFields.push('Seller PIN Code (6 digits)');
 
-    // Buyer checks (E-Invoicing strictly applies to B2B where buyer is registered)
-    if (!customer?.gstin || customer.gstin.trim().length !== 15) {
+    // The customer's GSTIN identifies a B2B candidate, but taxpayer turnover and exemptions are unavailable here.
+    if (!customer?.gstin || !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/.test(customer.gstin.trim())) {
       return {
         eligible: false,
-        compliant: false,
+        fieldsComplete: false,
         missingFields: ['Buyer GSTIN is required for B2B e-Invoicing. Unregistered/B2C sales are exempt.'],
-        reason: 'Invoice recipient is not a registered GST taxpayer (B2C sale). E-invoicing applies strictly to B2B transactions under GST Rule 48(4).',
+        reason: 'A buyer GSTIN is required for this B2B payload. Confirm transaction classification and current e-invoice applicability separately.',
       };
     }
 
     // Document checks
     if (!invoice.invoiceNumber) missingFields.push('Invoice Number');
     if (!invoice.invoiceDate) missingFields.push('Invoice Date');
+    if (!formatNicDate(invoice.invoiceDate)) missingFields.push('Valid Invoice Date');
     if (!invoice.items || invoice.items.length === 0) {
       missingFields.push('Line items (at least 1 line item required)');
     }
+    if (!customer.billingAddress && !customer.deliveryAddress) missingFields.push('Buyer Address');
+    missingFields.push('Buyer Location (not available on the customer profile)');
+    missingFields.push('Buyer PIN Code (not available on the customer profile)');
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
     const buyerStateCode = (customer.gstin || '36').substring(0, 2);
@@ -163,15 +167,20 @@ export const indiaComplianceService = {
 
     (invoice.items || []).forEach((item, idx) => {
       const itemNo = idx + 1;
-      const hsn = (item.hsnCode || '8544').trim();
-      if (hsn.length < 4) {
-        missingFields.push(`Item ${itemNo} (${item.productName || 'Line'}): HSN code must be at least 4 digits under Indian GST.`);
+      const hsn = (item.hsnCode || '').trim();
+      if (!/^\d{4,8}$/.test(hsn)) {
+        missingFields.push(`Item ${itemNo} (${item.productName || 'Line'}): provide a 4-to-8 digit HSN code.`);
       }
 
-      const qty = Number(item.quantity || 1);
-      const unitPrice = Number(item.unitPrice || 0);
-      const taxRate = Number(item.taxRate || 18);
-      const discount = Number(item.discountPercent || 0);
+      const qty = Number(item.quantity);
+      const unitPrice = Number(item.unitPrice);
+      const taxRate = Number(item.taxRate);
+      const discount = Number(item.discountPercent);
+      if (!Number.isFinite(qty) || qty <= 0) missingFields.push(`Item ${itemNo}: quantity must be greater than zero.`);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) missingFields.push(`Item ${itemNo}: unit price must be non-negative.`);
+      if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) missingFields.push(`Item ${itemNo}: provide a valid GST rate.`);
+      if (!Number.isFinite(discount) || discount < 0 || discount > 100) missingFields.push(`Item ${itemNo}: provide a valid discount percentage.`);
+      if (!item.productName) missingFields.push(`Item ${itemNo}: product description is required.`);
 
       const grossAmt = Number((qty * unitPrice).toFixed(2));
       const discAmt = Number(((grossAmt * discount) / 100).toFixed(2));
@@ -197,11 +206,11 @@ export const indiaComplianceService = {
 
       itemList.push({
         ItemNo: itemNo,
-        PrdDesc: (item.productName || 'Electrical Component').substring(0, 100),
+        PrdDesc: item.productName.substring(0, 100),
         IsServc: 'N',
         HsnCd: hsn,
         Qty: qty,
-        Unit: item.uom ? item.uom.substring(0, 3).toUpperCase() : 'NOS',
+        Unit: item.uom.substring(0, 3).toUpperCase(),
         UnitPrice: unitPrice,
         TotAmt: grossAmt,
         GstRt: taxRate,
@@ -214,10 +223,10 @@ export const indiaComplianceService = {
 
     if (missingFields.length > 0) {
       return {
-        eligible: true,
-        compliant: false,
+        eligible: null,
+        fieldsComplete: false,
         missingFields,
-        reason: 'Invoice is missing mandatory statutory fields required by the NIC e-Invoice schema.',
+        reason: 'A complete payload draft cannot be built from available profile data. Legal eligibility and filing status are not determined here.',
       };
     }
 
@@ -239,19 +248,19 @@ export const indiaComplianceService = {
       },
       SellerDtls: {
         Gstin: org.gstin || '',
-        LglNm: org.name,
-        Addr1: org.addressLine1 || 'Main Road',
-        Loc: org.city || 'Commercial Hub',
-        Pin: Number(org.pincode) || 500001,
+        LglNm: org.legalName || '',
+        Addr1: org.addressLine1 || '',
+        Loc: org.city || '',
+        Pin: Number(org.pincode) || 0,
         Stcd: sellerStateCode,
       },
       BuyerDtls: {
         Gstin: customer.gstin,
         LglNm: customer.name,
         Pos: buyerStateCode,
-        Addr1: customer.billingAddress || customer.deliveryAddress || 'Market Area',
-        Loc: 'Local',
-        Pin: 500001,
+        Addr1: customer.billingAddress || customer.deliveryAddress || '',
+        Loc: '',
+        Pin: 0,
         Stcd: buyerStateCode,
       },
       ItemList: itemList,
@@ -270,15 +279,15 @@ export const indiaComplianceService = {
     };
 
     return {
-      eligible: true,
-      compliant: true,
+      eligible: null,
+      fieldsComplete: true,
       missingFields: [],
       payload,
     };
   },
 
   /**
-   * Validates whether an invoice requires an E-Way Bill under the statutory ₹50,000 threshold.
+   * Checks the invoice-value threshold and draft data without determining legal applicability.
    */
   validateEWayBillReadiness(
     org: Organization,
@@ -287,15 +296,15 @@ export const indiaComplianceService = {
     transportDetails?: { transporterId?: string; vehicleNo?: string; distanceKm?: number }
   ): EWayBillValidationResult {
     const totalAmount = Number(invoice.totalAmount || 0);
-    const thresholdExceeded = totalAmount >= E_WAY_BILL_STATUTORY_THRESHOLD;
+    const thresholdExceeded = totalAmount > E_WAY_BILL_STATUTORY_THRESHOLD;
 
     if (!thresholdExceeded) {
       return {
-        required: false,
+        required: null,
         thresholdExceeded: false,
-        compliant: true,
+        fieldsComplete: false,
         missingFields: [],
-        reason: `Consignment total value (₹${totalAmount.toLocaleString('en-IN')}) is below the statutory ₹50,000 limit. E-Way Bill is optional.`,
+        reason: `Invoice value (₹${totalAmount.toLocaleString('en-IN')}) does not exceed ₹50,000. This threshold check does not evaluate route-specific rules or exemptions.`,
       };
     }
 
@@ -304,6 +313,9 @@ export const indiaComplianceService = {
     if (!customer?.name) missingFields.push('Recipient Name');
     if (!transportDetails?.vehicleNo && !transportDetails?.transporterId) {
       missingFields.push('Transport Details: Either Vehicle Number or Transporter ID is required for Part B.');
+    }
+    if (!Number.isFinite(transportDetails?.distanceKm) || (transportDetails?.distanceKm ?? 0) <= 0) {
+      missingFields.push('Transport distance in kilometres');
     }
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
@@ -326,19 +338,19 @@ export const indiaComplianceService = {
       igstValue: isInterstate ? taxAmount : 0,
       transporterId: transportDetails?.transporterId,
       vehicleNo: transportDetails?.vehicleNo,
-      distanceKm: transportDetails?.distanceKm || 25,
+      distanceKm: transportDetails?.distanceKm ?? 0,
     };
 
     return {
-      required: true,
+      required: null,
       thresholdExceeded: true,
-      compliant: missingFields.length === 0,
+      fieldsComplete: missingFields.length === 0,
       missingFields,
       payload: missingFields.length === 0 ? payload : undefined,
       reason:
         missingFields.length === 0
-          ? 'Mandatory statutory threshold exceeded (>= ₹50,000). E-Way Bill Part A and B generated.'
-          : 'Mandatory statutory threshold exceeded (>= ₹50,000). Complete transporter information before vehicle dispatch.',
+          ? 'Invoice value exceeds ₹50,000. Review applicable rules and exemptions before using this draft; it has not been filed.'
+          : 'Invoice value exceeds ₹50,000. Complete transport information and verify statutory applicability before use.',
     };
   },
 
@@ -351,7 +363,7 @@ export const indiaComplianceService = {
       mode: 'SANDBOX_SIMULATION',
       sellerGstin: org.gstin || 'NOT_CONFIGURED',
       isReadyForTesting: hasGstin,
-      note: 'Atlas OS operates in deterministic compliance mode. In live production, registered credentials connect directly to the authorized GST Suvidha Provider (GSP) or IRP sandbox.',
+      note: 'Readiness helpers only. They do not determine statutory applicability, validate data with NIC, or file documents; no live credentials or external connections are configured.',
     };
   },
 };

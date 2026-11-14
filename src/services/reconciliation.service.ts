@@ -11,6 +11,10 @@ import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { calculateInvoiceBalance, formatCurrency } from '@/lib/money';
 import { Invoice, Payment, Product, StockMovement } from '@/types';
+import { mapDbInvoice } from './invoices.service';
+import { mapDbPayment, mapDbPaymentAllocation } from './payments.service';
+import { mapDbProduct } from './products.service';
+import { mapDbStockMovement } from './inventory.service';
 
 export interface FinancialReconciliationResult {
   asOf: string;
@@ -101,8 +105,10 @@ export const reconciliationService = {
       ]);
       if (invRes.error) throw new Error(`Failed to load invoices: ${invRes.error.message}`);
       if (payRes.error) throw new Error(`Failed to load payments: ${payRes.error.message}`);
-      invoices = invRes.data || [];
-      payments = payRes.data || [];
+      invoices = (invRes.data || []).map((row) => mapDbInvoice(row));
+      payments = (payRes.data || []).map((row) =>
+        mapDbPayment(row, (row.allocations || []).map(mapDbPaymentAllocation))
+      );
     }
 
     const activeInvoices = invoices.filter((inv) => inv.status !== 'CANCELLED');
@@ -188,8 +194,10 @@ export const reconciliationService = {
       ]);
       if (prodRes.error) throw new Error(`Failed to load products: ${prodRes.error.message}`);
       if (movRes.error) throw new Error(`Failed to load stock movements: ${movRes.error.message}`);
-      products = prodRes.data || [];
-      movements = movRes.data || [];
+      products = (prodRes.data || []).map((row) =>
+        mapDbProduct(row, Number(row.current_stock ?? 0))
+      );
+      movements = (movRes.data || []).map(mapDbStockMovement);
     }
 
     const discrepancies: InventoryReconciliationResult['discrepancies'] = [];

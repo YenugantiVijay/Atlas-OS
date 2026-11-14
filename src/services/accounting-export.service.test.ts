@@ -89,4 +89,27 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
     expect(csv).toContain('8536'); // HSN
     expect(csv).toContain('5900.00'); // Total
   });
+
+  it('escapes spreadsheet cells and XML text rather than emitting injected delimiters or tags', () => {
+    const specialCustomer = { ...customers[0], name: 'Balaji & Sons <Electricals>' };
+    const specialInvoice = {
+      ...invoices[0],
+      invoiceNumber: 'SLE<&>-001',
+      items: [{ ...invoices[0].items![0], productName: '=HYPERLINK("https://example.invalid","MCB")' }],
+    };
+
+    const xml = accountingExportService.exportSalesToTallyXml(testOrg, [specialInvoice], [specialCustomer]);
+    const csv = accountingExportService.exportSalesToBusyCsv([specialInvoice], [specialCustomer]);
+
+    expect(xml).toContain('<PARTYLEDGERNAME>Balaji &amp; Sons &lt;Electricals&gt;</PARTYLEDGERNAME>');
+    expect(xml).toContain('<VOUCHERNUMBER>SLE&lt;&amp;&gt;-001</VOUCHERNUMBER>');
+    expect(csv).toContain('"Balaji & Sons <Electricals>"');
+    expect(csv).toContain(`"'=HYPERLINK(""https://example.invalid"",""MCB"")"`);
+  });
+
+  it('refuses to fabricate line items when an invoice has no item details', () => {
+    const invoiceWithoutItems = { ...invoices[0], items: [] };
+    expect(() => accountingExportService.exportSalesToBusyCsv([invoiceWithoutItems], customers))
+      .toThrow(/no line items/i);
+  });
 });

@@ -33,6 +33,18 @@ describe('Area 4: Low-Friction Onboarding & Guided Spreadsheet Import', () => {
     expect(priceWarning?.severity).toBe('warning');
   });
 
+  it('rejects invalid numeric import values instead of silently clamping them', () => {
+    const result = guidedImportService.validateProductRows([
+      { sku: 'BAD-PRICE', name: 'Invalid price', uom: 'Nos', purchaseCost: Number.NaN },
+      { sku: 'BAD-STOCK', name: 'Invalid stock', uom: 'Nos', openingStock: 1.5 },
+      { sku: 'ZERO-TAX', name: 'Zero rated item', uom: 'Nos', taxRate: 0 },
+    ], new Set());
+
+    expect(result.validRows.map((row) => row.sku)).toEqual(['ZERO-TAX']);
+    expect(result.validRows[0].taxRate).toBe(0);
+    expect(result.issues.filter((issue) => issue.severity === 'error')).toHaveLength(2);
+  });
+
   it('imports a batch with tracking and allows safe undo when records are unreferenced', async () => {
     const rows: ProductImportRow[] = [
       { sku: 'HAV-NEW-101', name: 'Havells Switch 1', uom: 'Nos', purchaseCost: 50, sellingPrice: 80, openingStock: 10 },
@@ -113,5 +125,12 @@ describe('Area 4: Low-Friction Onboarding & Guided Spreadsheet Import', () => {
     expect(polycabWire?.hsnCode).toBe('8544');
     expect(polycabWire?.taxRate).toBe(18);
     expect(polycabWire?.uom).toBe('Coils');
+  });
+
+  it('does not claim a cloud import batch was undone when no cloud batch record exists', async () => {
+    const result = await guidedImportService.undoImportBatch(orgId, 'cloud-batch-not-tracked');
+    expect(result.success).toBe(false);
+    expect(result.undoneCount).toBe(0);
+    expect(result.message).toMatch(/not persisted/i);
   });
 });

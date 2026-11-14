@@ -1,8 +1,8 @@
 /**
  * ATLAS OS — Safe Offline Action Queue & Sync Recovery
  *
- * Provides a dependable offline mutation queue for mobile devices, retail counters,
- * and warehouses with intermittent connectivity.
+ * Stores pending actions for manual recovery. The UI does not currently dispatch
+ * queued actions to demo storage or cloud services.
  * Actions are persisted to localStorage with request-level idempotency keys, FIFO sequencing,
  * retry counters, and explicit conflict resolution strategies.
  */

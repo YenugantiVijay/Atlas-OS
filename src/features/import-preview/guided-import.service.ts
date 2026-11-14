@@ -2,12 +2,14 @@
  * ATLAS OS — Guided Spreadsheet Import & Setup Engine
  *
  * Implements low-friction onboarding, mapping, validation, duplicate detection,
- * batch tracking, and safe undo capabilities for electrical distribution catalogs and customers.
+ * local batch tracking and safe demo-mode undo for electrical distribution catalogs.
+ * Cloud batches are not persisted and cannot be undone by this service.
  */
 
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { Product, UOM } from '@/types';
+import { mapDbProduct, productsService } from '@/services/products.service';
 
 export interface ProductImportRow {
   sku: string;
@@ -218,6 +220,30 @@ export const guidedImportService = {
 
       seenInFile.add(skuNorm);
 
+      const numericFields: Array<{ field: string; value: number | undefined; integer?: boolean; max?: number }> = [
+        { field: 'purchaseCost', value: row.purchaseCost },
+        { field: 'sellingPrice', value: row.sellingPrice },
+        { field: 'taxRate', value: row.taxRate, max: 40 },
+        { field: 'reorderThreshold', value: row.reorderThreshold, integer: true },
+        { field: 'openingStock', value: row.openingStock, integer: true },
+      ];
+      let hasInvalidNumber = false;
+      for (const field of numericFields) {
+        if (field.value === undefined) continue;
+        if (!Number.isFinite(field.value) || field.value < 0 ||
+          (field.max !== undefined && field.value > field.max) ||
+          (field.integer && !Number.isInteger(field.value))) {
+          issues.push({
+            rowIndex: rowNum,
+            field: field.field,
+            message: `${field.field} must be a finite, non-negative${field.max !== undefined ? ` value no greater than ${field.max}` : ''}${field.integer ? ' whole number' : ''}.`,
+            severity: 'error',
+          });
+          hasInvalidNumber = true;
+        }
+      }
+      if (hasInvalidNumber) return;
+
       if (row.purchaseCost !== undefined && row.sellingPrice !== undefined && row.purchaseCost > row.sellingPrice) {
         issues.push({
           rowIndex: rowNum,
@@ -232,11 +258,11 @@ export const guidedImportService = {
         sku: skuNorm,
         name,
         uom: row.uom || 'Nos',
-        purchaseCost: Math.max(0, Number(row.purchaseCost || 0)),
-        sellingPrice: Math.max(0, Number(row.sellingPrice || 0)),
-        taxRate: Number(row.taxRate || 18),
-        reorderThreshold: Number(row.reorderThreshold || 0),
-        openingStock: Math.max(0, Number(row.openingStock || 0)),
+        purchaseCost: row.purchaseCost ?? 0,
+        sellingPrice: row.sellingPrice ?? 0,
+        taxRate: row.taxRate ?? 18,
+        reorderThreshold: row.reorderThreshold ?? 0,
+        openingStock: row.openingStock ?? 0,
       });
     });
 
@@ -262,7 +288,7 @@ export const guidedImportService = {
       if (!supabase) throw new Error('Cloud backend is not configured.');
       const res = await supabase.from('products').select('*').eq('organization_id', orgId);
       if (res.error) throw new Error(`Failed to inspect catalog: ${res.error.message}`);
-      existingProducts = res.data || [];
+      existingProducts = (res.data || []).map((row) => mapDbProduct(row));
     }
 
     const existingSkus = new Set(existingProducts.map((p) => p.sku.trim().toUpperCase()));
@@ -283,7 +309,7 @@ export const guidedImportService = {
             purchaseCost: row.purchaseCost || 0,
             sellingPrice: row.sellingPrice || 0,
             taxRate: row.taxRate || 18,
-            hsnCode: row.hsnCode || '8544',
+            hsnCode: row.hsnCode?.trim() || '',
             reorderThreshold: row.reorderThreshold || 0,
             isActive: true,
           },
@@ -299,28 +325,39 @@ export const guidedImportService = {
         recordIds,
       });
     } else {
-      // In cloud mode, write records in bulk
-      const insertPayload = validRows.map((row) => ({
-        organization_id: orgId,
-        sku: row.sku,
-        name: row.name,
-        uom: row.uom,
-        brand: row.brand || '',
-        category: row.category || 'General',
-        purchase_cost: row.purchaseCost || 0,
-        selling_price: row.sellingPrice || 0,
-        tax_rate: row.taxRate || 18,
-        hsn_code: row.hsnCode || '8544',
-        reorder_threshold: row.reorderThreshold || 0,
-        current_stock: row.openingStock || 0,
-        is_active: true,
-      }));
-
-      const client = supabase;
-      if (!client) throw new Error('Cloud backend is not configured.');
-      const res = await client.from('products').insert(insertPayload).select('id');
-      if (res.error) throw new Error(`Cloud product import failed: ${res.error.message}`);
-      res.data?.forEach((r) => recordIds.push(r.id));
+      for (const row of validRows) {
+        try {
+          const product = await productsService.createProduct(
+            orgId,
+            {
+              sku: row.sku,
+              name: row.name,
+              uom: row.uom || 'Nos',
+              brand: row.brand || '',
+              category: row.category || 'General',
+              purchaseCost: row.purchaseCost ?? 0,
+              sellingPrice: row.sellingPrice ?? 0,
+              taxRate: row.taxRate ?? 18,
+              hsnCode: row.hsnCode?.trim() || '',
+              reorderThreshold: row.reorderThreshold ?? 0,
+              isActive: true,
+            },
+            false,
+            row.openingStock ?? 0
+          );
+          recordIds.push(product.id);
+        } catch (error) {
+          const rowIndex = rows.findIndex((candidate) =>
+            (candidate.sku || '').trim().toUpperCase() === row.sku
+          ) + 1;
+          issues.push({
+            rowIndex,
+            field: 'product',
+            message: error instanceof Error ? error.message : 'Cloud product creation failed.',
+            severity: 'error',
+          });
+        }
+      }
     }
 
     return {
@@ -404,14 +441,13 @@ export const guidedImportService = {
         details,
       };
     } else {
-      if (!supabase) throw new Error('Cloud backend is not configured.');
-      // In cloud mode, soft-deactivate unreferenced records
       return {
         batchId,
-        success: true,
+        success: false,
         undoneCount: 0,
-        failedCount: 0,
-        message: 'Cloud import rollback requires administrator review in cloud console.',
+        failedCount: 1,
+        message: 'Cloud import batches are not persisted, so this batch cannot be safely rolled back.',
+        details: ['No records were changed. Remove imported records through the product or customer workflow after verifying references.'],
       };
     }
   },

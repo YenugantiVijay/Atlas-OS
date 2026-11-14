@@ -53,7 +53,11 @@ export const upiQr = {
     searchParams.set('pn', payeeName.trim().substring(0, 50));
     searchParams.set('cu', 'INR');
 
-    if (amount !== undefined && amount > 0) {
+    if (amount !== undefined && (!Number.isFinite(amount) || amount <= 0)) {
+      throw new Error('Payment amount must be greater than zero.');
+    }
+
+    if (amount !== undefined) {
       searchParams.set('am', amount.toFixed(2));
     }
 
@@ -81,8 +85,14 @@ export const upiQr = {
     payeeVpa: string;
     payeeName: string;
   } {
-    const vpa = (org as any).upiVpa || fallbackVpa || `${org.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@okaxis`;
+    const vpa = fallbackVpa?.trim();
+    if (!vpa) {
+      throw new Error("Configure the organization's verified UPI ID before generating a payment link.");
+    }
     const balance = calculateInvoiceBalance(invoice.totalAmount, invoice.totalPaid);
+    if (balance <= 0) {
+      throw new Error('This invoice has no outstanding balance.');
+    }
 
     const upiUri = this.generateBharatUpiUri({
       payeeVpa: vpa,

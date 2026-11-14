@@ -127,7 +127,7 @@ export const AIPage: React.FC = () => {
         isMockAuth
       );
 
-      showToast('success', 'Proposal Confirmed', res.message);
+      showToast('success', 'Suggestion Logged', res.message);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId ? { ...m, writeConfirmed: true } : m
@@ -267,7 +267,7 @@ export const AIPage: React.FC = () => {
                         </div>
                         {msg.writeConfirmed ? (
                           <Badge variant="success" size="sm">
-                            Confirmed & Logged
+                            Suggestion Logged
                           </Badge>
                         ) : (
                           <Badge variant="warning" size="sm">
@@ -293,7 +293,7 @@ export const AIPage: React.FC = () => {
                             leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
                             className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-7"
                           >
-                            Review & Confirm Proposal
+                            Review & Log Suggestion
                           </Button>
                         </div>
                       )}
@@ -363,7 +363,7 @@ export const AIPage: React.FC = () => {
         isOpen={!!confirmingProposal}
         onClose={() => setConfirmingProposal(null)}
         title="Confirm Operational Action"
-        description="Explicit human confirmation is required before logging consequential changes to the audit ledger."
+        description="Explicit human confirmation is required before logging this replenishment suggestion. No purchase requisition will be created."
         maxWidth="md"
       >
         {confirmingProposal && (
@@ -378,7 +378,7 @@ export const AIPage: React.FC = () => {
 
             <div className="space-y-2">
               <div className="font-semibold text-slate-800">
-                Items in Requisition ({confirmingProposal.proposal.payload.items.length}):
+                Suggested Items ({confirmingProposal.proposal.payload.items.length}):
               </div>
               <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-100 rounded-lg p-2 bg-slate-50">
                 {confirmingProposal.proposal.payload.items.map((item) => (
@@ -416,7 +416,7 @@ export const AIPage: React.FC = () => {
                 leftIcon={isExecutingWrite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 className="bg-teal-600 hover:bg-teal-700 text-white"
               >
-                {isExecutingWrite ? 'Recording...' : 'Authorize Action'}
+                {isExecutingWrite ? 'Recording...' : 'Log Suggestion'}
               </Button>
             </div>
           </div>

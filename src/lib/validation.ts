@@ -319,7 +319,8 @@ export const supplierSchema = z.object({
 
 export const orderItemSchema = z.object({
   // Preserve the UUID-shaped IDs accepted by PostgreSQL and the previous schema.
-  productId: z.string().uuid(),
+  // PostgreSQL accepts UUID-shaped legacy IDs that are not RFC versioned UUIDs.
+  productId: z.string().guid(),
   productName: z.string(),
   productSku: z.string(),
   uom: z.enum(['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls']),

@@ -15,6 +15,10 @@ import { Role, Product, Invoice, SalesOrder, Customer } from '@/types';
 import { formatCurrency, calculateInvoiceBalance } from '@/lib/money';
 import { isInvoiceOverdue } from '@/lib/dates';
 import { hasPermission } from '@/lib/permissions';
+import { mapDbCustomer } from './customers.service';
+import { mapDbInvoice } from './invoices.service';
+import { mapDbSalesOrder } from './orders.service';
+import { mapDbProduct } from './products.service';
 
 export interface CitationRecord {
   type: 'invoice' | 'order' | 'product' | 'customer';
@@ -107,8 +111,10 @@ export const aiAssistantService = {
           supabase.from('invoices').select('*').eq('organization_id', orgId),
           supabase.from('customers').select('*').eq('organization_id', orgId),
         ]);
-        invoices = invRes.data || [];
-        customers = custRes.data || [];
+        if (invRes.error) throw new Error(`Failed to load invoices: ${invRes.error.message}`);
+        if (custRes.error) throw new Error(`Failed to load customers: ${custRes.error.message}`);
+        invoices = (invRes.data || []).map((row) => mapDbInvoice(row));
+        customers = (custRes.data || []).map(mapDbCustomer);
       }
 
       const overdueInvoices = invoices.filter((inv) => {
@@ -167,10 +173,12 @@ export const aiAssistantService = {
       } else {
         if (!supabase) throw new Error('Cloud backend is not configured.');
         const res = await supabase.from('products').select('*').eq('organization_id', orgId);
-        products = res.data || [];
+        if (res.error) throw new Error(`Failed to load products: ${res.error.message}`);
+        products = (res.data || []).map((row) => mapDbProduct(row, Number(row.current_stock ?? 0)));
       }
 
       const lowStock = products.filter((p) => p.isActive && (p.currentStock ?? 0) <= p.reorderThreshold);
+      const activeProducts = products.filter((p) => p.isActive);
 
       const citations: CitationRecord[] = lowStock.map((p) => ({
         type: 'product',
@@ -180,20 +188,20 @@ export const aiAssistantService = {
         detail: `Current: ${p.currentStock ?? 0} ${p.uom} (Threshold: ${p.reorderThreshold} ${p.uom})`,
       }));
 
-      const totalValue = products.reduce((sum, p) => sum + (p.currentStock ?? 0) * (p.purchaseCost || 0), 0);
+      const totalValue = activeProducts.reduce((sum, p) => sum + (p.currentStock ?? 0) * (p.purchaseCost || 0), 0);
 
       const calculations: CalculationStep[] = [
         {
           label: 'Total Inventory Valuation',
           formula: 'SUM(product.current_stock * product.purchase_cost) WHERE is_active = true',
           value: formatCurrency(totalValue),
-          explanation: `Computed across ${products.length} active catalog SKUs.`,
+          explanation: `Computed across ${activeProducts.length} active catalog SKUs.`,
         },
       ];
 
       if (lowStock.length === 0) {
         return {
-          answer: `All ${products.length} electrical SKUs are healthy with stock above configured reorder thresholds. Total catalog inventory valuation is ${formatCurrency(totalValue)}.`,
+          answer: `All ${activeProducts.length} active electrical SKUs are healthy with stock above configured reorder thresholds. Total catalog inventory valuation is ${formatCurrency(totalValue)}.`,
           citations: [],
           calculations,
           confidence: 'GROUNDED',
@@ -203,8 +211,8 @@ export const aiAssistantService = {
       const writeProposal: ConsequentialWriteProposal = {
         proposalId: `prop_${Date.now()}`,
         type: 'REPLENISHMENT_PROPOSAL',
-        title: 'Generate Purchase Requisition Proposal',
-        impactSummary: `Creates an approved purchase requisition proposal for ${lowStock.length} low-stock SKU(s). Note: physical stock does not change until goods intake is posted.`,
+        title: 'Replenishment Suggestion',
+        impactSummary: `Suggests replenishment quantities for ${lowStock.length} low-stock SKU(s). Confirming this suggestion only records an audit event; it does not create a purchase requisition or change stock.`,
         roleRequired: ['owner', 'admin', 'inventory'],
         payload: {
           items: lowStock.map((p) => ({
@@ -218,7 +226,7 @@ export const aiAssistantService = {
       };
 
       return {
-        answer: `There are ${lowStock.length} electrical SKU(s) at or below their reorder threshold. Total inventory valuation at cost is ${formatCurrency(totalValue)}. An approved purchasing replenishment proposal is prepared below.`,
+        answer: `There are ${lowStock.length} active electrical SKU(s) at or below their reorder threshold. Total inventory valuation at cost is ${formatCurrency(totalValue)}. A replenishment suggestion is prepared below for review.`,
         citations,
         calculations,
         proposedWrite: writeProposal,
@@ -234,7 +242,8 @@ export const aiAssistantService = {
       } else {
         if (!supabase) throw new Error('Cloud backend is not configured.');
         const res = await supabase.from('sales_orders').select('*').eq('organization_id', orgId);
-        orders = res.data || [];
+        if (res.error) throw new Error(`Failed to load sales orders: ${res.error.message}`);
+        orders = (res.data || []).map((row) => mapDbSalesOrder(row));
       }
 
       const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
@@ -305,7 +314,7 @@ export const aiAssistantService = {
       );
     } else {
       if (!supabase) throw new Error('Cloud backend is not configured.');
-      await supabase.from('audit_logs').insert({
+      const { error } = await supabase.from('audit_logs').insert({
         organization_id: orgId,
         action: 'AI_CONSEQUENTIAL_WRITE_CONFIRMED',
         entity_type: 'PURCHASING_PROPOSAL',
@@ -316,11 +325,12 @@ export const aiAssistantService = {
           confirmedByRole: userRole,
         },
       });
+      if (error) throw new Error(`Failed to record replenishment suggestion: ${error.message}`);
     }
 
     return {
       success: true,
-      message: `Proposal "${proposal.title}" for ${proposal.payload.items.length} SKU(s) was confirmed and logged to the audit ledger.`,
+      message: `Suggestion "${proposal.title}" for ${proposal.payload.items.length} SKU(s) was confirmed and logged. No purchase requisition was created.`,
     };
   },
 };

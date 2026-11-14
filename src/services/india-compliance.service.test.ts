@@ -78,31 +78,20 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     updatedAt: '2026-04-10T00:00:00Z',
   };
 
-  it('validates and generates official NIC Schema v1.03 payload for B2B transactions', () => {
+  it('does not present a payload as complete when buyer location data is unavailable', () => {
     const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2bCustomer, sampleInvoice);
-    expect(res.eligible).toBe(true);
-    expect(res.compliant).toBe(true);
-    expect(res.missingFields.length).toBe(0);
-
-    const payload = res.payload;
-    expect(payload).toBeDefined();
-    expect(payload?.Version).toBe('1.1');
-    expect(payload?.TranDtls.SupTyp).toBe('B2B');
-    expect(payload?.SellerDtls.Gstin).toBe(testOrg.gstin);
-    expect(payload?.BuyerDtls.Gstin).toBe(b2bCustomer.gstin);
-    expect(payload?.ItemList[0].HsnCd).toBe('8544');
-    expect(payload?.ValDtls.TotInvVal).toBe(118000);
-    // Intra-state split (Telangana to Telangana): CGST 9% and SGST 9%
-    expect(payload?.ValDtls.CgstVal).toBe(9000);
-    expect(payload?.ValDtls.SgstVal).toBe(9000);
-    expect(payload?.ValDtls.IgstVal).toBe(0);
+    expect(res.eligible).toBe(null);
+    expect(res.fieldsComplete).toBe(false);
+    expect(res.payload).toBeUndefined();
+    expect(res.missingFields).toContain('Buyer Location (not available on the customer profile)');
+    expect(res.missingFields).toContain('Buyer PIN Code (not available on the customer profile)');
   });
 
   it('correctly marks B2C / unregistered sales as exempt from e-Invoicing under GST Rule 48(4)', () => {
     const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2cCustomer, sampleInvoice);
     expect(res.eligible).toBe(false);
-    expect(res.compliant).toBe(false);
-    expect(res.reason).toMatch(/B2C sale/i);
+    expect(res.fieldsComplete).toBe(false);
+    expect(res.reason).toMatch(/buyer GSTIN is required/i);
     expect(res.missingFields[0]).toMatch(/exempt/i);
   });
 
@@ -114,17 +103,22 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     };
 
     const lowRes = indiaComplianceService.validateEWayBillReadiness(testOrg, b2bCustomer, lowValueInvoice);
-    expect(lowRes.required).toBe(false);
+    expect(lowRes.required).toBe(null);
     expect(lowRes.thresholdExceeded).toBe(false);
+
+    const thresholdInvoice: Invoice = { ...sampleInvoice, totalAmount: 50000 };
+    const thresholdRes = indiaComplianceService.validateEWayBillReadiness(testOrg, b2bCustomer, thresholdInvoice);
+    expect(thresholdRes.required).toBe(null);
+    expect(thresholdRes.thresholdExceeded).toBe(false);
 
     // High value consignment (₹1,18,000 >= ₹50,000 threshold)
     const highRes = indiaComplianceService.validateEWayBillReadiness(testOrg, b2bCustomer, sampleInvoice, {
       vehicleNo: 'TS09UB1234',
       distanceKm: 45,
     });
-    expect(highRes.required).toBe(true);
+    expect(highRes.required).toBe(null);
     expect(highRes.thresholdExceeded).toBe(true);
-    expect(highRes.compliant).toBe(true);
+    expect(highRes.fieldsComplete).toBe(true);
     expect(highRes.payload?.vehicleNo).toBe('TS09UB1234');
     expect(highRes.payload?.totalValue).toBe(118000);
   });

@@ -8,7 +8,6 @@ import {
   Copy,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
-import { storage } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -21,6 +20,8 @@ import {
 import { upiQr } from '@/lib/upi-qr';
 import { messagingAdapter } from '@/lib/messaging-adapter';
 import { accountingExportService } from '@/services/accounting-export.service';
+import { invoicesService } from '@/services/invoices.service';
+import { customersService } from '@/services/customers.service';
 
 export const IntegrationsPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
@@ -30,18 +31,32 @@ export const IntegrationsPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
-  const [upiVpa, setUpiVpa] = useState<string>('srilakshmi@okaxis');
+  const [upiVpa, setUpiVpa] = useState<string>('');
+  const [vehicleNo, setVehicleNo] = useState('');
+  const [transporterId, setTransporterId] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
 
   useEffect(() => {
     if (!currentOrg) return;
-    if (isMockAuth) {
-      const invs = storage.getInvoices(currentOrg.id);
-      const custs = storage.getCustomers(currentOrg.id);
-      setInvoices(invs);
-      setCustomers(custs);
-      if (invs.length > 0) setSelectedInvoiceId(invs[0].id);
-    }
-  }, [currentOrg, isMockAuth]);
+    let cancelled = false;
+    const loadData = async () => {
+      try {
+        const [invs, custs] = await Promise.all([
+          invoicesService.getInvoices(currentOrg.id, isMockAuth),
+          customersService.getCustomers(currentOrg.id, isMockAuth),
+        ]);
+        if (cancelled) return;
+        setInvoices(invs);
+        setCustomers(custs);
+        setSelectedInvoiceId(invs[0]?.id ?? '');
+      } catch (error) {
+        if (cancelled) return;
+        showToast('error', 'Integration data unavailable', error instanceof Error ? error.message : 'Unable to load invoices and customers.');
+      }
+    };
+    void loadData();
+    return () => { cancelled = true; };
+  }, [currentOrg, isMockAuth, showToast]);
 
   if (!currentOrg) return null;
 
@@ -58,48 +73,64 @@ export const IntegrationsPage: React.FC = () => {
         currentOrg,
         selectedCustomer,
         selectedInvoice,
-        { vehicleNo: 'TS09UB1234', distanceKm: 35 }
+        {
+          vehicleNo: vehicleNo.trim() || undefined,
+          transporterId: transporterId.trim() || undefined,
+          distanceKm: distanceKm.trim() ? Number(distanceKm) : undefined,
+        }
       )
     : null;
 
   // UPI calculation
-  const upiUri = selectedInvoice
+  const upiVpaValidation = upiQr.validateVpa(upiVpa);
+  const outstandingBalance = selectedInvoice
+    ? selectedInvoice.totalAmount - selectedInvoice.totalPaid
+    : 0;
+  const upiUri = selectedInvoice && outstandingBalance > 0 && upiVpaValidation.valid
     ? upiQr.generateBharatUpiUri({
         payeeVpa: upiVpa,
         payeeName: currentOrg.name,
-        amount: selectedInvoice.totalAmount - selectedInvoice.totalPaid,
+        amount: outstandingBalance,
         transactionRef: selectedInvoice.invoiceNumber.replace(/[^a-zA-Z0-9]/g, ''),
         transactionNote: `Payment for Inv ${selectedInvoice.invoiceNumber}`,
       })
     : '';
 
   // WhatsApp link
-  const waLink = selectedInvoice && selectedCustomer?.phone
+  const waLink = selectedInvoice && selectedCustomer?.phone && upiUri
     ? messagingAdapter.generateWhatsAppInvoiceLink(selectedCustomer.phone, currentOrg.name, selectedInvoice, upiUri)
     : '';
 
   const handleDownloadTallyXml = () => {
-    const xml = accountingExportService.exportSalesToTallyXml(currentOrg, invoices, customers);
-    const blob = new Blob([xml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tally_sales_${currentOrg.name.toLowerCase().replace(/\s+/g, '_')}.xml`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('success', 'Export Complete', 'Tally Prime XML file downloaded successfully.');
+    try {
+      const xml = accountingExportService.exportSalesToTallyXml(currentOrg, invoices, customers);
+      const blob = new Blob([xml], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tally_sales_${currentOrg.name.toLowerCase().replace(/\s+/g, '_')}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('success', 'Export Complete', 'Tally XML file downloaded. Review it before importing.');
+    } catch (error) {
+      showToast('error', 'Export Failed', error instanceof Error ? error.message : 'Unable to create the Tally export.');
+    }
   };
 
   const handleDownloadBusyCsv = () => {
-    const csv = accountingExportService.exportSalesToBusyCsv(invoices, customers);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `busy_sales_${currentOrg.name.toLowerCase().replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('success', 'Export Complete', 'BUSY Accounting CSV file downloaded successfully.');
+    try {
+      const csv = accountingExportService.exportSalesToBusyCsv(invoices, customers);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `busy_sales_${currentOrg.name.toLowerCase().replace(/\s+/g, '_')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('success', 'Export Complete', 'BUSY CSV downloaded. Review it before importing.');
+    } catch (error) {
+      showToast('error', 'Export Failed', error instanceof Error ? error.message : 'Unable to create the BUSY export.');
+    }
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -121,7 +152,7 @@ export const IntegrationsPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
-            Standard adapters for Indian statutory compliance (NIC e-Invoicing, E-Way Bill), Bharat UPI payment QR, and Tally/BUSY cutover.
+          Sandbox/readiness helpers only for GST, UPI and accounting exports. No live government, bank, messaging or accounting connection is configured.
           </p>
         </div>
 
@@ -185,9 +216,9 @@ export const IntegrationsPage: React.FC = () => {
           <Card className="p-4 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-sm font-bold text-navy-800">NIC E-Invoice Schema v1.03 Readiness</h3>
+                <h3 className="text-sm font-bold text-navy-800">E-Invoice Payload Readiness (Sandbox)</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Validates mandatory statutory fields: Seller GSTIN, Buyer GSTIN, HSN codes, and CGST/SGST/IGST tax splits.
+                  Checks available fields only. This is not an eligibility determination, official NIC validation, or filing.
                 </p>
               </div>
 
@@ -215,16 +246,16 @@ export const IntegrationsPage: React.FC = () => {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-navy-800">E-Invoice Status</span>
-                    <Badge variant={eInvoiceResult?.compliant ? 'success' : 'warning'} size="sm">
-                      {eInvoiceResult?.compliant ? 'Schema Compliant' : 'Attention Needed'}
+                    <Badge variant={eInvoiceResult?.fieldsComplete ? 'success' : 'warning'} size="sm">
+                      {eInvoiceResult?.fieldsComplete ? 'Fields Complete' : 'More Data Needed'}
                     </Badge>
                   </div>
 
-                  <p className="text-xs text-slate-600">{eInvoiceResult?.reason || 'Ready for JSON upload to NIC IRP Portal.'}</p>
+                  <p className="text-xs text-slate-600">{eInvoiceResult?.reason || 'Fields are complete; the payload has not been validated by NIC or filed.'}</p>
 
                   {eInvoiceResult?.missingFields && eInvoiceResult.missingFields.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs space-y-1 text-amber-900">
-                      <span className="font-semibold">Missing Statutory Information:</span>
+                      <span className="font-semibold">Missing data for this readiness check:</span>
                       <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                         {eInvoiceResult.missingFields.map((f, i) => (
                           <li key={i}>{f}</li>
@@ -242,7 +273,7 @@ export const IntegrationsPage: React.FC = () => {
                         leftIcon={<Copy className="w-3.5 h-3.5" />}
                         className="text-xs w-full"
                       >
-                        Copy NIC Schema JSON Payload
+                        Copy Draft Payload (Not Filed)
                       </Button>
                     </div>
                   )}
@@ -251,17 +282,47 @@ export const IntegrationsPage: React.FC = () => {
                 {/* E-Way Bill Status */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-navy-800">E-Way Bill (₹50k Threshold)</span>
-                    <Badge variant={eWayBillResult?.required ? 'warning' : 'default'} size="sm">
-                      {eWayBillResult?.required ? 'Mandatory (>= ₹50,000)' : 'Optional (< ₹50,000)'}
+                    <span className="text-xs font-bold text-navy-800">E-Way Bill Threshold Check</span>
+                    <Badge variant={eWayBillResult?.thresholdExceeded ? 'warning' : 'default'} size="sm">
+                      {eWayBillResult?.thresholdExceeded ? 'Above ₹50,000 — Review' : 'At or Below ₹50,000'}
                     </Badge>
                   </div>
 
                   <p className="text-xs text-slate-600">{eWayBillResult?.reason}</p>
+                  {eWayBillResult?.missingFields && eWayBillResult.missingFields.length > 0 && (
+                    <p className="text-xs text-amber-800">{eWayBillResult.missingFields.join(' • ')}</p>
+                  )}
+                  {eWayBillResult?.thresholdExceeded && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        aria-label="Vehicle number"
+                        value={vehicleNo}
+                        onChange={(event) => setVehicleNo(event.target.value)}
+                        placeholder="Vehicle number"
+                        className="text-xs rounded-lg border border-slate-200 px-2 py-1.5"
+                      />
+                      <input
+                        aria-label="Transporter ID"
+                        value={transporterId}
+                        onChange={(event) => setTransporterId(event.target.value)}
+                        placeholder="Transporter ID"
+                        className="text-xs rounded-lg border border-slate-200 px-2 py-1.5"
+                      />
+                      <input
+                        aria-label="Distance in kilometres"
+                        type="number"
+                        min="1"
+                        value={distanceKm}
+                        onChange={(event) => setDistanceKm(event.target.value)}
+                        placeholder="Distance (km)"
+                        className="text-xs rounded-lg border border-slate-200 px-2 py-1.5"
+                      />
+                    </div>
+                  )}
 
                   <div className="text-xs text-slate-500 bg-white p-2.5 rounded-lg border border-slate-200">
                     <div>Consignment Value: <strong>{formatCurrency(selectedInvoice.totalAmount)}</strong></div>
-                    <div>Statutory Limit: <strong>₹50,000 (CGST Rule 138)</strong></div>
+                    <div>Threshold reference: <strong>₹50,000; verify current rules and exemptions</strong></div>
                   </div>
 
                   {eWayBillResult?.payload && (
@@ -273,7 +334,7 @@ export const IntegrationsPage: React.FC = () => {
                         leftIcon={<Copy className="w-3.5 h-3.5" />}
                         className="text-xs w-full"
                       >
-                        Copy E-Way Bill Part A/B JSON
+                        Copy Draft Payload (Not Filed)
                       </Button>
                     </div>
                   )}
@@ -294,7 +355,7 @@ export const IntegrationsPage: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-navy-800">NPCI Bharat UPI Dynamic QR Generator</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Generates instant payment links for thermal counter slips, WhatsApp sharing, and A4 tax invoices.
+              Generates a local payment URI after you enter and verify your own UPI ID. No payment is initiated by Atlas OS.
             </p>
           </div>
 
@@ -308,15 +369,16 @@ export const IntegrationsPage: React.FC = () => {
                   type="text"
                   value={upiVpa}
                   onChange={(e) => setUpiVpa(e.target.value)}
-                  placeholder="e.g. dealer@hdfcbank"
+                  placeholder="Enter your verified VPA, e.g. dealer@hdfcbank"
                   className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 font-mono"
                 />
+                {!upiVpaValidation.valid && <p className="text-xs text-amber-800">{upiVpaValidation.error}</p>}
               </div>
 
               {selectedInvoice && (
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
                   <div>Invoice: <strong>{selectedInvoice.invoiceNumber}</strong></div>
-                  <div>Outstanding Amount: <strong>{formatCurrency(selectedInvoice.totalAmount - selectedInvoice.totalPaid)}</strong></div>
+                  <div>Outstanding Amount: <strong>{formatCurrency(outstandingBalance)}</strong></div>
                   <div>Payee Name: <strong>{currentOrg.name}</strong></div>
                 </div>
               )}
@@ -325,6 +387,7 @@ export const IntegrationsPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 onClick={() => copyToClipboard(upiUri, 'UPI Payment Link')}
+                disabled={!upiUri}
                 leftIcon={<Copy className="w-3.5 h-3.5" />}
                 className="w-full text-xs bg-teal-600 hover:bg-teal-700 text-white"
               >
@@ -334,9 +397,9 @@ export const IntegrationsPage: React.FC = () => {
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-center space-y-2">
               <QrCode className="w-16 h-16 text-teal-700" />
-              <div className="font-bold text-xs text-navy-800">Scan to Pay via Any UPI App</div>
+              <div className="font-bold text-xs text-navy-800">Payment URI Preview</div>
               <div className="text-[11px] text-slate-500 font-mono truncate max-w-xs">{upiUri}</div>
-              <Badge variant="teal" size="sm">GPay • PhonePe • Paytm • BHIM</Badge>
+              <Badge variant="teal" size="sm">No payment initiated</Badge>
             </div>
           </div>
         </Card>
@@ -348,7 +411,7 @@ export const IntegrationsPage: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-navy-800">Accounting Software 1-Click Cutover</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Export sales vouchers, party ledgers, and tax heads directly into Indian SME accounting software without double entry.
+              Sandbox export helpers only. Review generated files with your accountant before importing; these formats are not a substitute for accounting validation.
             </p>
           </div>
 
@@ -402,9 +465,9 @@ export const IntegrationsPage: React.FC = () => {
       {activeTab === 'whatsapp' && (
         <Card className="p-4 sm:p-5 space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-navy-800">WhatsApp Indian Business Message Dispatch</h3>
+            <h3 className="text-sm font-bold text-navy-800">WhatsApp Share Link</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Send professional WhatsApp messages with bill details, due date, and embedded UPI link to contractors and customers.
+              Preview and share a WhatsApp link manually. Atlas OS does not send messages or verify payment details.
             </p>
           </div>
 
@@ -430,7 +493,7 @@ export const IntegrationsPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   onClick={() => window.open(waLink, '_blank')}
-                  disabled={!selectedCustomer.phone}
+                  disabled={!selectedCustomer.phone || !waLink}
                   leftIcon={<Send className="w-3.5 h-3.5" />}
                   className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
@@ -440,6 +503,7 @@ export const IntegrationsPage: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => copyToClipboard(waLink, 'WhatsApp share URL')}
+                  disabled={!waLink}
                   className="text-xs"
                 >
                   Copy Link

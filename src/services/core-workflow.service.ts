@@ -16,6 +16,7 @@ import {
   StockMovement,
 } from '@/types';
 import { calculateInvoiceBalance } from '@/lib/money';
+import { mapDbStockMovement } from './inventory.service';
 
 export type WorkflowEntityType = 'QUOTATION' | 'SALES_ORDER' | 'INVOICE' | 'PAYMENT' | 'GOODS_RECEIPT';
 
@@ -192,12 +193,16 @@ export const coreWorkflowService = {
     }
 
     // Check for active linked invoices
-    const { data: linkedInvoices } = await supabase
+    const { data: linkedInvoices, error: invoiceCheckErr } = await supabase
       .from('invoices')
       .select('id, invoice_number, status')
       .eq('sales_order_id', orderId)
       .eq('organization_id', orgId)
       .neq('status', 'CANCELLED');
+
+    if (invoiceCheckErr) {
+      throw new Error(`Failed to verify linked invoices before cancellation: ${invoiceCheckErr.message}`);
+    }
 
     if (linkedInvoices && linkedInvoices.length > 0) {
       throw new Error(
@@ -395,6 +400,16 @@ export const coreWorkflowService = {
         stockMovements = storage
           .getStockMovements(orgId)
           .filter((m) => m.referenceId === salesOrder!.id);
+      } else {
+        if (!supabase) throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+        const { data, error } = await supabase
+          .from('stock_movements')
+          .select('*')
+          .eq('organization_id', orgId)
+          .eq('reference_id', salesOrder.id)
+          .order('created_at', { ascending: true });
+        if (error) throw new Error(`Failed to load sales order stock movements: ${error.message}`);
+        stockMovements = (data || []).map(mapDbStockMovement);
       }
     }
 
