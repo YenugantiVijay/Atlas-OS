@@ -1,358 +1,133 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  ShieldCheck,
-  AlertTriangle,
-  RefreshCw,
-  Info,
-  CheckCircle2,
-  FileSpreadsheet,
-  Package,
-  Layers,
-} from 'lucide-react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/money';
-import {
-  reconciliationService,
-  FinancialReconciliationResult,
-  InventoryReconciliationResult,
-  METRIC_DEFINITIONS,
-} from '@/services/reconciliation.service';
+import { METRIC_DEFINITIONS, reconciliationService } from '@/services/reconciliation.service';
 
 interface ReconciliationCardProps {
   orgId: string;
+  userId?: string;
   isMockAuth: boolean;
   canSeeFinancialBalances: boolean;
 }
 
-export const ReconciliationCard: React.FC<ReconciliationCardProps> = ({
-  orgId,
-  isMockAuth,
-  canSeeFinancialBalances,
-}) => {
-  const [financialResult, setFinancialResult] = useState<FinancialReconciliationResult | null>(null);
-  const [inventoryResult, setInventoryResult] = useState<InventoryReconciliationResult | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
-  const [showDefinitionsModal, setShowDefinitionsModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'financial'>('inventory');
+function checkState(query: {
+  isFetching: boolean;
+  isError: boolean;
+  data?: { asOf: string };
+}): string | undefined {
+  if (query.isFetching) return 'Checking…';
+  if (query.isError && query.data) return 'Stale · refresh failed';
+  if (query.isError || !query.data) return 'Unavailable';
+}
 
-  const runReconciliation = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    try {
-      const invPromise = reconciliationService.reconcileInventory(orgId, isMockAuth);
-      const finPromise = canSeeFinancialBalances
-        ? reconciliationService.reconcileFinancials(orgId, isMockAuth)
-        : Promise.resolve(null);
+function checkedTime(asOf: string) {
+  return new Date(asOf).toLocaleString();
+}
 
-      const [inv, fin] = await Promise.all([invPromise, finPromise]);
-      setInventoryResult(inv);
-      if (fin) setFinancialResult(fin);
-    } catch (err) {
-      console.error('Failed to run ledger reconciliation:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId, isMockAuth, canSeeFinancialBalances]);
+export function ReconciliationCard({ orgId, userId, isMockAuth, canSeeFinancialBalances }: ReconciliationCardProps) {
+  const [modal, setModal] = useState<'finance' | 'definitions' | null>(null);
+  const scope = [userId, orgId, isMockAuth];
+  const stock = useQuery({
+    queryKey: ['stock-ledger-check', ...scope],
+    queryFn: () => reconciliationService.getStockLedgerSummary(orgId, isMockAuth),
+    retry: false,
+  });
+  const finance = useQuery({
+    queryKey: ['financial-ledger-check', ...scope, canSeeFinancialBalances],
+    queryFn: () => reconciliationService.reconcileFinancials(orgId, isMockAuth),
+    enabled: canSeeFinancialBalances,
+    retry: false,
+  });
+  const stockState = checkState(stock);
+  const financeState = canSeeFinancialBalances ? checkState(finance) : undefined;
+  const financials = canSeeFinancialBalances ? finance.data : undefined;
+  const needsReview = Boolean(financials && (financials.discrepancyCount > 0 || financials.receiptIssueCount > 0));
+  const hasFinancialRecords = Boolean(financials && (financials.invoiceCount > 0 || financials.receiptCount > 0));
+  const isChecking = stock.isFetching || (canSeeFinancialBalances && finance.isFetching);
+  const hasCurrentFinance = !financeState && Boolean(financials);
+  const financeLabel = financeState ?? (needsReview ? 'Discrepancies found' : hasFinancialRecords ? 'Reconciled' : 'No posted records');
 
-  useEffect(() => {
-    runReconciliation();
-  }, [runReconciliation]);
-
-  const hasIssues =
-    (inventoryResult && inventoryResult.status === 'DISCREPANCY_DETECTED') ||
-    (financialResult && financialResult.status === 'VARIANCE_DETECTED');
-
-  const latestAsOf = inventoryResult?.formattedAsOf || financialResult?.formattedAsOf || 'Just now';
+  function verify() {
+    void stock.refetch();
+    if (canSeeFinancialBalances) void finance.refetch();
+  }
 
   return (
-    <>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl ${hasIssues ? 'bg-amber-100 text-amber-800' : 'bg-teal-50 text-teal-700'}`}>
-              {hasIssues ? <AlertTriangle className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-navy-800">Ledger & Data Integrity</h3>
-                <Badge variant={hasIssues ? 'warning' : 'success'} size="sm">
-                  {hasIssues ? 'Action Recommended' : 'Reconciled'}
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Fresh as of {latestAsOf} • Continuous multi-ledger verification
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDefinitionsModal(true)}
-              leftIcon={<Info className="w-3.5 h-3.5" />}
-              className="text-xs h-8 px-2.5 text-slate-600 hover:text-navy-800"
-            >
-              Metric Formulas
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={runReconciliation}
-              disabled={loading}
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />}
-              className="text-xs h-8 px-2.5"
-            >
-              Verify
-            </Button>
-          </div>
-        </div>
-
-        {/* 2-column Ledger Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
-          {/* Inventory Integrity Card */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-slate-500" />
-                  Physical Stock vs Ledger
-                </span>
-                {inventoryResult?.status === 'VERIFIED' ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> 100% Matched
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
-                    <AlertTriangle className="w-3.5 h-3.5" /> {inventoryResult?.discrepantCount || 0} Variance(s)
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {inventoryResult?.explanation || 'Verifying product stock history against physical records...'}
-              </p>
-            </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-              <span className="text-slate-500">
-                Audited {inventoryResult?.totalProductsChecked || 0} catalog SKU(s)
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('inventory');
-                  setShowDetailsModal(true);
-                }}
-                className="text-teal-700 hover:text-teal-800 font-semibold cursor-pointer"
-              >
-                Inspect Ledger →
-              </button>
-            </div>
-          </div>
-
-          {/* Financial Ledger Integrity Card (if permitted) */}
-          {canSeeFinancialBalances ? (
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-                    Invoicing vs Payments Ledger
-                  </span>
-                  {financialResult?.status === 'BALANCED' ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Balanced
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700">
-                      <AlertTriangle className="w-3.5 h-3.5" /> {formatCurrency(financialResult?.varianceAmount || 0)} Variance
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {financialResult?.explanation || 'Verifying invoices against payment allocations and receivables...'}
-                </p>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                <span className="text-slate-500">
-                  Total Invoiced: {formatCurrency(financialResult?.totalInvoiced || 0)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('financial');
-                    setShowDetailsModal(true);
-                  }}
-                  className="text-teal-700 hover:text-teal-800 font-semibold cursor-pointer"
-                >
-                  Inspect Financials →
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 flex flex-col justify-center">
-              <span className="text-xs text-slate-500 italic">
-                Financial ledger reconciliation is restricted to authorized accounting roles.
-              </span>
-            </div>
-          )}
+    <section aria-labelledby="ledger-check-heading" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 id="ledger-check-heading" className="text-sm font-bold text-navy-800">Ledger &amp; Data Integrity</h3>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setModal('definitions')}>Metric Formulas</Button>
+          <Button variant="outline" size="sm" onClick={verify} disabled={isChecking}>Verify</Button>
         </div>
       </div>
 
-      {/* Details Modal */}
-      <Modal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        title="Ledger Reconciliation Audit"
-        description="Comprehensive audit comparing recorded entity values against cumulative double-entry ledger history."
-        maxWidth="2xl"
-      >
-        <div className="space-y-4">
-          <div className="flex border-b border-slate-200">
-            <button
-              type="button"
-              onClick={() => setActiveTab('inventory')}
-              className={`pb-2 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                activeTab === 'inventory'
-                  ? 'border-teal-600 text-teal-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Inventory Ledger ({inventoryResult?.discrepantCount || 0} Discrepancies)
-            </button>
-            {canSeeFinancialBalances && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('financial')}
-                className={`pb-2 px-4 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                  activeTab === 'financial'
-                    ? 'border-teal-600 text-teal-800'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Financial Invoices ({financialResult?.discrepancies.length || 0} Discrepancies)
-              </button>
-            )}
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5" role="status">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-xs font-semibold text-slate-700">Recorded Stock Ledger</h4>
+            <Badge size="sm" variant={stockState ? 'warning' : 'info'}>
+              {stockState ?? (stock.data?.productCount ? 'Ledger available' : 'No products')}
+            </Badge>
           </div>
-
-          {activeTab === 'inventory' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-600">
-                {inventoryResult?.explanation}
-              </div>
-              {inventoryResult?.discrepancies && inventoryResult.discrepancies.length > 0 ? (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {inventoryResult.discrepancies.map((disc) => (
-                    <div
-                      key={disc.productId}
-                      className="p-3 border border-amber-200 bg-amber-50/50 rounded-xl space-y-1.5"
-                    >
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-navy-800">
-                          {disc.name} ({disc.sku})
-                        </span>
-                        <span className="font-semibold text-rose-700">
-                          Variance: {disc.varianceUnits > 0 ? `+${disc.varianceUnits}` : disc.varianceUnits} {disc.uom}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-600 grid grid-cols-2 gap-2">
-                        <span>Physical Stock: {disc.recordedStock} {disc.uom}</span>
-                        <span>Ledger Sum: {disc.ledgerStock} {disc.uom}</span>
-                      </div>
-                      <div className="text-xs text-amber-900 bg-amber-100/70 p-2 rounded-lg">
-                        💡 <strong>Action:</strong> {disc.actionableAdvice}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-slate-500 text-xs">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                  All inventory items reconcile 1:1 with movement records.
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'financial' && canSeeFinancialBalances && financialResult && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 rounded-lg text-xs text-slate-700">
-                <div>
-                  <div className="text-slate-500">Total Invoiced</div>
-                  <div className="font-bold text-navy-800">{formatCurrency(financialResult.totalInvoiced)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Collected</div>
-                  <div className="font-bold text-emerald-700">{formatCurrency(financialResult.totalPaid)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Outstanding</div>
-                  <div className="font-bold text-blue-700">{formatCurrency(financialResult.totalOutstanding)}</div>
-                </div>
-              </div>
-
-              {financialResult.discrepancies.length > 0 ? (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {financialResult.discrepancies.map((disc) => (
-                    <div
-                      key={disc.invoiceId}
-                      className="p-3 border border-rose-200 bg-rose-50/50 rounded-xl space-y-1 text-xs"
-                    >
-                      <div className="flex justify-between items-center font-bold text-navy-800">
-                        <span>{disc.invoiceNumber}</span>
-                        <span className="text-rose-700">Variance: {formatCurrency(disc.variance)}</span>
-                      </div>
-                      <div className="text-slate-600">{disc.note}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-slate-500 text-xs">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                  All customer invoices and payment allocations are balanced without variance.
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setShowDetailsModal(false)}>
-              Close Audit
-            </Button>
-          </div>
+          <p className="mt-2 text-xs text-slate-700">Recorded quantities come from stock movements. Physical variance requires a separate count.</p>
+          {stock.data && <p className="mt-2 text-xs text-slate-600">
+            {stock.data.productCount} catalog SKU(s) · {stock.data.lowStockCount} at or below reorder level.
+            {' '}Last successful snapshot {checkedTime(stock.data.asOf)}.
+          </p>}
         </div>
+
+        {canSeeFinancialBalances && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2" role="status">
+            <h4 className="text-xs font-semibold text-slate-700">Invoices and Payment Allocations</h4>
+            <Badge size="sm" variant={financeState || needsReview ? 'warning' : hasFinancialRecords ? 'success' : 'info'}>
+              {financeLabel}
+            </Badge>
+          </div>
+          {financials && <p className="mt-2 text-xs text-slate-600">
+            {financials.invoiceCount} posted invoice(s) · {financials.receiptCount} receipt(s).
+            {' '}Last successful check {checkedTime(financials.asOf)}.
+          </p>}
+          {hasCurrentFinance && financials && <Button
+            variant="outline" size="sm" className="mt-2"
+            onClick={() => setModal('finance')}
+          >Inspect Financials</Button>}
+        </div>}
+      </div>
+
+      <Modal isOpen={modal === 'finance' && hasCurrentFinance} onClose={() => setModal(null)} title="Financial Reconciliation" maxWidth="2xl">
+        {financials && <div className="space-y-3 text-sm text-slate-700">
+          <dl className="grid gap-2 sm:grid-cols-2">
+            <div><dt>Posted invoices</dt><dd>{formatCurrency(financials.totalInvoiced)}</dd></div>
+            <div><dt>Outstanding from allocations</dt><dd>{formatCurrency(financials.totalOutstanding)}</dd></div>
+            <div><dt>Receipts collected</dt><dd>{formatCurrency(financials.totalPaymentsCollected)}</dd></div>
+            <div><dt>Unapplied receipts</dt><dd>{formatCurrency(financials.unallocatedPayments)}</dd></div>
+          </dl>
+          {financials.receiptIssueCount > 0 && <p>{financials.receiptIssueCount} receipt(s) have invalid or excess allocations.</p>}
+          {financials.discrepancyCount > 0 && <>
+            <p>Showing {financials.discrepancies.length} of {financials.discrepancyCount} invoice discrepancies.</p>
+            <ul className="space-y-2">
+              {financials.discrepancies.map((invoice) => <li key={invoice.invoiceId} className="rounded-lg border border-rose-200 p-2">
+                <strong>{invoice.invoiceNumber}</strong> · Recorded paid {formatCurrency(invoice.totalPaid)}
+                {' '}· Allocated {formatCurrency(invoice.allocated)} · Difference {formatCurrency(invoice.variance)}
+              </li>)}
+            </ul>
+          </>}
+        </div>}
       </Modal>
 
-      {/* Metric Definitions Modal */}
-      <Modal
-        isOpen={showDefinitionsModal}
-        onClose={() => setShowDefinitionsModal(false)}
-        title="Metric Definitions & Formulas"
-        description="Definitions, accounting standards, and formulas for all figures shown on the dashboard."
-        maxWidth="lg"
-      >
-        <div className="space-y-3">
-          {Object.entries(METRIC_DEFINITIONS).map(([key, def]) => (
-            <div key={key} className="p-3 border border-slate-100 rounded-xl bg-slate-50 space-y-1">
-              <div className="text-xs font-bold text-navy-800 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-teal-600" />
-                {def.title}
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">{def.definition}</p>
-              <div className="text-[11px] font-mono text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded">
-                Formula: {def.formula}
-              </div>
-            </div>
-          ))}
-          <div className="flex justify-end pt-2">
-            <Button variant="primary" size="sm" onClick={() => setShowDefinitionsModal(false)}>
-              Understood
-            </Button>
-          </div>
-        </div>
+      <Modal isOpen={modal === 'definitions'} onClose={() => setModal(null)} title="Metric Definitions & Formulas">
+        <dl className="space-y-3">
+          {Object.entries(METRIC_DEFINITIONS).map(([key, metric]) => <div key={key} className="rounded-lg border border-slate-200 p-3">
+            <dt className="font-semibold text-navy-800">{metric.title}</dt>
+            <dd className="text-sm text-slate-700">{metric.definition}</dd>
+            <dd className="mt-1 font-mono text-xs text-slate-700">{metric.formula}</dd>
+          </div>)}
+        </dl>
       </Modal>
-    </>
+    </section>
   );
-};
+}

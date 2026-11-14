@@ -9,6 +9,8 @@ vi.mock('@/features/organizations/OrgContext', () => ({
   useOrg: vi.fn(),
 }));
 
+vi.mock('./ReconciliationCard', () => ({ ReconciliationCard: () => null }));
+
 vi.mock('@/services/dashboard.service', () => ({
   dashboardService: {
     getDashboardMetrics: vi.fn(),

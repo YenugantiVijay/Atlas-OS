@@ -93,7 +93,7 @@ describe('Area 5: Evidence-Grounded AI Assistance', () => {
     const res = await aiAssistantService.processQuery(org1, 'owner', 'Show inventory valuation and low stock', true);
     expect(res.confidence).toBe('GROUNDED');
     expect(res.calculations).toBeDefined();
-    expect(res.calculations?.[0].formula).toContain('SUM(product.current_stock * product.purchase_cost)');
+    expect(res.calculations?.[0].formula).toContain('SUM(MAX(ledger_quantity, 0) × catalog_purchase_cost)');
     expect(res.citations[0].url).toContain('/products?search=CALC-PROD-01');
   });
 

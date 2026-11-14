@@ -36,6 +36,7 @@ import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history
 import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
 import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
 import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
+import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
 const { Client } = pg;
@@ -1393,6 +1394,14 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+
+    const ledgerSalesId = crypto.randomUUID();
+    await testClient.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [ledgerSalesId, `ledger_sales_${runId}@example.com`]);
+    await testClient.query("INSERT INTO public.memberships(organization_id,user_id,role,is_active) VALUES ($1,$2,'sales',true)", [orgAId, ledgerSalesId]);
+    await runLedgerReconciliationAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, custAId, ownerAId: userAId, ownerBId: userBId, productAId: prodA1Id, salesAId: ledgerSalesId,
+    });
 
     // PR #56: real role/tenant and stock ledger acceptance on disposable PG only.
     await runGoodsReceivingAcceptance({

@@ -1,62 +1,76 @@
-/**
- * ATLAS OS — Trustworthy Numbers & Financial/Inventory Reconciliation Engine
- *
- * Provides authoritative reconciliation between:
- * 1. Financial Ledger: Total Invoiced vs Payments Allocated vs Outstanding Receivables.
- * 2. Inventory Ledger: Product Current Stock vs Stock Movement Ledger Sum.
- * 3. Metric definitions and freshness metadata.
- */
-
+import { z } from 'zod';
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import { calculateInvoiceBalance, formatCurrency } from '@/lib/money';
-import { Invoice, Payment, Product, StockMovement } from '@/types';
-import { mapDbInvoice } from './invoices.service';
-import { mapDbPayment, mapDbPaymentAllocation } from './payments.service';
-import { mapDbProduct } from './products.service';
-import { mapDbStockMovement } from './inventory.service';
+import { getBusinessDate } from '@/lib/dates';
+import { fromPaise, toPaise } from '@/lib/money';
 
-export interface FinancialReconciliationResult {
-  asOf: string;
-  formattedAsOf: string;
-  status: 'BALANCED' | 'VARIANCE_DETECTED';
-  totalInvoiced: number;
-  totalPaid: number;
-  totalOutstanding: number;
-  varianceAmount: number;
-  totalPaymentsCollected: number;
-  totalAllocated: number;
-  unallocatedPayments: number;
-  explanation: string;
-  discrepancies: Array<{
-    invoiceId: string;
-    invoiceNumber: string;
-    totalAmount: number;
-    totalPaid: number;
-    outstandingBalance: number;
-    variance: number;
-    note: string;
-  }>;
-}
+const previewLimit = 25;
+const count = z.number().int().nonnegative();
+const amount = z.number().finite().nonnegative();
+const timestamp = z.string().datetime({ offset: true });
 
-export interface InventoryReconciliationResult {
-  asOf: string;
-  formattedAsOf: string;
-  status: 'VERIFIED' | 'DISCREPANCY_DETECTED';
-  totalProductsChecked: number;
-  discrepantCount: number;
-  explanation: string;
-  discrepancies: Array<{
-    productId: string;
-    sku: string;
-    name: string;
-    uom: string;
-    recordedStock: number;
-    ledgerStock: number;
-    varianceUnits: number;
-    actionableAdvice: string;
-  }>;
-}
+const lowStockRow = z.object({
+  id: z.string(),
+  sku: z.string(),
+  name: z.string(),
+  uom: z.string(),
+  reorderThreshold: count,
+  quantity: z.number().int(),
+});
+
+const stockSummary = z.object({
+  asOf: timestamp,
+  productCount: count,
+  activeProductCount: count,
+  lowStockCount: count,
+  catalogCostValue: amount.nullable(),
+  lowStock: z.array(lowStockRow).max(previewLimit),
+}).refine((r) => r.productCount >= r.activeProductCount && r.activeProductCount >= r.lowStockCount
+  && r.lowStock.length === Math.min(r.lowStockCount, previewLimit));
+
+const discrepancy = z.object({
+  invoiceId: z.string(),
+  invoiceNumber: z.string(),
+  totalAmount: amount,
+  totalPaid: amount,
+  allocated: amount,
+  outstandingBalance: amount,
+  variance: amount.positive(),
+});
+
+const overdueRow = z.object({
+  id: z.string(),
+  invoiceNumber: z.string(),
+  dueDate: z.iso.date(),
+  outstanding: amount.positive(),
+});
+
+const financialSnapshot = z.object({
+  asOf: timestamp,
+  invoiceCount: count,
+  receiptCount: count,
+  totalInvoiced: amount,
+  totalPaid: amount,
+  totalOutstanding: amount,
+  varianceAmount: amount,
+  totalPaymentsCollected: amount,
+  totalAllocated: amount,
+  unallocatedPayments: amount,
+  receiptIssueCount: count,
+  discrepancyCount: count,
+  discrepancies: z.array(discrepancy).max(previewLimit),
+  overdueCount: count,
+  overdueTotal: amount,
+  overdue: z.array(overdueRow).max(previewLimit),
+}).refine((r) => r.discrepancyCount <= r.invoiceCount && r.overdueCount <= r.invoiceCount
+  && r.receiptIssueCount <= r.receiptCount
+  && (r.discrepancyCount === 0) === (r.varianceAmount === 0)
+  && (r.overdueCount === 0) === (r.overdueTotal === 0)
+  && r.discrepancies.length === Math.min(r.discrepancyCount, previewLimit)
+  && r.overdue.length === Math.min(r.overdueCount, previewLimit));
+
+export type StockLedgerSummary = z.infer<typeof stockSummary>;
+export type FinancialReconciliationResult = z.infer<typeof financialSnapshot>;
 
 export const METRIC_DEFINITIONS: Record<string, { title: string; definition: string; formula: string }> = {
   todaySales: {
@@ -71,174 +85,126 @@ export const METRIC_DEFINITIONS: Record<string, { title: string; definition: str
   },
   totalStockValue: {
     title: 'Total Stock Valuation',
-    definition: 'Current inventory asset value at cost price across all active catalog products.',
-    formula: 'SUM(products.current_stock * products.purchase_cost) WHERE is_active = true',
+    definition: 'Recorded positive quantities valued at current catalog cost price.',
+    formula: 'SUM(MAX(ledger_quantity, 0) × catalog_purchase_cost)',
   },
   lowStockItems: {
     title: 'Low Stock Reorder Alerts',
     definition: 'Count of active catalog SKUs whose current stock balance is at or below the configured reorder threshold.',
-    formula: 'COUNT(products) WHERE is_active = true AND current_stock <= reorder_threshold',
+    formula: 'COUNT(active products WHERE ledger_quantity <= reorder_threshold)',
   },
 };
 
-export const reconciliationService = {
-  /**
-   * Reconciles financial ledgers: verifies that Invoiced == Paid + Outstanding.
-   */
-  async reconcileFinancials(
-    orgId: string,
-    isMockAuth: boolean = false
-  ): Promise<FinancialReconciliationResult> {
-    if (!orgId) throw new Error('Organization ID is required for financial reconciliation.');
-
-    let invoices: Invoice[] = [];
-    let payments: Payment[] = [];
-
-    if (isMockAuth) {
-      invoices = storage.getInvoices(orgId);
-      payments = storage.getPayments(orgId);
-    } else {
-      if (!supabase) throw new Error('Cloud backend is not configured.');
-      const [invRes, payRes] = await Promise.all([
-        supabase.from('invoices').select('*').eq('organization_id', orgId),
-        supabase.from('payments').select('*, allocations:payment_allocations(*)').eq('organization_id', orgId),
-      ]);
-      if (invRes.error) throw new Error(`Failed to load invoices: ${invRes.error.message}`);
-      if (payRes.error) throw new Error(`Failed to load payments: ${payRes.error.message}`);
-      invoices = (invRes.data || []).map((row) => mapDbInvoice(row));
-      payments = (payRes.data || []).map((row) =>
-        mapDbPayment(row, (row.allocations || []).map(mapDbPaymentAllocation))
-      );
-    }
-
-    const activeInvoices = invoices.filter((inv) => inv.status !== 'CANCELLED');
-    const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
-    const totalPaid = activeInvoices.reduce((sum, inv) => sum + Number(inv.totalPaid || 0), 0);
-    const totalOutstanding = activeInvoices.reduce(
-      (sum, inv) => sum + calculateInvoiceBalance(inv.totalAmount, inv.totalPaid),
-      0
-    );
-
-    const totalPaymentsCollected = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const totalAllocated = payments.reduce(
-      (sum, p) =>
-        sum + (p.allocations || []).reduce((aSum: number, a: any) => aSum + Number(a.amountAllocated || a.amount || 0), 0),
-      0
-    );
-
-    const discrepancies: FinancialReconciliationResult['discrepancies'] = [];
-
-    for (const inv of activeInvoices) {
-      const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
-      const computedTotal = Number((Number(inv.totalPaid) + balance).toFixed(2));
-      const expectedTotal = Number(Number(inv.totalAmount).toFixed(2));
-      const variance = Number(Math.abs(expectedTotal - computedTotal).toFixed(2));
-
-      if (variance > 0.01) {
-        discrepancies.push({
-          invoiceId: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          totalAmount: expectedTotal,
-          totalPaid: Number(inv.totalPaid),
-          outstandingBalance: balance,
-          variance,
-          note: `Invoice total (${formatCurrency(expectedTotal)}) does not equal paid (${formatCurrency(inv.totalPaid)}) + balance (${formatCurrency(balance)}).`,
-        });
+function demoFinancialSnapshot(orgId: string): FinancialReconciliationResult {
+  const today = getBusinessDate();
+  const invoices = storage.getInvoices(orgId).filter((i) =>
+    i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID' || i.status === 'PAID');
+  const byInvoice = new Map(invoices.map((i) => [i.id, i]));
+  const payments = storage.getPayments(orgId);
+  const allocatedToInvoice = new Map<string, number>();
+  let collected = 0;
+  let allocated = 0;
+  let unapplied = 0;
+  let receiptIssueCount = 0;
+  for (const payment of payments) {
+    const value = toPaise(payment.amount);
+    let receiptAllocated = 0;
+    let invalidTarget = false;
+    for (const allocation of payment.allocations ?? []) {
+      const cents = toPaise(allocation.amountAllocated);
+      receiptAllocated += cents;
+      if (byInvoice.get(allocation.invoiceId)?.customerId !== payment.customerId) {
+        invalidTarget = true;
+        continue;
       }
+      allocatedToInvoice.set(allocation.invoiceId, (allocatedToInvoice.get(allocation.invoiceId) ?? 0) + cents);
     }
+    collected += value;
+    allocated += receiptAllocated;
+    unapplied += Math.max(value - receiptAllocated, 0);
+    if (invalidTarget || receiptAllocated > value) receiptIssueCount++;
+  }
 
-    const overallVariance = Number(Math.abs(totalInvoiced - (totalPaid + totalOutstanding)).toFixed(2));
-    const isBalanced = overallVariance <= 0.01 && discrepancies.length === 0;
+  const discrepancies: FinancialReconciliationResult['discrepancies'] = [];
+  const overdue: FinancialReconciliationResult['overdue'] = [];
+  let invoiced = 0;
+  let paid = 0;
+  let outstanding = 0;
+  let variance = 0;
+  let overdueTotal = 0;
+  for (const invoice of invoices) {
+    const total = toPaise(invoice.totalAmount);
+    const recordedPaid = toPaise(invoice.totalPaid);
+    const applied = allocatedToInvoice.get(invoice.id) ?? 0;
+    const balance = Math.max(total - applied, 0);
+    const difference = Math.max(Math.abs(recordedPaid - applied), applied - total, recordedPaid - total,
+      invoice.status === 'PAID' ? balance : 0);
+    invoiced += total;
+    paid += recordedPaid;
+    outstanding += balance;
+    if (difference > 0) {
+      variance += difference;
+      discrepancies.push({
+        invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, totalAmount: fromPaise(total),
+        totalPaid: fromPaise(recordedPaid), allocated: fromPaise(applied),
+        outstandingBalance: fromPaise(balance), variance: fromPaise(difference),
+      });
+    }
+    if (invoice.status !== 'PAID' && invoice.dueDate < today && balance > 0) {
+      overdueTotal += balance;
+      overdue.push({ id: invoice.id, invoiceNumber: invoice.invoiceNumber, dueDate: invoice.dueDate, outstanding: fromPaise(balance) });
+    }
+  }
+  return {
+    asOf: new Date().toISOString(),
+    invoiceCount: invoices.length, receiptCount: payments.length,
+    totalInvoiced: fromPaise(invoiced), totalPaid: fromPaise(paid), totalOutstanding: fromPaise(outstanding),
+    varianceAmount: fromPaise(variance), totalPaymentsCollected: fromPaise(collected),
+    totalAllocated: fromPaise(allocated), unallocatedPayments: fromPaise(unapplied), receiptIssueCount,
+    discrepancyCount: discrepancies.length,
+    discrepancies: discrepancies.sort((a, b) => b.variance - a.variance).slice(0, previewLimit),
+    overdueCount: overdue.length, overdueTotal: fromPaise(overdueTotal),
+    overdue: overdue.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, previewLimit),
+  };
+}
 
-    const now = new Date();
-    const explanation = isBalanced
-      ? `Financial ledgers balanced: Total Invoiced (${formatCurrency(totalInvoiced)}) equals Collected (${formatCurrency(totalPaid)}) + Outstanding Receivables (${formatCurrency(totalOutstanding)}).`
-      : `Financial variance of ${formatCurrency(overallVariance)} detected across ${discrepancies.length} invoice(s).`;
-
-    return {
-      asOf: now.toISOString(),
-      formattedAsOf: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + now.toLocaleDateString(),
-      status: isBalanced ? 'BALANCED' : 'VARIANCE_DETECTED',
-      totalInvoiced,
-      totalPaid,
-      totalOutstanding,
-      varianceAmount: overallVariance,
-      totalPaymentsCollected,
-      totalAllocated,
-      unallocatedPayments: Math.max(0, totalPaymentsCollected - totalAllocated),
-      explanation,
-      discrepancies,
-    };
+export const reconciliationService = {
+  async reconcileFinancials(orgId: string, isMockAuth = false): Promise<FinancialReconciliationResult> {
+    if (!orgId) throw new Error('Organization ID is required for financial reconciliation.');
+    if (isMockAuth) return demoFinancialSnapshot(orgId);
+    if (!supabase) throw new Error('Cloud backend is not configured.');
+    const { data, error } = await supabase.rpc('get_financial_reconciliation', {
+      p_org_id: orgId, p_today: getBusinessDate(),
+    });
+    if (error) throw new Error('Financial reconciliation is unavailable.');
+    const result = financialSnapshot.safeParse(data);
+    if (!result.success) throw new Error('Financial reconciliation returned incomplete data.');
+    return result.data;
   },
 
-  /**
-   * Reconciles inventory: verifies that for every product, currentStock == sum(stock_movements).
-   */
-  async reconcileInventory(
-    orgId: string,
-    isMockAuth: boolean = false
-  ): Promise<InventoryReconciliationResult> {
-    if (!orgId) throw new Error('Organization ID is required for inventory reconciliation.');
-
-    let products: Product[] = [];
-    let movements: StockMovement[] = [];
-
-    if (isMockAuth) {
-      products = storage.getProducts(orgId);
-      movements = storage.getStockMovements(orgId);
-    } else {
+  async getStockLedgerSummary(orgId: string, isMockAuth = false): Promise<StockLedgerSummary> {
+    if (!orgId) throw new Error('Organization ID is required for the stock ledger.');
+    if (!isMockAuth) {
       if (!supabase) throw new Error('Cloud backend is not configured.');
-      const [prodRes, movRes] = await Promise.all([
-        supabase.from('products').select('*').eq('organization_id', orgId),
-        supabase.from('stock_movements').select('*').eq('organization_id', orgId),
-      ]);
-      if (prodRes.error) throw new Error(`Failed to load products: ${prodRes.error.message}`);
-      if (movRes.error) throw new Error(`Failed to load stock movements: ${movRes.error.message}`);
-      products = (prodRes.data || []).map((row) =>
-        mapDbProduct(row, Number(row.current_stock ?? 0))
-      );
-      movements = (movRes.data || []).map(mapDbStockMovement);
+      const { data, error } = await supabase.rpc('get_stock_ledger_summary', { p_org_id: orgId });
+      if (error) throw new Error('The stock ledger is unavailable.');
+      const result = stockSummary.safeParse(data);
+      if (!result.success) throw new Error('The stock ledger returned incomplete data.');
+      return result.data;
     }
 
-    const discrepancies: InventoryReconciliationResult['discrepancies'] = [];
-
-    for (const prod of products) {
-      const prodMovements = movements.filter((m) => m.productId === prod.id);
-      const ledgerStock = prodMovements.reduce((sum, m) => sum + Number(m.quantityChange || 0), 0);
-      const recordedStock = Number(prod.currentStock ?? 0);
-      const variance = recordedStock - ledgerStock;
-
-      if (variance !== 0) {
-        discrepancies.push({
-          productId: prod.id,
-          sku: prod.sku,
-          name: prod.name,
-          uom: prod.uom,
-          recordedStock,
-          ledgerStock,
-          varianceUnits: variance,
-          actionableAdvice:
-            variance > 0
-              ? `Physical recorded stock (${recordedStock} ${prod.uom}) exceeds ledger sum (${ledgerStock} ${prod.uom}) by +${variance} ${prod.uom}. Check for unrecorded supplier intake.`
-              : `Physical recorded stock (${recordedStock} ${prod.uom}) is less than ledger sum (${ledgerStock} ${prod.uom}) by ${variance} ${prod.uom}. Check for unlogged counter sales or record a Stock Adjustment.`,
-        });
-      }
-    }
-
-    const now = new Date();
-    const isVerified = discrepancies.length === 0;
-    const explanation = isVerified
-      ? `Inventory ledger verified: All ${products.length} products reconcile exactly with stock movement ledger history.`
-      : `${discrepancies.length} of ${products.length} product(s) have variances between recorded physical stock and movement ledger.`;
-
+    const products = storage.getProducts(orgId);
+    const activeProducts = products.filter((p) => p.isActive);
+    const lowStock = activeProducts
+      .map(({ id, sku, name, uom, reorderThreshold, currentStock }) =>
+        lowStockRow.parse({ id, sku, name, uom, reorderThreshold, quantity: currentStock }))
+      .filter((p) => p.quantity <= p.reorderThreshold)
+      .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     return {
-      asOf: now.toISOString(),
-      formattedAsOf: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + now.toLocaleDateString(),
-      status: isVerified ? 'VERIFIED' : 'DISCREPANCY_DETECTED',
-      totalProductsChecked: products.length,
-      discrepantCount: discrepancies.length,
-      explanation,
-      discrepancies,
+      asOf: new Date().toISOString(), productCount: products.length, activeProductCount: activeProducts.length,
+      lowStockCount: lowStock.length,
+      catalogCostValue: fromPaise(products.reduce((sum, p) => sum + Math.max(z.number().int().parse(p.currentStock), 0) * toPaise(p.purchaseCost), 0)),
+      lowStock: lowStock.slice(0, previewLimit),
     };
   },
 };
