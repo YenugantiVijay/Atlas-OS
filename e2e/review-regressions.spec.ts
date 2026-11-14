@@ -8,18 +8,18 @@ test.beforeEach(async ({ page }) => {
 
 test('clears AI history when switching organizations', async ({ page }) => {
   await page.goto('/#/ai');
-  await page.getByRole('button', { name: "Summarize today's sales & orders" }).click();
-  await expect(page.getByText('Operational Sales Summary for Sri Lakshmi Electrical Distributors')).toBeVisible();
+  await page.getByRole('button', { name: 'Low-stock reorder suggestions' }).click();
+  await expect(page.getByText(/There are \d+ active electrical SKU\(s\) at or below their reorder threshold/)).toBeVisible();
   await page.getByRole('button', { name: /^Switch organization:/ }).click();
   await page.getByRole('button', { name: /Apex Electro Controls/ }).click();
-  await expect(page.getByText(/Hello! I am ATLAS Operational Assistant for Apex Electro Controls/)).toBeVisible();
-  await expect(page.getByText('Operational Sales Summary for Sri Lakshmi Electrical Distributors')).toHaveCount(0);
+  await expect(page.getByText(/Hello! I am the ATLAS Grounded Operational Assistant for Apex Electro Controls/)).toBeVisible();
+  await expect(page.getByText(/There are \d+ active electrical SKU\(s\) at or below their reorder threshold/)).toHaveCount(0);
 });
 
 test('returns valuation for the inventory valuation prompt', async ({ page }) => {
   await page.goto('/#/ai');
   await page.getByRole('button', { name: 'Inventory valuation breakdown' }).click();
-  await expect(page.getByText('Total Stock Value at Purchase Cost:', { exact: false })).toBeVisible();
+  await expect(page.getByText('Total Inventory Valuation', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve Requisition Proposal' })).toHaveCount(0);
 });
 

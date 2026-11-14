@@ -104,10 +104,26 @@ test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
         return {
           clientWidth: document.documentElement.clientWidth,
           scrollWidth: document.documentElement.scrollWidth,
+          offenders: Array.from(document.querySelectorAll('body *'))
+            .map((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                tag: element.tagName,
+                className: typeof element.className === 'string' ? element.className : '',
+                left: Math.round(rect.left),
+                right: Math.round(rect.right),
+                width: Math.round(rect.width),
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              };
+            })
+            .filter((element) => element.right > document.documentElement.clientWidth + 1 || element.scrollWidth > element.clientWidth + 1)
+            .sort((a, b) => b.right - a.right || (b.scrollWidth - b.clientWidth) - (a.scrollWidth - a.clientWidth))
+            .slice(0, 20),
         };
       });
 
-      expect(overflowInfo.scrollWidth).toBeLessThanOrEqual(overflowInfo.clientWidth);
+      expect(overflowInfo.scrollWidth, JSON.stringify(overflowInfo.offenders)).toBeLessThanOrEqual(overflowInfo.clientWidth);
     });
   }
 });

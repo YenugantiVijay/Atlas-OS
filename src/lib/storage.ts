@@ -68,9 +68,12 @@ const STORAGE_KEYS = {
   PAYMENTS: 'atlas_payments_v1',
   PAYMENT_ALLOCATIONS: 'atlas_payment_allocations_v1',
   AUDIT_EVENTS: 'atlas_audit_events_v1',
+  GOODS_RECEIPTS: 'atlas_goods_receipts_v1',
+  PURCHASE_ORDERS: 'atlas_purchase_orders_v1',
   INVENTORY_ADJ_IDEMPOTENCY: 'atlas_inventory_adj_idempotency_v1',
   CURRENT_ORG_ID: 'atlas_current_org_id_v1',
   CURRENT_USER: 'atlas_current_user_v1',
+  IMPORT_BATCHES: 'atlas_import_batches_v1',
 };
 
 const DEFAULT_CURRENT_USER: User = {
@@ -823,6 +826,35 @@ class StorageEngine {
     return updated;
   }
 
+  public removeUnreferencedProduct(orgId: string, productId: string): { success: boolean; reason?: string } {
+    this.initialize();
+    const products = this.getItem<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+    const prod = products.find((p) => p.id === productId && p.organizationId === orgId);
+    if (!prod) return { success: false, reason: 'Product not found.' };
+
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []).filter((o) => o.organizationId === orgId);
+    const hasOrder = orders.some((o) => o.items?.some((i) => i.productId === productId));
+    if (hasOrder) return { success: false, reason: `Product ${prod.sku} is referenced in existing sales orders.` };
+
+    const quotes = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []).filter((q) => q.organizationId === orgId);
+    const hasQuote = quotes.some((q) => q.items?.some((i) => i.productId === productId));
+    if (hasQuote) return { success: false, reason: `Product ${prod.sku} is referenced in existing quotations.` };
+
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []).filter((inv) => inv.organizationId === orgId);
+    const hasInvoice = invoices.some((inv) => inv.items?.some((i) => i.productId === productId));
+    if (hasInvoice) return { success: false, reason: `Product ${prod.sku} is referenced in existing invoices.` };
+
+    const movements = this.getItem<StockMovement[]>(STORAGE_KEYS.STOCK_MOVEMENTS, []).filter((m) => m.organizationId === orgId);
+    const hasDispatches = movements.some((m) => m.productId === productId && m.movementType !== 'OPENING_STOCK');
+    if (hasDispatches) return { success: false, reason: `Product ${prod.sku} has operational stock movement history.` };
+
+    // Unreferenced - safely remove product and opening stock movement
+    this.setItem(STORAGE_KEYS.PRODUCTS, products.filter((p) => p.id !== productId));
+    this.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, movements.filter((m) => m.productId !== productId));
+    this.logAuditEvent(orgId, 'UNDO_IMPORT_PRODUCT', 'PRODUCT', productId, { sku: prod.sku, name: prod.name });
+    return { success: true };
+  }
+
   // --- Customers ---
   public getCustomers(orgId: string): Customer[] {
     this.initialize();
@@ -876,6 +908,76 @@ class StorageEngine {
     this.setItem(STORAGE_KEYS.CUSTOMERS, customers);
     this.logAuditEvent(orgId, 'UPDATE_CUSTOMER', 'CUSTOMER', id, updates);
     return updated;
+  }
+
+  public removeUnreferencedCustomer(orgId: string, customerId: string): { success: boolean; reason?: string } {
+    this.initialize();
+    const customers = this.getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const cust = customers.find((c) => c.id === customerId && c.organizationId === orgId);
+    if (!cust) return { success: false, reason: 'Customer not found.' };
+
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []).filter((o) => o.organizationId === orgId);
+    if (orders.some((o) => o.customerId === customerId)) {
+      return { success: false, reason: `Customer ${cust.name} has existing sales orders.` };
+    }
+
+    const quotes = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []).filter((q) => q.organizationId === orgId);
+    if (quotes.some((q) => q.customerId === customerId)) {
+      return { success: false, reason: `Customer ${cust.name} has existing quotations.` };
+    }
+
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []).filter((inv) => inv.organizationId === orgId);
+    if (invoices.some((inv) => inv.customerId === customerId)) {
+      return { success: false, reason: `Customer ${cust.name} has existing invoices.` };
+    }
+
+    const payments = this.getItem<Payment[]>(STORAGE_KEYS.PAYMENTS, []).filter((p) => p.organizationId === orgId);
+    if (payments.some((p) => p.customerId === customerId)) {
+      return { success: false, reason: `Customer ${cust.name} has recorded payment ledger entries.` };
+    }
+
+    this.setItem(STORAGE_KEYS.CUSTOMERS, customers.filter((c) => c.id !== customerId));
+    this.logAuditEvent(orgId, 'UNDO_IMPORT_CUSTOMER', 'CUSTOMER', customerId, { name: cust.name });
+    return { success: true };
+  }
+
+  // --- Import Batches ---
+  public getImportBatches(orgId: string): Array<{
+    batchId: string;
+    organizationId: string;
+    dataset: 'products' | 'customers';
+    createdAt: string;
+    count: number;
+    recordIds: string[];
+  }> {
+    this.initialize();
+    const batches = this.getItem<any[]>(STORAGE_KEYS.IMPORT_BATCHES, []);
+    return batches.filter((b) => b.organizationId === orgId);
+  }
+
+  public saveImportBatch(orgId: string, batch: {
+    batchId: string;
+    dataset: 'products' | 'customers';
+    count: number;
+    recordIds: string[];
+  }): void {
+    this.initialize();
+    const batches = this.getItem<any[]>(STORAGE_KEYS.IMPORT_BATCHES, []);
+    batches.unshift({
+      ...batch,
+      organizationId: orgId,
+      createdAt: new Date().toISOString(),
+    });
+    this.setItem(STORAGE_KEYS.IMPORT_BATCHES, batches);
+  }
+
+  public removeImportBatchRecord(orgId: string, batchId: string): void {
+    this.initialize();
+    const batches = this.getItem<any[]>(STORAGE_KEYS.IMPORT_BATCHES, []);
+    this.setItem(
+      STORAGE_KEYS.IMPORT_BATCHES,
+      batches.filter((b) => !(b.batchId === batchId && b.organizationId === orgId))
+    );
   }
 
   // --- Suppliers ---
@@ -1440,6 +1542,65 @@ class StorageEngine {
     this.logAuditEvent(orgId, 'DELETE_SALES_ORDER', 'SALES_ORDER', orderId);
   }
 
+  public cancelSalesOrder(
+    orgId: string,
+    orderId: string,
+    reason: string = 'Cancelled by user',
+    userRole?: Role | null
+  ): SalesOrder {
+    this.initialize();
+    if (!userRole || !['owner', 'admin', 'sales'].includes(userRole)) {
+      throw new Error(`Permission denied: Role "${userRole || 'unassigned'}" cannot cancel sales orders.`);
+    }
+
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const index = orders.findIndex((o) => o.id === orderId && o.organizationId === orgId);
+    if (index === -1) throw new Error('Sales order not found');
+
+    const order = orders[index];
+    if (order.status === 'CANCELLED') {
+      return order;
+    }
+
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+    const hasActiveInvoice = invoices.some(
+      (i) => i.salesOrderId === orderId && i.organizationId === orgId && i.status !== 'CANCELLED'
+    );
+    if (hasActiveInvoice) {
+      throw new Error('Cannot cancel sales order with active invoices. Cancel or void linked invoices first.');
+    }
+
+    if (order.status === 'CONFIRMED' || order.status === 'FULFILLED') {
+      for (const item of order.items || []) {
+        this.recordStockMovement({
+          organizationId: orgId,
+          productId: item.productId,
+          quantityChange: item.quantity,
+          movementType: 'RETURN_INWARD',
+          referenceType: 'SALES_ORDER_CANCELLATION',
+          referenceId: order.id,
+          notes: `Stock restored upon cancellation of ${order.orderNumber}: ${reason}`,
+        });
+      }
+    }
+
+    const updated: SalesOrder = {
+      ...order,
+      status: 'CANCELLED',
+      updatedAt: new Date().toISOString(),
+    };
+    orders[index] = updated;
+    this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
+
+    this.logAuditEvent(orgId, 'CANCEL_ORDER', 'SALES_ORDER', order.id, {
+      orderNumber: order.orderNumber,
+      previousStatus: order.status,
+      reason,
+    });
+
+    return updated;
+  }
+
   // --- Invoices ---
   public getInvoices(orgId: string): Invoice[] {
     this.initialize();
@@ -1626,6 +1787,52 @@ class StorageEngine {
     });
 
     return newInvoice;
+  }
+
+  public cancelInvoice(orgId: string, invoiceId: string, reason: string = 'Cancelled by user'): Invoice {
+    this.initialize();
+    const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+    const index = invoices.findIndex((i) => i.id === invoiceId && i.organizationId === orgId);
+    if (index === -1) throw new Error('Invoice not found');
+
+    const invoice = invoices[index];
+    if (invoice.status === 'CANCELLED') {
+      return invoice;
+    }
+
+    if (invoice.totalPaid > 0) {
+      throw new Error(
+        `Cannot cancel invoice ${invoice.invoiceNumber} with recorded payments (₹${invoice.totalPaid} paid). Reallocate or refund payments first.`
+      );
+    }
+
+    const updated: Invoice = {
+      ...invoice,
+      status: 'CANCELLED',
+      updatedAt: new Date().toISOString(),
+    };
+    invoices[index] = updated;
+    this.setItem(STORAGE_KEYS.INVOICES, invoices);
+
+    if (invoice.salesOrderId) {
+      const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+      const orderIdx = orders.findIndex((o) => o.id === invoice.salesOrderId && o.organizationId === orgId);
+      if (orderIdx !== -1 && orders[orderIdx].status === 'FULFILLED') {
+        orders[orderIdx] = {
+          ...orders[orderIdx],
+          status: 'CONFIRMED',
+          updatedAt: new Date().toISOString(),
+        };
+        this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
+      }
+    }
+
+    this.logAuditEvent(orgId, 'CANCEL_INVOICE', 'INVOICE', invoice.id, {
+      invoiceNumber: invoice.invoiceNumber,
+      reason,
+    });
+
+    return updated;
   }
 
   // --- Payments & Atomic Allocation ---
@@ -1822,6 +2029,7 @@ class StorageEngine {
     entityId?: string,
     details?: Record<string, unknown>
   ): void {
+    this.initialize();
     const events = this.getItem<AuditEvent[]>(STORAGE_KEYS.AUDIT_EVENTS, []);
     events.push({
       id: 'aud-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -1835,6 +2043,114 @@ class StorageEngine {
       createdAt: new Date().toISOString(),
     });
     this.setItem(STORAGE_KEYS.AUDIT_EVENTS, events);
+  }
+
+  // --- Goods Receipts (Deterministic Local Storage) ---
+  public getGoodsReceipts(orgId: string): any[] {
+    this.initialize();
+    return this.getItem<any[]>(STORAGE_KEYS.GOODS_RECEIPTS, []).filter(
+      (r) => r.organizationId === orgId
+    );
+  }
+
+  public saveGoodsReceiptDraft(command: any): { receipt_id: string; status: 'DRAFT' } {
+    this.initialize();
+    const receipts = this.getItem<any[]>(STORAGE_KEYS.GOODS_RECEIPTS, []);
+    const existingIdx = receipts.findIndex(
+      (r) => r.id === command.receiptId && r.organizationId === command.organizationId
+    );
+
+    if (existingIdx >= 0 && receipts[existingIdx].status === 'POSTED') {
+      return { receipt_id: command.receiptId, status: 'POSTED' as any };
+    }
+
+    const products = this.getProducts(command.organizationId);
+
+    const enrichedLines = (command.lines || []).map((line: any) => {
+      const prod = products.find((p) => p.id === line.productId);
+      const packageTotal = (line.packageCounts || []).reduce((sum: number, c: number) => sum + (Number(c) || 0), 0);
+      const totalUnits = line.totalUnits ?? (packageTotal + (Number(line.looseUnits) || 0));
+      return {
+        ...line,
+        productName: prod?.name || line.productName || 'Received Item',
+        sku: prod?.sku || line.sku || 'SKU',
+        uom: prod?.uom || line.uom || 'Nos',
+        totalUnits,
+        usableUnits: line.usableUnits ?? totalUnits,
+        damagedUnits: line.damagedUnits ?? 0,
+      };
+    });
+
+    const record = {
+      id: command.receiptId,
+      organizationId: command.organizationId,
+      supplierId: command.supplierId,
+      supplierInvoiceNumber: command.supplierInvoiceNumber ? String(command.supplierInvoiceNumber).trim() : '',
+      receivedOn: command.receivedOn,
+      notes: command.notes ? String(command.notes).trim() : '',
+      lines: enrichedLines,
+      status: 'DRAFT',
+      createdAt: existingIdx >= 0 ? receipts[existingIdx].createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingIdx >= 0) {
+      receipts[existingIdx] = record;
+    } else {
+      receipts.push(record);
+    }
+    this.setItem(STORAGE_KEYS.GOODS_RECEIPTS, receipts);
+    return { receipt_id: command.receiptId, status: 'DRAFT' };
+  }
+
+  public postGoodsReceipt(orgId: string, receiptId: string): {
+    receipt_id: string;
+    status: 'POSTED';
+    idempotent_replay: boolean;
+    total_units?: number;
+  } {
+    this.initialize();
+    const receipts = this.getItem<any[]>(STORAGE_KEYS.GOODS_RECEIPTS, []);
+    const idx = receipts.findIndex((r) => r.id === receiptId && r.organizationId === orgId);
+    if (idx === -1) throw new Error('Goods receipt not found');
+
+    const receipt = receipts[idx];
+    if (receipt.status === 'POSTED') {
+      return { receipt_id: receiptId, status: 'POSTED', idempotent_replay: true };
+    }
+
+    let totalUnits = 0;
+    // Record stock movements for received goods in local stock movement ledger
+    for (const line of receipt.lines || []) {
+      const units = Number(line.usableUnits ?? line.totalUnits) || 0;
+      totalUnits += units;
+      if (units > 0 && line.productId) {
+        this.recordStockMovement({
+          organizationId: orgId,
+          productId: line.productId,
+          quantityChange: units,
+          movementType: 'GOODS_RECEIVED',
+          referenceType: 'GOODS_RECEIPT',
+          referenceId: receipt.id,
+          notes: `Goods received via supplier invoice ${receipt.supplierInvoiceNumber}`,
+        });
+      }
+    }
+
+    receipts[idx] = {
+      ...receipt,
+      status: 'POSTED',
+      postedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.setItem(STORAGE_KEYS.GOODS_RECEIPTS, receipts);
+
+    this.logAuditEvent(orgId, 'POST_GOODS_RECEIPT', 'GOODS_RECEIPT', receiptId, {
+      supplierInvoiceNumber: receipt.supplierInvoiceNumber,
+      totalUnits,
+    });
+
+    return { receipt_id: receiptId, status: 'POSTED', idempotent_replay: false, total_units: totalUnits };
   }
 
   // --- Dashboard Real-time Metrics ---

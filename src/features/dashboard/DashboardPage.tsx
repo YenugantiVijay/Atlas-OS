@@ -25,6 +25,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/money';
 import { DashboardMetrics, SalesTrendPoint, ReceivablesSummary, BrandValuation } from '@/types';
 import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
+import { ReconciliationCard } from '@/features/dashboard/ReconciliationCard';
+import { QuickStartGuide } from '@/features/onboarding/QuickStartGuide';
 
 export const DashboardPage: React.FC = () => {
   const { currentOrg, isMockAuth, currentRole, eligibility } = useOrg();
@@ -120,7 +122,7 @@ export const DashboardPage: React.FC = () => {
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 border border-white/10 p-5 sm:p-6 md:p-7 text-white shadow-sm">
         {/* Subtle decorative radial teal accent */}
         <div
-          className="pointer-events-none absolute -right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
+          className="pointer-events-none absolute right-0 sm:-right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
           aria-hidden="true"
         />
 
@@ -177,6 +179,9 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Onboarding & Quick Setup */}
+      <QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} />
+
       {eligibility?.businessCategory === 'general_retail' && <Card>
         <CardHeader><CardTitle>Shop essentials</CardTitle></CardHeader>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -216,6 +221,15 @@ export const DashboardPage: React.FC = () => {
             Review Stock Ledger
           </Button>
         </div>
+      )}
+
+      {/* Trust & Reconciliation Engine */}
+      {currentOrg && (
+        <ReconciliationCard
+          orgId={currentOrg.id}
+          isMockAuth={isMockAuth}
+          canSeeFinancialBalances={canSeeFinancialBalances}
+        />
       )}
 
       {/* KPI Metric Cards */}

@@ -247,7 +247,7 @@ export const organizationSchema = z
       .optional()
       .or(z.literal('')),
     phone: z.string().min(10, 'Valid phone number is required').max(20),
-    email: z.email('Invalid email address').optional().or(z.literal('')),
+    email: z.string().email('Invalid email address').optional().or(z.literal('')),
     addressLine1: z.string().min(3, 'Address is required'),
     city: z.string().min(2, 'City is required'),
     state: z.string().min(2, 'State is required'),
@@ -259,7 +259,7 @@ export const organizationSchema = z
     currency: z.string().default('INR'),
   })
   .superRefine((data, ctx) => {
-    if (data.gstin && data.pan) {
+    if (typeof data.gstin === 'string' && typeof data.pan === 'string' && data.gstin && data.pan) {
       const gstinUpper = data.gstin.trim().toUpperCase();
       const panUpper = data.pan.trim().toUpperCase();
       if (gstinUpper.length >= 12 && panUpper.length === 10) {
@@ -294,7 +294,7 @@ export const customerSchema = z.object({
   name: z.string().min(2, 'Customer name is required').max(100),
   companyName: z.string().max(100).optional(),
   phone: z.string().min(10, 'Valid phone number required').max(20),
-  email: z.email('Invalid email address').optional().or(z.literal('')),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   billingAddress: z.string().min(5, 'Billing address is required'),
   deliveryAddress: z.string().optional(),
   gstin: z
@@ -311,7 +311,7 @@ export const supplierSchema = z.object({
   companyName: z.string().max(100).optional(),
   contactPerson: z.string().max(100).optional(),
   phone: z.string().min(10, 'Valid phone number required').max(20),
-  email: z.email('Invalid email address').optional().or(z.literal('')),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   address: z.string().min(5, 'Address is required'),
   gstin: z.string().optional().or(z.literal('')),
   paymentTerms: z.string().optional(),
@@ -319,7 +319,8 @@ export const supplierSchema = z.object({
 
 export const orderItemSchema = z.object({
   // Preserve the UUID-shaped IDs accepted by PostgreSQL and the previous schema.
-  productId: z.guid(),
+  // PostgreSQL accepts UUID-shaped legacy IDs that are not RFC versioned UUIDs.
+  productId: z.string().guid(),
   productName: z.string(),
   productSku: z.string(),
   uom: z.enum(['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls']),

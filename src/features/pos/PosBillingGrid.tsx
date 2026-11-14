@@ -30,7 +30,7 @@ export const PosBillingGrid: React.FC<Props> = ({
         {lines.length} {lines.length === 1 ? 'line' : 'lines'}
       </span>
     </div>
-    <div className="max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto" role="region" aria-label="Scroll billing line items" tabIndex={0}>
+    <div className="max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto touch-pan-x" role="region" aria-label="Scroll billing line items" tabIndex={0}>
       <table className="w-full min-w-[1030px] border-collapse text-left text-xs text-slate-700">
         <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
           <tr className="border-b border-slate-200">
@@ -127,6 +127,7 @@ export const PosBillingGrid: React.FC<Props> = ({
         </tbody>
       </table>
     </div>
+
     <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-[11px] text-slate-500">
       *Stock shown is a last-known value, not a reservation. Final confirmation checks stock again. HSN, rates and GST are read-only product-master values.
     </div>
