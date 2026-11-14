@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:migrations": "node scripts/check-migration-parity.mjs",
     "test:db": "node scripts/run_local_db_acceptance.mjs",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/operations.spec.ts",
