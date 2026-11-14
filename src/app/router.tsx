@@ -68,6 +68,9 @@ const SalesReceiptsReportPage = React.lazy(() =>
 const SettingsPage = React.lazy(() =>
   import('@/features/organizations/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const IntegrationsPage = React.lazy(() =>
+  import('@/features/integrations/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage }))
+);
 
 export interface RequirePermissionProps {
   action: Action;
@@ -146,6 +149,7 @@ export const router = createHashRouter([
           </RequirePermission>
         ),
       },
+      { path: 'integrations', element: <IntegrationsPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

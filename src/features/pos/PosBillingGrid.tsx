@@ -30,7 +30,8 @@ export const PosBillingGrid: React.FC<Props> = ({
         {lines.length} {lines.length === 1 ? 'line' : 'lines'}
       </span>
     </div>
-    <div className="max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto" role="region" aria-label="Scroll billing line items" tabIndex={0}>
+    {/* Desktop & Tablet Table (md and up) */}
+    <div className="hidden md:block max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto" role="region" aria-label="Scroll billing line items" tabIndex={0}>
       <table className="w-full min-w-[1030px] border-collapse text-left text-xs text-slate-700">
         <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
           <tr className="border-b border-slate-200">
@@ -126,6 +127,126 @@ export const PosBillingGrid: React.FC<Props> = ({
           )}
         </tbody>
       </table>
+    </div>
+
+    {/* Mobile-First Touch Cards (< md) */}
+    <div className="block md:hidden max-h-[500px] overflow-y-auto divide-y divide-slate-100 p-2 space-y-2">
+      {lines.map((line, index) => {
+        const { product, quantity, discountPercent } = line;
+        const calculation = calculatedLines?.[index];
+        const lowStock = product.currentStock !== undefined && quantity > product.currentStock;
+        return (
+          <div key={product.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                    {index + 1}
+                  </span>
+                  <p className="font-semibold text-sm text-[#142B4D] truncate" title={product.name}>
+                    {product.name}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  SKU: <span className="font-mono">{product.sku}</span> {product.brand && `• ${product.brand}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Remove ${product.name}`}
+                onClick={() => onRemove(product.id)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2 rounded-lg items-center">
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Rate / UOM</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(product.sellingPrice)} / {product.uom}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Disc %</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  disabled={disabled}
+                  aria-label={`Discount for ${product.name}`}
+                  className="h-7 w-full rounded border border-slate-200 bg-white px-1 text-center text-xs font-semibold tabular-nums"
+                  value={discountPercent}
+                  onChange={(e) => onDiscountChange(product.id, e.target.value === '' ? 0 : Number(e.target.value))}
+                />
+              </div>
+              <div className="text-right">
+                <span className="text-slate-500 block text-[10px] uppercase">GST %</span>
+                <span className="font-semibold text-slate-800">{product.taxRate}%</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex h-10 items-center overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xs">
+                <button
+                  type="button"
+                  disabled={disabled || quantity <= 1}
+                  className="grid h-10 w-10 place-items-center text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                  aria-label={`Decrease ${product.name}`}
+                  onClick={() => onQuantityChange(product.id, Math.max(1, quantity - 1))}
+                >
+                  <Minus size={15} />
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={1000000}
+                  step={1}
+                  disabled={disabled}
+                  aria-label={`Quantity for ${product.name}`}
+                  className="h-10 w-14 border-x border-slate-300 text-center text-sm font-bold tabular-nums focus:outline-none focus:bg-teal-50"
+                  value={quantity}
+                  onChange={(e) => onQuantityChange(product.id, e.target.value === '' ? 0 : Number(e.target.value))}
+                />
+                <button
+                  type="button"
+                  disabled={disabled || quantity >= 1000000}
+                  className="grid h-10 w-10 place-items-center text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                  aria-label={`Increase ${product.name}`}
+                  onClick={() => onQuantityChange(product.id, quantity + 1)}
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block uppercase">Total</span>
+                <span className="text-base font-extrabold text-teal-700 tabular-nums">
+                  {calculation ? formatCurrency(calculation.totalAmount) : '—'}
+                </span>
+              </div>
+            </div>
+
+            {lowStock && (
+              <div className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg flex items-center gap-1.5">
+                <AlertTriangle size={13} className="shrink-0" />
+                <span>Quantity ({quantity}) exceeds last stock ({product.currentStock ?? 0})</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {lines.length === 0 && (
+        <div className="py-10 text-center text-slate-500">
+          <PackageOpen size={32} className="text-teal-600 mx-auto mb-2" strokeWidth={1.5} />
+          <p className="font-semibold text-sm text-[#142B4D]">No items in this bill yet</p>
+          <p className="text-xs mt-1">Tap product search above to add items.</p>
+        </div>
+      )}
     </div>
     <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-[11px] text-slate-500">
       *Stock shown is a last-known value, not a reservation. Final confirmation checks stock again. HSN, rates and GST are read-only product-master values.

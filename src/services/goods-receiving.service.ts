@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { storage } from '@/lib/storage';
 import type { ReceiptPayloadLine } from '@/features/receiving/receiving-worksheet';
 
 export interface GoodsReceiptRecord {
@@ -56,14 +57,20 @@ const mapReceipt = (row: any): GoodsReceiptRecord => ({
 /** Cloud-only V1: never claim Demo Mode stock was posted without a matching
  * deterministic goods-receipt ledger implementation. No direct table DML. */
 export const goodsReceivingService = {
-  async list(organizationId: string): Promise<GoodsReceiptRecord[]> {
+  async list(organizationId: string, isMockAuth: boolean = false): Promise<GoodsReceiptRecord[]> {
+    if (isMockAuth) {
+      return storage.getGoodsReceipts(organizationId);
+    }
     const { data, error } = await cloudOnly().from('goods_receipts')
       .select('*').eq('organization_id', organizationId)
       .order('updated_at', { ascending: false }).limit(50);
     if (error) throw new Error('Unable to load goods receipts: ' + error.message);
     return (data || []).map(mapReceipt);
   },
-  async saveDraft(command: SaveReceiptCommand): Promise<{ receipt_id: string; status: 'DRAFT' }> {
+  async saveDraft(command: SaveReceiptCommand, isMockAuth: boolean = false): Promise<{ receipt_id: string; status: 'DRAFT' }> {
+    if (isMockAuth) {
+      return storage.saveGoodsReceiptDraft(command);
+    }
     const checksDelivery = command.lines.some((line) => line.billedUnits !== undefined || line.damagedUnits !== undefined);
     const { data, error } = await cloudOnly().rpc(
       checksDelivery ? 'save_goods_receipt_delivery_draft' : 'save_goods_receipt_draft', {
@@ -81,12 +88,15 @@ export const goodsReceivingService = {
     }
     return data;
   },
-  async post(organizationId: string, receiptId: string): Promise<{
+  async post(organizationId: string, receiptId: string, isMockAuth: boolean = false): Promise<{
     receipt_id: string;
     status: 'POSTED';
     idempotent_replay: boolean;
     total_units?: number;
   }> {
+    if (isMockAuth) {
+      return storage.postGoodsReceipt(organizationId, receiptId);
+    }
     const { data, error } = await cloudOnly().rpc('post_goods_receipt', {
       p_org_id: organizationId,
       p_receipt_id: receiptId,
