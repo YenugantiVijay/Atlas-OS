@@ -36,6 +36,7 @@ import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history
 import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
 import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
 import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
+import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
 import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
@@ -4691,6 +4692,11 @@ async function runAcceptance() {
       recordTest,
     });
 
+    await runInvoiceRolesAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, custAId, custBId,
+      productAId: prodA1Id, productBId: prodB1Id, salesAId: ledgerSalesId,
+    });
     await runIndustryReceiptsAcceptance({ client: testClient, withRoleContext, recordTest });
 
     // ------------------------------------------------------------------------
