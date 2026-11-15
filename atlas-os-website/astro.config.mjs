@@ -17,6 +17,7 @@ export default defineConfig({
     format: "directory",
   },
   vite: {
+    server: { strictPort: true },
     plugins: [{
       name: "atlas-dev-preview-version",
       configureServer(server) {

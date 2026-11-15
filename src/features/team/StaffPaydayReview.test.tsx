@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { getBusinessDate } from '@/lib/dates';
 import { staffAdvanceService } from '@/services/staff-advances.service';
+import { ReversePaydayForm } from './StaffAdvanceForms';
 import { StaffPaydayReview } from './StaffPaydayReview';
 
 describe('Staff payday review', () => {
@@ -36,5 +37,24 @@ describe('Staff payday review', () => {
       'bank', 'balances-checked', [{ id: 'advance', amount_paise: 500000 }],
     ));
     expect(saved).toHaveBeenCalled();
+  });
+
+  it('shows the amount that returns to advances and requires a reason before reversing', async () => {
+    const scope = { orgId: 'studio', userId: 'owner', staffId: 'employee' };
+    const reverse = vi.spyOn(staffAdvanceService, 'reversePayday').mockResolvedValue();
+    const saved = vi.fn().mockResolvedValue(undefined);
+    render(<ReversePaydayForm scope={scope} currency="INR" month="March 2026" onClose={vi.fn()} onSaved={saved}
+      payday={{
+        id: 'march-payday', period: '2026-03-01', gross_paise: 1500000, net_paise: 950000,
+        advance_deductions_paise: 450000, other_deductions_paise: 100000, method: 'bank',
+        reversed_at: null, reversal_reason: null,
+      }} />);
+    expect(screen.getByRole('dialog', { name: 'Reverse March 2026 payday' })).toHaveAccessibleDescription(/restores ₹4,500\.00/);
+    const submit = screen.getByRole('button', { name: 'Reverse payday' });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for reversal' }), { target: { value: 'Wrong deduction' } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(saved).toHaveBeenCalledOnce());
+    expect(reverse).toHaveBeenCalledExactlyOnceWith(scope, 'march-payday', 'Wrong deduction');
   });
 });

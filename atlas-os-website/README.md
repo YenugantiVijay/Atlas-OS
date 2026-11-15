@@ -107,7 +107,7 @@ See [PR #51 Website Lead Delivery deployment and verification](../docs/PR51_WEBS
 1. Open the `atlas-os-website` folder in File Explorer.
 2. Double-click **`preview-website.cmd`**.
 3. The script checks Node/npm, installs dependencies if needed, and opens **http://127.0.0.1:4321/** after verifying that Astro is serving this checkout and Git revision.
-4. Keep the Astro server terminal open while previewing. Edits to `src/pages/`, `src/components/` and styles appear with hot reload.
+4. Keep the Astro server terminal open while previewing. Edits to `src/pages/`, `src/components/` and styles appear with hot reload. The launcher runs Astro in that terminal, even if an earlier session left an Astro lock file.
 
 After pulling updates or switching branches, close the previous **Atlas OS Website Live Server** terminal before reopening the launcher. If port 4321 is already serving a different checkout, an older revision, or a static build, the launcher identifies the conflict. Close the terminal serving that port and try again.
 
@@ -117,7 +117,7 @@ Open the **website folder** in VS Code and run these commands in the terminal:
 
 ```bash
 npm ci
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 4321
 ```
 
 Then open **http://127.0.0.1:4321/** in your browser. **Do not use "Open with Live Server" on an `index.html` in the source folder**: Live Server cannot compile `.astro` components and will not show the true website.

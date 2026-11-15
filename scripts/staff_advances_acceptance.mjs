@@ -119,4 +119,45 @@ export async function runStaffAdvancesAcceptance({ client, withRoleContext, reco
     )).catch(error => error.code);
     assert.equal(foreign, '42501');
   });
+
+  await check('ADVANCE-05', 'A latest payday reversal preserves history, restores deductions and allows corrected posting', async () => {
+    const posted = await owner(async () => (await client.query(
+      'SELECT id,period::text,request FROM public.staff_paydays WHERE organization_id=$1 AND staff_id=$2 ORDER BY period',
+      [orgAId, staff],
+    )).rows);
+    const [jan, , mar] = posted;
+    const reversal = randomUUID();
+    const reverse = (payday, request = reversal, reason = 'Entered the wrong deduction') => one(
+      'SELECT public.reverse_staff_payday($1,$2,$3,$4,$5) AS result', [orgAId, staff, payday, request, reason],
+    );
+    await assert.rejects(as(salesAId, () => reverse(mar.id)), { code: '42501' });
+    await assert.rejects(as(ownerBId, () => reverse(mar.id)), { code: '42501' });
+    await assert.rejects(owner(() => reverse(jan.id)), { code: '23514' });
+    await assert.rejects(owner(() => reverse(mar.id, reversal, ' ')), { code: '22023' });
+    assert.equal(await owner(() => reverse(mar.id)), mar.id);
+    assert.equal(await owner(() => reverse(mar.id)), mar.id);
+    await assert.rejects(owner(() => reverse(mar.id, randomUUID())), { code: '23505' });
+    await assert.rejects(owner(() => post(mar.id, march, mar.request[6], mar.request[7], { other: 100000 })), { code: '23505' });
+
+    assert.equal(await owner(() => balance(large)), '950000');
+    assert.equal((await owner(() => payRecord(mar.id))).net_paise, '950000');
+    const event = await owner(() => client.query(
+      'SELECT reversed_by,reversal_reason FROM public.staff_paydays WHERE id=$1 AND reversed_at IS NOT NULL', [mar.id],
+    ));
+    assert.deepEqual(event.rows, [{ reversed_by: ownerAId, reversal_reason: 'Entered the wrong deduction' }]);
+    const history = await owner(() => client.query(
+      `SELECT payday_reversed_at IS NOT NULL AS reversed, count(*)::int AS count
+       FROM public.staff_advance_recovery_history WHERE organization_id=$1 AND staff_id=$2 AND advance_id=$3
+       GROUP BY reversed ORDER BY reversed`, [orgAId, staff, large],
+    ));
+    assert.deepEqual(history.rows, [{ reversed: false, count: 1 }, { reversed: true, count: 1 }]);
+    const draft = await owner(() => preview(march));
+    assert.equal(draft.latest_period, february);
+    assert.equal(draft.lines[0].catchup_paise, 450000);
+    const corrected = randomUUID();
+    await owner(() => post(corrected, march, draft.snapshot, [{ id: large, amount_paise: 250000 }], { other: 100000 }));
+    assert.equal((await owner(() => payRecord(corrected))).net_paise, '1150000');
+    assert.equal(await owner(() => balance(large)), '700000');
+    await assert.rejects(owner(() => post(randomUUID(), march, draft.snapshot, [])), { code: '23505' });
+  });
 }

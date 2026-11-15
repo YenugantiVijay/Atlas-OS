@@ -7,7 +7,7 @@ import { getBusinessDate, formatDisplayDate } from '@/lib/dates';
 import { formatCurrency, fromPaise } from '@/lib/money';
 import { parseStaffPayAmount } from '@/services/staff-pay.service';
 import {
-  staffAdvanceService, staffPaymentMethods, type StaffAdvance, type StaffPaymentMethod,
+  staffAdvanceService, staffPaymentMethods, type StaffAdvance, type StaffPayday, type StaffPaymentMethod,
 } from '@/services/staff-advances.service';
 
 export type AdvanceFormScope = { orgId: string; staffId: string; userId: string };
@@ -134,6 +134,46 @@ export function RepaymentForm({ scope, advance, currency, onClose, onSaved }: {
       <Input label="Reason or reference" value={note} required maxLength={300} disabled={busy} onChange={event => setNote(event.target.value)} />
       {error && <p role="alert" className="text-sm text-rose-800">{error}</p>}
       <Button type="submit" isLoading={busy} disabled={busy || !note.trim()}>Record repayment</Button>
+    </form>
+  </Modal>;
+}
+
+export function ReversePaydayForm({ scope, payday, month, currency, onClose, onSaved }: {
+  scope: AdvanceFormScope; payday: StaffPayday; month: string; currency: string;
+  onClose: () => void; onSaved: () => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const restored = formatCurrency(fromPaise(payday.advance_deductions_paise), currency);
+
+  async function reverse(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !reason.trim()) return;
+    setError('');
+    setBusy(true);
+    try {
+      await staffAdvanceService.reversePayday(scope, payday.id, reason);
+      await onSaved();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Could not confirm the reversal.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <Modal isOpen title={`Reverse ${month} payday`}
+    description={`This reopens the wage month and restores ${restored} to outstanding advances. The original record stays in pay history.`}
+    onClose={() => { if (!busy) onClose(); }}>
+    <form className="space-y-4" onSubmit={event => void reverse(event)}>
+      <p className="text-sm text-content-secondary">This changes the Atlas pay register only. Account for any actual cash or bank payment separately.</p>
+      <Input label="Reason for reversal" value={reason} required maxLength={300} disabled={busy}
+        onChange={event => setReason(event.target.value)} />
+      {error && <p role="alert" className="text-sm text-rose-800">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="danger" isLoading={busy} disabled={!reason.trim()}>Reverse payday</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Cancel</Button>
+      </div>
     </form>
   </Modal>;
 }

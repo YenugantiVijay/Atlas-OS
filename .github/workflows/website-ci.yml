@@ -59,6 +59,13 @@ jobs:
         working-directory: atlas-os-website
         run: npm run test:preview
 
+      - name: Verify live Astro startup
+        run: |
+          setsid npm run dev -- --host 127.0.0.1 --port 4321 &
+          preview_pid=$!
+          trap 'kill -- -"$preview_pid" 2>/dev/null || true' EXIT
+          node scripts/wait-for-website.mjs
+
       - name: Verify built website
         run: npm run verify
 
