@@ -1,0 +1,137 @@
+---
+import { ArrowRight, Calculator, FileText, Receipt, Search } from 'lucide-react';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+
+const resources = [
+  { label: 'GST invoicing', description: 'Explore Atlas OS invoice and tax breakdowns.', href: '/features#invoicing', Icon: FileText, hue: '#1d4ed8' },
+  { label: 'Receipt templates', description: 'Preview customer and counter receipt layouts.', href: '/receipt-templates', Icon: Receipt, hue: '#a21caf' },
+  { label: 'HSN and SAC guidance', description: 'Learn how to look up a code and its rate on the GST portal.', href: 'https://tutorial.gst.gov.in/userguide/taxpayersdashboard/Search_HSN_SAC_Tax_Rates.htm', Icon: Search, hue: '#0f766e' },
+];
+const control = 'min-h-11 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600';
+---
+
+<BaseLayout title="GST Calculator | Atlas OS" description="Add or remove Indian GST, check the amount before and after tax, and view a CGST, SGST, UTGST or IGST breakdown.">
+  <section class="border-b border-border bg-surface-secondary">
+    <Container size="wide" class="py-10 sm:py-14">
+      <nav aria-label="Breadcrumb" class="mb-6 flex gap-2 text-sm text-content-secondary" data-enter>
+        <a href="/" class="hover:underline">Home</a><span aria-hidden="true">›</span><span aria-current="page">GST calculator</span>
+      </nav>
+      <div class="grid items-center gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-14">
+        <div class="space-y-5" data-enter>
+          <span class="inline-grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-700"><Calculator size={25} aria-hidden="true" /></span>
+          <h1 class="font-heading text-4xl font-extrabold tracking-tight text-content-primary sm:text-5xl xl:text-6xl">
+            GST <span class="text-brand-700">calculator</span>
+          </h1>
+          <p class="max-w-lg text-base leading-relaxed text-content-secondary sm:text-lg">Add GST to a price or find the taxable value in an amount that already includes GST.</p>
+          <a href="#formulas" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline">How the calculation works <ArrowRight size={15} aria-hidden="true" /></a>
+        </div>
+        <div class="grid overflow-hidden rounded-3xl border border-border bg-white shadow-md xl:grid-cols-[minmax(0,1fr)_minmax(0,.9fr)]" data-enter data-delay="1">
+          <form id="gst-calculation" class="space-y-4 p-5 sm:p-7">
+            <fieldset>
+              <legend class="mb-2 text-sm font-semibold">Amount type</legend>
+              <div class="grid grid-cols-2 gap-1 rounded-xl bg-surface-secondary p-1">
+                <label class="cursor-pointer rounded-lg px-2 py-2 text-center text-sm font-semibold has-[:checked]:bg-white has-[:checked]:text-brand-700 has-[:checked]:shadow-sm has-[:focus-visible]:outline has-[:focus-visible]:outline-2">
+                  <input class="sr-only" type="radio" name="mode" value="add" checked />Add GST
+                </label>
+                <label class="cursor-pointer rounded-lg px-2 py-2 text-center text-sm font-semibold has-[:checked]:bg-white has-[:checked]:text-brand-700 has-[:checked]:shadow-sm has-[:focus-visible]:outline has-[:focus-visible]:outline-2">
+                  <input class="sr-only" type="radio" name="mode" value="remove" />Remove GST
+                </label>
+              </div>
+            </fieldset>
+            <label class="block space-y-1 text-sm font-semibold"><span id="gst-amount-label">Amount before GST (₹)</span>
+              <input name="amount" type="text" inputmode="decimal" class={control} value="1000" maxlength="16" required />
+            </label>
+            <label class="block space-y-1 text-sm font-semibold"><span>GST rate (%)</span>
+              <input name="rate" type="number" inputmode="decimal" class={control} value="18" min="0" max="100" step="0.01" required />
+            </label>
+            <label class="block space-y-1 text-sm font-semibold"><span>Supply type</span>
+              <select name="supply" class={control}>
+                <option value="state">Within a state (CGST + SGST)</option>
+                <option value="territory">Within a UT where UTGST applies</option>
+                <option value="interstate">Between states or territories (IGST)</option>
+              </select>
+            </label>
+            <button type="reset" class="rounded px-1 py-1 text-sm font-semibold text-brand-700 hover:underline focus-visible:outline focus-visible:outline-2">Reset example</button>
+            <p id="gst-error" class="text-sm text-red-800" hidden role="status"></p>
+          </form>
+          <section aria-label="GST breakdown" class="border-t border-brand-200 bg-gradient-to-br from-brand-50 to-white p-5 sm:p-7 xl:border-l xl:border-t-0">
+            <h2 class="font-heading text-xl font-bold">GST breakdown</h2>
+            <dl id="gst-result" aria-live="polite" aria-atomic="true" class="mt-4 space-y-3 text-sm">
+              <div class="flex flex-wrap items-center justify-between gap-x-3"><dt>Taxable value</dt><dd data-gst-value="base" class="font-semibold">₹1,000.00</dd></div>
+              <div class="flex flex-wrap items-center justify-between gap-x-3"><dt>Total GST</dt><dd data-gst-value="tax" class="font-semibold">₹180.00</dd></div>
+              <div id="gst-central" class="flex flex-wrap items-center justify-between gap-x-3"><dt>CGST</dt><dd data-gst-value="central">₹90.00</dd></div>
+              <div id="gst-regional" class="flex flex-wrap items-center justify-between gap-x-3"><dt id="gst-regional-label">SGST</dt><dd data-gst-value="regional">₹90.00</dd></div>
+              <div id="gst-integrated" hidden><dt>IGST</dt><dd data-gst-value="integrated">₹0.00</dd></div>
+              <div class="flex flex-wrap items-center justify-between gap-x-3 border-t border-brand-200 pt-4"><dt class="font-semibold">Total including GST</dt><dd data-gst-value="total" class="break-all text-xl font-bold text-brand-700">₹1,180.00</dd></div>
+            </dl>
+            <p class="mt-4 text-xs leading-relaxed text-content-secondary">Enter the rate and supply type that apply to your transaction. The result excludes cess and other charges.</p>
+          </section>
+        </div>
+      </div>
+    </Container>
+  </section>
+  <section id="formulas" class="py-12 sm:py-16">
+    <Container size="wide">
+      <h2 class="mb-5 font-heading text-2xl font-bold sm:text-3xl" data-reveal>How the calculation works</h2>
+      <div class="grid gap-4 md:grid-cols-2" data-reveal-group>
+        <article class="rounded-2xl border border-border p-5 sm:p-7"><h3 class="font-heading text-lg font-bold">Add GST</h3><p class="mt-2 text-content-secondary">Multiply the taxable amount by the GST rate and divide by 100. Add that tax to the taxable amount.</p></article>
+        <article class="rounded-2xl border border-border p-5 sm:p-7"><h3 class="font-heading text-lg font-bold">Remove GST</h3><p class="mt-2 text-content-secondary">Multiply the inclusive amount by the GST rate and divide by 100 plus the rate. Subtract that tax from the inclusive amount.</p></article>
+      </div>
+      <p class="mt-4 text-sm text-content-secondary" data-reveal>The calculator rounds total GST to the nearest paise. When splitting local tax, an odd paise goes to the state or territory share so the breakdown adds up.</p>
+    </Container>
+  </section>
+  <section class="border-t border-border bg-surface-secondary py-12 sm:py-16">
+    <Container size="wide">
+      <h2 class="mb-5 font-heading text-2xl font-bold sm:text-3xl" data-reveal>GST and billing resources</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-reveal-group>
+        {resources.map(({ label, description, href, Icon, hue }) => (
+          <a href={href} style={`--icon-accent:${hue}`} class="atlas-icon-card rounded-2xl border border-border bg-white p-5 transition-colors hover:border-brand-400">
+            <span class="atlas-card-icon mb-3 grid h-11 w-11 place-items-center rounded-xl"><Icon size={22} aria-hidden="true" /></span>
+            <h3 class="font-heading text-lg font-bold">{label}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-content-secondary">{description}</p>
+          </a>
+        ))}
+      </div>
+    </Container>
+  </section>
+</BaseLayout>
+
+<style>
+  #gst-result [hidden] { display: none; }
+</style>
+<script>
+  import { calculateGst } from '../scripts/gst-calculator';
+  const form = document.querySelector<HTMLFormElement>('#gst-calculation');
+  if (form) {
+    const error = document.getElementById('gst-error')!;
+    const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+    const outputs = document.querySelectorAll<HTMLElement>('[data-gst-value]');
+    const render = () => {
+      const data = new FormData(form);
+      const mode = data.get('mode') === 'remove' ? 'remove' : 'add';
+      const choice = data.get('supply');
+      const supply = choice === 'interstate' || choice === 'territory' ? choice : 'state';
+      document.getElementById('gst-amount-label')!.textContent = mode === 'add' ? 'Amount before GST (₹)' : 'Amount including GST (₹)';
+      document.getElementById('gst-central')!.hidden = supply === 'interstate';
+      document.getElementById('gst-regional')!.hidden = supply === 'interstate';
+      document.getElementById('gst-regional-label')!.textContent = supply === 'territory' ? 'UTGST' : 'SGST';
+      const integrated = document.getElementById('gst-integrated')!;
+      integrated.hidden = supply !== 'interstate';
+      integrated.classList.toggle('flex', supply === 'interstate');
+      integrated.classList.add('flex-wrap', 'items-center', 'justify-between', 'gap-x-3');
+      const result = calculateGst(String(data.get('amount') ?? ''), String(data.get('rate') ?? ''), mode, supply);
+      error.hidden = result !== null;
+      error.textContent = result ? '' : 'Enter a non-negative amount and a rate from 0 to 100%. Use up to two decimal places.';
+      for (const output of outputs) {
+        const key = output.dataset.gstValue as keyof NonNullable<typeof result>;
+        output.textContent = result ? currency.format(result[key] / 100) : '—';
+      }
+    };
+    form.addEventListener('input', render);
+    form.addEventListener('change', render);
+    form.addEventListener('reset', () => requestAnimationFrame(render));
+    form.addEventListener('submit', (event) => { event.preventDefault(); render(); });
+    render();
+  }
+</script>

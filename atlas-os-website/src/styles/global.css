@@ -137,7 +137,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
-  [data-enter] { animation: atlas-enter 520ms cubic-bezier(.2,.72,.32,1) backwards; }
+  .atlas-visible-entry, [data-enter] { animation: atlas-enter 520ms cubic-bezier(.2,.72,.32,1) backwards; }
   [data-enter][data-delay="1"] { animation-delay: 70ms; }
   [data-enter][data-delay="2"] { animation-delay: 130ms; }
   [data-enter][data-delay="3"] { animation-delay: 190ms; }
@@ -148,6 +148,7 @@
   }
 
   .atlas-pending:not(:focus-within, :target) { opacity: 0; }
+  .atlas-pending[data-enter] { animation: none; }
   .atlas-revealed:not(:focus-within, :target) {
     animation: atlas-scroll-reveal 540ms cubic-bezier(.2,.72,.32,1) var(--atlas-reveal-delay) backwards;
   }
@@ -182,7 +183,7 @@
 }
 
 @media print {
-  .atlas-pending, .atlas-revealed, [data-enter] { opacity: 1 !important; animation: none !important; }
+  .atlas-pending, .atlas-revealed, .atlas-visible-entry, [data-enter] { opacity: 1 !important; animation: none !important; }
   .atlas-scroll-progress { display: none !important; }
 }
 
@@ -202,4 +203,14 @@
     transition-delay: 0s !important;
     transition-duration: 0s !important;
   }
+}
+
+.atlas-card-icon {
+  background-color: #eef2f6;
+  color: #445673;
+  transition: color 180ms ease, background-color 180ms ease;
+}
+.atlas-icon-card:is(:hover, :focus-within) .atlas-card-icon {
+  color: var(--icon-accent, #0f766e);
+  background-color: color-mix(in srgb, var(--icon-accent, #0f766e) 12%, white);
 }

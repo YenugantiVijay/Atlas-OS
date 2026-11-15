@@ -11,6 +11,7 @@ const expectedRoutes = [
   { path: 'index.html', titleKeyword: 'Atlas OS', descKeyword: 'distributor-focused' },
   { path: 'product/index.html', titleKeyword: 'Product Overview', descKeyword: 'Atlas OS' },
   { path: 'features/index.html', titleKeyword: 'Features', descKeyword: 'capabilities' },
+  { path: 'gst-calculator/index.html', titleKeyword: 'GST Calculator', descKeyword: 'GST' },
   { path: 'solutions/index.html', titleKeyword: 'Industry Solutions', descKeyword: 'Wholesale' },
   { path: 'download/index.html', titleKeyword: 'Download Atlas OS', descKeyword: 'Distribution' },
   { path: 'pricing/index.html', titleKeyword: 'Pricing', descKeyword: 'pricing' },

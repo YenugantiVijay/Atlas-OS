@@ -11,11 +11,11 @@ import { industryHref } from '../data/navigation';
   description="Explore Atlas OS for small shops, fertilizer and agri-input dealers, general trade, electrical, electronics, and hardware businesses.">
   <div class="bg-surface-secondary">
     <Container size="wide" class="py-12 sm:py-16">
-      <div class="mb-8 max-w-3xl space-y-3 sm:mb-10">
+      <div data-enter class="mb-8 max-w-3xl space-y-3 sm:mb-10">
         <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">Atlas OS by industry</h1>
         <p class="text-lg leading-relaxed text-content-secondary">Explore how Atlas OS handles stock, sales, and collections in your line of trade.</p>
       </div>
-      <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <ul data-reveal-group class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {INDUSTRY_SOLUTIONS.map(industry => (
           <li id={industry.id}>
             <a href={industryHref(industry.id)} class="flex h-full flex-col gap-3 rounded-2xl border border-border bg-white p-5 hover:border-brand-500 sm:p-6">
@@ -26,7 +26,7 @@ import { industryHref } from '../data/navigation';
           </li>
         ))}
       </ul>
-      <div class="mt-9 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5 sm:p-7">
+      <div data-reveal class="mt-9 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5 sm:p-7">
         <h2 class="font-heading text-xl font-bold">Discuss your business workflow</h2>
         <Button href="/request-demo" variant="primary" size="md">Request a demo</Button>
       </div>
