@@ -5,7 +5,6 @@ import { CounterShiftPage } from './CounterShiftPage';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { counterShiftsService } from '@/services/counter-shifts.service';
-import { paymentsService } from '@/services/payments.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
 vi.mock('@/hooks/useActionPermission', () => ({ useActionPermission: vi.fn() }));
@@ -16,14 +15,13 @@ vi.mock('@/services/counter-shifts.service', async (importOriginal) => {
     counterShiftsService: {
       getLatestShift: vi.fn(),
       getShiftPayments: vi.fn(),
-      getLinkedPaymentIds: vi.fn(),
+      getCashMovements: vi.fn(),
+      recordCashMovement: vi.fn(),
       openShift: vi.fn(),
-      linkPayment: vi.fn(),
       closeShift: vi.fn(),
     },
   };
 });
-vi.mock('@/services/payments.service', () => ({ paymentsService: { getPayments: vi.fn() } }));
 
 const check = vi.fn();
 const shift = {
@@ -46,13 +44,11 @@ const payment = {
   paymentDate: '2026-11-15',
   createdAt: '2026-11-15T08:30:00.000Z',
 };
-let linked = false;
 let shiftState: typeof shift | { status: 'CLOSED'; expectedCash: number; closingCash: number; variance: number } = shift;
 
 describe('Counter shift cash reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    linked = false;
     shiftState = shift;
     vi.mocked(useOrg).mockReturnValue({
       currentOrg: { id: 'org-1', name: 'Stall' },
@@ -64,30 +60,23 @@ describe('Counter shift cash reconciliation', () => {
     vi.mocked(counterShiftsService.getShiftPayments).mockResolvedValue([
       { ...payment, customerName: payment.customer?.name },
     ] as any);
-    vi.mocked(counterShiftsService.getLinkedPaymentIds).mockImplementation(async () => linked ? ['payment-1'] : []);
-    vi.mocked(counterShiftsService.linkPayment).mockImplementation(async () => { linked = true; });
+    vi.mocked(counterShiftsService.getCashMovements).mockResolvedValue([
+      { requestId: 'move-1', amount: 25, reason: 'Petty cash', direction: 'OUT', recordedAt: '2026-11-15T10:00:00Z' },
+    ]);
+    vi.mocked(counterShiftsService.recordCashMovement).mockResolvedValue();
     vi.mocked(counterShiftsService.closeShift).mockImplementation(async (_orgId, _shiftId, closingCash) => {
-      shiftState = { status: 'CLOSED', expectedCash: 625, closingCash, variance: closingCash - 625 } as any;
+      shiftState = { ...shift, status: 'CLOSED', expectedCash: 600, closingCash, variance: closingCash - 600 } as any;
       return shiftState as any;
     });
-    vi.mocked(paymentsService.getPayments).mockResolvedValue([payment] as any);
   });
 
-  it('requires every receipt to be assigned and reconciles counted cash against linked cash receipts', async () => {
+  it('reconciles counted cash with drawer receipts and recorded payouts', async () => {
     render(<MemoryRouter><CounterShiftPage/></MemoryRouter>);
-    expect(await screen.findByText(/1 unassigned/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Close shift/ })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole('button', { name: /Assign/ }));
-    await waitFor(() => expect(counterShiftsService.linkPayment).toHaveBeenCalledWith(
-      'org-1', 'shift-1', 'payment-1', false,
-    ));
-    fireEvent.change(screen.getByLabelText('Counted cash in drawer'), { target: { value: '625' } });
-    await waitFor(() => expect(screen.getByRole('button', { name: /Close shift/ })).toBeEnabled());
-    expect(screen.getByText('Preview variance:')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Close shift/ }));
-    await waitFor(() => expect(counterShiftsService.closeShift).toHaveBeenCalledWith(
-      'org-1', 'shift-1', 625, false,
-    ));
+    expect(await screen.findByText(/RCT-001/)).toBeInTheDocument();
+    expect(screen.getByText('Petty cash')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Counted cash in drawer'), { target: { value: '600' } });
+    expect(screen.getByText('Preview variance:')).toHaveTextContent('₹0.00');
+    fireEvent.click(screen.getByRole('button', { name: 'Close shift' }));
+    await waitFor(() => expect(counterShiftsService.closeShift).toHaveBeenCalledWith('org-1', 'shift-1', 600, false));
   });
 });

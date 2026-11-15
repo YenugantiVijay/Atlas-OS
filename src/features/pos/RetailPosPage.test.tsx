@@ -10,6 +10,7 @@ import { customersService } from '@/services/customers.service';
 import { ordersService } from '@/services/orders.service';
 import { invoicesService } from '@/services/invoices.service';
 import { paymentsService } from '@/services/payments.service';
+import { counterCheckoutService } from '@/services/counter-checkout.service';
 import { counterShiftsService } from '@/services/counter-shifts.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
 
@@ -40,8 +41,7 @@ vi.mock('@/services/counter-shifts.service', () => ({
   counterShiftsService: {
     getLatestShift: vi.fn(),
     getShiftPayments: vi.fn(),
-    getLinkedPaymentIds: vi.fn(),
-    linkPayment: vi.fn(),
+    linkDemoPayment: vi.fn(),
     openShift: vi.fn(),
     closeShift: vi.fn(),
   },
@@ -73,6 +73,11 @@ async function fillCart() {
 describe('Retail Counter — safe draft order workflow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    vi.spyOn(counterCheckoutService, 'complete').mockResolvedValue({
+      state: 'COMPLETED', invoiceId: 'inv-1', invoiceNumber: 'ATL/2026-27/0001',
+      receiptId: 'pay-1', receiptNumber: 'RCP-2026-0001',
+    });
     vi.stubGlobal('crypto', { randomUUID: () => '93a54640-11bb-4390-84ad-1084d4bc52a3' });
     vi.mocked(useOrg).mockReturnValue({
       currentOrg: { id: orgId, name: 'Atlas Counter' }, currentUser: { id: 'u1' },
@@ -96,7 +101,7 @@ describe('Retail Counter — safe draft order workflow', () => {
       id: 'shift-1', organizationId: orgId, openedBy: 'u1', openedAt: new Date().toISOString(),
       openingCash: 500, status: 'OPEN', idempotencyKey: 'shift-key',
     });
-    vi.mocked(counterShiftsService.linkPayment).mockResolvedValue(undefined);
+    vi.mocked(counterShiftsService.linkDemoPayment).mockResolvedValue(undefined);
     vi.mocked(invoicesService.createInvoice).mockResolvedValue({
       id: 'inv-1', invoiceNumber: 'ATL/2026-27/0001', totalAmount: 118,
     } as any);
@@ -278,49 +283,39 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
   });
 
-  it('completes a paid counter sale through stock confirmation, invoice, payment, and shift receipt link', async () => {
+  it('submits the paid cloud sale as a single request', async () => {
     mount();
     await fillCart();
     fireEvent.click(screen.getByRole('button', { name: 'Complete paid sale' }));
 
-    await waitFor(() => expect(counterShiftsService.linkPayment).toHaveBeenCalledWith(
-      orgId, 'shift-1', 'pay-1', false,
-    ));
-    expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1);
-    expect(ordersService.confirmSalesOrder).toHaveBeenCalledWith(orgId, 'order-1', 'owner', false);
-    expect(invoicesService.createInvoice).toHaveBeenCalledWith(orgId, expect.objectContaining({
-      customerId: 'c-1',
-      salesOrderId: 'order-1',
-      status: 'ISSUED',
+    expect(await screen.findByText(/Paid sale complete/)).toBeInTheDocument();
+    expect(counterCheckoutService.complete).toHaveBeenCalledWith(orgId, expect.objectContaining({
+      shiftId: 'shift-1', customerId: 'c-1', tender: 'CASH',
       items: [expect.objectContaining({ productId: 'p-1', quantity: 1, taxRate: 18 })],
-    }), false);
-    expect(paymentsService.recordPayment).toHaveBeenCalledWith(orgId, expect.objectContaining({
-      customerId: 'c-1',
-      invoiceId: 'inv-1',
-      amount: 118,
-      paymentMethod: 'CASH',
-    }), false, 'owner');
-    expect(await screen.findByText(/Paid sale complete/)).toBeInTheDocument();
+    }));
+    expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
+    expect(paymentsService.recordPayment).not.toHaveBeenCalled();
+    expect(localStorage.getItem('atlas_counter_checkout_v1:' + orgId + ':u1:false')).toBeNull();
   });
 
-  it('retries a failed payment with the same order, invoice, and payment idempotency keys', async () => {
-    vi.mocked(paymentsService.recordPayment)
-      .mockRejectedValueOnce(new Error('Temporary payment failure'))
-      .mockResolvedValueOnce({ id: 'pay-1', paymentNumber: 'RCP-2026-0001' } as any);
-    mount();
+  it('resumes the same checkout after remount even when the drawer has since closed', async () => {
+    vi.mocked(counterCheckoutService.complete).mockRejectedValueOnce(new Error('Connection lost'));
+    const first = mount();
     await fillCart();
+    fireEvent.change(screen.getByPlaceholderText(/Delivery instructions/), { target: { value: 'Keep this note' } });
     fireEvent.click(screen.getByRole('button', { name: 'Complete paid sale' }));
-    expect(await screen.findByText(/Temporary payment failure/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry paid sale' }));
+    expect(await screen.findByText('Connection lost')).toBeInTheDocument();
+    first.unmount();
+    vi.mocked(counterShiftsService.getLatestShift).mockResolvedValue(null);
+    mount();
+    const retry = await screen.findByRole('button', { name: 'Retry paid sale' });
+    expect(retry).toBeEnabled();
+    fireEvent.click(retry);
 
-    await waitFor(() => expect(counterShiftsService.linkPayment).toHaveBeenCalledTimes(1));
-    expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1);
-    expect(invoicesService.createInvoice).toHaveBeenCalledTimes(1);
-    expect(invoicesService.getInvoiceById).toHaveBeenCalledWith(orgId, 'inv-1', false);
-    const [firstPayment, retryPayment] = vi.mocked(paymentsService.recordPayment).mock.calls;
-    expect(firstPayment[1].idempotencyKey).toBeTruthy();
-    expect(retryPayment[1].idempotencyKey).toBe(firstPayment[1].idempotencyKey);
     expect(await screen.findByText(/Paid sale complete/)).toBeInTheDocument();
+    const [firstCall, retryCall] = vi.mocked(counterCheckoutService.complete).mock.calls;
+    expect(firstCall).toEqual(retryCall);
+    expect(retryCall[1].notes).toBe('Keep this note');
+    expect(localStorage.getItem('atlas_counter_checkout_v1:' + orgId + ':u1:false')).toBeNull();
   });
-
 });

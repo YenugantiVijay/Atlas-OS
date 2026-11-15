@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Payment } from '@/types';
+import { fromPaise, toPaise } from '@/lib/money';
 import { paymentsService } from './payments.service';
 
 export interface CounterShift {
@@ -22,15 +23,26 @@ export interface CounterShiftCashSummary {
   cashReceipts: number;
   nonCashReceipts: number;
   receiptCount: number;
+  cashIn: number;
+  cashOut: number;
 }
 
 export interface CounterShiftReceipt extends Payment {
   customerName?: string;
 }
 
+export interface CounterCashMovement {
+  requestId: string;
+  direction: 'IN' | 'OUT';
+  amount: number;
+  reason: string;
+  recordedAt: string;
+}
+
 interface DemoShiftState {
   shifts: CounterShift[];
   links: Array<{ shiftId: string; paymentId: string }>;
+  movements: Array<CounterCashMovement & { shiftId: string }>;
 }
 
 function mapCounterShift(row: any): CounterShift {
@@ -68,13 +80,14 @@ function demoKey(orgId: string) {
 
 function readDemoState(orgId: string): DemoShiftState {
   const raw = globalThis.localStorage?.getItem(demoKey(orgId));
-  if (!raw) return { shifts: [], links: [] };
+  if (!raw) return { shifts: [], links: [], movements: [] };
   try {
     const parsed = JSON.parse(raw) as DemoShiftState;
     if (!Array.isArray(parsed.shifts) || !Array.isArray(parsed.links)) {
       throw new Error('Invalid local shift data.');
     }
-    return parsed;
+    if (parsed.movements && !Array.isArray(parsed.movements)) throw new Error('Invalid local drawer movements.');
+    return { ...parsed, movements: parsed.movements ?? [] };
   } catch {
     throw new Error('Saved demo shift data could not be read. Clear the damaged counter-shift entry and try again.');
   }
@@ -87,7 +100,8 @@ function writeDemoState(orgId: string, state: DemoShiftState) {
 
 export function summarizeCounterShiftCash(
   openingCash: number,
-  payments: Pick<Payment, 'amount' | 'paymentMethod'>[]
+  payments: Pick<Payment, 'amount' | 'paymentMethod'>[],
+  movements: Pick<CounterCashMovement, 'amount' | 'direction'>[] = [],
 ): CounterShiftCashSummary {
   if (!Number.isFinite(openingCash) || openingCash < 0) {
     throw new Error('Opening cash must be a valid nonnegative amount.');
@@ -98,13 +112,21 @@ export function summarizeCounterShiftCash(
     if (!Number.isFinite(payment.amount) || payment.amount < 0) {
       throw new Error('Receipt amounts must be valid nonnegative amounts.');
     }
-    if (payment.paymentMethod === 'CASH') cashReceipts += payment.amount;
-    else nonCashReceipts += payment.amount;
+    if (payment.paymentMethod === 'CASH') cashReceipts += toPaise(payment.amount);
+    else nonCashReceipts += toPaise(payment.amount);
+  }
+  let cashIn = 0;
+  let cashOut = 0;
+  for (const movement of movements) {
+    if (movement.direction === 'IN') cashIn += toPaise(movement.amount);
+    else cashOut += toPaise(movement.amount);
   }
   return {
-    expectedCash: Math.round((openingCash + cashReceipts + Number.EPSILON) * 100) / 100,
-    cashReceipts: Math.round((cashReceipts + Number.EPSILON) * 100) / 100,
-    nonCashReceipts: Math.round((nonCashReceipts + Number.EPSILON) * 100) / 100,
+    expectedCash: fromPaise(toPaise(openingCash) + cashReceipts + cashIn - cashOut),
+    cashReceipts: fromPaise(cashReceipts),
+    nonCashReceipts: fromPaise(nonCashReceipts),
+    cashIn: fromPaise(cashIn),
+    cashOut: fromPaise(cashOut),
     receiptCount: payments.length,
   };
 }
@@ -122,58 +144,87 @@ export const counterShiftsService = {
     return data ? mapCounterShift(data) : null;
   },
 
-  async getLinkedPaymentIds(orgId: string, shiftId: string, isMockAuth = false): Promise<string[]> {
-    if (isMockAuth) {
-      return readDemoState(orgId).links
-        .filter((link) => link.shiftId === shiftId)
-        .map((link) => link.paymentId);
-    }
-    if (!supabase) throw new Error('Cloud backend is not configured.');
-    const { data, error } = await supabase.from('counter_shift_payments')
-      .select('payment_id').eq('organization_id', orgId).eq('shift_id', shiftId);
-    if (error) throw new Error(`Failed to load shift receipts: ${error.message}`);
-    return (data || []).map((row) => row.payment_id);
-  },
-
   async getShiftPayments(
     orgId: string,
     shiftId: string,
-    openedAt: string,
     isMockAuth = false
   ): Promise<CounterShiftReceipt[]> {
     if (isMockAuth) {
       const payments = await paymentsService.getPayments(orgId, true);
-      const openedAtMs = new Date(openedAt).getTime();
+      const ids = new Set(readDemoState(orgId).links.filter(link => link.shiftId === shiftId).map(link => link.paymentId));
       return payments
-        .filter((payment) => new Date(payment.createdAt).getTime() >= openedAtMs)
+        .filter(payment => ids.has(payment.id))
         .map((payment) => ({ ...payment, customerName: payment.customer?.name }));
     }
     if (!supabase) throw new Error('Cloud backend is not configured.');
-    const { data, error } = await supabase.rpc('get_counter_shift_receipts', {
-      p_org_id: orgId,
-      p_shift_id: shiftId,
+    const receipts: CounterShiftReceipt[] = [];
+    const pageSize = 200;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.rpc('get_counter_shift_receipts', {
+        p_org_id: orgId, p_shift_id: shiftId,
+      }).order('created_at').order('id').range(offset, offset + pageSize - 1);
+      if (error || !Array.isArray(data)) throw new Error('Could not load this drawer’s receipts.');
+      receipts.push(...data.map((row): CounterShiftReceipt => {
+        const amount = Number(row.amount);
+        if (!row.id || row.organization_id !== orgId || !row.payment_number || !row.customer_id ||
+            !row.created_at || !Number.isFinite(amount) || amount < 0 ||
+            !['CASH', 'UPI', 'NEFT', 'RTGS', 'CHEQUE', 'BANK_TRANSFER'].includes(row.payment_method)) {
+          throw new Error('The database returned an invalid counter shift receipt.');
+        }
+        return {
+          id: row.id,
+          organizationId: row.organization_id,
+          paymentNumber: row.payment_number,
+          customerId: row.customer_id,
+          customerName: row.customer_name || undefined,
+          amount,
+          paymentMethod: row.payment_method,
+          paymentDate: row.payment_date,
+          createdAt: row.created_at,
+        };
+      }));
+      if (data.length < pageSize) return receipts;
+    }
+  },
+
+  async getCashMovements(orgId: string, shiftId: string, isMockAuth = false): Promise<CounterCashMovement[]> {
+    if (isMockAuth) return readDemoState(orgId).movements.filter(move => move.shiftId === shiftId);
+    if (!supabase) throw new Error('Cloud backend is not configured.');
+    const movements: CounterCashMovement[] = [];
+    const pageSize = 200;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from('counter_cash_movements')
+        .select('request_id,direction,amount,reason,recorded_at')
+        .eq('organization_id', orgId).eq('shift_id', shiftId)
+        .order('recorded_at').order('request_id').range(offset, offset + pageSize - 1);
+      if (error) throw new Error('Could not load this drawer’s cash movements.');
+      movements.push(...data.map(row => ({
+        requestId: row.request_id, direction: row.direction, amount: Number(row.amount),
+        reason: row.reason, recordedAt: row.recorded_at,
+      })));
+      if (data.length < pageSize) return movements;
+    }
+  },
+
+  async recordCashMovement(orgId: string, shiftId: string, move: Omit<CounterCashMovement, 'recordedAt'>, isMockAuth = false) {
+    if (!Number.isFinite(move.amount) || move.amount <= 0 || move.amount > 9_999_999_999.99 ||
+      fromPaise(toPaise(move.amount)) !== move.amount || !move.reason.trim() || move.reason.trim().length > 200) {
+      throw new Error('Enter a positive cash amount with up to two decimals and a reason.');
+    }
+    if (isMockAuth) {
+      const state = readDemoState(orgId);
+      if (state.movements.some(item => item.shiftId === shiftId && item.requestId === move.requestId)) return;
+      if (!state.shifts.some(shift => shift.id === shiftId && shift.status === 'OPEN')) throw new Error('Open the counter shift first.');
+      state.movements.push({ ...move, shiftId, recordedAt: new Date().toISOString() });
+      writeDemoState(orgId, state);
+      return;
+    }
+    if (!supabase) throw new Error('Cloud backend is not configured.');
+    const { error } = await supabase.rpc('record_counter_cash_movement', {
+      p_org_id: orgId, p_shift_id: shiftId, p_request_id: move.requestId, p_direction: move.direction,
+      p_amount: move.amount, p_reason: move.reason,
     });
-    if (error) throw new Error(`Failed to load receipts recorded during this shift: ${error.message}`);
-    if (!Array.isArray(data)) throw new Error('The database did not return valid counter shift receipts.');
-    return data.map((row) => {
-      const amount = Number(row.amount);
-      if (!row.id || row.organization_id !== orgId || !row.payment_number || !row.customer_id ||
-          !row.created_at || !Number.isFinite(amount) || amount < 0 ||
-          !['CASH', 'UPI', 'NEFT', 'RTGS', 'CHEQUE', 'BANK_TRANSFER'].includes(row.payment_method)) {
-        throw new Error('The database returned an invalid counter shift receipt.');
-      }
-      return {
-        id: row.id,
-        organizationId: row.organization_id,
-        paymentNumber: row.payment_number,
-        customerId: row.customer_id,
-        customerName: row.customer_name || undefined,
-        amount,
-        paymentMethod: row.payment_method,
-        paymentDate: row.payment_date,
-        createdAt: row.created_at,
-      };
-    });
+    if (error) throw new Error(`Unable to record cash movement: ${error.message}`);
   },
 
   async openShift(orgId: string, openingCash: number, idempotencyKey: string, isMockAuth = false): Promise<CounterShift> {
@@ -214,29 +265,19 @@ export const counterShiftsService = {
     return mapCounterShift(data);
   },
 
-  async linkPayment(orgId: string, shiftId: string, paymentId: string, isMockAuth = false): Promise<void> {
-    if (isMockAuth) {
-      const state = readDemoState(orgId);
-      const shift = state.shifts.find((item) => item.id === shiftId && item.status === 'OPEN');
-      if (!shift) throw new Error('Counter shift is not open in this business.');
-      const payments = await this.getShiftPayments(orgId, shift.id, shift.openedAt, true);
-      const payment = payments.find((item) => item.id === paymentId);
-      if (!payment || new Date(payment.createdAt).getTime() < new Date(shift.openedAt).getTime()) {
-        throw new Error('Only receipts recorded after this shift opened can be linked.');
-      }
-      const existing = state.links.find((link) => link.paymentId === paymentId);
-      if (existing && existing.shiftId !== shiftId) throw new Error('This receipt is already assigned to another shift.');
-      if (!existing) state.links.push({ shiftId, paymentId });
-      writeDemoState(orgId, state);
-      return;
+  async linkDemoPayment(orgId: string, shiftId: string, paymentId: string): Promise<void> {
+    const state = readDemoState(orgId);
+    const shift = state.shifts.find((item) => item.id === shiftId && item.status === 'OPEN');
+    if (!shift) throw new Error('Counter shift is not open in this business.');
+    const payments = await paymentsService.getPayments(orgId, true);
+    const payment = payments.find((item) => item.id === paymentId);
+    if (!payment || new Date(payment.createdAt).getTime() < new Date(shift.openedAt).getTime()) {
+      throw new Error('Only receipts recorded after this shift opened can be linked.');
     }
-    if (!supabase) throw new Error('Cloud backend is not configured.');
-    const { error } = await supabase.rpc('link_counter_shift_payment', {
-      p_org_id: orgId,
-      p_shift_id: shiftId,
-      p_payment_id: paymentId,
-    });
-    if (error) throw new Error(`Unable to link receipt to shift: ${error.message}`);
+    const existing = state.links.find((link) => link.paymentId === paymentId);
+    if (existing && existing.shiftId !== shiftId) throw new Error('This receipt is already assigned to another shift.');
+    if (!existing) state.links.push({ shiftId, paymentId });
+    writeDemoState(orgId, state);
   },
 
   async closeShift(orgId: string, shiftId: string, closingCash: number, isMockAuth = false): Promise<CounterShift> {
@@ -251,13 +292,8 @@ export const counterShiftsService = {
         if (shift.closingCash === closingCash) return shift;
         throw new Error('Counter shift is already closed with a different counted amount.');
       }
-      const payments = await this.getShiftPayments(orgId, shift.id, shift.openedAt, true);
-      const linkedIds = new Set(state.links.filter((link) => link.shiftId === shiftId).map((link) => link.paymentId));
-      const sinceOpen = payments.filter((payment) => new Date(payment.createdAt).getTime() >= new Date(shift.openedAt).getTime());
-      if (sinceOpen.some((payment) => !linkedIds.has(payment.id))) {
-        throw new Error('Link every payment recorded since shift opening before closing the drawer.');
-      }
-      const summary = summarizeCounterShiftCash(shift.openingCash, sinceOpen.filter((payment) => linkedIds.has(payment.id)));
+      const payments = await this.getShiftPayments(orgId, shift.id, true);
+      const summary = summarizeCounterShiftCash(shift.openingCash, payments, state.movements.filter(item => item.shiftId === shiftId));
       const closed: CounterShift = {
         ...shift,
         status: 'CLOSED',
@@ -265,7 +301,7 @@ export const counterShiftsService = {
         closedAt: new Date().toISOString(),
         closingCash,
         expectedCash: summary.expectedCash,
-        variance: Math.round((closingCash - summary.expectedCash + Number.EPSILON) * 100) / 100,
+        variance: fromPaise(toPaise(closingCash) - toPaise(summary.expectedCash)),
       };
       state.shifts = state.shifts.map((item) => item.id === shiftId ? closed : item);
       writeDemoState(orgId, state);

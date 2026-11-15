@@ -1044,7 +1044,7 @@ class StorageEngine {
     const movements = this.getItem<StockMovement[]>(STORAGE_KEYS.STOCK_MOVEMENTS, []);
     const newMovement: StockMovement = {
       ...data,
-      id: 'mov-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      id: 'mov-' + (globalThis.crypto?.randomUUID?.() ?? `local-${Date.now()}-${movements.length}`),
       createdAt: new Date().toISOString(),
     };
     movements.push(newMovement);
