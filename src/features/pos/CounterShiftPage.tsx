@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, CircleDollarSign, Link2, Play, Square } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, CircleDollarSign, Play, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
-import { formatCurrency } from '@/lib/money';
-import { counterShiftsService, CounterShift, CounterShiftReceipt, summarizeCounterShiftCash } from '@/services/counter-shifts.service';
+import { formatCurrency, fromPaise, toPaise } from '@/lib/money';
+import { counterShiftsService, CounterShift, CounterShiftReceipt, type CounterCashMovement, summarizeCounterShiftCash } from '@/services/counter-shifts.service';
 
 export const CounterShiftPage: React.FC = () => {
   const { currentOrg, isMockAuth } = useOrg();
@@ -14,7 +14,11 @@ export const CounterShiftPage: React.FC = () => {
   const permission = check('orders:create');
   const [shift, setShift] = useState<CounterShift | null>(null);
   const [payments, setPayments] = useState<CounterShiftReceipt[]>([]);
-  const [linkedPaymentIds, setLinkedPaymentIds] = useState<string[]>([]);
+  const [cashMovements, setCashMovements] = useState<CounterCashMovement[]>([]);
+  const [cashDirection, setCashDirection] = useState<'IN' | 'OUT'>('IN');
+  const [cashAmount, setCashAmount] = useState('');
+  const [cashReason, setCashReason] = useState('');
+  const cashRequest = useRef<{ fingerprint: string; id: string }>();
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
   const [loading, setLoading] = useState(true);
@@ -26,7 +30,7 @@ export const CounterShiftPage: React.FC = () => {
     if (!organizationId) {
       setShift(null);
       setPayments([]);
-      setLinkedPaymentIds([]);
+      setCashMovements([]);
       setLoading(false);
       return;
     }
@@ -35,17 +39,18 @@ export const CounterShiftPage: React.FC = () => {
     try {
       const current = await counterShiftsService.getLatestShift(organizationId, isMockAuth);
       let shiftPayments: CounterShiftReceipt[] = [];
-      let linked: string[] = [];
-      if (current?.status === 'OPEN') {
-        [shiftPayments, linked] = await Promise.all([
-          counterShiftsService.getShiftPayments(organizationId, current.id, current.openedAt, isMockAuth),
-          counterShiftsService.getLinkedPaymentIds(organizationId, current.id, isMockAuth),
+      let movements: CounterCashMovement[] = [];
+      if (current) {
+        [shiftPayments, movements] = await Promise.all([
+          counterShiftsService.getShiftPayments(organizationId, current.id, isMockAuth),
+          counterShiftsService.getCashMovements(organizationId, current.id, isMockAuth),
         ]);
       }
       setShift(current);
       setPayments(shiftPayments);
-      setLinkedPaymentIds(linked);
+      setCashMovements(movements);
     } catch (reason) {
+      setShift(null);
       setError(reason instanceof Error ? reason.message : 'Unable to load counter shift data.');
     } finally {
       setLoading(false);
@@ -54,19 +59,12 @@ export const CounterShiftPage: React.FC = () => {
 
   useEffect(() => { void load(); }, [load, reloadKey]);
 
-  const sinceOpen = useMemo(() => {
-    if (!shift || shift.status !== 'OPEN') return [];
-    return [...payments].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [payments, shift]);
-  const linkedSet = useMemo(() => new Set(linkedPaymentIds), [linkedPaymentIds]);
-  const unlinkedPayments = sinceOpen.filter((payment) => !linkedSet.has(payment.id));
-  const linkedPayments = sinceOpen.filter((payment) => linkedSet.has(payment.id));
   const summary = useMemo(() => shift?.status === 'OPEN'
-    ? summarizeCounterShiftCash(shift.openingCash, linkedPayments)
-    : null, [shift, linkedPayments]);
+    ? summarizeCounterShiftCash(shift.openingCash, payments, cashMovements)
+    : null, [shift, payments, cashMovements]);
   const cashCount = Number(closingCash);
   const variancePreview = summary && closingCash.trim() !== '' && Number.isFinite(cashCount)
-    ? Math.round((cashCount - summary.expectedCash + Number.EPSILON) * 100) / 100
+    ? fromPaise(toPaise(cashCount) - toPaise(summary.expectedCash))
     : null;
 
   const runAction = async (action: () => Promise<void>) => {
@@ -93,9 +91,20 @@ export const CounterShiftPage: React.FC = () => {
     setOpeningCash('');
   });
 
-  const linkPayment = (paymentId: string) => runAction(async () => {
-    if (!organizationId || !shift) throw new Error('Open a counter shift before linking receipts.');
-    await counterShiftsService.linkPayment(organizationId, shift.id, paymentId, isMockAuth);
+  const addCashMovement = () => runAction(async () => {
+    if (!organizationId || !shift) throw new Error('Open a counter shift before recording cash.');
+    const amount = Number(cashAmount);
+    const reason = cashReason.trim();
+    const fingerprint = JSON.stringify([shift.id, cashDirection, amount, reason]);
+    if (cashRequest.current?.fingerprint !== fingerprint) {
+      cashRequest.current = { fingerprint, id: globalThis.crypto.randomUUID() };
+    }
+    await counterShiftsService.recordCashMovement(organizationId, shift.id, {
+      requestId: cashRequest.current.id, direction: cashDirection, amount, reason,
+    }, isMockAuth);
+    cashRequest.current = undefined;
+    setCashAmount('');
+    setCashReason('');
   });
 
   const closeShift = () => runAction(async () => {
@@ -120,12 +129,11 @@ export const CounterShiftPage: React.FC = () => {
         </span>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[#142B4D] sm:text-2xl">Counter shift</h1>
-          <p className="mt-1 text-sm text-slate-600">Open the drawer, assign receipts to this shift, then reconcile the counted cash.</p>
+          <p className="mt-1 text-sm text-slate-600">Open the drawer, record cash movements, and reconcile the counted cash.</p>
         </div>
       </header>
       <p className="text-xs leading-relaxed text-slate-600">
-        Paid Retail Counter sales link their receipts to this shift. Other receipts recorded in the business during the shift must be assigned here before closing.
-        {' '}Recipe-based stock deduction and expiry tracking are not included yet.
+        Paid Retail Counter sales are recorded against this drawer.
         {' '}<Link to="/pos" className="font-semibold text-teal-700 underline underline-offset-2">Open Retail Counter</Link>
       </p>
 
@@ -135,6 +143,8 @@ export const CounterShiftPage: React.FC = () => {
 
       {loading ? (
         <p role="status" className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading shift and receipt data…</p>
+      ) : !shift && error ? (
+        <Button variant="outline" onClick={() => setReloadKey(key => key + 1)}>Reload drawer</Button>
       ) : !shift ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-[#142B4D]">Start a shift</h2>
@@ -184,53 +194,68 @@ export const CounterShiftPage: React.FC = () => {
               <div><dt className="text-slate-500">Expected drawer cash</dt><dd className="font-semibold text-[#142B4D]">{formatCurrency(summary?.expectedCash || 0)}</dd></div>
             </dl>
             <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-              Expected cash is opening float plus linked CASH receipts. Cash payouts are not included in this first version; record them separately and account for them before comparing the drawer.
+              Expected cash includes the opening float, drawer cash receipts, and cash added or removed.
+              {' '}Cash in {formatCurrency(summary?.cashIn ?? 0)} · Cash out {formatCurrency(summary?.cashOut ?? 0)}.
             </p>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-[#142B4D]">Receipts to assign</h2>
-              <span className="text-xs text-slate-500">{unlinkedPayments.length} unassigned · {linkedPayments.length} assigned</span>
-            </div>
-            {unlinkedPayments.length ? (
-              <ul className="mt-3 divide-y divide-slate-100">
-                {unlinkedPayments.map((payment) => (
-                  <li key={payment.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#142B4D]">{payment.paymentNumber} · {payment.customerName || 'Customer receipt'}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{payment.paymentMethod} · {new Date(payment.createdAt).toLocaleString()}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold tabular-nums text-[#142B4D]">{formatCurrency(payment.amount)}</span>
-                      <Button size="sm" variant="outline" disabled={saving} onClick={() => linkPayment(payment.id)}>
-                        <Link2 size={14} className="mr-1"/>Assign
-                      </Button>
-                    </div>
+            <h2 className="text-base font-semibold text-[#142B4D]">Cash movements</h2>
+            <form className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); addCashMovement(); }}>
+              <label className="grid gap-1 text-sm">Direction
+                <select className="h-10 rounded-lg border border-border px-2" value={cashDirection} disabled={saving}
+                  onChange={event => setCashDirection(event.target.value === 'OUT' ? 'OUT' : 'IN')}>
+                  <option value="IN">Cash in</option>
+                  <option value="OUT">Cash out</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">Amount
+                <input className="h-10 min-w-0 rounded-lg border border-border px-2" type="number" inputMode="decimal"
+                  min="0.01" step="0.01" required disabled={saving} value={cashAmount} onChange={event => setCashAmount(event.target.value)} />
+              </label>
+              <label className="grid gap-1 text-sm">Reason
+                <input className="h-10 min-w-0 rounded-lg border border-border px-2" maxLength={200} required disabled={saving}
+                  value={cashReason} onChange={event => setCashReason(event.target.value)} />
+              </label>
+              <Button type="submit" className="self-end" disabled={saving || !cashAmount.trim() || !cashReason.trim()}>Record cash movement</Button>
+            </form>
+            {cashMovements.length > 0 && <ul className="mt-3 divide-y divide-border">
+              {cashMovements.map(move => (
+                <li key={move.requestId} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                  <span className="break-all">{move.reason}</span>
+                  <span className="font-semibold">{move.direction === 'IN' ? 'Cash in' : 'Cash out'} · {formatCurrency(move.amount)}</span>
+                </li>
+              ))}
+            </ul>}
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 className="text-base font-semibold text-[#142B4D]">Drawer receipts</h2>
+            {payments.length === 0 ? <p className="mt-2 text-sm text-slate-600">No receipts for this drawer.</p> :
+              <ul className="mt-3 max-h-72 divide-y divide-border overflow-y-auto">
+                {payments.map(payment => (
+                  <li key={payment.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                    <span>{payment.paymentNumber} · {payment.customerName || 'Customer receipt'}</span>
+                    <span className="font-semibold">{payment.paymentMethod} · {formatCurrency(payment.amount)}</span>
                   </li>
                 ))}
-              </ul>
-            ) : <p className="mt-3 text-sm text-slate-600">No unassigned receipts recorded since this shift opened.</p>}
+              </ul>}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-base font-semibold text-[#142B4D]">Close shift</h2>
-            <p className="mt-1 text-sm text-slate-600">Assign every receipt created during this shift before closing.</p>
             <label htmlFor="closing-cash" className="mt-4 block text-sm font-medium text-slate-700">Counted cash in drawer</label>
             <div className="mt-1 flex max-w-md gap-2">
               <input id="closing-cash" type="number" min="0" step="0.01" inputMode="decimal" value={closingCash}
                 onChange={(event) => setClosingCash(event.target.value)} disabled={saving}
                 className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"/>
-              <Button variant="outline" disabled={saving || unlinkedPayments.length > 0 || !closingCash.trim()} onClick={closeShift}>
+              <Button variant="outline" disabled={saving || !closingCash.trim()} onClick={closeShift}>
                 <Square size={14} className="mr-1.5"/>Close shift
               </Button>
             </div>
             {variancePreview !== null && <p className="mt-3 text-sm text-slate-700">
               Preview variance: <strong className={variancePreview === 0 ? 'text-emerald-700' : 'text-amber-800'}>{formatCurrency(variancePreview)}</strong>
             </p>}
-            {unlinkedPayments.length > 0 && <p role="status" className="mt-3 text-xs text-amber-800">
-              Close is disabled until all {unlinkedPayments.length} receipt(s) are assigned.
-            </p>}
+
           </section>
         </>
       )}

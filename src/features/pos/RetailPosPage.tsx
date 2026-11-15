@@ -11,6 +11,10 @@ import { ordersService } from '@/services/orders.service';
 import { invoicesService } from '@/services/invoices.service';
 import { paymentsService } from '@/services/payments.service';
 import { counterShiftsService, CounterShift } from '@/services/counter-shifts.service';
+import {
+  clearPendingCounterCheckout, counterCheckoutService, readPendingCounterCheckout,
+  savePendingCounterCheckout, type PendingCounterCheckout,
+} from '@/services/counter-checkout.service';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/money';
@@ -27,6 +31,7 @@ export const RetailPosPage: React.FC = () => {
   const navigate = useNavigate();
   const organizationId = currentOrg?.id;
   const identity = `${organizationId || ''}:${currentUser?.id || 'demo'}:${isMockAuth}`;
+  const checkoutStorageKey = !isMockAuth && organizationId && currentUser?.id ? 'atlas_counter_checkout_v1:' + identity : null;
 
   const [productTerm, setProductTerm] = useState('');
   const [productResponse, setProductResponse] = useState<{ key: string; rows: Product[] }>({ key: '', rows: [] });
@@ -55,7 +60,10 @@ export const RetailPosPage: React.FC = () => {
   const checkoutKeysRef = useRef<{ order: string; invoice: string; payment: string } | null>(null);
   const checkoutProgressRef = useRef<{ orderId?: string; invoiceId?: string; paymentId?: string } | null>(null);
   const checkoutLockedRef = useRef(false);
-  const [checkoutLocked, setCheckoutLocked] = useState(false);
+  const [demoCheckoutLocked, setCheckoutLocked] = useState(false);
+  const [cloudCheckout, setCloudCheckout] = useState<{
+    key: string; request: PendingCounterCheckout | null; unavailable?: boolean;
+  } | null>(null);
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
@@ -82,6 +90,10 @@ export const RetailPosPage: React.FC = () => {
   const customer = selectedCustomer?.identity === identity ? selectedCustomer.customer : null;
   const completed = savedOrder?.identity === identity ? savedOrder : null;
   const completedSale = paidSale?.identity === identity ? paidSale : null;
+  const loadedCheckout = cloudCheckout?.key === checkoutStorageKey ? cloudCheckout : null;
+  const pendingCheckout = loadedCheckout?.request ?? null;
+  const checkoutStorageError = loadedCheckout?.unavailable === true;
+  const checkoutLocked = demoCheckoutLocked || pendingCheckout !== null || checkoutStorageError;
   const permission = check('orders:create');
   const confirmPermission = check('orders:confirm');
   const invoicePermission = check('invoices:create');
@@ -106,6 +118,23 @@ export const RetailPosPage: React.FC = () => {
     checkoutKeysRef.current = null;
     checkoutProgressRef.current = null;
   }, [identity]);
+
+  useEffect(() => {
+    if (!checkoutStorageKey) return;
+    const load = () => {
+      try {
+        setCloudCheckout({ key: checkoutStorageKey, request: readPendingCounterCheckout(checkoutStorageKey) });
+      } catch {
+        setCloudCheckout({ key: checkoutStorageKey, request: null, unavailable: true });
+      }
+    };
+    function sync(event: StorageEvent) {
+      if (event.key === checkoutStorageKey || event.key === null) load();
+    }
+    load();
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, [checkoutStorageKey]);
 
   useEffect(() => {
     let active = true;
@@ -170,7 +199,7 @@ export const RetailPosPage: React.FC = () => {
   }, [lines]);
 
   const updateLines = (next: PosCartLine[]) => {
-    if (busyRef.current || checkoutLockedRef.current) return;
+    if (busyRef.current || checkoutLockedRef.current || checkoutLocked) return;
     idempotencyRef.current = '';
     checkoutKeysRef.current = null;
     checkoutProgressRef.current = null;
@@ -181,7 +210,7 @@ export const RetailPosPage: React.FC = () => {
   };
 
   const addProduct = (product: Product) => {
-    if (busyRef.current || checkoutLockedRef.current || !permission.allowed || !product.isActive || product.organizationId !== organizationId) return;
+    if (busyRef.current || checkoutLockedRef.current || checkoutLocked || !permission.allowed || !product.isActive || product.organizationId !== organizationId) return;
     const old = lines.find((item) => item.product.id === product.id);
     if (old) {
       if (old.quantity >= 1000000) {
@@ -203,7 +232,7 @@ export const RetailPosPage: React.FC = () => {
   };
 
   const chooseCustomer = (entry: DirectoryEntry) => {
-    if (busyRef.current || checkoutLockedRef.current) return;
+    if (busyRef.current || checkoutLockedRef.current || checkoutLocked) return;
     idempotencyRef.current = '';
     setSelectedCustomer({ identity, customer: entry });
     setCustomerTerm(entry.companyName || entry.name);
@@ -213,7 +242,7 @@ export const RetailPosPage: React.FC = () => {
   };
 
   const saveOrder = async () => {
-    if (busyRef.current || checkoutLockedRef.current || !organizationId) return;
+    if (busyRef.current || checkoutLockedRef.current || checkoutLocked || !organizationId) return;
     const allowed = check('orders:create');
     if (!allowed.allowed) {
       setSaveError(allowed.message || 'You cannot create sales orders.');
@@ -275,7 +304,58 @@ export const RetailPosPage: React.FC = () => {
     }
   };
 
-  const completeCounterSale = async () => {
+  const completeCloudSale = async () => {
+    if (busyRef.current || !organizationId || !checkoutStorageKey || checkoutStorageError) return;
+    busyRef.current = true;
+    setSaving(true);
+    setSaveError('');
+    try {
+      let request = readPendingCounterCheckout(checkoutStorageKey);
+      if (!request) {
+        if (!canCheckout || !counterShift || counterShift.status !== 'OPEN' || !customer) {
+          throw new Error('Open a shift and choose a customer before checkout.');
+        }
+        const requestId = globalThis.crypto.randomUUID();
+        const draft = buildPosOrderDraft({
+          organizationId, customerId: customer.id, orderDate: getBusinessDate(), notes, lines, idempotencyKey: requestId,
+        });
+        request = {
+          requestId, shiftId: counterShift.id, customerId: customer.id,
+          items: draft.items.map(({ productId, quantity, unitPrice, discountPercent, taxRate }) => ({
+            productId: productId!, quantity, unitPrice, discountPercent: discountPercent ?? 0, taxRate,
+          })),
+          tender: paymentMethod === 'UPI' ? 'UPI' : 'CASH',
+          notes: notes.trim() || null,
+        };
+        savePendingCounterCheckout(checkoutStorageKey, request);
+      }
+      setCloudCheckout({ key: checkoutStorageKey, request });
+      const outcome = await counterCheckoutService.complete(organizationId, request);
+      clearPendingCounterCheckout(checkoutStorageKey, request.requestId);
+      if (identityRef.current !== identity) return;
+      setCloudCheckout({ key: checkoutStorageKey, request: readPendingCounterCheckout(checkoutStorageKey) });
+      if (outcome.state === 'REJECTED') {
+        setSaveError(outcome.message);
+        return;
+      }
+      setPaidSale({ identity, invoiceNumber: outcome.invoiceNumber, receiptNumber: outcome.receiptNumber });
+      setCart({ identity, lines: [] });
+      setSelectedCustomer(null);
+      setCustomerTerm('');
+      setNotes('');
+      setSavedOrder(null);
+      idempotencyRef.current = '';
+    } catch (error) {
+      if (identityRef.current === identity) {
+        setSaveError(error instanceof Error ? error.message : 'Unable to confirm this paid sale.');
+      }
+    } finally {
+      busyRef.current = false;
+      if (identityRef.current === identity) setSaving(false);
+    }
+  };
+
+  const completeDemoSale = async () => {
     if (busyRef.current || !organizationId) return;
     const checkoutAllowed = check('orders:confirm').allowed &&
       check('invoices:create').allowed && check('payments:record').allowed;
@@ -391,7 +471,7 @@ export const RetailPosPage: React.FC = () => {
         checkoutProgressRef.current = { ...checkoutProgressRef.current, paymentId };
       }
 
-      await counterShiftsService.linkPayment(organizationId, counterShift.id, paymentId, isMockAuth);
+      await counterShiftsService.linkDemoPayment(organizationId, counterShift.id, paymentId);
       if (!receiptNumber) {
         const payments = await paymentsService.getPayments(organizationId, isMockAuth);
         receiptNumber = payments.find((payment) => payment.id === paymentId)?.paymentNumber || 'recorded';
@@ -420,9 +500,11 @@ export const RetailPosPage: React.FC = () => {
     }
   };
 
-  const readyToSave = permission.allowed && Boolean(customer) && lines.length > 0 && !totals.error && !saving;
-  const readyToCheckout = canCheckout && counterShift?.status === 'OPEN' && Boolean(customer) &&
-    lines.length > 0 && !totals.error && !saving;
+  const readyToSave = permission.allowed && Boolean(customer) && lines.length > 0 && !totals.error && !saving && !checkoutLocked;
+  const readyToCheckout = !saving && !checkoutStorageError && (pendingCheckout
+    ? currentRole === 'owner' || currentRole === 'admin'
+    : canCheckout && (isMockAuth || loadedCheckout !== null) && counterShift?.status === 'OPEN' &&
+      Boolean(customer) && lines.length > 0 && !totals.error && !shiftError);
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 pb-6" onKeyDown={(event) => {
@@ -478,7 +560,9 @@ export const RetailPosPage: React.FC = () => {
       )}
       {checkoutLocked && (
         <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-          This checkout has started. Cart edits are locked so a safe retry uses the same order, invoice, and payment request.
+          {checkoutStorageError
+            ? 'The saved checkout could not be loaded. Check browser storage access before continuing at this counter.'
+            : 'A checkout is pending. Retry this same request to confirm the sale before starting another.'}
         </p>
       )}
 
@@ -591,7 +675,7 @@ export const RetailPosPage: React.FC = () => {
             value={customerTerm} maxLength={100} leftIcon={<UserRound size={16}/>}
             autoComplete="off" disabled={saving || checkoutLocked || !permission.allowed}
             onChange={(e) => {
-              if (busyRef.current || checkoutLockedRef.current) return;
+              if (busyRef.current || checkoutLockedRef.current || checkoutLocked) return;
               setCustomerTerm(e.target.value);
               setSelectedCustomer(null);
               setActiveCustomerIndex(0);
@@ -662,7 +746,7 @@ export const RetailPosPage: React.FC = () => {
           <label htmlFor="pos-notes" className="block text-xs font-medium text-slate-600">Notes for the sales order (optional)</label>
           <textarea id="pos-notes" value={notes} disabled={saving || checkoutLocked || !permission.allowed} maxLength={500}
             onChange={(e) => {
-              if (checkoutLockedRef.current) return;
+              if (checkoutLockedRef.current || checkoutLocked) return;
               idempotencyRef.current = '';
               setNotes(e.target.value);
             }}
@@ -707,10 +791,10 @@ export const RetailPosPage: React.FC = () => {
             onClick={() => void saveOrder()}>
             Save draft sales order
           </Button>
-          {canCheckout && (
+          {(canCheckout || pendingCheckout) && (
             <Button className="mt-2 w-full" variant="outline" isLoading={saving}
-              disabled={!readyToCheckout || Boolean(shiftError)}
-              onClick={() => void completeCounterSale()}>
+              disabled={!readyToCheckout}
+              onClick={() => void (isMockAuth ? completeDemoSale() : completeCloudSale())}>
               {checkoutLocked ? 'Retry paid sale' : 'Complete paid sale'}
             </Button>
           )}

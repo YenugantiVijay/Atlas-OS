@@ -38,6 +38,7 @@ import { runProductSearchAlternativesAcceptance } from './product_search_alterna
 import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
 import { runStaffPaySetupAcceptance } from './staff_pay_setup_acceptance.mjs';
 import { runStaffAttendanceAcceptance } from './staff_attendance_acceptance.mjs';
+import { runCounterDrawerAcceptance } from './counter_drawer_acceptance.mjs';
 import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
 import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
@@ -1414,6 +1415,10 @@ async function runAcceptance() {
     await runStaffAttendanceAcceptance({
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
+    });
+
+    await runCounterDrawerAcceptance({
+      client: testClient, withRoleContext, recordTest, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
     });
 
     // PR #56: real role/tenant and stock ledger acceptance on disposable PG only.

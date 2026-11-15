@@ -13,8 +13,13 @@ describe('counter shift cash summary', () => {
       { amount: 125.5, paymentMethod: 'CASH' },
       { amount: 200, paymentMethod: 'UPI' },
       { amount: 74.5, paymentMethod: 'CASH' },
+    ], [
+      { direction: 'IN', amount: 15.50 },
+      { direction: 'OUT', amount: 20.25 },
     ])).toEqual({
-      expectedCash: 700,
+      expectedCash: 695.25,
+      cashIn: 15.50,
+      cashOut: 20.25,
       cashReceipts: 200,
       nonCashReceipts: 200,
       receiptCount: 3,
@@ -27,13 +32,15 @@ describe('counter shift cash summary', () => {
       cashReceipts: 0,
       nonCashReceipts: 0,
       receiptCount: 0,
+      cashIn: 0,
+      cashOut: 0,
     });
     expect(() => summarizeCounterShiftCash(-1, [])).toThrow('Opening cash');
     expect(() => summarizeCounterShiftCash(10, [{ amount: Number.NaN, paymentMethod: 'CASH' }])).toThrow('Receipt amounts');
   });
 
   it('loads the minimal receipt projection through the authorized shift RPC', async () => {
-    rpc.mockResolvedValue({
+    const range = vi.fn().mockResolvedValue({
       data: [{
         id: 'payment-1',
         organization_id: 'org-1',
@@ -48,10 +55,12 @@ describe('counter shift cash summary', () => {
       error: null,
     });
 
+    const builder = { range, order: vi.fn().mockReturnThis() };
+    rpc.mockReturnValue(builder);
+
     await expect(counterShiftsService.getShiftPayments(
       'org-1',
       'shift-1',
-      '2026-11-15T08:00:00.000Z',
     )).resolves.toEqual([{
       id: 'payment-1',
       organizationId: 'org-1',

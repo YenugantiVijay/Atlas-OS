@@ -330,6 +330,17 @@ For every development task:
 6. Keep this file current and avoid competing "master" lists that become inconsistent.
 7. Maintain no more than one main active workstream on `Vijay-Atlas` at a time unless an urgent security fix requires isolation.
 
+## Counter release fixes and open work from the 15 November audit
+
+**F-048, SEC-01, QA-01.** The counter migration isolates receipt reads by drawer, records cash-in and cash-out movements, and makes cloud checkout atomic with a saved request that survives a reload. The database acceptance suite covers drawer scope, payment allocation, rollback, replay and counted cash. Production needs a coordinated database and matching app rollout because older counter clients submit checkout steps separately.
+
+| Next work | Audit finding to close |
+|---|---|
+| Staff administration | Add cloud team invitations and audited corrections to a salary rate on the same effective date before implementing staff advances and deductions. |
+| Auth and recovery | Review remaining privileged RPCs and leaked-password protection. Verify external Gmail OTP delivery, independent backup restoration and the hosted website. |
+| Accessibility | Fix shared contrast and label mismatches, then repeat the website, counter and receiving checks at mobile widths. |
+| Counter rollout | Verify authenticated checkout, receipt printing and drawer close in staging. Track walk-in checkout, separate simultaneous drawers and offline recovery in their own increments. |
+
 ## Follow-up register improvements (optional, not blockers)
 
 - Add per-feature **acceptance checklists, test evidence, owner, last reviewed date and dependency IDs** as implementation starts. Avoid inventing evidence on 140 entries.
