@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Lock,
@@ -198,6 +199,10 @@ export const TeamPage: React.FC = () => {
           {isDemoMode ? 'Add Sandbox Member' : 'Invite Member'}
         </Button>
       </div>
+
+      <Link to="/team/staff" className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 text-sm font-semibold text-teal-800 hover:bg-teal-50 focus-visible:ring-2 focus-visible:ring-teal-700">
+        Staff &amp; Pay Setup
+      </Link>
 
       {/* Mode Indicator Banner */}
       {!isDemoMode && (
