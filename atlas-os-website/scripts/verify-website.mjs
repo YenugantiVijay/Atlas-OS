@@ -173,7 +173,7 @@ if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
     [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
     [generated.includes('Today at the counter'), 'Built homepage contains a plain-language counter example'],
     [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
-    [generated.includes('Stock, billing, and payments'), 'Built homepage explains daily operations'],
+    [generated.includes('Run your stock, billing, and'), 'Built homepage explains daily operations'],
     [generated.includes('supplier-rate-review'), 'Built homepage links to the supplier-rate review feature'],
     [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
     [generated.includes('href="/product"'), 'Built homepage links to product page'],
