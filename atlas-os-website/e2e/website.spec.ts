@@ -288,6 +288,11 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
       await page.setViewportSize(vp);
       await page.goto('/');
 
+      const heroColumns = await page.locator('#home-overview .hero-grid').evaluate((grid) =>
+        getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+      );
+      expect(heroColumns).toBe(vp.width >= 900 ? 2 : 1);
+
       const isOverflowing = await page.evaluate(() => {
         return document.documentElement.scrollWidth > document.documentElement.clientWidth;
       });

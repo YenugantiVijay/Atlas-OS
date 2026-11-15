@@ -46,7 +46,7 @@ test('homepage explains the daily workflow and retains the interactive preview',
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /Run your stock, billing, and payments together/i,
+    level: 1, name: /From stockroom to paid invoice/i,
   })).toBeVisible();
   await expect(page.getByRole('heading', {
     level: 2, name: /supplier rate change/i,
