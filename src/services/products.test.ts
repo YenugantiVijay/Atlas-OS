@@ -101,7 +101,6 @@ describe('Products Service — DEF-002 Opening Stock Movement Type Regression Te
       p_tax_rate: 18,
       p_hsn_code: '8544',
       p_reorder_threshold: 10,
-      p_is_active: true,
       p_opening_stock: 50,
       p_image_url: null,
       p_notes: 'Initial opening stock',

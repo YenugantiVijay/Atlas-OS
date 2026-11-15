@@ -13,7 +13,7 @@ interface Props {
 
 const {
   title,
-  description = 'Atlas OS is the AI-native business operating system for electrical, electronics, and hardware distributors. One connected workspace for inventory, sales, invoicing, and reporting.',
+  description = 'Atlas OS connects inventory, sales, invoicing, and payments for shops, wholesalers, and distributors.',
   ogImage = '/favicon.svg',
   canonicalUrl = Astro.url.href,
   type = 'website',
@@ -67,13 +67,12 @@ const structuredData = {
     <title>{siteTitle}</title>
     <meta name="title" content={siteTitle} />
     <meta name="description" content={description} />
-    <meta name="keywords" content="Atlas OS, electrical distributor software, hardware inventory management, wholesale billing software, GST invoicing, B2B ERP India" />
+    <meta name="keywords" content="Atlas OS, small shop software, agri-input and fertilizer inventory, wholesale billing, GST invoicing, ERP India" />
     <meta name="author" content="Atlas OS Technologies" />
     <meta name="theme-color" content="#142B4D" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" href="/favicon.ico" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content={type} />
@@ -120,5 +119,10 @@ const structuredData = {
 
     <!-- Footer -->
     <Footer />
+    <script>
+      import { initScrollReveals } from '../scripts/scroll-motion';
+
+      initScrollReveals();
+    </script>
   </body>
 </html>

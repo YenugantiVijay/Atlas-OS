@@ -1,5 +1,7 @@
 # ATLAS OS — Architecture, Code Quality & Performance Audit
 
+> **Historical / superseded status:** This document is a point-in-time audit, not a statement of current system behavior. Findings and remediation status may have changed; verify against current source and newer remediation reports before treating any item as open. Historical evidence is intentionally preserved.
+
 **Repository:** `D:\Projects\Atlas-OS`  
 **Branch:** `Vijay-Atlas`  
 **Scope:** Frontend Architecture, State Management, Storage Duality, Query Performance, Bundle Size  

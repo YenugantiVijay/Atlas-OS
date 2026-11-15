@@ -24,6 +24,21 @@ import pg from 'pg';
 import crypto from 'crypto';
 import { runRealBusinessScenarioC } from './scenario_c_real_business.mjs';
 import { runFinancialReportAccessAcceptance } from './b1_report_auth_acceptance.mjs';
+import { runFinancialRawReadAcceptance } from './sec01_financial_raw_read_acceptance.mjs';
+import { runFin01SnapshotAcceptance } from './fin01_snapshot_acceptance.mjs';
+import { runB2FinancialSearchAcceptance } from './b2_financial_search_acceptance.mjs';
+import { runB2CustomerDirectorySearchAcceptance } from './b2_customer_directory_search_acceptance.mjs';
+import { runB2OperationalSearchAcceptance } from './b2_operational_search_acceptance.mjs';
+import { runSec02PrivilegedRpcAcceptance } from './sec02_privileged_rpc_acceptance.mjs';
+import { runWebsiteLeadRateAcceptance } from './pr51_website_leads_acceptance.mjs';
+import { runGoodsReceivingAcceptance } from './pr56_goods_receiving_acceptance.mjs';
+import { runSupplierPriceHistoryAcceptance } from './pr57_supplier_price_history_acceptance.mjs';
+import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acceptance.mjs';
+import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
+import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
+import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
+import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
+import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -1380,6 +1395,52 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+
+    const ledgerSalesId = crypto.randomUUID();
+    await testClient.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [ledgerSalesId, `ledger_sales_${runId}@example.com`]);
+    await testClient.query("INSERT INTO public.memberships(organization_id,user_id,role,is_active) VALUES ($1,$2,'sales',true)", [orgAId, ledgerSalesId]);
+    await runLedgerReconciliationAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, custAId, ownerAId: userAId, ownerBId: userBId, productAId: prodA1Id, salesAId: ledgerSalesId,
+    });
+
+    // PR #56: real role/tenant and stock ledger acceptance on disposable PG only.
+    await runGoodsReceivingAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+      productAId: prodA1Id, productBId: prodA2Id, foreignProductId: prodB1Id,
+    });
+    // PR #57: price snapshots are derived from the posted GRN above.
+    await runSupplierPriceHistoryAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+    });
+
+    await runQuotationRateReviewsAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+    });
+
+    await runProductSearchAlternativesAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId,
+      sourceProductId: prodA1Id, alternativeProductId: prodA2Id, foreignProductId: prodB1Id,
+    });
+
+    await runPurchaseOrdersAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, foreignProductId: prodB1Id,
+      connectPeer: async () => {
+        const url = new URL(DATABASE_URL);
+        url.pathname = '/' + testDbName;
+        const peer = new Client({ connectionString: url.toString(), connectionTimeoutMillis: 5000, statement_timeout: 10000 });
+        await peer.connect();
+        return peer;
+      },
+    });
+
+    // PR #51: service-only website lead limiter; no genuine visitor data.
+    await runWebsiteLeadRateAcceptance({ client: testClient, withRoleContext, recordTest });
     // B1.1 — Verify database authorization for financial reports using actual
     // authenticated/anonymous database roles and independent tenant identities.
     await runFinancialReportAccessAcceptance({
@@ -4567,6 +4628,76 @@ async function runAcceptance() {
         overpaymentPassed ? null : overpaymentErr
       );
     });
+
+    // SEC-01: Exercise direct raw financial table SELECT policies only after
+    // operational RPC tests have produced authentic invoice/payment fixtures.
+    await runFinancialRawReadAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    // FIN-01: Test true one-statement export snapshot and finance-only RPC
+    // access using genuinely issued invoices and recorded payments.
+    await runFin01SnapshotAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runB2FinancialSearchAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runB2CustomerDirectorySearchAcceptance({
+      client: testClient,
+      orgAId,
+      orgBId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runB2OperationalSearchAcceptance({
+      client: testClient,
+      orgAId,
+      orgBId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    // SEC-02 / PR #50: Role-gated numbering, service-only audit diagnostics,
+    // pinned search paths, and cross-tenant access checks on disposable DB.
+    await runSec02PrivilegedRpcAcceptance({
+      client: testClient,
+      orgAId,
+      orgBId,
+      ownerAId: userAId,
+      ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runInvoiceRolesAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, custAId, custBId,
+      productAId: prodA1Id, productBId: prodB1Id, salesAId: ledgerSalesId,
+    });
+    await runIndustryReceiptsAcceptance({ client: testClient, withRoleContext, recordTest });
 
     // ------------------------------------------------------------------------
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030

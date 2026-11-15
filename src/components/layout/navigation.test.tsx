@@ -103,6 +103,8 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
     memberships: [],
     signIn: vi.fn(),
     signUp: vi.fn(),
+    sendEmailCode: vi.fn(),
+    verifyEmailCode: vi.fn(),
     signOut: vi.fn(),
     enterDemoMode: vi.fn(),
     exitDemoMode: vi.fn(),

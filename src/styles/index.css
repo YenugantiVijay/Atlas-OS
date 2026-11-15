@@ -54,6 +54,66 @@
   .subtle-border {
     border: 1px solid #E2E8F0;
   }
+
+  /* Live Cloud Indicator Subtle Signal Animation */
+  @keyframes signal-ripple {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+  }
+
+  @keyframes cloud-gentle-breathe {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.9;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  .cloud-live-signal {
+    position: relative;
+    display: inline-flex;
+    height: 8px;
+    width: 8px;
+  }
+
+  .cloud-live-signal-core {
+    height: 8px;
+    width: 8px;
+    border-radius: 9999px;
+    background-color: #10B981;
+  }
+
+  .cloud-live-signal-ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background-color: #34D399;
+    animation: signal-ripple 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  .cloud-breathe-icon {
+    animation: cloud-gentle-breathe 3s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cloud-live-signal-ripple,
+    .cloud-breathe-icon {
+      animation: none !important;
+    }
+  }
 }
 
 /* Statutory GST Tax Invoice Print Styles (A4 Compliant) */

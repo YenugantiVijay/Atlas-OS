@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
+  ShoppingCart,
   Boxes,
   ClipboardList,
   FileText,
@@ -15,6 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
+  PackagePlus,
+  TrendingUpDown,
+  FileCode,
   X,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
@@ -39,8 +43,67 @@ interface NavItem {
 
 interface NavGroup {
   title: string;
+  showHeading?: boolean;
   items: NavItem[];
 }
+
+const NAV_GROUPS_CONFIG: NavGroup[] = [
+  {
+    title: 'Overview',
+    showHeading: false,
+    items: [
+      { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+    ],
+  },
+  {
+    title: 'Sales',
+    showHeading: true,
+    items: [
+      { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
+      { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+      { label: 'Customers', path: '/customers', icon: <Users className="w-[18px] h-[18px]" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Inventory',
+    showHeading: true,
+    items: [
+      { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Purchase Orders', path: '/purchase-orders', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'inventory:receive' },
+      { label: 'Goods Receiving', path: '/receiving', icon: <PackagePlus className="w-[18px] h-[18px]" />, action: 'inventory:receive' },
+      { label: 'Supplier Price History', path: '/supplier-prices', icon: <TrendingUpDown className="w-[18px] h-[18px]" />, action: 'supplier-prices:read' },
+      { label: 'Suppliers & Vendors', path: '/suppliers', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Finance',
+    showHeading: true,
+    items: [
+      { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+      { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    showHeading: false,
+    items: [
+      { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-teal-400" />, action: 'data:read' },
+    ],
+  },
+  {
+    title: 'Administration',
+    showHeading: true,
+    items: [
+      { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
+      { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
+      { label: 'India Ecosystem', path: '/integrations', icon: <FileCode className="w-[18px] h-[18px]" />, action: 'org:manage' },
+      { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
+    ],
+  },
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
@@ -51,69 +114,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
 
-  const rawNavGroups: NavGroup[] = [
-    {
-      title: 'Overview',
-      items: [
-        { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
-      ],
-    },
-    {
-      title: 'Sales Operations',
-      items: [
-        { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Customers', path: '/customers', icon: <Users className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Inventory & Stock',
-      items: [
-        { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Finance & Accounts',
-      items: [
-        { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
-        { label: 'Payments & Ledger', path: '/payments', icon: <CreditCard className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Reports',
-      items: [
-        { label: 'Sales & Receipts', path: '/reports/sales-receipts', icon: <FileSpreadsheet className="w-[18px] h-[18px]" />, action: 'reports:financial' },
-      ],
-    },
-    {
-      title: 'Purchasing',
-      items: [
-        { label: 'Suppliers & Vendors', path: '/suppliers', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Intelligence',
-      items: [
-        { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-atlas-600" />, action: 'data:read' },
-      ],
-    },
-    {
-      title: 'Administration',
-      items: [
-        { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
-        { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
-        { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
-      ],
-    },
-  ];
-
-  const navGroups = rawNavGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
-    }))
-    .filter((group) => group.items.length > 0);
+  // Strictly filter by authorized permissions; roles cannot see links without permission
+  const authorizedGroups = useMemo(
+    () =>
+      NAV_GROUPS_CONFIG
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
+        }))
+        .filter((group) => group.items.length > 0),
+    [currentRole]
+  );
 
   return (
     <>
@@ -137,8 +148,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 shrink-0">
-          <BrandLogo collapsed={collapsed} variant="dark" />
+        <div
+          className={`flex h-16 items-center border-b border-white/10 shrink-0 ${
+            collapsed && !isMobileOpen ? 'justify-between px-3' : 'justify-between px-4'
+          }`}
+        >
+          <BrandLogo collapsed={collapsed && !isMobileOpen} variant="dark" />
 
           {/* Desktop Collapse Toggle */}
           <button
@@ -179,14 +194,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Navigation list */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
-          {navGroups.map((group) => (
-            <div key={group.title}>
-              {(!collapsed || isMobileOpen) && (
-                <h5 className="px-2.5 mb-1.5 text-2xs font-bold uppercase tracking-wider text-slate-400 select-none">
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
+          {authorizedGroups.map((group) => (
+            <div key={group.title} className="space-y-1">
+              {(!collapsed || isMobileOpen) && group.showHeading !== false && (
+                <h5 className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-slate-400 select-none">
                   {group.title}
                 </h5>
               )}
+
               <ul className="space-y-1">
                 {group.items.map((item) => (
                   <li key={item.path}>
@@ -216,9 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           >
                             {item.icon}
                           </span>
-                          {(!collapsed || isMobileOpen) && (
-                            <span className="truncate">{item.label}</span>
-                          )}
+                          {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
                         </>
                       )}
                     </NavLink>

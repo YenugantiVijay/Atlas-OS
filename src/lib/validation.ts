@@ -259,14 +259,14 @@ export const organizationSchema = z
     currency: z.string().default('INR'),
   })
   .superRefine((data, ctx) => {
-    if (data.gstin && data.pan) {
+    if (typeof data.gstin === 'string' && typeof data.pan === 'string' && data.gstin && data.pan) {
       const gstinUpper = data.gstin.trim().toUpperCase();
       const panUpper = data.pan.trim().toUpperCase();
       if (gstinUpper.length >= 12 && panUpper.length === 10) {
         const embeddedPan = gstinUpper.slice(2, 12);
         if (embeddedPan !== panUpper) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: 'Provided PAN does not match the PAN embedded within the GSTIN.',
             path: ['pan'],
           });
@@ -318,7 +318,9 @@ export const supplierSchema = z.object({
 });
 
 export const orderItemSchema = z.object({
-  productId: z.string().uuid(),
+  // Preserve the UUID-shaped IDs accepted by PostgreSQL and the previous schema.
+  // PostgreSQL accepts UUID-shaped legacy IDs that are not RFC versioned UUIDs.
+  productId: z.string().guid(),
   productName: z.string(),
   productSku: z.string(),
   uom: z.enum(['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls']),

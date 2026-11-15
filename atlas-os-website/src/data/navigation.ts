@@ -37,8 +37,10 @@ export const MAIN_NAVIGATION = [
       {
         label: 'Retail & Wholesale Counters',
         href: '/solutions#retail-wholesale',
-        description: 'Unified counter billing for cash, UPI, and credit accounts.',
+        description: 'Draft orders at the counter and reconcile cash and UPI collections.',
       },
+      { label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs', description: 'Receive stock by bag and track supplier rates and credit customers.' },
+      { label: 'Small Shops', href: '/solutions#small-business', description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
     ],
   },
   {
@@ -65,6 +67,7 @@ export const MAIN_NAVIGATION = [
         href: '/features#payments',
         description: 'Multi-invoice settlement against RTGS/NEFT receipts.',
       },
+      { label: 'Receipt Templates', href: '/receipt-templates', description: 'Preview a customer receipt with your own branding.' },
       {
         label: 'Excel Reporting Engine',
         href: '/features#reports',
@@ -107,11 +110,6 @@ export const MAIN_NAVIGATION = [
       },
     ],
   },
-  {
-    label: 'Download',
-    href: '/download',
-    badge: 'Desktop',
-  },
 ];
 
 export const FOOTER_SECTIONS = [
@@ -124,6 +122,7 @@ export const FOOTER_SECTIONS = [
       { label: 'GST Tax Invoicing', href: '/features#invoicing' },
       { label: 'Customer Receivables', href: '/features#customers' },
       { label: 'Payment Settlement', href: '/features#payments' },
+      { label: 'Receipt Templates', href: '/receipt-templates' },
       { label: 'Excel Reporting Engine', href: '/features#reports' },
     ],
   },
@@ -133,6 +132,8 @@ export const FOOTER_SECTIONS = [
       { label: 'Electrical Distributors', href: '/solutions#electrical' },
       { label: 'Electronics Wholesalers', href: '/solutions#electronics' },
       { label: 'Hardware Merchants', href: '/solutions#hardware' },
+      { label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs' },
+      { label: 'Small Shops', href: '/solutions#small-business' },
       { label: 'Retail-Wholesale Trade Counters', href: '/solutions#retail-wholesale' },
       { label: 'Request Custom Workflow', href: '/request-demo' },
     ],

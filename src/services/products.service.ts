@@ -11,6 +11,7 @@ export function mapDbProduct(row: any, stock?: number): Product {
     organizationId: row.organization_id,
     sku: row.sku,
     name: row.name,
+    searchAliases: row.search_aliases || undefined,
     brand: row.brand || undefined,
     category: row.category,
     description: row.description || undefined,
@@ -48,6 +49,8 @@ export const productsService = {
           p.name.toLowerCase().includes(s) ||
           p.sku.toLowerCase().includes(s) ||
           Boolean(p.brand && p.brand.toLowerCase().includes(s)) ||
+          Boolean(p.hsnCode && p.hsnCode.toLowerCase().includes(s)) ||
+          Boolean(p.searchAliases && p.searchAliases.toLowerCase().includes(s)) ||
           p.category.toLowerCase().includes(s),
         (a, b) => a.name.localeCompare(b.name)
       );
@@ -55,27 +58,6 @@ export const productsService = {
 
     if (!supabase) {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
-    }
-
-    let query = supabase
-      .from('products')
-      .select('*', { count: 'exact' })
-      .eq('organization_id', orgId);
-
-    if (params.search && params.search.trim()) {
-      // Sanitize search term to prevent PostgREST grammar breakage
-      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
-      if (s) {
-        query = query.or(`name.ilike.%${s}%,sku.ilike.%${s}%,brand.ilike.%${s}%`);
-      }
-    }
-
-    if (params.category && params.category !== 'ALL') {
-      query = query.eq('category', params.category);
-    }
-
-    if (params.isActive !== undefined) {
-      query = query.eq('is_active', params.isActive);
     }
 
     // Allowlisted sort fields to prevent invalid SQL column errors
@@ -91,10 +73,26 @@ export const productsService = {
     const sortBy = ALLOWED_PROD_SORT_FIELDS[params.sortBy || 'name'] || 'name';
     const ascending = params.sortOrder === 'desc' ? false : true;
 
-    // Deterministic sorting with secondary tie-breaker by primary key id
-    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
+    const client = supabase;
+    const term = params.search?.trim().replace(/[,()":\\]/g, ' ').trim();
+    const fetchPage = (includeAliases: boolean) => {
+      let query = client.from('products').select('*', { count: 'exact' }).eq('organization_id', orgId);
+      if (term) {
+        const columns = ['name', 'sku', 'brand', 'hsn_code'];
+        if (includeAliases) columns.push('search_aliases');
+        query = query.or(columns.map((column) => column + '.ilike.%' + term + '%').join(','));
+      }
+      if (params.category && params.category !== 'ALL') query = query.eq('category', params.category);
+      if (params.isActive !== undefined) query = query.eq('is_active', params.isActive);
+      return query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
+    };
 
-    const { data: dbProducts, error: prodErr, count } = await query;
+    let result = await fetchPage(true);
+    // Existing catalog search stays available during a rolling database upgrade.
+    if (term && result.error?.code === '42703' && result.error.message.includes('search_aliases')) {
+      result = await fetchPage(false);
+    }
+    const { data: dbProducts, error: prodErr, count } = result;
 
     if (prodErr) {
       throw new Error(`Failed to fetch products: ${prodErr.message}`);
@@ -198,7 +196,8 @@ export const productsService = {
     orgId: string,
     input: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'organizationId' | 'currentStock'>,
     isMockAuth: boolean = false,
-    openingStock: number = 0
+    openingStock: number = 0,
+    signal?: AbortSignal
   ): Promise<Product> {
     if (isMockAuth) {
       return storage.createProduct(orgId, input, openingStock);
@@ -209,7 +208,7 @@ export const productsService = {
     }
 
     // Atomic product creation + opening stock initialization via authoritative RPC
-    const { data, error } = await supabase.rpc('create_product_atomic', {
+    const request = supabase.rpc('create_product_atomic', {
       p_org_id: orgId,
       p_sku: input.sku.trim(),
       p_name: input.name.trim(),
@@ -222,17 +221,39 @@ export const productsService = {
       p_tax_rate: input.taxRate,
       p_hsn_code: input.hsnCode?.trim() || null,
       p_reorder_threshold: input.reorderThreshold,
-      p_is_active: input.isActive ?? true,
+      // create_product_atomic has no p_is_active argument; newly created products default to active.
       p_opening_stock: openingStock || 0,
       p_notes: 'Initial opening stock',
       p_image_url: input.imageUrl || null,
     });
+    const { data, error } = await (signal ? request.abortSignal(signal) : request);
 
     if (error) {
       throw new Error(`Failed to create product: ${error.message}`);
     }
 
-    return mapDbProduct(data, openingStock);
+    // The deployed create_product_atomic RPC deliberately returns a compact JSON
+    // confirmation, not the entire products row. In particular it omits
+    // category, brand, reorder_threshold and is_active. Mapping that response
+    // as if it were SELECT * incorrectly marks a freshly created product as
+    // inactive and can lose its identifying details in Goods Receiving.
+    if (!data || typeof data !== 'object' || typeof data.id !== 'string' ||
+        data.organization_id !== orgId) {
+      throw new Error('Product creation returned an incomplete confirmation. Check the SKU in Products before retrying.');
+    }
+    const confirmed = data as Record<string, unknown>;
+    const now = new Date().toISOString();
+    return mapDbProduct({
+      ...confirmed,
+      category: confirmed.category ?? input.category.trim(),
+      brand: confirmed.brand ?? input.brand?.trim() ?? null,
+      description: confirmed.description ?? input.description?.trim() ?? null,
+      hsn_code: confirmed.hsn_code ?? input.hsnCode?.trim() ?? null,
+      reorder_threshold: confirmed.reorder_threshold ?? input.reorderThreshold ?? 10,
+      is_active: confirmed.is_active ?? true, // RPC inserts is_active=TRUE.
+      created_at: confirmed.created_at ?? now,
+      updated_at: confirmed.updated_at ?? now,
+    }, openingStock);
   },
 
   async updateProduct(
@@ -252,6 +273,7 @@ export const productsService = {
     const payload: any = { updated_at: new Date().toISOString() };
     if (updates.sku !== undefined) payload.sku = updates.sku.trim();
     if (updates.name !== undefined) payload.name = updates.name.trim();
+    if (updates.searchAliases !== undefined) payload.search_aliases = updates.searchAliases;
     if (updates.brand !== undefined) payload.brand = updates.brand?.trim() || null;
     if (updates.category !== undefined) payload.category = updates.category;
     if (updates.description !== undefined) payload.description = updates.description?.trim() || null;

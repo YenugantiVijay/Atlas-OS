@@ -1,6 +1,6 @@
 ---
 interface Props {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'white';
   size?: 'sm' | 'md' | 'lg';
   href?: string;
   type?: 'button' | 'submit' | 'reset';
@@ -28,13 +28,14 @@ const {
 
 const className = propClass || propClassName;
 
-const baseClasses = 'inline-flex items-center justify-center font-display font-medium rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98]';
+const baseClasses = 'inline-flex items-center justify-center font-display font-medium rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] btn-shimmer';
 
 const variantClasses = {
   primary: 'bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-glow focus-visible:ring-brand-500 border border-brand-500',
-  secondary: 'bg-surface-secondary hover:bg-surface-tertiary text-content-primary border border-border focus-visible:ring-brand-500',
-  outline: 'bg-white hover:bg-brand-50 text-brand-700 border border-brand-200 hover:border-brand-300 focus-visible:ring-brand-500 shadow-2xs',
+  secondary: 'bg-surface-secondary hover:bg-surface-tertiary text-content-primary border border-border focus-visible:ring-brand-500 btn-shimmer-teal',
+  outline: 'bg-white hover:bg-brand-50 text-brand-700 border border-brand-200 hover:border-brand-300 focus-visible:ring-brand-500 shadow-2xs btn-shimmer-teal',
   ghost: 'bg-transparent hover:bg-surface-secondary text-content-primary hover:text-brand-700 border border-transparent focus-visible:ring-brand-500',
+  white: 'bg-white hover:bg-slate-50 !text-[#142B4D] border border-white/80 shadow-md focus-visible:ring-white btn-shimmer-teal font-bold',
 };
 
 const sizeClasses = {
@@ -43,7 +44,9 @@ const sizeClasses = {
   lg: 'px-6 py-3.5 text-base gap-2.5 shadow-sm',
 };
 
-const combinedClasses = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
+const shimmerTint = (className.includes('bg-white') || variant === 'white') ? 'btn-shimmer-teal' : '';
+
+const combinedClasses = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${shimmerTint} ${className}`.trim();
 ---
 
 {

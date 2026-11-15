@@ -23,8 +23,7 @@ test.describe('ATLAS OS — Sales & Receipts Excel Export (Phase B1)', () => {
   });
 
   test('navigates to Sales & Receipts report via sidebar and verifies UI elements', async ({ page }) => {
-    // Navigate via Sidebar
-    const reportNavLink = page.getByRole('link', { name: 'Sales & Receipts' });
+    const reportNavLink = page.locator('aside').getByRole('link', { name: 'Sales & Receipts' });
     await expect(reportNavLink).toBeVisible();
     await reportNavLink.click();
 

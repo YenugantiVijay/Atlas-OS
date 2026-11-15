@@ -92,7 +92,7 @@ export const ReceivablesDonutChart: React.FC<ReceivablesDonutChartProps> = ({ in
       </div>
 
       {/* Donut graphic and metric breakdown */}
-      <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-4">
+      <div className="flex flex-col items-center justify-around gap-5 py-4 min-w-0">
         {/* SVG Donut */}
         <div className="relative w-40 h-40 shrink-0">
           <svg className="w-full h-full -rotate-90 transform" viewBox={`0 0 ${size} ${size}`}>

@@ -108,15 +108,22 @@ export const customersService = {
       p_customer_ids: pageCustomerIds,
     });
 
-    if (pageRecvErr) {
-      // Resilient fallback to get_customer_receivables if page RPC is unavailable
+    if (pageRecvErr?.code === '42501') {
+      // Non-finance staff can use the customer directory without seeing balances.
+      // Never turn access denied into a false zero-outstanding claim.
+      receivables = null;
+    } else if (pageRecvErr) {
+      // Only fall back for technical errors; never retry denied finance RPCs.
       const { data: fallbackRecv, error: fallbackErr } = await supabase.rpc('get_customer_receivables', {
         p_org_id: orgId,
       });
-      if (fallbackErr) {
+      if (fallbackErr?.code === '42501') {
+        receivables = null;
+      } else if (fallbackErr) {
         throw new Error(`Failed to load customer receivables: ${fallbackErr.message}`);
+      } else {
+        receivables = fallbackRecv;
       }
-      receivables = fallbackRecv;
     } else {
       receivables = pageRecv;
     }
@@ -130,7 +137,7 @@ export const customersService = {
     }
 
     const mappedCustomers = dbCustomers.map((c) => {
-      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : 0;
+      const receivable = receivableMap.has(c.id) ? receivableMap.get(c.id)! : undefined;
       return mapDbCustomer(c, receivable);
     });
 
@@ -190,6 +197,9 @@ export const customersService = {
       p_org_id: orgId,
     });
 
+    if (recvErr?.code === '42501') {
+      return dbCustomers.map((c) => mapDbCustomer(c));
+    }
     if (recvErr) {
       throw new Error(`Failed to load customer receivables: ${recvErr.message}`);
     }

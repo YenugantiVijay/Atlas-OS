@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { BusinessVerificationModal } from '@/features/organizations/BusinessVerificationModal';
+import { OfflineSyncIndicator } from '@/components/ui/OfflineSyncIndicator';
 
 export const RouteLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[380px] gap-3.5 text-atlas-600 animate-in fade-in duration-200">
@@ -204,6 +205,11 @@ export const AppLayout: React.FC = () => {
         } pt-20 px-3.5 sm:px-6 lg:px-8 pb-12 flex-1`}
       >
         <div className="mx-auto max-w-7xl w-full">
+          {/* Offline Sync & Queue Status Indicator */}
+          <div className="mb-4">
+            <OfflineSyncIndicator />
+          </div>
+
           {/* Explicit Demo Sandbox Mode Banner */}
           {isDemoMode && (
             <div className="mb-5 p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in">

@@ -18,23 +18,13 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { BusinessCategory } from '@/types';
+import { BUSINESS_CATEGORIES, BUSINESS_CATEGORY_OPTIONS, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { validateBusinessTaxIdentifiers, maskPan } from '@/lib/validation';
-
-const SUGGESTED_PRODUCT_LINES = [
-  'Wires & Cables',
-  'Switches & Sockets',
-  'Switchgear & Protection',
-  'LED Lighting',
-  'Fans & Ventilation',
-  'Conduits & PVC Fittings',
-  'Motors & Starters',
-  'Solar & Inverter Equipment',
-];
 
 function getInitials(name?: string | null): string {
   if (!name || !name.trim() || name.trim().toLowerCase() === 'user') return 'U';
@@ -76,15 +66,18 @@ export const OnboardingPage: React.FC = () => {
 
   // Business Eligibility State
   const [businessCategory, setBusinessCategory] =
-    useState<BusinessCategory>('electrical_wholesale_distributor');
-  const [sellsElectricalProducts, setSellsElectricalProducts] = useState<boolean>(true);
-  const [productLines, setProductLines] = useState<string[]>([
-    'Wires & Cables',
-    'Switches & Sockets',
-    'Switchgear & Protection',
-    'LED Lighting',
-  ]);
+    useState<BusinessCategory>(DEFAULT_BUSINESS_CATEGORY);
+  const [sellsElectricalProducts, setSellsElectricalProducts] = useState<boolean>(false);
+  const [productLines, setProductLines] = useState<string[]>(() => BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
   const [customTagInput, setCustomTagInput] = useState('');
+  const changeBusinessCategory = (category: BusinessCategory) => {
+    if (category === businessCategory) return;
+    setBusinessCategory(category);
+    setSellsElectricalProducts(BUSINESS_CATEGORIES[category].electrical);
+    setProductLines(BUSINESS_CATEGORIES[category].products.slice(0, 2));
+    setCustomTagInput('');
+  };
+
 
   // Statutory PAN Exception State
   const [requestPanException, setRequestPanException] = useState(false);
@@ -215,7 +208,7 @@ export const OnboardingPage: React.FC = () => {
 
     const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 2) {
-      setErrorMessage('Please enter a valid distributor business name (at least 2 characters).');
+      setErrorMessage('Please enter a valid business name (at least 2 characters).');
       return;
     }
 
@@ -347,7 +340,7 @@ export const OnboardingPage: React.FC = () => {
               Primary Business Workspace Setup
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-content-primary">
-              Set Up Your Distributor Organization
+              Set up your business
             </h1>
             <p className="text-xs sm:text-sm text-content-secondary max-w-xl mx-auto leading-relaxed">
               Atlas OS organizes all inventory items, sales orders, GST tax invoices, and team access
@@ -392,11 +385,11 @@ export const OnboardingPage: React.FC = () => {
 
                 <div className="space-y-4">
                   <Input
-                    label="Distributor Business Name"
+                    label="Business Name"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Sri Lakshmi Electrical Distributors"
+                    placeholder="e.g. Sri Lakshmi Traders"
                     disabled={isSubmitting}
                     helperText="This name will appear on all quotations, sales orders, and invoices."
                   />
@@ -405,7 +398,7 @@ export const OnboardingPage: React.FC = () => {
                     label="Legal Entity Name"
                     value={legalName}
                     onChange={(e) => setLegalName(e.target.value)}
-                    placeholder="e.g. Sri Lakshmi Electricals & Co. Pvt Ltd"
+                    placeholder="e.g. Sri Lakshmi Traders Pvt Ltd"
                     disabled={isSubmitting}
                     helperText="Official registered company name (optional if identical to business name)."
                   />
@@ -507,7 +500,7 @@ export const OnboardingPage: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="billing@distributor.com"
+                    placeholder="billing@yourbusiness.com"
                     disabled={isSubmitting}
                   />
                 </div>
@@ -574,37 +567,12 @@ export const OnboardingPage: React.FC = () => {
                     Business Category <span className="text-rose-500">*</span>
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {[
-                      {
-                        id: 'electrical_wholesale_distributor' as BusinessCategory,
-                        title: 'Electrical Wholesaler / Distributor',
-                        desc: 'Bulk supplies to dealers, contractors, and projects.',
-                      },
-                      {
-                        id: 'electrical_retail' as BusinessCategory,
-                        title: 'Electrical Retail Shop',
-                        desc: 'Counter retail sales of cables, switches, lighting, and fittings.',
-                      },
-                      {
-                        id: 'hardware_electrical' as BusinessCategory,
-                        title: 'Hardware & Electrical Store',
-                        desc: 'Hardware merchant with active electrical goods inventory.',
-                      },
-                      {
-                        id: 'other_unsupported' as BusinessCategory,
-                        title: 'Other Business Type',
-                        desc: 'Non-electrical merchant (subject to restricted access).',
-                      },
-                    ].map((cat) => (
+                    {BUSINESS_CATEGORY_OPTIONS.map((cat) => (
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => {
-                          setBusinessCategory(cat.id);
-                          if (cat.id === 'hardware_electrical') {
-                            setSellsElectricalProducts(true);
-                          }
-                        }}
+                        onClick={() => changeBusinessCategory(cat.id)}
+                        aria-pressed={businessCategory === cat.id}
                         className={`p-3 rounded-xl border text-left transition-all ${
                           businessCategory === cat.id
                             ? 'border-atlas-600 bg-atlas-50/60 ring-2 ring-atlas-200'
@@ -613,21 +581,18 @@ export const OnboardingPage: React.FC = () => {
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-bold text-content-primary">
-                            {cat.title}
+                            {cat.label}
                           </span>
                           {businessCategory === cat.id && (
                             <Check className="w-4 h-4 text-atlas-600 shrink-0" />
                           )}
                         </div>
-                        <p className="text-[11px] text-content-secondary leading-normal">
-                          {cat.desc}
-                        </p>
                       </button>
                     ))}
                   </div>
 
                   {/* Sells electrical products checkbox */}
-                  <div className="p-3.5 rounded-xl border border-border bg-surface-panel flex items-start gap-3 mt-3">
+                  {BUSINESS_CATEGORIES[businessCategory].electrical && <div className="p-3.5 rounded-xl border border-border bg-surface-panel flex items-start gap-3 mt-3">
                     <input
                       id="sellsElectrical"
                       type="checkbox"
@@ -642,11 +607,11 @@ export const OnboardingPage: React.FC = () => {
                       </span>
                       <span className="text-content-muted leading-relaxed block mt-0.5">
                         {businessCategory === 'hardware_electrical'
-                          ? 'Mandatory: Hardware stores must sell electrical products for ATLAS OS access.'
-                          : 'Atlas OS specializes in statutory inventory and billing for electrical distribution.'}
+                          ? 'This category includes electrical products.'
+                          : 'If you sell other goods, choose a category that fits your business.'}
                       </span>
                     </label>
-                  </div>
+                  </div>}
 
                   {/* Product Lines Chips */}
                   <div className="space-y-2 pt-2">
@@ -660,7 +625,7 @@ export const OnboardingPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
-                      {SUGGESTED_PRODUCT_LINES.map((item) => {
+                      {BUSINESS_CATEGORIES[businessCategory].products.map((item) => {
                         const isSelected = productLines.includes(item);
                         return (
                           <button
@@ -730,11 +695,11 @@ export const OnboardingPage: React.FC = () => {
                   </div>
 
                   {/* Informational Policy Alerts */}
-                  {(businessCategory === 'other_unsupported' || !sellsElectricalProducts) && (
+                  {(businessCategory === 'other_unsupported' || (BUSINESS_CATEGORIES[businessCategory].electrical && !sellsElectricalProducts)) && (
                     <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                       <div className="leading-relaxed">
-                        <strong>Policy Notice:</strong> Firms outside the electrical trade will be registered in read-only audit mode and will not be eligible for operational write access.
+                        Choose the closest supported category to use the standard workspace. Contact Atlas OS for a specialized workflow.
                       </div>
                     </div>
                   )}
@@ -791,7 +756,7 @@ export const OnboardingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-border py-4 text-center text-xs text-content-muted">
-        ATLAS OS Enterprise • Statutory Indian Electricals ERP • Multi-Tenant Architecture
+        Atlas OS
       </footer>
     </div>
   );

@@ -8,7 +8,7 @@ Official public-facing marketing, product discovery, documentation, and download
 
 The website is engineered as a standalone, high-performance static web application designed for global CDN distribution via Firebase Hosting:
 
-- **Framework**: [Astro 4](https://astro.build/) with TypeScript in strict mode
+- **Framework**: [Astro 7](https://astro.build/) with TypeScript in strict mode
 - **Interactive Islands**: React 18 for interactive client components (interactive product concept previews, demo booking form, transparent download release cards, dynamic pricing toggle, FAQ accordion, contact forms)
 - **Styling**: Tailwind CSS with custom Atlas OS brand tokens (Primary Violet `#8B5CF6`, Deep Violet `#6D28D9`, Soft Violet `#EDE9FE`, High-Contrast Slate typography, custom subtle grid background)
 - **Icons**: Lucide React
@@ -90,36 +90,68 @@ static on smaller screens or when the user requests reduced motion. AI Insights
 is explicitly labeled **In development**. The ERP application's own styles,
 Supabase migrations, and business workflows are not changed.
 
-## 4. Local Development
+## Real website enquiries (PR #51)
 
-### Prerequisites
-- Node.js >= 18.18.0
-- npm >= 9.0.0
+Contact, Demo Request, and desktop release notification forms now use a server-backed email delivery endpoint. **They no longer report success after saving data only in browser localStorage.**
 
-### Installation
-From the website directory:
+To activate the forms you must deploy the Supabase `submit-website-lead` Edge Function, apply the service-only rate-limit migration, configure Resend and Cloudflare Turnstile, and provide `PUBLIC_LEAD_ENDPOINT` and `PUBLIC_TURNSTILE_SITE_KEY` at **website build time**. Without these settings the forms display an unavailable notice and do not fake delivery.
+
+See [PR #51 Website Lead Delivery deployment and verification](../docs/PR51_WEBSITE_LEAD_DELIVERY.md) for secrets, staging tests, explicit deployment approval and real inbox verification. Neither the website build nor a merged PR deploys the service automatically.
+
+## 4. Preview the REAL Website (one Astro design, no duplicate index.html)
+
+**The only website design source is `src/pages/*.astro`**, starting with `src/pages/index.astro`. Do not maintain another standalone homepage at `atlas-os-website/index.html`: a duplicate used to show a different, simplified design in VS Code Live Server. It has been deleted.
+
+### Windows — open the official website automatically
+
+1. Open the `atlas-os-website` folder in File Explorer.
+2. Double-click **`preview-website.cmd`**.
+3. The script checks Node/npm, installs dependencies if needed, and opens **http://127.0.0.1:4321/** after verifying that Astro is serving this checkout and Git revision.
+4. Keep the Astro server terminal open while previewing. Edits to `src/pages/`, `src/components/` and styles appear with hot reload.
+
+After pulling updates or switching branches, close the previous **Atlas OS Website Live Server** terminal before reopening the launcher. If port 4321 is already serving a different checkout, an older revision, or a static build, the launcher identifies the conflict. Close the terminal serving that port and try again.
+
+### VS Code — live preview (with hot reload)
+
+Open the **website folder** in VS Code and run these commands in the terminal:
+
 ```bash
-cd atlas-os-website
-npm install
-```
-
-### Running Locally
-```bash
+npm ci
 npm run dev
 ```
-The development server will launch at `http://localhost:4321`.
 
-### Typechecking & Production Build
+Then open **http://127.0.0.1:4321/** in your browser. **Do not use "Open with Live Server" on an `index.html` in the source folder**: Live Server cannot compile `.astro` components and will not show the true website.
+
+### Production build — the generated index.html you requested
+
 ```bash
-npm run typecheck    # Runs tsc --noEmit
-npm run check        # Runs astro check (validates Astro templates & scripts)
-npm run build        # Generates production static output in ./dist
-npm run preview      # Serves the static ./dist build locally
+npm run build
+npm run verify
+npm run preview
+```
+
+Astro automatically creates the real homepage at **`atlas-os-website/dist/index.html`**, plus matching pages/assets. This is the correct `index.html`; it is generated from the original Astro design, not independently edited. The production-style preview opens on port 4321 (stop the dev server first).
+
+Firebase Hosting uses `dist/` as its website root; the original design and route structure are preserved.
+
+## 5. Local Development & Verification
+
+### Prerequisites
+- Node.js 24 LTS is recommended. The minimum version is 22.23.4.
+- npm >= 9.6.5
+
+### Quality Verification Suite
+```bash
+cd atlas-os-website
+npm run typecheck    # Strict TypeScript validation
+npm run check        # Astro template and diagnostic check
+npm run build        # Production static build to ./dist
+npm test             # Playwright end-to-end regression tests
 ```
 
 ---
 
-## 5. Deployment to Firebase Hosting
+## 6. Deployment to Firebase Hosting
 
 ### Initial Setup
 1. Install Firebase CLI globally if not already present:

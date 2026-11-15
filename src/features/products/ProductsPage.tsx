@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Boxes,
   Plus,
@@ -29,9 +29,19 @@ import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/money';
 import { validateMoneyInput, validateTaxRateInput, parseStrictNumber } from '@/lib/validation';
+import { ProductSearchSettings } from './ProductSearchSettings';
+import { BUSINESS_CATEGORIES, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
 
 const CATEGORIES = [
   'All Categories',
+  'General Merchandise',
+  'Packaged Goods',
+  'Fertilizers',
+  'Seeds',
+  'Soil Nutrients',
+  'Farm Supplies',
+  'Tools & Hardware',
+  'Electronics',
   'Wires & Cables',
   'Switchgear',
   'Modular Switches',
@@ -41,10 +51,12 @@ const CATEGORIES = [
   'Fans & Appliances',
 ];
 
-const UOM_OPTIONS: UOM[] = ['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
+const UOM_OPTIONS: UOM[] = ['Nos', 'Bags', 'Kg', 'Litres', 'Packs', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls'];
 
 export const ProductsPage: React.FC = () => {
-  const { currentOrg, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, isMockAuth, canWriteOperations, eligibility } = useOrg();
+  const business = BUSINESS_CATEGORIES[eligibility?.businessCategory ?? DEFAULT_BUSINESS_CATEGORY] ?? BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY];
+  const defaultTaxRate = business.electrical ? '18' : '';
   const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -55,7 +67,11 @@ export const ProductsPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const latestCatalogRequest = useRef(0);
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
+  const categories = [...new Set([...CATEGORIES, ...business.products, ...products.map((product) => product.category), selectedCategory])];
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'in_stock'>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -65,16 +81,17 @@ export const ProductsPage: React.FC = () => {
   // Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchSettingsProduct, setSearchSettingsProduct] = useState<Product | null>(null);
 
   // Form Fields
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
-  const [category, setCategory] = useState('Wires & Cables');
-  const [uom, setUom] = useState<UOM>('Nos');
+  const [category, setCategory] = useState(business.products[0] ?? 'General Merchandise');
+  const [uom, setUom] = useState<UOM>(business.unit);
   const [purchaseCost, setPurchaseCost] = useState('0');
   const [sellingPrice, setSellingPrice] = useState('0');
-  const [taxRate, setTaxRate] = useState('18');
+  const [taxRate, setTaxRate] = useState(defaultTaxRate);
   const [hsnCode, setHsnCode] = useState('');
   const [reorderThreshold, setReorderThreshold] = useState('10');
   const [openingStock, setOpeningStock] = useState('0');
@@ -88,19 +105,20 @@ export const ProductsPage: React.FC = () => {
       // Stale response guard and form reset on organization switch
       setIsCreateModalOpen(false);
       setEditingProduct(null);
+      setSearchSettingsProduct(null);
       setSku('');
       setName('');
       setBrand('');
       setPurchaseCost('0');
       setSellingPrice('0');
-      setTaxRate('18');
+      setTaxRate(defaultTaxRate);
       setHsnCode('');
       setReorderThreshold('10');
       setOpeningStock('0');
       setImageUrl('');
       setPage(1);
     }
-  }, [currentOrg?.id]);
+  }, [currentOrg?.id, defaultTaxRate]);
 
   const clearActionParam = useCallback(() => {
     setSearchParams((prev) => {
@@ -116,6 +134,7 @@ export const ProductsPage: React.FC = () => {
   const loadProducts = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Product[] | null> => {
     if (!currentOrg) return null;
     const orgIdAtCall = currentOrg.id;
+    const requestId = ++latestCatalogRequest.current;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -149,7 +168,7 @@ export const ProductsPage: React.FC = () => {
         );
       }
 
-      if (activeOrgIdRef.current !== orgIdAtCall) {
+      if (activeOrgIdRef.current !== orgIdAtCall || requestId !== latestCatalogRequest.current) {
         return null;
       }
 
@@ -158,13 +177,13 @@ export const ProductsPage: React.FC = () => {
       setTotalPages(res.totalPages);
       return res.data;
     } catch (err: any) {
-      if (activeOrgIdRef.current !== orgIdAtCall) return null;
+      if (activeOrgIdRef.current !== orgIdAtCall || requestId !== latestCatalogRequest.current) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load products. Check your connection and try again.';
       setLoadError(msg);
       showToast('error', 'Failed to load products', msg);
       return null;
     } finally {
-      if (activeOrgIdRef.current === orgIdAtCall) {
+      if (activeOrgIdRef.current === orgIdAtCall && requestId === latestCatalogRequest.current) {
         setIsLoading(false);
       }
     }
@@ -180,11 +199,11 @@ export const ProductsPage: React.FC = () => {
     setSku('');
     setName('');
     setBrand('');
-    setCategory('Wires & Cables');
-    setUom('Nos');
+    setCategory(business.products[0] ?? 'General Merchandise');
+    setUom(business.unit);
     setPurchaseCost('0');
     setSellingPrice('0');
-    setTaxRate('18');
+    setTaxRate(defaultTaxRate);
     setHsnCode('');
     setReorderThreshold('10');
     setOpeningStock('0');
@@ -192,7 +211,7 @@ export const ProductsPage: React.FC = () => {
     setEditingProduct(null);
     setIsCreateModalOpen(true);
     clearActionParam();
-  }, [check, clearActionParam, showToast]);
+  }, [business.products, business.unit, check, clearActionParam, defaultTaxRate, showToast]);
 
   const checkRef = useRef(check);
   checkRef.current = check;
@@ -274,8 +293,8 @@ export const ProductsPage: React.FC = () => {
       showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
       return;
     }
-    if (!sku.trim() || !name.trim()) {
-      showToast('error', 'Validation Error', 'SKU and Product Name are required.');
+    if (!sku.trim() || !name.trim() || !category.trim()) {
+      showToast('error', 'Validation Error', 'SKU, product name, and category are required.');
       return;
     }
 
@@ -337,7 +356,7 @@ export const ProductsPage: React.FC = () => {
             sku: sku.trim().toUpperCase(),
             name: name.trim(),
             brand: brand.trim() || undefined,
-            category,
+            category: category.trim(),
             uom,
             purchaseCost: costVal.value ?? 0,
             sellingPrice: priceVal.value ?? 0,
@@ -356,7 +375,7 @@ export const ProductsPage: React.FC = () => {
             sku: sku.trim().toUpperCase(),
             name: name.trim(),
             brand: brand.trim() || undefined,
-            category,
+            category: category.trim(),
             uom,
             purchaseCost: costVal.value ?? 0,
             sellingPrice: priceVal.value ?? 0,
@@ -385,7 +404,8 @@ export const ProductsPage: React.FC = () => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand?.toLowerCase().includes(searchQuery.toLowerCase());
+      p.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.hsnCode?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       selectedCategory === 'All Categories' || p.category === selectedCategory;
@@ -399,6 +419,16 @@ export const ProductsPage: React.FC = () => {
 
     return matchesSearch && matchesCategory && matchesStock;
   });
+
+  const suggestions = suggestionsOpen && searchQuery.trim().length >= 2 && !isLoading && !loadError
+    ? filteredProducts.slice(0, 8) : [];
+  const chooseSuggestion = (product: Product) => {
+    setSearchQuery(product.sku);
+    setPage(1);
+    setSuggestionsOpen(false);
+    setSuggestionIndex(0);
+  };
+  const createPermission = check('products:create');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -414,24 +444,25 @@ export const ProductsPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
-            Electrical components catalog with HSN codes, GST classification, and real-time inventory balances.
+            Manage product categories, prices, tax rates, and stock balances.
           </p>
         </div>
 
-        {(() => {
-          const createPerm = check('products:create');
-          return (
-            <Button
-              variant="primary"
-              onClick={handleOpenCreate}
-              leftIcon={<Plus className="w-4 h-4" />}
-              disabled={!createPerm.allowed}
-              title={!createPerm.allowed ? createPerm.message : undefined}
-            >
-              Add Product
-            </Button>
-          );
-        })()}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/import-preview"
+            className="inline-flex min-h-10 items-center rounded-lg border border-border bg-surface-card px-3.5 text-sm font-medium text-content-primary hover:bg-surface-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-600">
+            BUSY import preview
+          </Link>
+          <Button
+            variant="primary"
+            onClick={handleOpenCreate}
+            leftIcon={<Plus className="w-4 h-4" />}
+            disabled={!createPermission.allowed}
+            title={!createPermission.allowed ? createPermission.message : undefined}
+          >
+            Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Preparing Indicator */}
@@ -453,17 +484,60 @@ export const ProductsPage: React.FC = () => {
       {/* Filters & Search */}
       <Card>
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          <div className="flex-1 w-full">
+          <div className="relative flex-1 w-full">
             <Input
-              placeholder="Search by product name, SKU, or manufacturer brand..."
+              placeholder="Search name, SKU, company, or HSN..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
+                setSuggestionsOpen(true);
+                setSuggestionIndex(0);
                 setPage(1);
+              }}
+              onFocus={() => { if (searchQuery.trim().length >= 2) setSuggestionsOpen(true); }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' && suggestions.length) {
+                  e.preventDefault();
+                  setSuggestionIndex((n) => Math.min(n + 1, suggestions.length - 1));
+                } else if (e.key === 'ArrowUp' && suggestions.length) {
+                  e.preventDefault();
+                  setSuggestionIndex((n) => Math.max(0, n - 1));
+                } else if (e.key === 'Enter' && suggestions.length) {
+                  e.preventDefault();
+                  chooseSuggestion(suggestions[Math.min(suggestionIndex, suggestions.length - 1)]);
+                } else if (e.key === 'Escape') {
+                  setSuggestionsOpen(false);
+                }
               }}
               leftIcon={<Search className="w-4 h-4" />}
               aria-label="Search products"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={suggestions.length > 0}
+              aria-controls="catalog-suggestions"
             />
+            {suggestions.length > 0 && (
+              <div id="catalog-suggestions" role="listbox" aria-label="Matching catalog products"
+                className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                {suggestions.map((p, i) => (
+                  <button type="button" role="option" aria-selected={i === suggestionIndex}
+                    key={p.id} onClick={() => chooseSuggestion(p)}
+                    className={'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-teal-50 ' +
+                      (i === suggestionIndex ? 'bg-teal-50' : '')}>
+                    <span className="min-w-0">
+                      <strong className="block truncate text-slate-800">{p.name}</strong>
+                      <span className="block truncate text-xs text-slate-500">{p.sku} · {p.brand || 'No brand'} · {p.uom}</span>
+                    </span>
+                    <span className="shrink-0 text-right text-xs">
+                      <span className="block font-medium text-slate-600">Stock {p.currentStock ?? '—'} {p.uom}</span>
+                      <span className="block font-semibold text-teal-700">{formatCurrency(p.sellingPrice)}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchQuery.trim().length >= 2 && !suggestions.length && isLoading &&
+              <p className="mt-1 text-xs text-slate-500">Searching the current business catalog…</p>}
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
@@ -476,7 +550,7 @@ export const ProductsPage: React.FC = () => {
               }}
               className="w-full sm:w-auto h-10 rounded-lg border border-border bg-surface-card px-3.5 py-2 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 shadow-2xs"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -511,32 +585,118 @@ export const ProductsPage: React.FC = () => {
           description={
             searchQuery || selectedCategory !== 'All Categories'
               ? 'No products match your current search and filter criteria.'
-              : 'Your product catalog is empty. Add your first electrical SKU to begin tracking inventory and issuing quotations.'
+              : 'Add your first product to start tracking stock and preparing sales.'
           }
           actionLabel={!check('products:create').allowed ? undefined : "Add Product"}
           onAction={handleOpenCreate}
         />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SKU & Details</TableHead>
-              <TableHead>Category / Brand</TableHead>
-              <TableHead>HSN & GST</TableHead>
-              <TableHead className="text-right">Purchase Cost</TableHead>
-              <TableHead className="text-right">Selling Price</TableHead>
-              <TableHead className="text-right">Available Stock</TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          <div className="space-y-3 lg:hidden" role="list" aria-label="Products">
             {filteredProducts.map((p) => {
               const stock = p.currentStock;
               const hasStock = stock !== undefined;
               const isLowStock = hasStock && stock <= p.reorderThreshold;
 
               return (
-                <TableRow key={p.id}>
+                <article
+                  key={p.id}
+                  role="listitem"
+                  className="space-y-3 rounded-xl border border-border bg-surface-card p-4 shadow-card"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words font-semibold text-sm text-content-primary">{p.name}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="rounded border border-atlas-200/80 bg-atlas-50 px-2 py-0.5 font-mono text-xs font-semibold text-atlas-700">
+                          {p.sku}
+                        </span>
+                        <span className="text-xs text-content-muted">UOM: {p.uom}</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {hasStock ? (
+                        <div className={`font-bold text-sm tabular-nums ${isLowStock ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          {stock.toLocaleString()} {p.uom}
+                        </div>
+                      ) : (
+                        <div className="font-medium text-sm text-content-muted">—</div>
+                      )}
+                      <div className="mt-0.5 text-xs text-content-muted">
+                        {hasStock
+                          ? `${isLowStock ? 'Low stock' : 'In stock'} · Min ${p.reorderThreshold}`
+                          : 'Unavailable'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border pt-3 text-xs">
+                    <div>
+                      <dt className="text-content-muted">Category / Brand</dt>
+                      <dd className="mt-0.5 break-words font-medium text-content-primary">{p.category} / {p.brand || 'Generic'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">HSN / GST</dt>
+                      <dd className="mt-0.5 break-words font-medium text-content-primary">{p.hsnCode || '—'} / {p.taxRate}%</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">Purchase Cost</dt>
+                      <dd className="mt-0.5 font-medium tabular-nums text-content-secondary">{formatCurrency(p.purchaseCost)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-content-muted">Selling Price</dt>
+                      <dd className="mt-0.5 font-bold tabular-nums text-content-primary">{formatCurrency(p.sellingPrice)}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="flex flex-wrap gap-1 border-t border-border pt-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenEdit(p)}
+                      leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                      disabled={!check('products:update').allowed}
+                      title={!check('products:update').allowed ? check('products:update').message : undefined}
+                    >
+                      Edit
+                    </Button>
+                    {!isMockAuth && check('products:update').allowed && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSearchSettingsProduct(p)}
+                        aria-label={'Search names and alternatives for ' + p.name}
+                      >
+                        Search settings
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU & Details</TableHead>
+                  <TableHead>Category / Brand</TableHead>
+                  <TableHead>HSN & GST</TableHead>
+                  <TableHead className="text-right">Purchase Cost</TableHead>
+                  <TableHead className="text-right">Selling Price</TableHead>
+                  <TableHead className="text-right">Available Stock</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((p) => {
+                  const stock = p.currentStock;
+                  const hasStock = stock !== undefined;
+                  const isLowStock = hasStock && stock <= p.reorderThreshold;
+
+                  return (
+                    <TableRow key={p.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       {p.imageUrl ? (
@@ -618,23 +778,42 @@ export const ProductsPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEdit(p)}
-                      leftIcon={<Edit2 className="w-3.5 h-3.5" />}
-                      disabled={!check('products:update').allowed}
-                      title={!check('products:update').allowed ? check('products:update').message : undefined}
-                    >
-                      Edit
-                    </Button>
+                    <div className="flex flex-wrap justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEdit(p)}
+                        leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                        disabled={!check('products:update').allowed}
+                        title={!check('products:update').allowed ? check('products:update').message : undefined}
+                      >
+                        Edit
+                      </Button>
+                      {!isMockAuth && check('products:update').allowed && (
+                        <Button variant="ghost" size="sm" onClick={() => setSearchSettingsProduct(p)}
+                          aria-label={'Search names and alternatives for ' + p.name}>
+                          Search settings
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
+
+      {searchSettingsProduct && !isMockAuth && check('products:update').allowed &&
+        searchSettingsProduct.organizationId === currentOrg?.id && (
+          <ProductSearchSettings key={searchSettingsProduct.id} product={searchSettingsProduct}
+            onClose={() => setSearchSettingsProduct(null)}
+            onAliasesSaved={() => {
+              if (activeOrgIdRef.current === searchSettingsProduct.organizationId) void loadProducts();
+            }} />
+        )}
 
       {/* Pagination Controls */}
       {filteredProducts.length > 0 && (
@@ -656,7 +835,7 @@ export const ProductsPage: React.FC = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title={editingProduct ? 'Edit Product SKU' : 'Add New Electrical SKU'}
+        title={editingProduct ? 'Edit Product SKU' : 'Add New Product'}
         description="Configure product specifications, tax classification, and inventory thresholds."
         maxWidth="xl"
       >
@@ -675,13 +854,13 @@ export const ProductsPage: React.FC = () => {
               required
               value={sku}
               onChange={(e) => setSku(e.target.value)}
-              placeholder="e.g. POL-W-2.5-RD"
+              placeholder="e.g. ITEM-001"
             />
             <Input
               label="Brand / Manufacturer"
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              placeholder="e.g. Polycab, Havells, Schneider"
+              placeholder="Optional"
             />
           </div>
 
@@ -690,19 +869,19 @@ export const ProductsPage: React.FC = () => {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. 2.5 sq mm FR PVC Insulated Copper Wire (90m Red)"
+            placeholder="Item name and pack size"
           />
 
           <div className="grid grid-cols-2 gap-3">
-            <Select
+            <Input
               label="Category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              options={CATEGORIES.filter((c) => c !== 'All Categories').map((c) => ({
-                value: c,
-                label: c,
-              }))}
+              required maxLength={100} list="atlas-product-categories"
             />
+            <datalist id="atlas-product-categories">
+              {[...new Set([...business.products, ...CATEGORIES.slice(1)])].map((item) => <option key={item} value={item} />)}
+            </datalist>
             <Select
               label="Unit of Measurement (UOM)"
               value={uom}
@@ -731,6 +910,9 @@ export const ProductsPage: React.FC = () => {
             <Input
               label="GST Tax Rate (%)"
               type="number"
+              min={0}
+              max={40}
+              step="0.01"
               required
               value={taxRate}
               onChange={(e) => setTaxRate(e.target.value)}

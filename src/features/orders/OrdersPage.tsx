@@ -58,12 +58,14 @@ export const OrdersPage: React.FC = () => {
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const linkedSearch = searchParams.get('search') || '';
+  const [searchQuery, setSearchQuery] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  useEffect(() => { setSearchQuery(linkedSearch); setPage(1); }, [linkedSearch]);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

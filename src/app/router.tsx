@@ -14,8 +14,23 @@ const DashboardPage = React.lazy(() =>
 const ProductsPage = React.lazy(() =>
   import('@/features/products/ProductsPage').then((m) => ({ default: m.ProductsPage }))
 );
+const ImportPreviewPage = React.lazy(() =>
+  import('@/features/import-preview/ImportPreviewPage').then((m) => ({ default: m.ImportPreviewPage }))
+);
 const InventoryPage = React.lazy(() =>
   import('@/features/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage }))
+);
+const GoodsReceivingPage = React.lazy(() =>
+  import('@/features/receiving/GoodsReceivingPage').then((m) => ({ default: m.GoodsReceivingPage }))
+);
+const SupplierFollowUpPage = React.lazy(() =>
+  import('@/features/receiving/SupplierFollowUpPage').then((m) => ({ default: m.SupplierFollowUpPage }))
+);
+const PurchaseOrdersPage = React.lazy(() =>
+  import('@/features/purchasing/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage }))
+);
+const SupplierPriceHistoryPage = React.lazy(() =>
+  import('@/features/pricing/SupplierPriceHistoryPage').then((m) => ({ default: m.SupplierPriceHistoryPage }))
 );
 const CustomersPage = React.lazy(() =>
   import('@/features/customers/CustomersPage').then((m) => ({ default: m.CustomersPage }))
@@ -28,6 +43,9 @@ const QuotationsPage = React.lazy(() =>
 );
 const OrdersPage = React.lazy(() =>
   import('@/features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage }))
+);
+const RetailPosPage = React.lazy(() =>
+  import('@/features/pos/RetailPosPage').then((m) => ({ default: m.RetailPosPage }))
 );
 const InvoicesPage = React.lazy(() =>
   import('@/features/invoices/InvoicesPage').then((m) => ({ default: m.InvoicesPage }))
@@ -49,6 +67,9 @@ const SalesReceiptsReportPage = React.lazy(() =>
 );
 const SettingsPage = React.lazy(() =>
   import('@/features/organizations/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const IntegrationsPage = React.lazy(() =>
+  import('@/features/integrations/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage }))
 );
 
 export interface RequirePermissionProps {
@@ -82,13 +103,19 @@ export const router = createHashRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'products', element: <ProductsPage /> },
+      { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },
       { path: 'inventory', element: <InventoryPage /> },
+      { path: 'receiving', element: <RequirePermission action="inventory:receive"><GoodsReceivingPage /></RequirePermission> },
+      { path: 'receiving/follow-up', element: <RequirePermission action="inventory:receive"><SupplierFollowUpPage /></RequirePermission> },
+      { path: 'purchase-orders', element: <RequirePermission action="inventory:receive"><PurchaseOrdersPage /></RequirePermission> },
+      { path: 'supplier-prices', element: <RequirePermission action="supplier-prices:read"><SupplierPriceHistoryPage /></RequirePermission> },
       { path: 'customers', element: <CustomersPage /> },
       { path: 'suppliers', element: <SuppliersPage /> },
       { path: 'quotations', element: <QuotationsPage /> },
       { path: 'orders', element: <OrdersPage /> },
-      { path: 'invoices', element: <InvoicesPage /> },
-      { path: 'payments', element: <PaymentsPage /> },
+      { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
+      { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
+      { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
       { path: 'ai', element: <AIPage /> },
       {
         path: 'team',
@@ -119,6 +146,14 @@ export const router = createHashRouter([
         element: (
           <RequirePermission action="org:manage">
             <SettingsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'integrations',
+        element: (
+          <RequirePermission action="org:manage">
+            <IntegrationsPage />
           </RequirePermission>
         ),
       },

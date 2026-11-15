@@ -22,7 +22,7 @@ import {
   <!-- Hero Section -->
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50 relative overflow-hidden">
     <Container>
-      <div class="max-w-3xl mx-auto text-center space-y-4">
+      <div data-enter class="max-w-3xl mx-auto text-center space-y-4">
         <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
           <MessageSquare className="w-3.5 h-3.5 mr-1 text-brand-700" />
           Direct Communication Desk
@@ -48,12 +48,12 @@ import {
               Reach the Right Department
             </h2>
             <p class="text-content-secondary text-sm leading-relaxed mb-6">
-              Our engineering and client advisory teams respond quickly across dedicated channels during trade hours.
+              Use the secure enquiry form to reach the appropriate team. Response times depend on availability.
             </p>
           </div>
 
           <!-- Channel Cards -->
-          <div class="space-y-4">
+          <div data-reveal-group class="space-y-4">
             <!-- Sales -->
             <div class="p-5 rounded-2xl bg-white border border-border shadow-2xs flex items-start gap-4">
               <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0">
@@ -98,18 +98,15 @@ import {
               <div>
                 <h4 class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading">Operational Hours</h4>
                 <p class="text-xs sm:text-sm text-content-secondary mt-1">
-                  Monday – Saturday: 9:00 AM – 8:00 PM IST<br />
-                  Sunday: Closed (Emergency Escalation Only)
+                  Online enquiry requests are reviewed during our business hours. A response time is not guaranteed.
                 </p>
               </div>
             </div>
             <div class="pt-3 border-t border-border flex items-start gap-3">
               <Phone className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
               <div>
-                <h4 class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading">Direct Phone Support</h4>
-                <p class="text-xs sm:text-sm text-content-secondary mt-1">
-                  <a href="tel:+918000000000" class="hover:text-brand-700 transition-colors font-medium">+91 (800) 000-0000</a>
-                </p>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-content-primary font-heading">Call-back Requests</h4>
+                <p class="text-xs sm:text-sm text-content-secondary mt-1">Provide your phone number in the form to request a follow-up call.</p>
               </div>
             </div>
           </div>
@@ -121,7 +118,7 @@ import {
             <div class="mb-6 space-y-1">
               <h3 class="text-2xl font-bold text-content-primary font-heading">Send a Direct Message</h3>
               <p class="text-sm text-content-secondary">
-                Fill out the form below and our designated team will get back to you promptly.
+                Submit a secure message. The form confirms success only after our email service accepts the notification.
               </p>
             </div>
 

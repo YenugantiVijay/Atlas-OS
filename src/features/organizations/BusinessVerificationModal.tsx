@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { BusinessCategory } from '@/types';
+import { BUSINESS_CATEGORIES, BUSINESS_CATEGORY_OPTIONS, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -19,17 +20,6 @@ import {
   validateBusinessTaxIdentifiers,
   maskPan,
 } from '@/lib/validation';
-
-const SUGGESTED_PRODUCT_LINES = [
-  'Wires & Cables',
-  'Switches & Sockets',
-  'Switchgear & Protection',
-  'LED Lighting',
-  'Fans & Ventilation',
-  'Conduits & PVC Fittings',
-  'Motors & Starters',
-  'Solar & Inverter Equipment',
-];
 
 interface BusinessVerificationModalProps {
   isOpen: boolean;
@@ -65,14 +55,18 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
 
   // Eligibility states
   const [businessCategory, setBusinessCategory] =
-    useState<BusinessCategory>('electrical_wholesale_distributor');
-  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(true);
-  const [productLines, setProductLines] = useState<string[]>([
-    'Wires & Cables',
-    'Switches & Sockets',
-    'Switchgear & Protection',
-  ]);
+    useState<BusinessCategory>(DEFAULT_BUSINESS_CATEGORY);
+  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(false);
+  const [productLines, setProductLines] = useState<string[]>(() => BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
   const [customTagInput, setCustomTagInput] = useState('');
+  const changeBusinessCategory = (category: BusinessCategory) => {
+    if (category === businessCategory) return;
+    setBusinessCategory(category);
+    setSellsElectricalProducts(BUSINESS_CATEGORIES[category].electrical);
+    setProductLines(BUSINESS_CATEGORIES[category].products.slice(0, 2));
+    setCustomTagInput('');
+  };
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -90,13 +84,10 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
       setPincode(currentOrg.pincode || '');
     }
 
-    if (eligibility) {
-      setBusinessCategory(eligibility.businessCategory || 'electrical_wholesale_distributor');
-      setSellsElectricalProducts(eligibility.sellsElectricalProducts ?? true);
-      if (eligibility.productLines && eligibility.productLines.length > 0) {
-        setProductLines(eligibility.productLines);
-      }
-    }
+    setBusinessCategory(eligibility?.businessCategory ?? DEFAULT_BUSINESS_CATEGORY);
+    setSellsElectricalProducts(eligibility?.sellsElectricalProducts ?? false);
+    setProductLines(eligibility?.productLines ?? BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
+    setCustomTagInput('');
   }, [currentOrg, eligibility, isOpen]);
 
   const handleGstinChange = (value: string) => {
@@ -195,7 +186,7 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
         showToast(
           'success',
           'Business Verification Approved',
-          'Your electrical distribution business is verified. Operational writes and 7-day trial are now active.'
+          'Your business is verified. Operational writes and 7-day trial are now active.'
         );
         onClose();
       } else if (result.status === 'review_required') {
@@ -232,7 +223,7 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
       isOpen={isOpen}
       onClose={onClose}
       title="Complete Business Verification"
-      description="Declare your business category, tax identifiers, and electrical product lines to activate operational features."
+      description="Declare your business category, tax identifiers, and product lines to activate operational features."
     >
       {!isOwner ? (
         <div className="space-y-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
@@ -359,32 +350,12 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
                 Primary Business Category <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {[
-                  {
-                    id: 'electrical_wholesale_distributor',
-                    label: 'Electrical Wholesaler / Distributor',
-                    sub: 'Supply to dealers, contractors & panels',
-                  },
-                  {
-                    id: 'electrical_retail',
-                    label: 'Electrical Retailer / Showroom',
-                    sub: 'Retail counter & trade buyers',
-                  },
-                  {
-                    id: 'hardware_electrical',
-                    label: 'Hardware & Electrical Store',
-                    sub: 'General hardware selling electrical goods',
-                  },
-                  {
-                    id: 'other_unsupported',
-                    label: 'Other / Non-Electrical Trade',
-                    sub: 'Ineligible for electrical distribution OS',
-                  },
-                ].map((cat) => (
+                {BUSINESS_CATEGORY_OPTIONS.map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setBusinessCategory(cat.id as BusinessCategory)}
+                    onClick={() => changeBusinessCategory(cat.id)}
+                    aria-pressed={businessCategory === cat.id}
                     className={`p-2.5 text-left rounded-xl border transition-all ${
                       businessCategory === cat.id
                         ? 'border-atlas-600 bg-atlas-50 ring-1 ring-atlas-600'
@@ -397,15 +368,12 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
                         <Check className="w-3.5 h-3.5 text-atlas-600 shrink-0" />
                       )}
                     </div>
-                    <span className="text-2xs text-content-secondary block mt-0.5">
-                      {cat.sub}
-                    </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="pt-2">
+            {BUSINESS_CATEGORIES[businessCategory].electrical && <div className="pt-2">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -423,15 +391,15 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
                   </span>
                 </div>
               </label>
-            </div>
+            </div>}
 
             {/* Product Lines Selection */}
             <div>
               <label className="block text-xs font-semibold text-content-primary mb-1.5">
-                Declared Electrical Product Lines <span className="text-rose-500">*</span>
+                Declared Product Lines <span className="text-rose-500">*</span>
               </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {SUGGESTED_PRODUCT_LINES.map((line) => {
+                {BUSINESS_CATEGORIES[businessCategory].products.map((line) => {
                   const selected = productLines.includes(line);
                   return (
                     <button

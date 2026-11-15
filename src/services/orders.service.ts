@@ -352,6 +352,18 @@ export const ordersService = {
     });
   },
 
+  async getQuotationById(orgId: string, quotationId: string): Promise<Quotation | null> {
+    if (!supabase) throw new Error('Cloud backend is not configured.');
+    const { data, error } = await supabase
+      .from('quotations')
+      .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)')
+      .eq('organization_id', orgId)
+      .eq('id', quotationId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to fetch quotation: ${error.message}`);
+    return data ? mapDbQuotation(data, (data.items || []).map(mapDbQuotationItem)) : null;
+  },
+
   async createQuotation(
     orgId: string,
     input: {

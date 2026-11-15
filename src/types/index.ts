@@ -21,6 +21,8 @@ export interface Organization {
   pincode?: string;
   currency: string;
   logoUrl?: string;
+  receiptTemplate?: 'classic' | 'compact';
+  receiptMessage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,13 +37,14 @@ export interface Membership {
   user?: User;
 }
 
-export type UOM = 'Nos' | 'Coils' | 'Meters' | 'Boxes' | 'Bundles' | 'Sets' | 'Rolls';
+export type UOM = 'Nos' | 'Coils' | 'Meters' | 'Boxes' | 'Bundles' | 'Sets' | 'Rolls' | 'Bags' | 'Kg' | 'Litres' | 'Packs';
 
 export interface Product {
   id: string;
   organizationId: string;
   sku: string;
   name: string;
+  searchAliases?: string;
   brand?: string;
   category: string;
   description?: string;
@@ -357,6 +360,11 @@ export type BusinessCategory =
   | 'electrical_retail'
   | 'electrical_wholesale_distributor'
   | 'hardware_electrical'
+  | 'agricultural_inputs'
+  | 'general_retail'
+  | 'general_wholesale'
+  | 'electronics_trade'
+  | 'hardware_trade'
   | 'other_unsupported';
 
 export type EligibilityStatus =

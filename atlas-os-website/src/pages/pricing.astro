@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
-import PricingTable from '../components/pricing/PricingTable';
+import PricingTable from '../components/pricing/PricingTable.astro';
 import { FAQS } from '../data/faqs';
 
 const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
@@ -10,30 +10,26 @@ const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
 
 <BaseLayout
   title="Pricing & SaaS Plans — Atlas OS Business Operating System"
-  description="Explore transparent SaaS subscription tiers for Atlas OS. Complimentary 7-day commercial trial on launch with zero credit card required for wholesale pricing."
+  description="Compare proposed Starter, Professional and Enterprise Network pricing for retailers and distributors."
 >
   {/* HERO */}
-  <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
+  <section class="py-10 sm:py-14 bg-radial-glow border-b border-border/50">
     <Container size="default">
-      <div class="text-center max-w-3xl mx-auto space-y-4">
-        <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
-          Transparent Commercial Tiers
-        </span>
+      <div class="text-center max-w-3xl mx-auto space-y-3" data-enter>
         <h1 class="text-4xl sm:text-5xl font-extrabold font-heading tracking-tight text-content-primary">
-          Simple, Predictable <span class="text-gradient">Wholesale Pricing</span>
+          Plans for your business
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          No hidden implementation fees. No per-invoice surcharge. Choose the plan suited for your trade counter,
-          warehouse, or multi-branch distribution network.
+          Start with everyday shop tools or add purchasing and counter controls as you grow.
         </p>
       </div>
     </Container>
   </section>
 
   {/* PRICING TABLE COMPONENT */}
-  <section class="py-16 md:py-20 bg-white border-b border-border" id="tiers">
+  <section class="py-8 sm:py-12 bg-white border-b border-border" id="tiers">
     <Container size="default">
-      <PricingTable client:load />
+      <PricingTable />
     </Container>
   </section>
 
@@ -41,7 +37,7 @@ const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
   <section class="py-20 bg-surface-secondary border-b border-border" id="trial">
     <Container size="narrow">
       <div class="space-y-10">
-        <div class="text-center space-y-2">
+        <div data-reveal class="text-center space-y-2">
           <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cream-200 text-cream-700">
             Commercial Questions
           </span>
@@ -66,9 +62,7 @@ const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
               Will existing legacy software data (BUSY / Tally) be migrated?
             </h3>
             <p class="text-xs text-content-secondary leading-relaxed">
-              Yes. Our onboarding engineering team provides standardized Excel/CSV import templates for product masters,
-              opening stock levels, customer ledger balances, and vendor contact records so you can transition seamlessly
-              without losing customer transaction history.
+              Legacy data migration is being evaluated. We cannot promise automatic BUSY or Tally imports yet; tell us what data you need to move when requesting a demonstration.
             </p>
           </div>
         </div>
@@ -82,9 +76,9 @@ const pricingFaqs = FAQS.filter((f) => f.category === 'Pricing & Trials');
       <div class="text-center max-w-2xl mx-auto space-y-4">
         <h3 class="text-2xl font-bold font-heading text-content-primary">Have custom enterprise volume requirements?</h3>
         <p class="text-xs sm:text-sm text-content-secondary leading-relaxed">
-          Speak with our founders and technical team regarding multi-state branches, dedicated cloud instances, or custom compliance workflows.
+          Tell us how many locations, counters, and teams you need to support. We’ll discuss what can be included in your rollout.
         </p>
-        <div class="pt-2 flex justify-center gap-3">
+        <div class="pt-2 flex flex-wrap justify-center gap-3">
           <Button href="/request-demo" variant="primary" size="md" class="font-semibold">
             <span>Contact Commercial Team</span>
           </Button>

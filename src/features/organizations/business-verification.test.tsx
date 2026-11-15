@@ -100,6 +100,8 @@ describe('Phase 1 Business Verification & Action Restricted Recovery Matrix', ()
       memberships: [],
       signIn: vi.fn(),
       signUp: vi.fn(),
+      sendEmailCode: vi.fn(),
+      verifyEmailCode: vi.fn(),
       signOut: vi.fn(),
       enterDemoMode: vi.fn(),
       exitDemoMode: vi.fn(),
@@ -169,9 +171,9 @@ describe('Phase 1 Business Verification & Action Restricted Recovery Matrix', ()
   it('Scenario 3: Owner completing a valid declaration invokes declareEligibility and updates status to approved', async () => {
     const mockDeclare = vi.fn().mockResolvedValue({
       organizationId: baseVijayOrg.id,
-      businessCategory: 'electrical_wholesale_distributor',
-      sellsElectricalProducts: true,
-      productLines: ['Wires & Cables', 'Switches & Sockets'],
+      businessCategory: 'agricultural_inputs',
+      sellsElectricalProducts: false,
+      productLines: ['Fertilizers', 'Seeds'],
       status: 'approved',
     });
 
@@ -190,14 +192,16 @@ describe('Phase 1 Business Verification & Action Restricted Recovery Matrix', ()
     fireEvent.change(screen.getByLabelText(/Permanent Account Number/i), {
       target: { value: 'ABCDE1234F' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Fertilizers & Agri Inputs' }));
+    expect(screen.queryByRole('checkbox', { name: /sells or distributes electrical/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Submit Verification/i }));
 
     await waitFor(() => {
       expect(mockDeclare).toHaveBeenCalledWith({
-        businessCategory: 'electrical_wholesale_distributor',
-        sellsElectricalProducts: true,
-        productLines: expect.arrayContaining(['Wires & Cables']),
+        businessCategory: 'agricultural_inputs',
+        sellsElectricalProducts: false,
+        productLines: ['Fertilizers', 'Seeds'],
       });
       expect(onClose).toHaveBeenCalled();
     });

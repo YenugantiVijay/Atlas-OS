@@ -35,6 +35,8 @@ export const InventoryPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [catalogWarning, setCatalogWarning] = useState<string | null>(null);
+  const latestLoad = useRef(0);
   const [isPreparingAdjustment, setIsPreparingAdjustment] = useState(false);
   const [pendingOpenAdjustment, setPendingOpenAdjustment] = useState(false);
   const [missingProductModalOpen, setMissingProductModalOpen] = useState(false);
@@ -54,6 +56,12 @@ export const InventoryPage: React.FC = () => {
   useEffect(() => {
     if (currentOrg?.id !== activeOrgIdRef.current) {
       activeOrgIdRef.current = currentOrg?.id;
+      ++latestLoad.current;
+      setMovements([]);
+      setProducts([]);
+      setCatalogWarning(null);
+      setSelectedProduct('ALL');
+      setSelectedType('ALL');
       setIsAdjustmentModalOpen(false);
       setAdjustProductId('');
       setAdjustQuantity('');
@@ -73,25 +81,40 @@ export const InventoryPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
+  // Movement ledger remains visible if catalog loading fails. Joining a complete
+  // product catalog must not become a prerequisite for seeing posted movements.
   const loadData = useCallback(async (): Promise<{ movs: StockMovement[]; prods: Product[] } | null> => {
     if (!currentOrg) return null;
+    const orgAtCall = currentOrg.id;
+    const requestId = ++latestLoad.current;
     setIsLoading(true);
     setLoadError(null);
+    setCatalogWarning(null);
+    const [movementResult, productResult] = await Promise.allSettled([
+      inventoryService.getStockMovements(orgAtCall, undefined, isMockAuth),
+      productsService.getProducts(orgAtCall, isMockAuth),
+    ]);
+    if (activeOrgIdRef.current !== orgAtCall || requestId !== latestLoad.current) return null;
     try {
-      const [movs, prods] = await Promise.all([
-        inventoryService.getStockMovements(currentOrg.id, undefined, isMockAuth),
-        productsService.getProducts(currentOrg.id, isMockAuth),
-      ]);
-      setMovements(movs);
+      const prods = productResult.status === 'fulfilled' ? productResult.value : [];
+      if (productResult.status === 'rejected') {
+        setCatalogWarning('Stock movements loaded, but the product catalog could not be loaded. Adjustment and product filtering may be unavailable; retry to restore them.');
+      }
       setProducts(prods);
-      return { movs, prods };
-    } catch (err: any) {
-      const msg = err instanceof Error ? err.message : 'Unable to load inventory data. Check your connection and try again.';
-      setLoadError(msg);
-      showToast('error', 'Failed to load inventory data', msg);
-      return null;
+      if (movementResult.status === 'rejected') {
+        setMovements([]);
+        const msg = movementResult.reason instanceof Error ? movementResult.reason.message :
+          'Unable to load stock movements. Check your connection and retry.';
+        setLoadError(msg);
+        showToast('error', 'Failed to load stock movements', msg);
+        return null;
+      }
+      setMovements(movementResult.value);
+      return { movs: movementResult.value, prods };
     } finally {
-      setIsLoading(false);
+      if (activeOrgIdRef.current === orgAtCall && requestId === latestLoad.current) {
+        setIsLoading(false);
+      }
     }
   }, [currentOrg, isMockAuth, showToast]);
 
@@ -285,8 +308,8 @@ export const InventoryPage: React.FC = () => {
               variant="primary"
               onClick={() => handleOpenAdjustment()}
               leftIcon={<Sliders className="w-4 h-4" />}
-              disabled={!adjustPerm.allowed}
-              title={!adjustPerm.allowed ? adjustPerm.message : undefined}
+              disabled={!adjustPerm.allowed || Boolean(catalogWarning)}
+              title={!adjustPerm.allowed ? adjustPerm.message : catalogWarning || undefined}
             >
               Adjust Stock
             </Button>
@@ -313,6 +336,14 @@ export const InventoryPage: React.FC = () => {
             loadData();
           }}
         />
+      )}
+
+      {catalogWarning && !loadError && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>{catalogWarning}</span>
+          <button type="button" onClick={() => void loadData()}
+            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold">Retry catalog</button>
+        </div>
       )}
 
       {/* Filters */}
@@ -397,11 +428,11 @@ export const InventoryPage: React.FC = () => {
 
                   <TableCell>
                     <div className="font-semibold text-sm text-content-primary">
-                      {m.product?.name || 'Product'}
+                      {m.product?.name || products.find((p) => p.id === m.productId)?.name || 'Product (reference only)'}
                     </div>
-                    {m.product?.sku && (
+                    {(m.product?.sku || products.find((p) => p.id === m.productId)?.sku) && (
                       <span className="font-mono text-xs font-semibold text-atlas-700 bg-atlas-50 px-1.5 py-0.5 rounded border border-atlas-200/80 inline-block mt-0.5">
-                        {m.product.sku}
+                        {m.product?.sku || products.find((p) => p.id === m.productId)?.sku}
                       </span>
                     )}
                   </TableCell>
@@ -493,7 +524,7 @@ export const InventoryPage: React.FC = () => {
               type="submit"
               variant="primary"
               isLoading={isSubmitting}
-              disabled={isSubmitting || !check('inventory:adjust').allowed}
+              disabled={isSubmitting || Boolean(catalogWarning) || !check('inventory:adjust').allowed}
             >
               Record Adjustment
             </Button>

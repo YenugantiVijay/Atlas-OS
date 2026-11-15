@@ -7,6 +7,9 @@ export type Action =
   | 'products:create'
   | 'products:update'
   | 'products:delete'
+  | 'inventory:receive'
+  | 'supplier-prices:read'
+  | 'supplier-prices:record'
   | 'inventory:adjust'
   | 'customers:manage'
   | 'suppliers:manage'
@@ -29,6 +32,9 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
     'products:create',
     'products:update',
     'products:delete',
+    'inventory:receive',
+    'supplier-prices:read',
+    'supplier-prices:record',
     'inventory:adjust',
     'customers:manage',
     'suppliers:manage',
@@ -48,6 +54,9 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
     'audit:read',
     'products:create',
     'products:update',
+    'inventory:receive',
+    'supplier-prices:read',
+    'supplier-prices:record',
     'inventory:adjust',
     'customers:manage',
     'suppliers:manage',
@@ -73,11 +82,15 @@ const ROLE_PERMISSIONS: Record<Role, readonly Action[]> = {
   inventory: [
     'products:create',
     'products:update',
+    'inventory:receive',
+    'supplier-prices:read',
+    'supplier-prices:record',
     'inventory:adjust',
     'suppliers:manage',
     'data:read',
   ],
   accounts: [
+    'supplier-prices:read',
     'customers:manage',
     'invoices:create',
     'invoices:issue',
@@ -122,6 +135,9 @@ export const ACTION_DESCRIPTIONS: Record<Action, string> = {
   'products:create': 'create products',
   'products:update': 'edit products',
   'products:delete': 'delete products',
+  'inventory:receive': 'receive supplier stock',
+  'supplier-prices:read': 'view supplier purchase-price history',
+  'supplier-prices:record': 'record a supplier quoted purchase rate',
   'inventory:adjust': 'record stock adjustments',
   'customers:manage': 'create or edit customers',
   'suppliers:manage': 'create or edit suppliers',
@@ -137,7 +153,7 @@ export const ACTION_DESCRIPTIONS: Record<Action, string> = {
   'data:read': 'read organization data',
 };
 
-export const READ_ONLY_ACTIONS: readonly Action[] = ['data:read', 'audit:read', 'reports:financial'];
+export const READ_ONLY_ACTIONS: readonly Action[] = ['data:read', 'audit:read', 'reports:financial', 'supplier-prices:read'];
 
 export function isReadOnlyAction(action: Action): boolean {
   return READ_ONLY_ACTIONS.includes(action);

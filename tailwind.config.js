@@ -71,7 +71,7 @@ export default {
         content: {
           primary: '#172B4D',   // Accessible main text (High-contrast Navy-Slate)
           secondary: '#64748B', // Secondary metadata text
-          muted: '#94A3B8',     // Muted placeholders and icons
+          muted: '#475569',     // Accessible muted text on light surfaces
           inverse: '#FFFFFF',   // Contrast text on dark navy
         },
         border: {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
+import { hasPermission } from '@/lib/permissions';
 import { dashboardService } from '@/services/dashboard.service';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -24,9 +25,12 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/money';
 import { DashboardMetrics, SalesTrendPoint, ReceivablesSummary, BrandValuation } from '@/types';
 import { SalesTrendChart, ReceivablesDonutChart, InventoryValuationBarChart } from '@/components/charts';
+import { ReconciliationCard } from '@/features/dashboard/ReconciliationCard';
+import { QuickStartGuide } from '@/features/onboarding/QuickStartGuide';
 
 export const DashboardPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, isMockAuth, currentRole, eligibility, currentUser } = useOrg();
+  const canSeeFinancialBalances = hasPermission(currentRole, 'reports:financial');
   const { check } = useActionPermission();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -49,7 +53,7 @@ export const DashboardPage: React.FC = () => {
         const trendPromise = typeof dashboardService.getSalesTrend === 'function'
           ? dashboardService.getSalesTrend(currentOrg.id, days, isMockAuth)
           : Promise.resolve([]);
-        const recvPromise = typeof dashboardService.getReceivablesSummary === 'function'
+        const recvPromise = canSeeFinancialBalances && typeof dashboardService.getReceivablesSummary === 'function'
           ? dashboardService.getReceivablesSummary(currentOrg.id, isMockAuth)
           : Promise.resolve(null);
         const brandPromise = typeof dashboardService.getTopBrandValuation === 'function'
@@ -80,7 +84,7 @@ export const DashboardPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentOrg, isMockAuth, retryCount, trendRange]);
+  }, [currentOrg, isMockAuth, retryCount, trendRange, canSeeFinancialBalances]);
 
   const handleRangeChange = (r: '7D' | '30D' | '90D') => {
     setTrendRange(r);
@@ -115,33 +119,33 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* Executive Operations Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-navy-700 border border-navy-800 p-6 sm:p-7 text-white shadow-card">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 border border-white/10 p-5 sm:p-6 md:p-7 text-white shadow-sm">
         {/* Subtle decorative radial teal accent */}
         <div
-          className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-teal-500/20 blur-3xl"
+          className="pointer-events-none absolute right-0 sm:-right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
           aria-hidden="true"
         />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold tracking-wide uppercase px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-teal-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
                 Operations Center
               </span>
-              <span className="text-xs text-slate-300 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                {isMockAuth ? 'Demo workspace' : 'Cloud workspace'}
+              <span className="text-xs font-medium text-slate-300">
+                {isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              {currentOrg?.name || 'Electrical Distribution Workspace'}
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              {currentOrg?.name || 'Operations Workspace'}
             </h1>
-            <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Consolidated business dashboard for tracking stock ledger movements, contractor sales orders, GST-compliant tax invoices, and customer receivables.
+            <p className="text-sm text-slate-300/90 max-w-xl leading-relaxed">
+              Real-time operational command for inventory movements, sales orders, and financial workflows.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             {(() => {
               const orderPerm = check('orders:create');
               return (
@@ -156,7 +160,7 @@ export const DashboardPage: React.FC = () => {
                     }
                   }}
                   leftIcon={<Plus className="w-4 h-4" />}
-                  className="bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm font-semibold"
+                  className="h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-semibold shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                 >
                   New Sales Order
                 </Button>
@@ -167,13 +171,30 @@ export const DashboardPage: React.FC = () => {
               size="md"
               onClick={() => navigate('/ai')}
               leftIcon={<Sparkles className="w-4 h-4 text-teal-300" />}
-              className="border-slate-700 bg-slate-800/80 text-white hover:bg-slate-800 hover:border-slate-600"
+              className="h-10 px-4 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/30 text-white font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 justify-center"
             >
               ATLAS AI
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Onboarding & Quick Setup */}
+      <QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} />
+
+      {eligibility?.businessCategory === 'general_retail' && <Card>
+        <CardHeader><CardTitle>Shop essentials</CardTitle></CardHeader>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { label: 'Products & stock', path: '/products', allowed: check('data:read').allowed },
+            { label: 'Sales counter', path: '/pos', allowed: hasPermission(currentRole, 'orders:create') },
+            { label: 'Customers', path: '/customers', allowed: check('data:read').allowed },
+            { label: 'Invoices', path: '/invoices', allowed: canSeeFinancialBalances },
+            { label: 'Payments & receipts', path: '/payments', allowed: canSeeFinancialBalances },
+          ].filter((item) => item.allowed).map((item) => <Button key={item.path} type="button" variant="outline" size="sm"
+            className="h-auto min-h-10 whitespace-normal px-2" onClick={() => navigate(item.path)}>{item.label}</Button>)}
+        </div>
+      </Card>}
 
       {/* Actionable Alerts (Low Stock Warning Banner) */}
       {metrics.lowStockItemsCount > 0 && (
@@ -202,6 +223,16 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* Trust & Reconciliation Engine */}
+      {currentOrg && (
+        <ReconciliationCard
+          orgId={currentOrg.id}
+          userId={currentUser?.id}
+          isMockAuth={isMockAuth}
+          canSeeFinancialBalances={canSeeFinancialBalances}
+        />
+      )}
+
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Metric 1: Today's Sales */}
@@ -225,7 +256,8 @@ export const DashboardPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Metric 2: Total Receivables */}
+        {/* Financial balances are not shown to non-financial operational roles. */}
+        {canSeeFinancialBalances && (
         <Card hover className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-content-secondary mb-3">
@@ -254,6 +286,8 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
         </Card>
+
+        )}
 
         {/* Metric 3: Total Orders */}
         <Card hover className="flex flex-col justify-between">
@@ -292,7 +326,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-xs text-content-secondary mt-3 pt-3 border-t border-border">
-            <span>Calculated from active cost ledger</span>
+            <span>Recorded stock at current catalog cost</span>
           </div>
         </Card>
       </div>
@@ -308,10 +342,12 @@ export const DashboardPage: React.FC = () => {
           />
         </Card>
 
-        {/* Receivables & Collections Donut (1 Col) */}
-        <Card>
-          <ReceivablesDonutChart summary={receivablesSummary || undefined} />
-        </Card>
+        {/* A restricted role must not see a misleading zero-collections chart. */}
+        {canSeeFinancialBalances && (
+          <Card>
+            <ReceivablesDonutChart summary={receivablesSummary || undefined} />
+          </Card>
+        )}
       </div>
 
       {/* Secondary Analytics Section: Inventory Breakdown & Recent Transactions */}
@@ -446,10 +482,10 @@ export const DashboardPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Quick Launchpad: Standard Distribution Workflows */}
+      {/* Everyday workspace shortcuts */}
       <Card>
         <CardHeader>
-          <CardTitle>Distribution Workflows</CardTitle>
+          <CardTitle>Business Workflows</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {(() => {
@@ -501,7 +537,7 @@ export const DashboardPage: React.FC = () => {
                   <Boxes className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-content-primary">Add Product SKU</span>
-                <span className="text-xs text-content-secondary mt-0.5">Cables, MCBs, lighting</span>
+                <span className="text-xs text-content-secondary mt-0.5">Add an item to your catalog</span>
               </button>
             );
           })()}

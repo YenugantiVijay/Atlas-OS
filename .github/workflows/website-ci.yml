@@ -1,0 +1,74 @@
+name: ATLAS OS Website CI
+
+on:
+  push:
+    branches: [main, Vijay-Atlas]
+    paths:
+      - 'atlas-os-website/**'
+      - '.github/workflows/website-ci.yml'
+  pull_request:
+    branches: [main, Vijay-Atlas]
+    paths:
+      - 'atlas-os-website/**'
+      - '.github/workflows/website-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  website-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: atlas-os-website
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up compatible Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: atlas-os-website/package-lock.json
+
+      - name: Install locked website dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Block high and critical website dependency advisories
+        run: npm audit --audit-level=high
+
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Check Astro project
+        run: npm run check
+
+      - name: Test real marketing lead endpoint (mocked service only)
+        run: npm run test:leads
+
+      - name: Build production website
+        run: npm run build
+        env:
+          PUBLIC_LEAD_ENDPOINT: https://api.example.test/functions/v1/submit-website-lead
+          PUBLIC_TURNSTILE_SITE_KEY: ci-public-site-key
+
+      - name: Website preview path isolation tests
+        working-directory: atlas-os-website
+        run: npm run test:preview
+
+      - name: Verify built website
+        run: npm run verify
+
+      - name: Install root Playwright test runner
+        run: npm ci --no-audit --no-fund
+        working-directory: .
+
+      - name: Install Chromium for website end-to-end tests
+        run: ../node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify real Astro homepage, navigation and website lead forms
+        run: ../node_modules/.bin/playwright test
+

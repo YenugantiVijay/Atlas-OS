@@ -1,5 +1,7 @@
 # ATLAS OS — Comprehensive Functional Defect Register & Module Audit
 
+> **Historical / superseded status:** This document is a point-in-time audit, not a statement of current system behavior. Findings and remediation status may have changed; verify against current source and newer remediation reports before treating any item as open. Historical evidence is intentionally preserved.
+
 **Repository:** `D:\Projects\Atlas-OS`  
 **Branch:** `Vijay-Atlas`  
 **Scope:** Complete 14-Module Functional Audit & Formal Defect Register  

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useToast } from '@/components/ui/Toast';
 import { BusinessCategory } from '@/types';
+import { BUSINESS_CATEGORIES, BUSINESS_CATEGORY_OPTIONS, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
 import { validateBusinessTaxIdentifiers, maskPan } from '@/lib/validation';
 
 export interface NewOrgModalProps {
@@ -28,13 +29,18 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
   const [addressLine1, setAddressLine1] = useState('');
   const [pincode, setPincode] = useState('');
   const [businessCategory, setBusinessCategory] =
-    useState<BusinessCategory>('electrical_wholesale_distributor');
-  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(true);
-  const [productLines, setProductLines] = useState<string[]>([
-    'Wires & Cables',
-    'Switches & Sockets',
-  ]);
+    useState<BusinessCategory>(DEFAULT_BUSINESS_CATEGORY);
+  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(false);
+  const [productLines, setProductLines] = useState<string[]>(() => BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
   const [customTagInput, setCustomTagInput] = useState('');
+  const changeBusinessCategory = (category: BusinessCategory) => {
+    if (category === businessCategory) return;
+    setBusinessCategory(category);
+    setSellsElectricalProducts(BUSINESS_CATEGORIES[category].electrical);
+    setProductLines(BUSINESS_CATEGORIES[category].products.slice(0, 2));
+    setCustomTagInput('');
+  };
+
 
   // Statutory PAN Exception State
   const [requestPanException, setRequestPanException] = useState(false);
@@ -80,9 +86,9 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
     setState('');
     setAddressLine1('');
     setPincode('');
-    setBusinessCategory('electrical_wholesale_distributor');
-    setSellsElectricalProducts(true);
-    setProductLines(['Wires & Cables', 'Switches & Sockets']);
+    setBusinessCategory(DEFAULT_BUSINESS_CATEGORY);
+    setSellsElectricalProducts(false);
+    setProductLines(BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
     setCustomTagInput('');
     setRequestPanException(false);
     setPanExceptionReason('GOVERNMENT_EXEMPT_ENTITY');
@@ -171,11 +177,11 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
       isOpen={isOpen}
       onClose={handleClose}
       title="Create Business Organization"
-      description="Set up an independent distributor workspace with dedicated inventory, orders, and ledger."
+      description="Set up a workspace with its own inventory, orders, and customer ledger."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Distributor Business Name"
+          label="Business Name"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -191,26 +197,15 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
             <select
               id="business-category"
               value={businessCategory}
-              onChange={(e) => {
-                const cat = e.target.value as BusinessCategory;
-                setBusinessCategory(cat);
-                if (cat === 'hardware_electrical') {
-                  setSellsElectricalProducts(true);
-                }
-              }}
+              onChange={(e) => changeBusinessCategory(e.target.value as BusinessCategory)}
               disabled={isSubmitting}
               className="w-full rounded-lg border border-border bg-surface-card px-3 py-2 text-xs text-content-primary focus:border-atlas-500 focus:outline-hidden focus:ring-1 focus:ring-atlas-500"
             >
-              <option value="electrical_wholesale_distributor">
-                Electrical Wholesaler / Distributor
-              </option>
-              <option value="electrical_retail">Electrical Retailer</option>
-              <option value="hardware_electrical">Hardware & Electrical Store</option>
-              <option value="other_unsupported">Other Line of Business</option>
+              {BUSINESS_CATEGORY_OPTIONS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
             </select>
           </div>
 
-          <div className="flex items-center pt-5">
+          {BUSINESS_CATEGORIES[businessCategory].electrical && <div className="flex items-center pt-5">
             <label className="flex items-center gap-2 cursor-pointer text-xs">
               <input
                 type="checkbox"
@@ -223,7 +218,7 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
                 Sells electrical products
               </span>
             </label>
-          </div>
+          </div>}
         </div>
 
         {/* Product Lines Selector */}
@@ -238,14 +233,7 @@ export const NewOrgModal: React.FC<NewOrgModalProps> = ({ isOpen, onClose }) => 
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {[
-              'Wires & Cables',
-              'Switches & Sockets',
-              'Switchgear & Protection',
-              'LED Lighting',
-              'Fans & Ventilation',
-              'Conduits & PVC Fittings',
-            ].map((item) => {
+            {BUSINESS_CATEGORIES[businessCategory].products.map((item) => {
               const isSelected = productLines.includes(item);
               return (
                 <button

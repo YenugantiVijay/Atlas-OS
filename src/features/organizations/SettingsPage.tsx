@@ -34,6 +34,8 @@ export const SettingsPage: React.FC = () => {
   const [pincode, setPincode] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [logoUrl, setLogoUrl] = useState('');
+  const [receiptTemplate, setReceiptTemplate] = useState<'classic' | 'compact'>('classic');
+  const [receiptMessage, setReceiptMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<SupabaseVerificationResult | null>(null);
@@ -73,6 +75,8 @@ export const SettingsPage: React.FC = () => {
       setPincode(currentOrg.pincode || '');
       setCurrency(currentOrg.currency || 'INR');
       setLogoUrl(currentOrg.logoUrl || '');
+      setReceiptTemplate(currentOrg.receiptTemplate ?? 'classic');
+      setReceiptMessage(currentOrg.receiptMessage ?? '');
     }
   }, [currentOrg]);
 
@@ -114,7 +118,9 @@ export const SettingsPage: React.FC = () => {
         state: state.trim() || undefined,
         pincode: pincode.trim() || undefined,
         currency,
-        logoUrl: logoUrl || undefined,
+        logoUrl: logoUrl !== (currentOrg.logoUrl ?? '') ? logoUrl : undefined,
+        receiptTemplate: receiptTemplate !== (currentOrg.receiptTemplate ?? 'classic') ? receiptTemplate : undefined,
+        receiptMessage: receiptMessage.trim() !== (currentOrg.receiptMessage ?? '') ? receiptMessage.trim() : undefined,
       });
 
       showToast('success', 'Settings Saved', 'Organization profile updated.');
@@ -154,7 +160,7 @@ export const SettingsPage: React.FC = () => {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Distributor Profile & Tax Details</CardTitle>
+              <CardTitle>Business Profile & Tax Details</CardTitle>
             </CardHeader>
 
             <form onSubmit={handleSave} className="space-y-4">
@@ -163,12 +169,24 @@ export const SettingsPage: React.FC = () => {
                 value={logoUrl}
                 onChange={setLogoUrl}
                 shape="square"
-                helperText="Distributor logo for invoices, quotations & header (Optional)"
+                helperText="Upload a business logo for payment receipts. Atlas OS supplies a default logo."
               />
+              <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
+                <label className="space-y-1 text-sm font-medium text-content-primary">
+                  <span className="block">Receipt template</span>
+                  <select className="h-10 w-full rounded-lg border border-border bg-white px-3" value={receiptTemplate}
+                    onChange={(event) => setReceiptTemplate(event.target.value === 'compact' ? 'compact' : 'classic')}>
+                    <option value="classic">Classic</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </label>
+                <Input label="Receipt message (optional)" value={receiptMessage} maxLength={160}
+                  onChange={(event) => setReceiptMessage(event.target.value)} placeholder="Thank you for your business." />
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <Input
-                  label="Distributor Operating Name"
+                  label="Business Operating Name"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}

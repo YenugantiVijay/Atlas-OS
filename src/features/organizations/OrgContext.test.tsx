@@ -821,6 +821,27 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
       expect(result.current.currentRole).toBeNull();
     });
 
+    it('does not reload organizations when the same user refocuses the tab or refreshes the JWT', async () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <OrgProvider>{children}</OrgProvider>
+      );
+      const { result } = renderHook(() => useOrg(), { wrapper });
+      await waitFor(() => expect(result.current.isLoadingAuth).toBe(false));
+      await waitFor(() => expect(result.current.isLoadingOrgData).toBe(false));
+
+      const originalOrganization = result.current.currentOrg?.id;
+      mockFromFn.mockClear();
+      await act(async () => {
+        if (!authStateCallback) throw new Error('Auth listener missing');
+        const sameUser = { user: { id: 'user-test-uuid', email: 'owner@atlas.in' } };
+        await authStateCallback('SIGNED_IN', sameUser);
+        await authStateCallback('TOKEN_REFRESHED', sameUser);
+      });
+      expect(mockFromFn).not.toHaveBeenCalled();
+      expect(result.current.isLoadingOrgData).toBe(false);
+      expect(result.current.currentOrg?.id).toBe(originalOrganization);
+    });
+
     it('20. Deduplication: Second load event for same user reuses active in-flight promise without extra queries', async () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => (
         <OrgProvider>{children}</OrgProvider>

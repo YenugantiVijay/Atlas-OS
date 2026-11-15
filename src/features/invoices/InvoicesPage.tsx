@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LoadError } from '@/components/ui/LoadError';
 import {
@@ -28,7 +29,9 @@ export const InvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
+  React.useEffect(() => { setSearchQuery(searchParams.get('search') || ''); }, [searchParams]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);

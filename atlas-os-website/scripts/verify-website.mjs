@@ -14,6 +14,7 @@ const expectedRoutes = [
   { path: 'solutions/index.html', titleKeyword: 'Industry Solutions', descKeyword: 'Wholesale' },
   { path: 'download/index.html', titleKeyword: 'Download Atlas OS', descKeyword: 'Distribution' },
   { path: 'pricing/index.html', titleKeyword: 'Pricing', descKeyword: 'pricing' },
+  { path: 'receipt-templates/index.html', titleKeyword: 'Receipt Templates', descKeyword: 'receipt' },
   { path: 'request-demo/index.html', titleKeyword: 'Request a Personalized Live Demo', descKeyword: 'walkthrough' },
   { path: 'about/index.html', titleKeyword: 'About Us', descKeyword: 'Story' },
   { path: 'security/index.html', titleKeyword: 'Security, Privacy', descKeyword: 'Row-Level Security' },
@@ -81,6 +82,7 @@ if (fs.existsSync(sitemapPath)) {
     '/solutions',
     '/download',
     '/pricing',
+    '/receipt-templates',
     '/request-demo',
     '/about',
     '/security',
@@ -127,6 +129,75 @@ if (fakeInstallerRegex.test(downloadHtml)) {
   failedChecks++;
 } else {
   console.log('[PASS] Packaging honesty verified: Zero fake .exe or .msi binaries linked.');
+}
+
+// 6. Verify the public edition presentation is readable and truthful.
+const pricingHtml = fs.readFileSync(path.join(distDir, 'pricing/index.html'), 'utf8');
+for (const detail of ['Atlas Starter', 'Atlas Professional', 'Enterprise Network', '₹999', '₹2,499', 'Custom quote', 'Proposed launch pricing in INR']) {
+  if (!pricingHtml.includes(detail)) {
+    console.error(`[FAIL] Pricing page missing plan detail: ${detail}`);
+    failedChecks++;
+  }
+}
+for (const prematureClaim of ['Save 20% on Launch', '99.9% uptime SLA', 'Unlimited SKUs, branches']) {
+  if (pricingHtml.includes(prematureClaim)) {
+    console.error(`[FAIL] Pricing page contains unapproved commercial claim: ${prematureClaim}`);
+    failedChecks++;
+  }
+}
+
+// 7. The Astro homepage is the ONLY source of website design.
+// A hand-maintained root index.html previously duplicated and contradicted
+// the real Astro design. Its presence is now a regression.
+const duplicateHome = path.resolve(__dirname, '../index.html');
+if (fs.existsSync(duplicateHome)) {
+  console.error('[FAIL] Duplicate root index.html detected. Edit src/pages/index.astro instead.');
+  failedChecks++;
+} else {
+  console.log('[PASS] No duplicate standalone homepage in website root.');
+}
+
+const canonicalSource = path.resolve(__dirname, '../src/pages/index.astro');
+const compiledHome = path.join(distDir, 'index.html');
+if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
+  console.error('[FAIL] Canonical Astro homepage or generated dist/index.html is missing.');
+  failedChecks++;
+} else {
+  const source = fs.readFileSync(canonicalSource, 'utf8');
+  const generated = fs.readFileSync(compiledHome, 'utf8');
+  const checks = [
+    [source.includes('CapabilityOrbit'), 'Astro homepage source includes signature orbit component'],
+    [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
+    [generated.includes('capability-orbit'), 'Built homepage contains original orbit layout'],
+    [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
+    [generated.includes('Without the Complications.'), 'Built homepage retains original hero'],
+    [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
+    [generated.includes('href="/product"'), 'Built homepage links to product page'],
+    [generated.includes('href="/request-demo"'), 'Built homepage links to real demo request'],
+  ];
+  for (const [pass, label] of checks) {
+    if (!pass) {
+      console.error('[FAIL] ' + label);
+      failedChecks++;
+    }
+  }
+  if (checks.every(([pass]) => pass)) {
+    console.log('[PASS] Generated homepage matches the canonical Astro design and interactive structure.');
+  }
+}
+
+// 8. The one-click launcher must wait until the real Astro site is reachable.
+const commandPath = path.resolve(__dirname, '../preview-website.cmd');
+const readinessPath = path.resolve(__dirname, 'wait-for-website.mjs');
+const command = fs.readFileSync(commandPath, 'utf8');
+if (!command.includes('node scripts\\wait-for-website.mjs') ||
+    !command.includes('if errorlevel 1') ||
+    !command.includes('start "" "http://127.0.0.1:4321/"') ||
+    !fs.existsSync(readinessPath)) {
+  console.error('[FAIL] One-click website launcher no longer verifies readiness before opening');
+  failedChecks++;
+} else {
+  console.log('[PASS] One-click launcher checks the Astro homepage before opening browser.');
 }
 
 console.log('----------------------------------------------------');

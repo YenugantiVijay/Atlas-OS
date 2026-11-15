@@ -35,7 +35,9 @@ export const SuppliersPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const linkedSearch = searchParams.get('search') || '';
+  const [searchQuery, setSearchQuery] = useState(linkedSearch);
+  useEffect(() => { setSearchQuery(linkedSearch); }, [linkedSearch]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form Fields
@@ -192,7 +194,9 @@ export const SuppliersPage: React.FC = () => {
       s.name.toLowerCase().includes(q) ||
       s.companyName?.toLowerCase().includes(q) ||
       s.contactPerson?.toLowerCase().includes(q) ||
-      s.gstin?.toLowerCase().includes(q)
+      s.gstin?.toLowerCase().includes(q) ||
+      s.phone?.toLowerCase().includes(q) ||
+      (q.replace(/\D/g, '').length >= 3 && s.phone?.replace(/\D/g, '').includes(q.replace(/\D/g, '')))
     );
   });
 
