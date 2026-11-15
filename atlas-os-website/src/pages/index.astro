@@ -1,5 +1,5 @@
 ---
-import { ArrowRight, Banknote, Boxes, Calculator, ChartNoAxesColumnIncreasing, ChevronDown, FileText, ListChecks, PackageCheck, Receipt, ShoppingCart, Store, TrendingUp } from 'lucide-react';
+import { ArrowDown, ArrowRight, Banknote, Boxes, Calculator, ChartNoAxesColumnIncreasing, Check, ChevronDown, FileText, ListChecks, PackageCheck, Receipt, ShieldCheck, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/common/Button.astro';
 import Container from '../components/common/Container.astro';
@@ -14,6 +14,16 @@ const features = [
   { title: 'Track Customer Payments', text: 'Record a payment, print a receipt, and see which invoices still have a balance.', href: '/features#payments', Icon: Banknote, color: '#a16207', tint: '#fff7ed' },
   { title: 'Understand Your Business', text: 'Review sales and customer dues, then export the reports you need to share.', href: '/features#reports', Icon: ChartNoAxesColumnIncreasing, color: '#0369a1', tint: '#edf7fa' },
 ];
+const orderSteps = [
+  { Icon: PackageCheck, label: 'Stock received', text: 'Switches added to inventory', value: '+24 boxes' },
+  { Icon: Receipt, label: 'GST invoice issued', text: 'Contractor order · INV-1048', value: '₹5,900' },
+  { Icon: Banknote, label: 'Payment recorded', text: 'UPI payment matched to the invoice', value: '₹5,900' },
+];
+const controls = [
+  { Icon: Users, title: 'Access by role', text: 'Give sales, inventory, and accounts staff access to the work they handle.' },
+  { Icon: ListChecks, title: 'A record of changes', text: 'Review audit events for supported business actions.' },
+  { Icon: FileText, title: 'Reports you can export', text: 'Download supported sales, stock, and payment reports to review or share.' },
+];
 const starter = PRICING_TIERS.find(plan => plan.id === 'starter')!;
 const faqs = [
   ['What is Atlas OS?', 'It’s a workspace for shops, wholesalers, and distributors. You can receive stock, prepare orders, create invoices, and record payments from the same workspace.'],
@@ -23,51 +33,64 @@ const faqs = [
 ];
 ---
 
-<BaseLayout title="Atlas OS | Stock, billing and payments for shops and distributors"
-  description="Manage stock, sales, billing, and customer payments in one Atlas OS workspace for shops and distributors.">
+<BaseLayout title="Atlas OS | Stock and GST billing for shops and distributors"
+  description="Atlas OS connects stock, quotations, GST invoices, and customer payments for Indian retailers, wholesalers, and distributors.">
   <section id="home-overview" class="hero-shell border-b border-border">
-    <Container size="wide" class="grid items-center gap-8 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.04fr)_minmax(0,.96fr)] lg:gap-12 lg:py-20">
-      <div class="min-w-0 space-y-5">
-        <p class="text-sm font-semibold text-content-secondary" data-enter>For shops, wholesalers, and distributors</p>
-        <h1 class="max-w-[16ch] font-heading text-4xl font-extrabold leading-[1.11] tracking-tight sm:text-5xl xl:text-6xl" data-enter>
-          Stock, billing, and payments <span class="text-brand-700">in one place.</span>
-        </h1>
-        <p class="max-w-[48ch] text-base leading-relaxed text-content-secondary sm:text-lg" data-enter data-delay="1">Know what’s in stock, turn orders into invoices, and see who still owes you. Atlas OS keeps the details connected as your team works.</p>
-        <div class="flex flex-wrap gap-3 pt-1" data-enter data-delay="2">
-          <Button href="/request-demo" variant="primary" size="lg">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
-          <Button href="/product" variant="outline" size="lg">Explore Atlas OS</Button>
+    <Container size="default">
+      <div class="hero-intro mx-auto text-center">
+        <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
+        <h1 class="hero-title mx-auto font-heading" data-enter>Run your stock, billing, and <span>payments together.</span></h1>
+        <p class="mx-auto mt-5 max-w-[55ch] text-base leading-relaxed text-content-secondary sm:text-lg" data-enter data-delay="1">Know what’s in stock before you quote. Create a GST invoice when the order is ready. See what’s paid and what’s still due.</p>
+        <div class="mt-7 flex flex-wrap justify-center gap-3" data-enter data-delay="2">
+          <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
+          <Button href="#product-preview" variant="outline" size="lg">Try the interactive preview <ArrowDown size={17} aria-hidden="true" /></Button>
         </div>
       </div>
-      <div class="min-w-0 rounded-3xl border border-brand-200 bg-white p-4 shadow-lg sm:p-6" data-enter data-delay="1">
-        <div class="flex items-center justify-between gap-2 border-b border-border pb-4">
-          <div class="flex items-center gap-2.5 font-heading text-base font-bold"><Store size={20} className="shrink-0 text-brand-700" aria-hidden="true" /> Today at the counter</div>
-          <span class="shrink-0 text-xs text-content-secondary">Example</span>
+
+      <section class="workbench mx-auto" data-enter data-delay="2" aria-labelledby="counter-title">
+        <div class="workbench-top">
+          <div class="workbench-brand"><img src="/favicon.svg" alt="" width="25" height="25" /> Atlas OS <span class="workbench-divider" aria-hidden="true"></span><span class="workbench-context">Sales workspace</span></div>
+          <span class="sample-label">Sample data</span>
         </div>
-        <ul class="divide-y divide-border">
-          {[
-            { Icon: PackageCheck, label: 'Stock received', text: '24 boxes of switches added', value: '+24 boxes' },
-            { Icon: Receipt, label: 'Invoice issued', text: 'An electrical contractor’s order', value: '₹5,900' },
-            { Icon: Banknote, label: 'Payment recorded', text: 'UPI payment applied to the invoice', value: '₹5,900' },
-          ].map(({ Icon, label, text, value }) => <li class="flex flex-wrap items-center gap-3 py-4">
-            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Icon size={20} aria-hidden="true" /></span>
-            <div class="min-w-0 flex-1"><p class="text-sm font-bold">{label}</p><p class="mt-0.5 text-xs leading-relaxed text-content-secondary">{text}</p></div>
-            <span class="text-sm font-bold tabular-nums text-brand-800">{value}</span>
-          </li>)}
-        </ul>
-        <div class="flex items-center justify-between gap-2 rounded-xl bg-surface-secondary px-3 py-3 text-sm"><span class="font-semibold">Balance on this invoice</span><strong>₹0</strong></div>
-      </div>
+        <div class="workbench-body">
+          <div class="workbench-order">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="counter-title" class="font-heading text-xl font-bold sm:text-2xl">Today at the counter</h2>
+              <span class="text-xs font-medium text-content-secondary">Order activity</span>
+            </div>
+            <ul class="mt-2 divide-y divide-border">
+              {orderSteps.map(({ Icon, label, text, value }) => <li class="order-row">
+                <span class="order-icon"><Icon size={19} aria-hidden="true" /></span>
+                <div class="min-w-0"><p class="font-semibold">{label}</p><p class="mt-0.5 text-xs leading-relaxed text-content-secondary">{text}</p></div>
+                <span class="justify-self-end text-right font-bold tabular-nums">{value}</span>
+              </li>)}
+            </ul>
+          </div>
+          <div class="invoice-summary">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-semibold">Invoice summary</span>
+              <span class="paid-status"><Check size={13} aria-hidden="true" /> Paid</span>
+            </div>
+            <dl class="mt-4 space-y-2.5">
+              <div><dt>Invoice total</dt><dd>₹5,900</dd></div>
+              <div><dt>Payment received</dt><dd>₹5,900</dd></div>
+              <div class="invoice-balance"><dt>Balance due</dt><dd>₹0</dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
     </Container>
   </section>
 
-  <section class="py-12 sm:py-16" id="daily-workflow">
+  <section class="home-section" id="daily-workflow">
     <Container size="wide">
-      <div class="mb-6 max-w-3xl" data-reveal>
-        <h2 class="home-heading">One Place for Your Daily Business</h2>
-        <p class="home-description">Follow a sale from the stockroom to the receipt, with each step connected.</p>
+      <div class="section-intro" data-reveal>
+        <h2 class="home-heading">Tools for each step of a sale</h2>
+        <p class="home-description">From receiving a delivery to collecting payment, your team can pick up where the last person left off.</p>
       </div>
       <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" data-reveal-group>
         {features.map(({ title, text, href, Icon, color, tint }) => <li>
-          <a href={href} style={`--icon-accent:${color};--tile-tint:${tint}`} class="home-card atlas-icon-card flex h-full flex-col items-start gap-3 rounded-2xl border border-border p-5">
+          <a href={href} style={`--icon-accent:${color};--tile-tint:${tint}`} class="home-card atlas-icon-card flex h-full flex-col items-start gap-3 rounded-2xl border border-border p-5 lg:p-6">
             <span class="atlas-card-icon grid h-11 w-11 place-items-center rounded-xl"><Icon size={22} aria-hidden="true" /></span>
             <div><h3 class="font-heading text-base font-bold">{title}</h3><p class="mt-2 text-sm leading-relaxed text-content-secondary">{text}</p></div>
             <ArrowRight size={18} className="mt-auto text-brand-700" aria-hidden="true" />
@@ -77,14 +100,14 @@ const faqs = [
     </Container>
   </section>
 
-  <section class="border-y border-border bg-surface-secondary py-12 sm:py-16">
-    <Container size="wide" class="grid items-center gap-7 lg:grid-cols-[.92fr_1.08fr]">
+  <section class="home-section bg-[#f4f8f9] border-y border-border">
+    <Container size="default" class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
       <div data-reveal>
         <h2 class="home-heading">When a supplier rate changes, see which quotes need review.</h2>
         <p class="home-description">Atlas OS keeps a history of supplier prices and flags open quotes that use the affected products. Your team chooses what to update before sending the quote.</p>
         <a href="/features#supplier-rate-review" class="mt-4 inline-flex items-center gap-2 font-semibold text-brand-700 hover:underline">See supplier price review <ArrowRight size={17} aria-hidden="true" /></a>
       </div>
-      <div class="rounded-3xl border border-brand-200 bg-white p-5 sm:p-7" data-reveal>
+      <div class="rounded-3xl border border-brand-200 bg-white p-5 shadow-sm sm:p-7" data-reveal>
         <p class="mb-4 flex items-center gap-2 font-heading text-lg font-bold"><TrendingUp size={22} className="text-brand-700" aria-hidden="true" /> Example supplier update</p>
         <div class="grid gap-3 sm:grid-cols-2">
           <div class="rounded-xl bg-surface-secondary p-4"><p class="text-sm text-content-secondary">Previous cost per box</p><p class="mt-1 text-2xl font-bold">₹800</p></div>
@@ -95,38 +118,61 @@ const faqs = [
     </Container>
   </section>
 
-  <section class="py-12 sm:py-16">
-    <Container size="wide">
-      <div class="mb-6" data-reveal>
+  <section class="home-section" id="product-preview">
+    <Container size="default">
+      <div class="section-intro" data-reveal>
         <h2 class="home-heading">Connected Business Workflow</h2>
-        <p class="home-description">Try the sample workspace. Switch between stock, invoicing, payments, and reports.</p>
+        <p class="home-description">Open the sample workspace and switch between stock, invoicing, payments, and reports.</p>
       </div>
       <InteractivePreview client:load />
     </Container>
   </section>
 
-  <section class="border-y border-border bg-surface-secondary py-12 sm:py-16">
-    <Container size="wide">
-      <div class="mb-6 flex flex-wrap items-end justify-between gap-4" data-reveal>
-        <div><h2 class="home-heading">Find your industry</h2><p class="home-description">See the tools in the context of your day-to-day work.</p></div>
-        <Button href="/solutions/" variant="outline">All industries <ArrowRight size={17} aria-hidden="true" /></Button>
+  <section class="home-section border-y border-border bg-[#f4f8f9]" id="industries">
+    <Container size="default">
+      <div class="industry-intro grid items-center gap-8 lg:grid-cols-2 lg:gap-14" data-reveal>
+        <div>
+          <h2 class="home-heading">Built for businesses that buy, stock, and sell</h2>
+          <p class="home-description">At a retail counter, find the item and bill it. In a warehouse, receive deliveries and keep supplier costs up to date. See how Atlas OS fits your business.</p>
+          <Button href="/solutions/" variant="outline" class="mt-5">Explore all industries <ArrowRight size={17} aria-hidden="true" /></Button>
+        </div>
+        <img class="industry-photo" src="/images/electrical-stockroom.webp" width="960" height="640" loading="lazy" decoding="async" alt="Two staff members checking a carton in an electrical wholesale stockroom" />
       </div>
-      <div data-reveal><IndustryLinks /></div>
+      <div class="mt-8" data-reveal><IndustryLinks /></div>
     </Container>
   </section>
 
-  <section class="py-12 sm:py-16">
-    <Container size="wide">
+  <section class="home-section" id="business-controls">
+    <Container size="default">
+      <div class="section-intro" data-reveal>
+        <h2 class="home-heading">Know who can do what</h2>
+        <p class="home-description">Review access and reporting before you decide how to set up your team.</p>
+      </div>
+      <ul class="grid gap-4 sm:grid-cols-3" data-reveal-group>
+        {controls.map(({ Icon, title, text }) => <li class="control-card">
+          <Icon size={22} className="text-brand-700" aria-hidden="true" />
+          <h3 class="mt-3 font-heading text-lg font-bold">{title}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-content-secondary">{text}</p>
+        </li>)}
+      </ul>
+      <div class="mt-6 text-center" data-reveal>
+        <a href="/security" class="inline-flex items-center gap-2 font-semibold text-brand-700 hover:underline"><ShieldCheck size={18} aria-hidden="true" /> Review Atlas OS security <ArrowRight size={17} aria-hidden="true" /></a>
+      </div>
+    </Container>
+  </section>
+
+  <section class="pb-14 sm:pb-20">
+    <Container size="default">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-6 sm:p-9" data-reveal>
         <div><h2 class="home-heading">A plan for the way you work</h2><p class="home-description">Atlas Starter starts at {starter.priceDisplay}{starter.billingPeriod.replace(' ', '')}. Compare plans for your shop, counter, or distribution team.</p></div>
-        <Button href="/pricing" variant="primary">Compare plans <ArrowRight size={17} aria-hidden="true" /></Button>
+        <Button href="/pricing" variant="primary" class="!bg-brand-700 hover:!bg-brand-800">Compare plans <ArrowRight size={17} aria-hidden="true" /></Button>
       </div>
     </Container>
   </section>
 
   <section class="pb-12 sm:pb-16">
-    <Container size="wide">
-      <div class="mb-6" data-reveal><h2 class="home-heading">Free tools and guides</h2><p class="home-description">Calculate GST, preview a receipt, or get help with a workflow.</p></div>
+    <Container size="default">
+      <div class="section-intro" data-reveal><h2 class="home-heading">Free tools and guides</h2><p class="home-description">Calculate GST, preview a receipt, or get help with a workflow.</p></div>
       <ul class="grid gap-4 sm:grid-cols-3" data-reveal-group>
         {[
           { name: 'Atlas Calculators', text: 'GST, margin, EMI, inventory and more.', href: '/calculators/', Icon: Calculator, tint: '#edf8f5' },
@@ -153,18 +199,91 @@ const faqs = [
   </section>
 
   <section class="py-12 sm:py-16">
-    <Container size="wide">
-      <div class="flex flex-wrap items-center justify-between gap-5 rounded-3xl bg-navy-900 p-6 text-white sm:p-9" data-reveal>
+    <Container size="default">
+      <div class="demo-banner flex flex-wrap items-center justify-between gap-6 rounded-3xl p-6 text-white sm:p-10 lg:p-12" data-reveal>
         <div class="max-w-2xl"><h2 class="home-heading">See Atlas OS with your workflow</h2><p class="mt-2 leading-relaxed text-slate-200">Bring a sample invoice, order, or stock delivery to the walkthrough.</p></div>
-        <div class="flex flex-wrap gap-3"><Button href="/request-demo" variant="white" size="lg">Request a Demo</Button><Button href="/product" variant="primary" size="lg">Explore Atlas OS</Button></div>
+        <div class="flex flex-wrap gap-3"><Button href="/request-demo" variant="white" size="lg">Request a Demo</Button><Button href="/product" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Explore Atlas OS</Button></div>
       </div>
     </Container>
   </section>
 </BaseLayout>
 
 <style>
-  .hero-shell { background: radial-gradient(ellipse at 85% 20%, #def5ef, transparent 48%), #f6f9fb; }
-  .home-heading { font-family: var(--font-heading, inherit); font-size: clamp(1.65rem, 3vw, 2.5rem); font-weight: 750; line-height: 1.18; letter-spacing: -.03em; }
-  .home-description { margin-top: .65rem; color: #445673; line-height: 1.65; }
+  .hero-shell {
+    background: radial-gradient(ellipse at 11% 4%, #e9f4ff, transparent 49%),
+      radial-gradient(ellipse at 88% 73%, #d7f3e9, transparent 61%), #f6fbfc;
+    padding-block: clamp(2.65rem, 5.6vw, 5.25rem) clamp(2.5rem, 4.5vw, 4rem);
+  }
+  .hero-intro { max-width: 63rem; }
+  .hero-audience {
+    color: #246461;
+    font-size: .875rem;
+    font-weight: 700;
+    margin-bottom: .95rem;
+  }
+  .hero-title {
+    max-width: 19ch;
+    font-size: clamp(2.45rem, 6.1vw, 5.65rem);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -.059em;
+    text-wrap: balance;
+  }
+  .hero-title span { color: #087c70; }
+  .workbench {
+    max-width: 58rem;
+    margin-top: clamp(2rem, 4vw, 3.65rem);
+    border: 1px solid #ccdedc;
+    border-radius: 1.4rem;
+    background: white;
+    box-shadow: 0 24px 65px -32px #1a4e536d, 0 0 0 .5rem #ffffff79;
+    overflow: hidden;
+  }
+  .workbench-top {
+    min-height: 3.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .6rem clamp(.8rem, 2.5vw, 1.6rem);
+    background: #132744;
+    color: white;
+  }
+  .workbench-brand { display: flex; align-items: center; gap: .6rem; font-size: .88rem; font-weight: 750; }
+  .workbench-divider { width: 1px; height: 1.05rem; margin-inline: .15rem; background: #54627a; }
+  .workbench-context { color: #dce5f0; font-weight: 500; font-size: .78rem; }
+  .sample-label { border-radius: 999px; color: #b9f5e8; background: #244853; padding: .25rem .6rem; font-size: .72rem; white-space: nowrap; }
+  .workbench-body { padding: clamp(.85rem, 2.5vw, 1.65rem); display: grid; align-items: center; gap: 1.35rem; }
+  .order-row {
+    display: grid; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: clamp(.5rem, 1.3vw, .85rem); padding-block: .72rem; font-size: .9rem;
+  }
+  .order-icon { display: grid; place-items: center; border-radius: .65rem; width: 2.15rem; height: 2.15rem; background: #edf7f5; color: #087c70; }
+  .invoice-summary { background: #f1f8f7; border-radius: .95rem; border: 1px solid #dcebe7; padding: 1rem; font-size: .9rem; }
+  .invoice-summary dl > div { display: flex; justify-content: space-between; gap: .6rem; }
+  .invoice-summary dt { color: #445673; }
+  .invoice-summary dd { font-weight: 700; }
+  .invoice-balance { padding-top: .7rem; border-top: 1px solid #d7e6e3; }
+  .paid-status { display: inline-flex; align-items: center; gap: .2rem; border-radius: 999px; padding: .2rem .47rem; font-weight: 750; font-size: .75rem; color: #12624e; background: #d9efe4; }
+  .home-section { padding-block: clamp(3.5rem, 6.2vw, 6.25rem); }
+  .section-intro { margin: 0 auto 2rem; max-width: 48rem; text-align: center; }
+  .home-heading { font-family: var(--font-heading, inherit); font-size: clamp(1.8rem, 3.25vw, 3.15rem); font-weight: 780; line-height: 1.12; letter-spacing: -.038em; text-wrap: balance; }
+  .home-description { margin-top: .75rem; color: #445673; line-height: 1.7; }
   .home-card { background: linear-gradient(145deg, var(--tile-tint, white), white 85%); }
+  .industry-photo { width: 100%; aspect-ratio: 1.65; height: auto; object-fit: cover; border-radius: 1.4rem; background: #e5efec; }
+  .control-card { border: 1px solid #dae6e9; border-radius: 1rem; background: #f8fbfc; padding: 1.35rem; }
+  .demo-banner { background: radial-gradient(ellipse at 94% 0%, #22645e, transparent 55%), #152a49; }
+  @media (min-width: 490px) {
+    #industries :global(.industry-links) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 900px) {
+    #industries :global(.industry-links) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 700px) {
+    .workbench-body { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 1.8rem; }
+  }
+  @media (max-width: 360px) {
+    .workbench-context, .workbench-divider { display: none; }
+    .order-row { font-size: .82rem; }
+  }
 </style>

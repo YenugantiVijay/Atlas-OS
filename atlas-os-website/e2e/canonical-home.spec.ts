@@ -46,7 +46,7 @@ test('homepage explains the daily workflow and retains the interactive preview',
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /Stock, billing, and payments in one place/i,
+    level: 1, name: /Run your stock, billing, and payments together/i,
   })).toBeVisible();
   await expect(page.getByRole('heading', {
     level: 2, name: /supplier rate change/i,
@@ -141,7 +141,11 @@ test('feature and security pages state the distributor advantage and deployment 
 
 test('homepage CTAs navigate to the actual Astro pages', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('link', { name: /Explore Atlas OS/ }).first().click();
+  await page.getByRole('link', { name: 'Try the interactive preview' }).click();
+  await expect(page).toHaveURL(/#product-preview$/);
+  await expect(page.locator('#product-preview').getByRole('button', { name: 'Commercial Invoicing' })).toBeVisible();
+
+  await page.getByRole('link', { name: /Explore Atlas OS/ }).click();
   await expect(page).toHaveURL(/\/product\/?$/);
   await expect(page.getByRole('heading', {
     level: 1, name: /Manage stock, sales, and payments together/i,

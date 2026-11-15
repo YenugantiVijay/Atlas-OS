@@ -268,7 +268,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
   test('9. Product storytelling section displays all 5 connected workflow steps', async ({ page }) => {
     await page.goto('/');
 
-    const storytelling = page.locator('section:has-text("One Place for Your Daily Business")');
+    const storytelling = page.locator('section:has-text("Tools for each step of a sale")');
     await expect(storytelling).toBeVisible();
     await expect(storytelling.getByRole('heading', { name: 'Keep Track of Your Stock' })).toBeVisible();
     await expect(storytelling.getByRole('heading', { name: 'Manage Customer Orders' })).toBeVisible();
@@ -338,7 +338,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     expect(classes).toContain('btn-shimmer-teal');
 
     // Hero button has shimmer class
-    const heroBtn = page.locator('a:has-text("Explore Atlas OS")').first();
+    const heroBtn = page.getByRole('link', { name: 'Try the interactive preview' });
     const heroClasses = await heroBtn.getAttribute('class');
     expect(heroClasses).toContain('btn-shimmer');
   });
