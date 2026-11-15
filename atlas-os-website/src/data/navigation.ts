@@ -10,39 +10,41 @@ export interface NavDropdown {
   items: NavLink[];
 }
 
+export const INDUSTRY_NAVIGATION = [
+  {
+    icon: 'electrical',
+    label: 'Electrical Distributors',
+    href: '/solutions#electrical',
+    description: 'Wires, switchgear, conduits, and contractor credit ledgers.',
+  },
+  {
+    icon: 'electronics',
+    label: 'Electronics Wholesalers',
+    href: '/solutions#electronics',
+    description: 'High-precision SKU tracking and rapid order fulfillment.',
+  },
+  {
+    icon: 'hardware',
+    label: 'Hardware & Tools',
+    href: '/solutions#hardware',
+    description: 'Industrial fasteners, building materials, and multi-UOM stocks.',
+  },
+  {
+    icon: 'retail',
+    label: 'Retail & Wholesale Counters',
+    href: '/solutions#retail-wholesale',
+    description: 'Draft orders at the counter and reconcile cash and UPI collections.',
+  },
+  { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs', description: 'Receive stock by bag and track supplier rates and credit customers.' },
+  { icon: 'shop', label: 'Small Shops', href: '/solutions#small-business', description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
+] as const;
+
 export const MAIN_NAVIGATION = [
   {
     label: 'Product',
     href: '/product',
   },
-  {
-    label: 'Solutions',
-    href: '/solutions',
-    dropdown: [
-      {
-        label: 'Electrical Distributors',
-        href: '/solutions#electrical',
-        description: 'Wires, switchgear, conduits, and contractor credit ledgers.',
-      },
-      {
-        label: 'Electronics Wholesalers',
-        href: '/solutions#electronics',
-        description: 'High-precision SKU tracking and rapid order fulfillment.',
-      },
-      {
-        label: 'Hardware & Tools',
-        href: '/solutions#hardware',
-        description: 'Industrial fasteners, building materials, and multi-UOM stocks.',
-      },
-      {
-        label: 'Retail & Wholesale Counters',
-        href: '/solutions#retail-wholesale',
-        description: 'Draft orders at the counter and reconcile cash and UPI collections.',
-      },
-      { label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs', description: 'Receive stock by bag and track supplier rates and credit customers.' },
-      { label: 'Small Shops', href: '/solutions#small-business', description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
-    ],
-  },
+  { label: 'Industries', href: '/solutions' },
   {
     label: 'Features',
     href: '/features',

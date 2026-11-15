@@ -69,6 +69,43 @@ test('interactive product preview really hydrates and changes content', async ({
   await expect(page.getByText('Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
 });
 
+test('Industries spans the desktop header and supports keyboard dismissal', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 650 });
+  await page.goto('/');
+  const toggle = page.getByRole('button', { name: 'Industries' });
+  const panel = page.locator('#industries-panel');
+  await expect(panel).toBeHidden();
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ })).toBeVisible();
+  const bounds = await panel.boundingBox();
+  const header = await page.locator('#site-header').boundingBox();
+  expect(bounds?.x).toBe(header?.x);
+  expect(bounds?.width).toBe(header?.width);
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('link', { name: 'Feature directory' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ }).click();
+  await expect(page).toHaveURL(/\/solutions\/?#agricultural-inputs$/);
+});
+
+test('on mobile the industry cards expand inside the navigation drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open Navigation Menu' }).click();
+  const drawer = page.locator('#mobile-nav-menu');
+  const shop = drawer.getByRole('link', { name: 'Small Shops' });
+  await expect(shop).toBeHidden();
+  await drawer.locator('summary').filter({ hasText: 'Industries' }).click();
+  await expect(shop).toBeVisible();
+  await shop.click();
+  await expect(page).toHaveURL(/\/solutions\/?#small-business$/);
+});
+
 test('feature and security pages state the distributor advantage and deployment limits', async ({ page }) => {
   await page.goto('/features');
   await expect(page.getByRole('heading', {
