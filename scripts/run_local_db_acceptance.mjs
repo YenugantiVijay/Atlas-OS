@@ -40,6 +40,7 @@ import { runStaffPaySetupAcceptance } from './staff_pay_setup_acceptance.mjs';
 import { runStaffAttendanceAcceptance } from './staff_attendance_acceptance.mjs';
 import { runCounterDrawerAcceptance } from './counter_drawer_acceptance.mjs';
 import { runTeamPayAcceptance } from './team_pay_acceptance.mjs';
+import { runStaffAdvancesAcceptance } from './staff_advances_acceptance.mjs';
 import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
 import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
@@ -1423,6 +1424,10 @@ async function runAcceptance() {
     });
 
     await runTeamPayAcceptance({
+      client: testClient, withRoleContext, recordTest,
+      orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
+    });
+    await runStaffAdvancesAcceptance({
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
     });
