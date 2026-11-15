@@ -296,6 +296,10 @@ test('industry detail tracks the sticky contents and supports keyboard workflow 
   await page.goto('/solutions/retail-wholesale/');
   const rail = page.getByRole('navigation', { name: 'On this page' });
   await expect(rail.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'location');
+  const railBox = (await rail.boundingBox())!;
+  const headingBox = (await page.getByRole('heading', { level: 1 }).boundingBox())!;
+  expect(headingBox.x).toBeGreaterThan(railBox.x + railBox.width);
+  await expect(page.getByRole('complementary', { name: 'Industry navigation' })).toHaveCSS('position', 'sticky');
   await rail.getByRole('link', { name: 'Features' }).click();
   await expect(rail.getByRole('link', { name: 'Features' })).toHaveAttribute('aria-current', 'location');
   const first = page.getByRole('tab', { name: 'Select Customer' });

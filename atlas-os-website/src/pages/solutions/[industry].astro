@@ -36,7 +36,8 @@ const questions = [
 
 <BaseLayout title={solution.title + ' Software | Atlas OS'} description={solution.tagline}>
   <div class="bg-surface-secondary">
-    <Container size="wide" class="industry-layout py-7 sm:py-10 lg:py-12">
+    <Container size="wide" class="py-7 sm:py-10 lg:py-12">
+      <div class="industry-layout">
       <aside class="industry-rail" aria-label="Industry navigation">
         <nav aria-label="On this page" class="rail-card">
           <h2 class="rail-heading">On this page</h2>
@@ -192,6 +193,7 @@ const questions = [
           <h2 class="section-title">More industries</h2>
           <ul class="card-grid sm:grid-cols-2">{otherIndustries.map(item => <li><a class="info-card flex items-center justify-between gap-2 text-sm font-semibold text-brand-700 hover:underline" href={item.href}>{item.label}<ArrowRight size={16} aria-hidden="true" /></a></li>)}</ul>
         </nav>
+      </div>
       </div>
     </Container>
   </div>
