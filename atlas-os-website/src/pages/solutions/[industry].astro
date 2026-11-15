@@ -1,4 +1,7 @@
 ---
+import { Image } from 'astro:assets';
+import componentStockroom from '../../assets/component-stockroom.webp';
+import generalTradeShop from '../../assets/general-trade-shop.webp';
 import { ArrowRight, BadgeCheck, BookOpen, ChevronDown, ClipboardList, FileText, Layers3, ListChecks, Package, PanelsTopLeft, Smartphone, Users } from 'lucide-react';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Button from '../../components/common/Button.astro';
@@ -13,6 +16,11 @@ export function getStaticPaths() {
 }
 const { solution } = Astro.props;
 const content = INDUSTRY_PAGES[solution.id as keyof typeof INDUSTRY_PAGES];
+const industryPhotos: Partial<Record<(typeof INDUSTRY_SOLUTIONS)[number]['id'], { image: ImageMetadata; alt: string }>> = {
+  electronics: { image: componentStockroom, alt: 'A worker checking parts stored in numbered bins along a stockroom aisle' },
+  'small-business': { image: generalTradeShop, alt: 'A small general store with packaged goods on shelves around the shop counter' },
+};
+const photo = industryPhotos[solution.id];
 const sections = [
   { id: 'overview', label: 'Overview', Icon: FileText },
   { id: 'benefits', label: 'Benefits', Icon: BadgeCheck },
@@ -61,11 +69,19 @@ const questions = [
 
       <div class="min-w-0 industry-content">
         <section id="overview" class="space-y-6 sm:space-y-8">
-          <div>
-            <h1 data-enter class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
-              Business software for <span class="text-brand-700">{content.audience.toLowerCase()}</span>
-            </h1>
-            <p class="mt-4 max-w-4xl text-base leading-relaxed text-content-secondary sm:text-lg">{solution.description}</p>
+          <div class:list={[photo && 'grid items-center gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]']}>
+            <div>
+              <h1 data-enter class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
+                Business software for <span class="text-brand-700">{content.audience.toLowerCase()}</span>
+              </h1>
+              <p class="mt-4 max-w-4xl text-base leading-relaxed text-content-secondary sm:text-lg">{solution.description}</p>
+            </div>
+            {photo && (
+              <Image src={photo.image} alt={photo.alt} widths={[400, 640, 960]}
+                sizes="(min-width: 1280px) 430px, 92vw"
+                format="webp" loading="lazy" decoding="async"
+                class="aspect-[3/2] w-full rounded-2xl border border-border object-cover" />
+            )}
           </div>
           <div id="demo" data-reveal class="grid gap-6 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white p-5 shadow-sm sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-center">
             <div class="space-y-4">

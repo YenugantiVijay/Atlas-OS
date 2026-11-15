@@ -182,3 +182,10 @@ The configuration in `firebase.json` automatically handles:
 - Immutable 1-year caching for fingerprinted assets (`/_astro/**`)
 - 24-hour caching for XML sitemaps and favicon
 - Strict HTTP security headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`)
+
+## 7. Image Credits
+
+- The Electronics Wholesalers page uses [Warehouse Worker Organizing Inventory Shelves](https://www.pexels.com/photo/warehouse-worker-organizing-inventory-shelves-31112244/) by EqualStock IN.
+- The Small Shops page uses [Bustling Small Shop with Assorted Products](https://www.pexels.com/photo/bustling-small-shop-with-assorted-products-37863204/) by Valentina Lara.
+- Both photographs use the [Pexels License](https://www.pexels.com/license/) and illustrate trade settings.
+- The Product page screenshots show the Atlas OS interactive browser preview with sample data.

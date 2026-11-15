@@ -1,8 +1,26 @@
 ---
+import { Image } from 'astro:assets';
+import invoicePreview from '../assets/preview-gst-invoice.webp';
+import inventoryPreview from '../assets/preview-inventory.webp';
 import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
+
+const examples = [
+  {
+    title: 'Check stock before you confirm an order',
+    description: 'Review available and committed quantities by item. See whether you sell a product by coil, bundle, or piece before you quote.',
+    image: inventoryPreview,
+    alt: 'Inventory preview with separate columns for packaging unit, available stock, and committed stock',
+  },
+  {
+    title: 'See how GST appears on an invoice',
+    description: 'Review quantities, HSN codes, unit prices, and GST by line item before you send the bill.',
+    image: invoicePreview,
+    alt: 'GST invoice preview showing HSN codes, quantities, line-item tax, and the invoice total',
+  },
+];
 ---
 
 <BaseLayout
@@ -22,6 +40,31 @@ import Button from '../components/common/Button.astro';
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           Run everyday retail and wholesale work from one catalog, with permission controls for sales, stock, and finance teams.
         </p>
+      </div>
+    </Container>
+  </section>
+
+  <section class="border-b border-border bg-white py-12 sm:py-16" aria-labelledby="workflow-preview-heading">
+    <Container size="default">
+      <div class="mx-auto mb-7 max-w-2xl text-center" data-reveal>
+        <h2 id="workflow-preview-heading" class="font-heading text-3xl font-bold tracking-tight sm:text-4xl">See stock and billing in Atlas OS</h2>
+        <p class="mt-3 text-content-secondary">These screens show the interactive browser preview with sample data.</p>
+      </div>
+      <div class="grid gap-5" data-reveal-group>
+        {examples.map(({ title, description, image, alt }) => (
+          <figure class="grid items-center gap-5 rounded-3xl border border-border bg-surface-secondary p-4 sm:p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)]">
+            <figcaption class="lg:px-3">
+              <h3 class="font-heading text-xl font-bold sm:text-2xl">{title}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-content-secondary sm:text-base">{description}</p>
+            </figcaption>
+            <Image src={image} alt={alt} widths={[480, 800, 1220]}
+              sizes="(min-width: 1280px) 750px, (min-width: 1024px) 60vw, 92vw"
+              format="webp" loading="lazy" decoding="async" class="w-full rounded-xl border border-border" />
+          </figure>
+        ))}
+      </div>
+      <div class="mt-7 text-center">
+        <Button href="/#product-preview" variant="outline">Try the interactive preview</Button>
       </div>
     </Container>
   </section>

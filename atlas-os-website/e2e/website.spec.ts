@@ -40,6 +40,7 @@ test.beforeAll(async () => {
       '.js': 'application/javascript; charset=utf-8',
       '.css': 'text/css; charset=utf-8',
       '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
       '.json': 'application/json',
       '.xml': 'application/xml',
       '.txt': 'text/plain',
@@ -96,6 +97,28 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
       const response = await page.goto(route.path);
       expect(response?.status()).toBe(200);
       await expect(page).toHaveTitle(new RegExp(route.titleContains, 'i'));
+    }
+  });
+
+  test('product screenshots and industry photos load as responsive local images', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const examples = [
+      { path: '/product', labels: [/Inventory preview/, /GST invoice preview/] },
+      { path: '/solutions/electronics/', labels: [/worker checking parts/] },
+      { path: '/solutions/small-business/', labels: [/small general store/] },
+    ];
+    for (const example of examples) {
+      await page.goto(example.path);
+      for (const label of example.labels) {
+        const image = page.getByRole('img', { name: label });
+        await image.scrollIntoViewIfNeeded();
+        await expect(image).toBeVisible();
+        await expect(image).toHaveAttribute('srcset', /400w|480w/);
+        await image.evaluate(async (image: HTMLImageElement) => image.decode());
+        const source = await image.evaluate((image: HTMLImageElement) => image.currentSrc);
+        expect(new URL(source).origin).toBe('http://127.0.0.1:4321');
+        expect((await image.boundingBox())!.width).toBeLessThanOrEqual(390);
+      }
     }
   });
 
