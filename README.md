@@ -180,15 +180,18 @@ VITE_ENABLE_MOCK_FALLBACK=false
 
 Use the correct public key type supported by your Supabase project and the application's current configuration. Do not put service-role keys, database passwords, or private AI API keys in frontend-exposed environment variables.
 
-### 4. Start the development server
+### 4. Open a local preview
 
-```bash
-npm run dev
-```
+On Windows, double-click a launcher in the Atlas OS repository folder.
 
-Open the local URL printed by Vite, usually:
+| Launcher | Opens |
+| --- | --- |
+| `preview-tool.cmd` | ERP at `http://127.0.0.1:5173/` |
+| `preview-website.cmd` | Marketing website at `http://127.0.0.1:4321/` |
 
-`http://localhost:5173`
+Keep the server windows open while you work. Both previews reload when you edit local files. Pull the latest changes in Git when you want updates from GitHub, then restart your preview. For a website release build, see the [website build instructions](atlas-os-website/README.md).
+
+On macOS or Linux, run `npm run dev` at the repository root for the ERP. Run `npm --prefix atlas-os-website run dev` for the website after installing its dependencies in that folder.
 
 ### Local development notes
 
