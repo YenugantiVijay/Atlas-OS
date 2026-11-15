@@ -34,7 +34,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                   <div id={key + '-nav'} data-mega-nav class="flex h-full items-center">
                     <button id={key + '-toggle'} data-mega-toggle type="button" aria-expanded="false" aria-controls={key + '-panel'}
                       class:list={[
-                        'flex items-center gap-1.5 rounded-lg px-1.5 py-2 text-xs font-medium xl:text-sm hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700 xl:px-3.5',
+                        'flex items-center gap-1.5 rounded-lg px-1.5 py-2 text-xs font-medium xl:text-sm hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700 xl:px-2.5',
                         active ? 'bg-brand-50 text-brand-700' : 'text-content-primary',
                       ]}>
                       {item.label}
@@ -73,7 +73,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                   <div class="relative group">
                     <button
                       type="button"
-                      class={`flex items-center gap-1.5 px-1.5 py-2 text-xs font-medium xl:text-sm rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer xl:px-3.5 ${
+                      class={`flex items-center gap-1.5 px-1.5 py-2 text-xs font-medium xl:text-sm rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer xl:px-2.5 ${
                         isActive
                           ? 'text-brand-700 bg-brand-50 font-semibold'
                           : 'text-content-primary hover:text-brand-600 hover:bg-surface-secondary'
@@ -114,7 +114,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
               return (
                 <a
                   href={item.href}
-                  class={`relative flex items-center gap-1.5 px-1.5 py-2 text-xs font-medium xl:text-sm rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 xl:px-3.5 ${
+                  class={`relative flex items-center gap-1.5 px-1.5 py-2 text-xs font-medium xl:text-sm rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 xl:px-2.5 ${
                     isActive
                       ? 'text-brand-700 bg-brand-50 font-semibold'
                       : 'text-content-primary hover:text-brand-600 hover:bg-surface-secondary'
