@@ -68,6 +68,9 @@ const TeamPage = React.lazy(() =>
 const StaffPaySetupPage = React.lazy(() =>
   import('@/features/team/StaffPaySetupPage').then((m) => ({ default: m.StaffPaySetupPage }))
 );
+const StaffAdvancesPage = React.lazy(() =>
+  import('@/features/team/StaffAdvancesPage').then((m) => ({ default: m.StaffAdvancesPage }))
+);
 const StaffAttendancePage = React.lazy(() =>
   import('@/features/team/StaffAttendancePage').then((m) => ({ default: m.StaffAttendancePage }))
 );
@@ -143,6 +146,7 @@ export const router = createHashRouter([
         ),
       },
       { path: 'team/staff', element: <RequirePermission action="members:manage"><StaffPaySetupPage /></RequirePermission> },
+      { path: 'team/advances', element: <RequirePermission action="members:manage"><StaffAdvancesPage /></RequirePermission> },
       { path: 'attendance', element: <StaffAttendancePage /> },
       {
         path: 'audit',

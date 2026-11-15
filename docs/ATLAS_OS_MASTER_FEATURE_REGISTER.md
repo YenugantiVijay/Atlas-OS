@@ -336,12 +336,14 @@ For every development task:
 
 | Next work | Audit finding to close |
 |---|---|
-| Staff administration | Cloud team invitations and same-date pay corrections have application and database support. Verify invitation email delivery and authenticated acceptance before building staff advances and deductions. |
+| Staff administration | Cloud team invitations, same-date pay corrections, and staff advances have application and database support. Verify live invitation email delivery. Payroll export, payout integration and reversals of posted pay records remain open. |
 | Auth and recovery | Review remaining privileged RPCs and leaked-password protection. Verify external Gmail OTP delivery, independent backup restoration and the hosted website. |
 | Accessibility | Fix shared contrast and label mismatches, then repeat the website, counter and receiving checks at mobile widths. |
 | Counter rollout | Verify authenticated checkout, receipt printing and drawer close in staging. Track walk-in checkout, separate simultaneous drawers and offline recovery in their own increments. |
 
 **Team invitations and pay corrections.** An owner can create or revoke a seven-day invitation. A matching verified account must accept before the workspace role is assigned. Link sharing works independently of invitation email. To enable email, deploy `send-team-invitation` and set the server-side `RESEND_API_KEY`, `TEAM_INVITE_FROM` for a verified sender, and `TEAM_INVITE_APP_URL` to the HTTPS ERP app URL. Account verification uses the existing Auth email-code flow. Staff rate history keeps the original version and records the corrected amount, reason, author and effective date.
+
+**Staff advances and monthly payday.** Staff & Pay Setup links to a private advance register. It supports an advance with one payday deduction, monthly installments, or direct repayment only. The pay review defaults to one scheduled installment, allows the operator to skip or include missed installments, and recalculates the net amount from the gross and recorded deductions. The owner records money paid or received. Posting uses an operator-entered wage basis and any lower recovery limit, with the server limiting total wage deductions to half of that wage basis. Pre-joining wage recovery starts no earlier than the first complete calendar wage month. Payroll configuration and legally required registers remain a release review item. [Code on Wages, sections 18 and 23](https://www.labour.gov.in/static/uploads/2025/06/c328da14bbb15fc4ad571dc33e7a4ab3.pdf)
 
 ## Follow-up register improvements (optional, not blockers)
 
