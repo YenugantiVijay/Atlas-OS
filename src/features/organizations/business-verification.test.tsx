@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -14,17 +15,20 @@ import { Organization, User } from '@/types';
 import { ToastProvider } from '@/components/ui/Toast';
 
 function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <ToastProvider>
-      <MemoryRouter>{ui}</MemoryRouter>
-    </ToastProvider>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>
   );
 }
 
 // Mock supabase client module
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    rpc: vi.fn(),
+    rpc: vi.fn().mockResolvedValue({ data: false, error: null }),
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
