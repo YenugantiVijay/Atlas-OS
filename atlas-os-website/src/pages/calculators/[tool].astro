@@ -1,0 +1,119 @@
+---
+import { ArrowUpRight, ChevronRight, Printer } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Container from '../../components/common/Container.astro';
+import { CALCULATORS } from '../../data/calculators';
+
+export function getStaticPaths() {
+  return CALCULATORS.flatMap(tool => 'fields' in tool ? [{ params: { tool: tool.id }, props: { tool } }] : []);
+}
+const { tool } = Astro.props;
+const worksheet = tool.id === 'eway-bill-template';
+const isGstin = tool.id === 'gstin-check';
+const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-white px-3 py-2 font-normal focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600';
+---
+<BaseLayout title={tool.label + ' | Atlas OS'} description={tool.description}>
+  <section class="bg-surface-secondary py-9 sm:py-14">
+    <Container size="wide">
+      <nav aria-label="Breadcrumb" class="mb-6 flex items-center gap-2 text-sm text-content-secondary" data-enter>
+        <a class="hover:underline" href="/calculators/">Atlas Calculators</a><ChevronRight size={15} aria-hidden="true" /><span aria-current="page">{tool.label}</span>
+      </nav>
+      <div class="mb-7 space-y-3" data-enter>
+        <span class="grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-700"><tool.Icon size={25} aria-hidden="true" /></span>
+        <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">{tool.label}</h1>
+        <p class="max-w-3xl text-base leading-relaxed text-content-secondary sm:text-lg">{tool.description}</p>
+      </div>
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]" data-enter data-delay="1">
+        <form id="business-tool" data-tool={tool.id} class="space-y-5 rounded-3xl border border-border bg-white p-5 shadow-sm sm:p-7">
+          <div class="grid gap-4 sm:grid-cols-2">
+            {tool.fields.map(({ name, label, example }) => (
+              <label class:list={['space-y-1 text-sm font-semibold', (isGstin || name === 'items') && 'sm:col-span-2']}>
+                <span>{label}</span>
+                {name === 'items'
+                  ? <textarea name={name} rows={4} maxlength="1200" class={inputStyle}></textarea>
+                  : <input name={name} type={name === 'date' ? 'date' : 'text'} inputmode={!isGstin && (!worksheet || name === 'distance') ? 'decimal' : undefined}
+                    class={inputStyle} value={example} required={!worksheet} maxlength={isGstin ? 25 : worksheet ? 240 : 16} />}
+              </label>
+            ))}
+          </div>
+          {worksheet ? <button type="button" id="print-worksheet" class="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-800">
+            <Printer size={17} aria-hidden="true" /> Print worksheet
+          </button> : <button type="submit" disabled class="rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50">{isGstin ? 'Check format' : 'Calculate'}</button>}
+          <p class="text-sm text-red-800" role="alert" id="business-tool-error" hidden></p>
+          <noscript><p class="text-sm text-content-secondary">Enable JavaScript to use this tool.</p></noscript>
+        </form>
+        <div class="space-y-4">
+          {!worksheet && <section class="rounded-3xl border border-brand-200 bg-brand-50 p-5 sm:p-7" aria-label="Calculator result">
+            <h2 class="font-heading text-xl font-bold">Result</h2>
+            <dl id="business-tool-results" aria-live="polite" aria-atomic="true" class="mt-4 space-y-3"></dl>
+          </section>}
+          <aside class="rounded-2xl border border-border bg-white p-5 text-sm leading-relaxed text-content-secondary">
+            <p>{tool.note}</p>
+            {'reference' in tool && <a href={tool.reference} class="mt-3 inline-flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">Official reference <ArrowUpRight size={15} aria-hidden="true" /></a>}
+          </aside>
+        </div>
+      </div>
+    </Container>
+  </section>
+  {worksheet && <section id="worksheet-print">
+    <h1>E-Way Bill Worksheet</h1>
+    <p>Working notes for use before generating the official e-way bill.</p>
+    <dl class="mt-4 space-y-3">{tool.fields.map(field => <div><dt class="font-semibold">{field.label}</dt><dd data-print-field={field.name} class="whitespace-pre-wrap break-words">—</dd></div>)}</dl>
+  </section>}
+</BaseLayout>
+
+<style is:global>
+  #worksheet-print { display: none; }
+  @media print {
+    body:has(#worksheet-print) header, body:has(#worksheet-print) footer,
+    body:has(#worksheet-print) main > :not(#worksheet-print) { display: none !important; }
+    #worksheet-print { display: block; padding: 1rem; }
+    #worksheet-print > dl > div { break-inside: avoid; }
+  }
+</style>
+<script>
+  import { calculateBusinessTool } from '../../scripts/business-calculators';
+
+  const form = document.querySelector<HTMLFormElement>('#business-tool');
+  const results = document.getElementById('business-tool-results');
+  const error = document.getElementById('business-tool-error');
+  if (form && results && error) {
+    const render = () => {
+      results.replaceChildren();
+      error.hidden = true;
+      try {
+        for (const [label, value] of calculateBusinessTool(form.dataset.tool ?? '', new FormData(form))) {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap items-center justify-between gap-x-3 text-sm';
+          const term = document.createElement('dt');
+          const detail = document.createElement('dd');
+          term.textContent = label;
+          detail.textContent = value;
+          detail.className = 'font-semibold text-brand-800';
+          row.append(term, detail);
+          results.append(row);
+        }
+      } catch (cause) {
+        error.textContent = cause instanceof Error ? cause.message : 'Check your inputs and try again.';
+        error.hidden = false;
+      }
+    };
+    form.addEventListener('submit', (event) => { event.preventDefault(); render(); });
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) submit.disabled = false;
+    if (form.dataset.tool === 'gstin-check') {
+      results.textContent = 'Enter the GSTIN and select Check format.';
+    } else {
+      render();
+    }
+  }
+  if (form?.dataset.tool === 'eway-bill-template') {
+    window.addEventListener('beforeprint', () => {
+      const data = new FormData(form);
+      document.querySelectorAll<HTMLElement>('[data-print-field]').forEach(field => {
+        field.textContent = String(data.get(field.dataset.printField ?? '') ?? '').trim() || '—';
+      });
+    });
+    document.getElementById('print-worksheet')?.addEventListener('click', () => window.print());
+  }
+</script>

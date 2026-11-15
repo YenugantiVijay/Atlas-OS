@@ -419,3 +419,50 @@ test('industry sections animate on entry and scroll while respecting reduced mot
   await expect(benefits).toHaveCSS('animation-name', 'none');
   await expect(page.getByRole('heading', { level: 1 })).toHaveCSS('animation-name', 'none');
 });
+
+test('Resources opens full width and Atlas Calculators has nine working destinations', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const header = page.locator('#site-header');
+  const resources = header.getByRole('button', { name: 'Resources', exact: true });
+  await resources.hover();
+  const panel = header.locator('#resources-panel');
+  await expect(panel.getByRole('heading', { name: 'Tools & templates' })).toBeVisible();
+  expect((await panel.boundingBox())?.width).toBe((await header.boundingBox())?.width);
+  await panel.getByRole('link', { name: 'Atlas Calculators' }).click();
+  await expect(page).toHaveURL(/\/calculators\/$/);
+  const paths = await page.locator('#calculators a').evaluateAll(links => links.map(link => link.getAttribute('href')));
+  expect(paths).toHaveLength(9);
+  for (const path of paths) {
+    expect((await page.goto(path!))?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  }
+});
+
+test('Resources opens on mobile and income tax estimates respect the new-regime rebate and relief', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open Navigation Menu' }).click();
+  const drawer = page.locator('#mobile-nav-menu');
+  await drawer.locator('summary').filter({ hasText: /^Resources$/ }).click();
+  await drawer.getByRole('link', { name: 'Atlas Calculators' }).click();
+  await page.locator('#calculators').getByRole('link', { name: /Income Tax Calculator/ }).click();
+  const results = page.getByRole('region', { name: 'Calculator result' });
+  await expect(results).toContainText('₹1,17,000.00');
+  await page.getByLabel('New regime taxable income (₹)').fill('1210000');
+  await page.getByRole('button', { name: 'Calculate', exact: true }).click();
+  await expect(results).toContainText('₹10,400.00');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+});
+
+test('the e-way bill worksheet prints the entered details as working notes', async ({ page }) => {
+  await page.goto('/calculators/eway-bill-template/');
+  await page.getByLabel('Invoice / challan number').fill('INV-42');
+  await page.getByLabel('Goods, HSN codes, quantities and values').fill('Sample shipment');
+  await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('beforeprint')); });
+  await page.getByRole('button', { name: 'Print worksheet' }).click();
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('#worksheet-print')).toContainText('INV-42');
+  await expect(page.locator('#worksheet-print')).toContainText('Sample shipment');
+  await expect(page.locator('#site-header')).toBeHidden();
+});
