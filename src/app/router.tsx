@@ -59,6 +59,9 @@ const AIPage = React.lazy(() =>
 const TeamPage = React.lazy(() =>
   import('@/features/team/TeamPage').then((m) => ({ default: m.TeamPage }))
 );
+const StaffPaySetupPage = React.lazy(() =>
+  import('@/features/team/StaffPaySetupPage').then((m) => ({ default: m.StaffPaySetupPage }))
+);
 const AuditPage = React.lazy(() =>
   import('@/features/audit/AuditPage').then((m) => ({ default: m.AuditPage }))
 );
@@ -125,6 +128,7 @@ export const router = createHashRouter([
           </RequirePermission>
         ),
       },
+      { path: 'team/staff', element: <RequirePermission action="members:manage"><StaffPaySetupPage /></RequirePermission> },
       {
         path: 'audit',
         element: (
