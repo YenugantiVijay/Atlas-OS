@@ -8,8 +8,8 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 ---
 
 <BaseLayout
-  title="Atlas OS — Run Your Business Without the Complications"
-  description="Manage inventory, sales orders, GST invoices, and customer payments in one workspace for shops, wholesalers, and distributors."
+  title="Atlas OS — Supplier Rate Review for Electrical Distributors"
+  description="Track supplier rate changes, review affected open quotations and estimated margin movement, and run inventory, GST invoicing, and receivables in one distributor-focused workspace."
 >
   {/* SECTION 1: HERO */}
   <section class="relative pt-12 pb-16 md:pt-18 md:pb-24 overflow-hidden bg-radial-glow border-b border-border/50">
@@ -25,12 +25,12 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 
         <!-- Main Headline -->
         <h1 data-enter data-delay="1" class="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-content-primary leading-[1.14]">
-          Run Your Business. <span class="text-gradient">Without the Complications.</span>
+          See Supplier Rate Changes. <span class="text-gradient">Review Quotes Before You Send.</span>
         </h1>
 
         <!-- Supporting Text -->
         <p data-enter data-delay="2" class="text-base sm:text-lg md:text-xl text-content-secondary leading-relaxed max-w-3xl font-normal">
-          Manage your stock, sales, invoices, and customer payments in one workspace for retail, wholesale, and distribution.
+          Record dated supplier quotes, surface affected open quotation lines, and review estimated margin movement—alongside stock, GST invoices, receivables, and payments.
         </p>
 
         <!-- Call to Action Buttons -->
@@ -65,7 +65,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
                 <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
               </svg>
             </span>
-            <span class="text-content-primary font-semibold">Live Stock Availability</span>
+            <span class="text-content-primary font-semibold">Movement-Backed Stock</span>
           </div>
           <div class="flex items-center gap-2">
             <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
@@ -73,7 +73,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
                 <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
               </svg>
             </span>
-            <span class="text-content-primary font-semibold">Clear GST Invoicing</span>
+            <span class="text-content-primary font-semibold">Quote-Linked Rate Review</span>
           </div>
           <div class="flex items-center gap-2">
             <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
@@ -81,7 +81,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
                 <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
               </svg>
             </span>
-            <span class="text-content-primary font-semibold">Instant Customer Balances</span>
+            <span class="text-content-primary font-semibold">Invoice-Linked Receivables</span>
           </div>
         </div>
       </div>
@@ -104,7 +104,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
           One Place for Your Daily Business
         </h2>
         <p class="text-base text-content-secondary leading-relaxed">
-          From incoming stock to customer payment reconciliation, every step connects seamlessly so you never lose track of money or materials.
+          Keep goods receipts, orders, invoices, and payment allocations connected, with a clear view of the records behind each balance.
         </p>
       </div>
 
@@ -218,6 +218,42 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
     </Container>
   </section>
 
+  {/* DISTRIBUTOR DIFFERENTIATOR */}
+  <section class="py-16 md:py-20 bg-navy-900 text-white border-b border-border">
+    <Container size="default">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+        <div class="space-y-4">
+          <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/10 text-white">
+            A distributor-specific workflow
+          </span>
+          <h2 class="text-3xl sm:text-4xl font-extrabold font-heading">
+            A supplier rate change shouldn’t blindside an open quote.
+          </h2>
+          <p class="text-sm sm:text-base text-white/80 leading-relaxed">
+            Record dated supplier prices and goods-receipt costs. Atlas surfaces open quotation lines affected by a rate increase and shows estimated margin movement before GST for a person to review.
+          </p>
+          <p class="text-xs text-white/70">
+            Cloud workflow for permitted roles. Quotes are not silently repriced.
+          </p>
+          <Button href="/features#supplier-rate-review" variant="outline" size="md" class="font-semibold border-white/40 text-white hover:bg-white/10">
+            <span>Explore Supplier Rate Review</span>
+          </Button>
+        </div>
+        <ol class="space-y-3 text-sm">
+          <li class="rounded-xl border border-white/15 bg-white/5 p-4">
+            <span class="mr-2 font-bold text-white">01</span> Record a dated supplier quote or posted-receipt cost.
+          </li>
+          <li class="rounded-xl border border-white/15 bg-white/5 p-4">
+            <span class="mr-2 font-bold text-white">02</span> Find affected open quotation lines and estimated margin changes.
+          </li>
+          <li class="rounded-xl border border-white/15 bg-white/5 p-4">
+            <span class="mr-2 font-bold text-white">03</span> Request or record a review before responding to the customer.
+          </li>
+        </ol>
+      </div>
+    </Container>
+  </section>
+
   {/* SECTION 3: PRODUCT SHOWCASE — SHOW THE REAL TOOL */}
   <section class="py-16 md:py-24 bg-white border-b border-border">
     <Container size="default">
@@ -277,7 +313,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
               <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-mint-100 text-mint-700">
                 Inventory
               </span>
-              <span class="text-[11px] text-content-muted font-mono">Real-Time</span>
+              <span class="text-[11px] text-content-muted font-mono">Movement Ledger</span>
             </div>
             <h3 class="text-lg font-bold font-heading text-content-primary">Keep Your Stock Accurate</h3>
             <p class="text-sm text-content-secondary leading-relaxed">
@@ -287,7 +323,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
           <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">
             <li class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
-              <span>Available vs. committed quantity verification</span>
+              <span>On-hand balances derived from stock movements</span>
             </li>
             <li class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 rounded-full bg-mint-600"></span>
@@ -411,7 +447,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
             </div>
             <h3 class="text-lg font-bold font-heading text-content-primary">One-Click Financial Reports</h3>
             <p class="text-sm text-content-secondary leading-relaxed">
-              Export comprehensive, multi-sheet Microsoft Excel workbooks for any statutory Indian Financial Year or calendar month in seconds.
+              Export multi-sheet Microsoft Excel workbooks for a statutory Indian Financial Year or calendar month, with data completeness checks.
             </p>
           </div>
           <ul class="space-y-1.5 pt-3 border-t border-border/50 text-xs text-content-primary">

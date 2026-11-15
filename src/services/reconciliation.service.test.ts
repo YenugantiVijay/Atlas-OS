@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { reconciliationService, METRIC_DEFINITIONS } from './reconciliation.service';
 import { storage } from '@/lib/storage';
 
@@ -70,6 +70,53 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
     expect(recon.asOf).toBeDefined();
     expect(recon.totalAllocated).toBe(5000);
     expect(recon.receiptIssueCount).toBe(0);
+  });
+
+  it('flags an invoice when its paid total differs from its payment allocations', async () => {
+    const customer = storage.createCustomer(orgA, {
+      name: 'Allocation Check',
+      phone: '9988112234',
+      billingAddress: 'Tirupati, AP',
+      creditLimit: 100000,
+      creditDays: 30,
+      isActive: true,
+    });
+    const invoice = storage.createInvoice(orgA, {
+      customerId: customer.id,
+      invoiceDate: '2026-11-01',
+      dueDate: '2026-11-30',
+      items: [{
+        productId: 'prod-2',
+        productName: 'Switch',
+        productSku: 'S-01',
+        uom: 'Nos',
+        quantity: 10,
+        unitPrice: 1000,
+        discountPercent: 0,
+        taxRate: 18,
+      }],
+    });
+    storage.recordPayment(orgA, {
+      customerId: customer.id,
+      invoiceId: invoice.id,
+      amount: 5000,
+      paymentMethod: 'UPI',
+      paymentDate: '2026-11-05',
+    }, 'accounts');
+
+    const allocations = JSON.parse(localStorage.getItem('atlas_payment_allocations_v1') || '[]');
+    const allocation = allocations.find((item: { invoiceId: string }) => item.invoiceId === invoice.id);
+    allocation.amountAllocated = 4000;
+    localStorage.setItem('atlas_payment_allocations_v1', JSON.stringify(allocations));
+
+    const recon = await reconciliationService.reconcileFinancials(orgA, true);
+
+    expect(recon.discrepancyCount).toBe(1);
+    expect(recon.varianceAmount).toBe(1000);
+    expect(recon.discrepancies).toHaveLength(1);
+    expect(recon.discrepancies[0].totalPaid).toBe(5000);
+    expect(recon.discrepancies[0].allocated).toBe(4000);
+    expect(recon.discrepancies[0].variance).toBe(1000);
   });
 
   it('preserves strict tenant isolation: never mixes records across organizations', async () => {
@@ -169,5 +216,28 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
     const recon2 = await reconciliationService.getStockLedgerSummary(orgA, true);
     expect(recon2.catalogCostValue).toBe(1900);
     expect(storage.getProductById(orgA, product.id)?.currentStock).toBe(95);
+  });
+
+  it('refuses to report inventory verified when an authoritative stock balance is missing', async () => {
+    const product = storage.createProduct(orgA, {
+      name: 'Missing Balance Product',
+      sku: 'MISSING-BALANCE',
+      category: 'Switches',
+      uom: 'Nos',
+      purchaseCost: 20,
+      sellingPrice: 35,
+      taxRate: 18,
+      reorderThreshold: 10,
+      isActive: true,
+    }, 10);
+    const getProducts = vi.spyOn(storage, 'getProducts')
+      .mockReturnValue([{ ...product, currentStock: undefined }]);
+
+    try {
+      await expect(reconciliationService.getStockLedgerSummary(orgA, true))
+        .rejects.toThrow(/Authoritative stock balance is unavailable/);
+    } finally {
+      getProducts.mockRestore();
+    }
   });
 });

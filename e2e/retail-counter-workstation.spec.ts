@@ -7,15 +7,17 @@ test.describe('PR #53 — Retail Counter billing workstation', () => {
     await expect(page.getByRole('heading', { name: 'Retail Counter' })).toBeVisible();
   });
 
-  test('shows compact invoice-style worksheet without unsafe billing actions', async ({ page }) => {
+  test('gates paid checkout until a shift is open and a customer is selected', async ({ page }) => {
     const worksheet = page.getByRole('region', { name: 'Scroll billing line items' });
     await expect(worksheet).toBeVisible();
     const headings = ['Sl.', 'Product / SKU', 'HSN', 'Qty', 'Unit', 'Rate', 'Disc %', 'GST %', 'Line total', 'Stock*'];
     for (const heading of headings) {
       await expect(worksheet.getByRole('columnheader', { name: heading })).toBeVisible();
     }
-    await expect(page.getByText(/Draft-only foundation:/)).toBeVisible();
+    await expect(page.getByText(/Draft vs\. paid sale:/)).toBeVisible();
+    await expect(page.getByText(/Open a counter shift before completing a paid sale/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save draft sales order' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Complete paid sale' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Generate Invoice' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Collect Payment' })).toHaveCount(0);
   });

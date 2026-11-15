@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMetricNumber } from './dashboard.service';
+import { mapDashboardLowStockProduct, parseMetricNumber } from './dashboard.service';
 import { paginateArray } from '@/lib/pagination';
 import { Invoice } from '@/types';
 import { calculateInvoiceBalance } from '@/lib/money';
@@ -17,6 +17,28 @@ describe('Phase A2.2 Final Hardening — Financial Metrics, Pagination & Reconci
       expect(parseMetricNumber(-0, 'sales')).toBe(0);
     });
 
+    describe('Authoritative low-stock preview mapping', () => {
+      const item = {
+        id: 'product-1',
+        sku: 'WIRE-1',
+        name: 'Electrical Wire',
+        purchaseCost: 120,
+        reorderThreshold: 5,
+        currentStock: 0,
+      };
+
+      it('preserves a real zero stock balance', () => {
+        expect(mapDashboardLowStockProduct(item, 'org-1', 0).currentStock).toBe(0);
+      });
+
+      it('rejects a missing stock balance rather than silently displaying zero', () => {
+        const incomplete: Record<string, unknown> = { ...item };
+        delete incomplete.currentStock;
+        expect(() => mapDashboardLowStockProduct(incomplete, 'org-1', 0))
+          .toThrow(/low_stock_preview\[0\]\.currentStock/);
+      });
+    });
+
     it('parses valid positive numbers and numeric strings accurately', () => {
       expect(parseMetricNumber(12500.5, 'sales')).toBe(12500.5);
       expect(parseMetricNumber('45000.75', 'sales')).toBe(45000.75);
@@ -26,70 +48,70 @@ describe('Phase A2.2 Final Hardening — Financial Metrics, Pagination & Reconci
 
     it('throws explicit TypeError when required metric is null', () => {
       expect(() => parseMetricNumber(null, 'today_sales')).toThrow(
-        "Missing required financial metric 'today_sales': value is null."
+        "Missing required metric 'today_sales': value is null."
       );
     });
 
     it('throws explicit TypeError when required metric is undefined', () => {
       expect(() => parseMetricNumber(undefined, 'total_receivables')).toThrow(
-        "Missing required financial metric 'total_receivables': value is undefined."
+        "Missing required metric 'total_receivables': value is undefined."
       );
     });
 
     it('throws explicit TypeError when value is NaN', () => {
       expect(() => parseMetricNumber(NaN, 'orders_count')).toThrow(
-        "Invalid financial metric 'orders_count': value is NaN."
+        "Invalid metric 'orders_count': value is NaN."
       );
       expect(() => parseMetricNumber(Number('invalid'), 'orders_count')).toThrow(
-        "Invalid financial metric 'orders_count': value is NaN."
+        "Invalid metric 'orders_count': value is NaN."
       );
     });
 
     it('throws explicit TypeError when value is Infinity or -Infinity', () => {
       expect(() => parseMetricNumber(Infinity, 'total_stock_value')).toThrow(
-        "Invalid financial metric 'total_stock_value': value is non-finite (Infinity)."
+        "Invalid metric 'total_stock_value': value is non-finite (Infinity)."
       );
       expect(() => parseMetricNumber(-Infinity, 'total_stock_value')).toThrow(
-        "Invalid financial metric 'total_stock_value': value is non-finite (-Infinity)."
+        "Invalid metric 'total_stock_value': value is non-finite (-Infinity)."
       );
     });
 
     it('throws explicit TypeError when string is empty or whitespace', () => {
       expect(() => parseMetricNumber('', 'today_sales')).toThrow(
-        "Missing required financial metric 'today_sales': string is empty or whitespace."
+        "Missing required metric 'today_sales': string is empty or whitespace."
       );
       expect(() => parseMetricNumber('   ', 'today_sales')).toThrow(
-        "Missing required financial metric 'today_sales': string is empty or whitespace."
+        "Missing required metric 'today_sales': string is empty or whitespace."
       );
     });
 
     it('throws explicit TypeError when string has invalid numeric format', () => {
       expect(() => parseMetricNumber('not-a-number', 'today_sales')).toThrow(
-        "Invalid financial metric 'today_sales': 'not-a-number' is not a valid number."
+        "Invalid metric 'today_sales': 'not-a-number' is not a valid number."
       );
       expect(() => parseMetricNumber('12.34.56', 'today_sales')).toThrow(
-        "Invalid financial metric 'today_sales': '12.34.56' is not a valid number."
+        "Invalid metric 'today_sales': '12.34.56' is not a valid number."
       );
     });
 
     it('throws explicit TypeError when value has unexpected type (boolean, object, array)', () => {
       expect(() => parseMetricNumber(true, 'today_sales')).toThrow(
-        "Invalid financial metric 'today_sales': unexpected type 'boolean'."
+        "Invalid metric 'today_sales': unexpected type 'boolean'."
       );
       expect(() => parseMetricNumber({}, 'today_sales')).toThrow(
-        "Invalid financial metric 'today_sales': unexpected type 'object'."
+        "Invalid metric 'today_sales': unexpected type 'object'."
       );
       expect(() => parseMetricNumber([], 'today_sales')).toThrow(
-        "Invalid financial metric 'today_sales': unexpected type 'object'."
+        "Invalid metric 'today_sales': unexpected type 'object'."
       );
     });
 
     it('throws RangeError when metric is negative and negative values are disallowed', () => {
       expect(() => parseMetricNumber(-50, 'total_receivables')).toThrow(
-        "Financial metric 'total_receivables' cannot be negative (-50)."
+        "Metric 'total_receivables' cannot be negative (-50)."
       );
       expect(() => parseMetricNumber('-0.01', 'today_sales')).toThrow(
-        "Financial metric 'today_sales' cannot be negative (-0.01)."
+        "Metric 'today_sales' cannot be negative (-0.01)."
       );
       // When allowNegative is explicitly permitted:
       expect(parseMetricNumber(-50, 'balance_adjustment', { allowNegative: true })).toBe(-50);

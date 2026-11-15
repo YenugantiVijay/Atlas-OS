@@ -46,8 +46,12 @@ test('homepage is the original Astro experience, not the temporary HTML replica'
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /Run Your Business.*Without the Complications/i,
+    level: 1, name: /See Supplier Rate Changes.*Review Quotes Before You Send/i,
   })).toBeVisible();
+  await expect(page.getByRole('heading', {
+    level: 2, name: /supplier rate change/i,
+  })).toBeVisible();
+  await expect(page.getByText('Quotes are not silently repriced.', { exact: false })).toBeVisible();
   await expect(page.locator('.capability-orbit')).toBeVisible();
   await expect(page.locator('.capability-orbit .orbit-chip')).toHaveCount(6);
   await expect(page.getByText('Connected Business Workflow', { exact: true })).toBeVisible();
@@ -63,6 +67,20 @@ test('interactive product preview really hydrates and changes content', async ({
   await expect(page.getByText('Statutory Tax Invoice Details', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Multi-UOM Inventory' }).click();
   await expect(page.getByText('Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
+});
+
+test('feature and security pages state the distributor advantage and deployment limits', async ({ page }) => {
+  await page.goto('/features');
+  await expect(page.getByRole('heading', {
+    level: 2, name: 'Supplier Rate History & Quote Review',
+  })).toBeVisible();
+  await expect(page.getByText(/does not silently reprice quotations/i)).toBeVisible();
+
+  await page.goto('/security');
+  await expect(page.getByRole('heading', {
+    level: 1, name: /Security controls, clearly scoped/i,
+  })).toBeVisible();
+  await expect(page.getByText(/test a restore before relying on them for production/i)).toBeVisible();
 });
 
 test('homepage CTAs navigate to the actual Astro pages', async ({ page }) => {

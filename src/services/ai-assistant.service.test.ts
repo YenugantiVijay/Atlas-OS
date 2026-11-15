@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { storage } from '@/lib/storage';
 import { aiAssistantService, ConsequentialWriteProposal } from './ai-assistant.service';
+import { reconciliationService } from './reconciliation.service';
 
 describe('Area 5: Evidence-Grounded AI Assistance', () => {
   const org1 = 'org-ai-tenant-01';
@@ -95,6 +96,18 @@ describe('Area 5: Evidence-Grounded AI Assistance', () => {
     expect(res.calculations).toBeDefined();
     expect(res.calculations?.[0].formula).toContain('SUM(MAX(ledger_quantity, 0) × catalog_purchase_cost)');
     expect(res.citations[0].url).toContain('/products?search=CALC-PROD-01');
+  });
+
+  it('does not answer stock questions with a fabricated zero when authoritative stock is missing', async () => {
+    const getStockSummary = vi.spyOn(reconciliationService, 'getStockLedgerSummary')
+      .mockRejectedValue(new Error('Authoritative stock balance is unavailable for product MISSING-STOCK.'));
+
+    try {
+      await expect(aiAssistantService.processQuery(org1, 'owner', 'What stock is low?', false))
+        .rejects.toThrow(/Authoritative stock balance is unavailable/);
+    } finally {
+      getStockSummary.mockRestore();
+    }
   });
 
   it('enforces role checks and requires explicit user confirmation before consequential writes', async () => {

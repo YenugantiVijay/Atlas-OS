@@ -10,7 +10,7 @@ export interface ParseMetricOptions {
 }
 
 /**
- * Validates and parses an authoritative financial metric value.
+ * Validates and parses an authoritative numeric metric value.
  * Strictly preserves valid 0 while explicitly rejecting null, undefined, NaN,
  * Infinity, empty/whitespace strings, and invalid financial values with descriptive errors.
  */
@@ -20,43 +20,72 @@ export function parseMetricNumber(
   options?: ParseMetricOptions
 ): number {
   if (val === null) {
-    throw new TypeError(`Missing required financial metric '${metricName}': value is null.`);
+    throw new TypeError(`Missing required metric '${metricName}': value is null.`);
   }
   if (val === undefined) {
-    throw new TypeError(`Missing required financial metric '${metricName}': value is undefined.`);
+    throw new TypeError(`Missing required metric '${metricName}': value is undefined.`);
   }
 
   let num: number;
 
   if (typeof val === 'number') {
     if (Number.isNaN(val)) {
-      throw new TypeError(`Invalid financial metric '${metricName}': value is NaN.`);
+      throw new TypeError(`Invalid metric '${metricName}': value is NaN.`);
     }
     if (!Number.isFinite(val)) {
-      throw new TypeError(`Invalid financial metric '${metricName}': value is non-finite (${val}).`);
+      throw new TypeError(`Invalid metric '${metricName}': value is non-finite (${val}).`);
     }
     num = val;
   } else if (typeof val === 'string') {
     const trimmed = val.trim();
     if (trimmed === '') {
-      throw new TypeError(`Missing required financial metric '${metricName}': string is empty or whitespace.`);
+      throw new TypeError(`Missing required metric '${metricName}': string is empty or whitespace.`);
     }
     num = Number(trimmed);
     if (Number.isNaN(num)) {
-      throw new TypeError(`Invalid financial metric '${metricName}': '${val}' is not a valid number.`);
+      throw new TypeError(`Invalid metric '${metricName}': '${val}' is not a valid number.`);
     }
     if (!Number.isFinite(num)) {
-      throw new TypeError(`Invalid financial metric '${metricName}': value is non-finite (${val}).`);
+      throw new TypeError(`Invalid metric '${metricName}': value is non-finite (${val}).`);
     }
   } else {
-    throw new TypeError(`Invalid financial metric '${metricName}': unexpected type '${typeof val}'.`);
+    throw new TypeError(`Invalid metric '${metricName}': unexpected type '${typeof val}'.`);
   }
 
   if (num < 0 && !options?.allowNegative) {
-    throw new RangeError(`Financial metric '${metricName}' cannot be negative (${num}).`);
+    throw new RangeError(`Metric '${metricName}' cannot be negative (${num}).`);
   }
 
   return Object.is(num, -0) ? 0 : num;
+}
+
+export function mapDashboardLowStockProduct(raw: unknown, orgId: string, index: number): Product {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new TypeError(`Invalid low-stock preview item at index ${index}.`);
+  }
+  const item = raw as Record<string, unknown>;
+
+  return {
+    id: String(item.id || ''),
+    organizationId: orgId,
+    sku: String(item.sku || ''),
+    name: String(item.name || ''),
+    brand: item.brand ? String(item.brand) : undefined,
+    category: String(item.category || 'General'),
+    uom: (item.uom as Product['uom']) || 'Nos',
+    purchaseCost: parseMetricNumber(item.purchaseCost, `low_stock_preview[${index}].purchaseCost`),
+    sellingPrice: 0,
+    taxRate: 18,
+    reorderThreshold: parseMetricNumber(item.reorderThreshold, `low_stock_preview[${index}].reorderThreshold`),
+    currentStock: parseMetricNumber(
+      item.currentStock,
+      `low_stock_preview[${index}].currentStock`,
+      { allowNegative: true }
+    ),
+    isActive: item.isActive !== false,
+    createdAt: '',
+    updatedAt: '',
+  };
 }
 
 export const dashboardService = {
@@ -123,24 +152,12 @@ export const dashboardService = {
     });
 
     // 3. Map bounded low-stock preview directly from PostgreSQL aggregation
-    const rawPreview = Array.isArray(dbMetrics.low_stock_preview) ? dbMetrics.low_stock_preview : [];
-    const lowStockProducts: Product[] = rawPreview.map((item: Record<string, unknown>) => ({
-      id: String(item.id || ''),
-      organizationId: orgId,
-      sku: String(item.sku || ''),
-      name: String(item.name || ''),
-      brand: item.brand ? String(item.brand) : undefined,
-      category: String(item.category || 'General'),
-      uom: (item.uom as Product['uom']) || 'Nos',
-      purchaseCost: Number(item.purchaseCost) || 0,
-      sellingPrice: 0,
-      taxRate: 18,
-      reorderThreshold: Number(item.reorderThreshold) || 0,
-      currentStock: Number(item.currentStock) || 0,
-      isActive: item.isActive !== false,
-      createdAt: '',
-      updatedAt: '',
-    }));
+    const rawPreview: unknown[] = Array.isArray(dbMetrics.low_stock_preview)
+      ? dbMetrics.low_stock_preview
+      : [];
+    const lowStockProducts = rawPreview.map((item, index) =>
+      mapDashboardLowStockProduct(item, orgId, index)
+    );
 
     return {
       todaySales: parseMetricNumber(dbMetrics.today_sales, 'today_sales'),

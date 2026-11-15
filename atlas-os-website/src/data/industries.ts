@@ -15,14 +15,14 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
     ],
     howAtlasSolves: [
       'Native physical Unit of Measure (UOM) support including Coils, Bundles, and Meters.',
-      'Real-time contractor credit limit checking during sales order confirmation.',
+      'Contractor credit-limit checks during sales order confirmation.',
       'Multi-invoice payment settlement allocation with exact cross-period tracking.',
       'One-click statutory GST Excel reporting with immutable tax snapshots.',
     ],
     workflowHighlights: [
-      { step: '1. Fast Order Entry', description: 'Search Polycab, Havells, or Schneider SKUs by rating or brand in milliseconds.' },
+      { step: '1. Fast Order Entry', description: 'Search Polycab, Havells, or Schneider SKUs by rating or brand.' },
       { step: '2. Credit Pre-Flight', description: 'System checks contractor outstanding balance before confirming delivery.' },
-      { step: '3. Statutory Invoice', description: 'Instant commercial tax invoice with verified Place of Supply and GST breakdown.' },
+      { step: '3. Statutory Invoice', description: 'Commercial tax invoice with verified Place of Supply and GST breakdown.' },
       { step: '4. RTGS Allocation', description: 'Post customer bank receipt and settle against specific unpaid project invoices.' },
     ],
   },
@@ -31,7 +31,7 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
     title: 'Electronics & Component Wholesalers',
     badge: 'High Precision',
     tagline: 'Streamlined stock, high-velocity order entry, and accurate tax calculation.',
-    description: 'Electronics distributors manage high SKU counts, brand-specific distribution authorizations, delicate inventory batches, and rapid trade discount adjustments.',
+    description: 'Electronics distributors manage high SKU counts, brand-specific distribution authorizations, product variants, and rapid trade discount adjustments.',
     commonChallenges: [
       'Accidental overselling of low-stock microcontrollers, sensors, and power supplies.',
       'Complex mixed trade discounts across different brand product categories.',
@@ -39,16 +39,16 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
       'Slow legacy ERP screens requiring dozens of keypresses for basic order entry.',
     ],
     howAtlasSolves: [
-      'Real-time available vs. committed stock levels updated on every order confirmation.',
+      'On-hand balances derived from stock movements, with clear manual adjustment records.',
       'Item-level and document-level discount distributions calculated transparently.',
       'Audited stock movements with mandatory reference notes for all inventory adjustments.',
       'Modern, keyboard-accessible command interface for rapid product and customer lookups.',
     ],
     workflowHighlights: [
-      { step: '1. Live Catalog', description: 'Instant product search across active component lines.' },
-      { step: '2. Quantity Allocation', description: 'Reserve stock for confirmed orders to eliminate stock-outs.' },
+      { step: '1. Active Catalog', description: 'Product search across active component lines.' },
+      { step: '2. Quantity Allocation', description: 'Review recorded on-hand balances while preparing confirmed orders.' },
       { step: '3. Transparent Invoicing', description: 'Automated discount share calculations per line item.' },
-      { step: '4. Financial Visibility', description: 'Dashboard updates real-time daily turnover and receivable aging.' },
+      { step: '4. Financial Visibility', description: 'Review daily turnover and receivable aging on the dashboard.' },
     ],
   },
   {

@@ -16,7 +16,7 @@ import {
 
 <BaseLayout 
   title="Security, Privacy & Data Architecture | Atlas OS"
-  description="Explore the technical security controls, multi-tenant isolation, PostgreSQL Row-Level Security, and cryptographic protections engineered into Atlas OS."
+  description="Review Atlas OS PostgreSQL Row-Level Security and role-based controls, plus the hosted configuration that must be verified for each deployment."
   canonicalUrl="https://atlasos.business/security"
 >
   <!-- Hero Section -->
@@ -28,10 +28,10 @@ import {
           Technical Security Architecture
         </span>
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-primary tracking-tight font-heading leading-tight">
-          Enterprise-grade protection for <span class="text-gradient">every business transaction</span>.
+          Security controls, <span class="text-gradient">clearly scoped</span>.
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          Your customer lists, purchase margins, bank receipts, and inventory records are safeguarded by cryptographic authentication, strict multi-tenant database isolation, and rigorous code audit standards.
+          Atlas OS uses organization-scoped database policies and role-aware application workflows. Hosted function privileges, credential protections, and recovery settings vary by environment and must be reviewed before production use.
         </p>
       </div>
     </Container>
@@ -48,7 +48,7 @@ import {
           How Atlas OS protects your enterprise data
         </h2>
         <p class="text-content-secondary text-sm sm:text-base">
-          We implement defense-in-depth across the application, database, and export layers.
+          Product controls are only one part of security; hosting configuration and operational verification matter too.
         </p>
       </div>
 
@@ -60,10 +60,10 @@ import {
           </div>
           <h3 class="text-xl font-bold text-content-primary font-heading">PostgreSQL Row-Level Security</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed mb-4">
-            Multi-tenant boundary enforcement is hardwired directly into the database engine. Every single SQL query executes with authenticated tenant context:
+            Database migrations define organization-scoped Row-Level Security policies. Review the deployed policies and elevated database functions for your project; this page is not a production configuration attestation.
           </p>
           <div class="bg-surface-dark rounded-xl p-3 font-mono text-xs text-brand-300 border border-navy-700">
-            <code>WHERE organization_id = auth.uid()</code>
+            <code>organization membership + row policy</code>
           </div>
         </div>
 
@@ -74,7 +74,7 @@ import {
           </div>
           <h3 class="text-xl font-bold text-content-primary font-heading">6-Tier Granular RBAC</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-            Strict role-based access control segregates operations. Counter cashiers cannot view supplier purchase costs; inventory clerks cannot alter customer balances; only designated financial officers can approve write-offs.
+            The app maps owner, admin, sales, inventory, accounts, and viewer roles to different actions. Application permissions are not a substitute for checking database function privileges and policies.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ import {
           </div>
           <h3 class="text-xl font-bold text-content-primary font-heading">Spreadsheet Formula Sanitization</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-            All customer names, product descriptions, and remarks exported to Excel/CSV are sanitized against CSV Injection (Formula Injection). Characters like <code>=</code>, <code>+</code>, <code>-</code>, and <code>@</code> are safely escaped.
+            Supported spreadsheet exports sanitize formula-leading values. Review custom export paths whenever new fields or formats are added.
           </p>
         </div>
 
@@ -94,9 +94,9 @@ import {
           <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-content-primary font-heading">Cryptographic Encryption</h3>
+          <h3 class="text-xl font-bold text-content-primary font-heading">Transport & Storage Encryption</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-            All communications are encrypted using TLS 1.3 in transit with strict HTTPS redirection and HSTS headers. Database storage volumes and automatic snapshots are protected using AES-256 encryption at rest.
+            Public website delivery uses HTTPS. TLS versions, database storage encryption, and snapshot protections depend on the selected hosting plans and must be confirmed in deployment settings.
           </p>
         </div>
 
@@ -105,9 +105,9 @@ import {
           <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-4">
             <FileCheck2 className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-content-primary font-heading">Immutable Financial Audit Logs</h3>
+          <h3 class="text-xl font-bold text-content-primary font-heading">Business Audit Events</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-            Every finalized invoice, partial payment allocation, and inventory adjustment creates an append-only transaction record. Financial records cannot be secretly deleted or altered retroactively.
+            Audit events are recorded for supported actions. Coverage, retention, and tamper resistance depend on the workflow and deployed database policies; not every record is an immutable ledger.
           </p>
         </div>
 
@@ -116,9 +116,9 @@ import {
           <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-700 flex items-center justify-center mb-4">
             <Server className="w-6 h-6" />
           </div>
-          <h3 class="text-xl font-bold text-content-primary font-heading">Continuous Cloud Backup</h3>
+          <h3 class="text-xl font-bold text-content-primary font-heading">Backup & Recovery Readiness</h3>
           <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-            Never risk losing your enterprise books to a damaged hard drive or stolen laptop. Atlas OS databases feature automated Point-in-Time Recovery (PITR) with continuous transactional write-ahead log archiving.
+            Backup retention and point-in-time recovery depend on the hosted database plan and configuration. Confirm recovery settings and test a restore before relying on them for production.
           </p>
         </div>
       </div>
@@ -133,10 +133,10 @@ import {
           Access Governance
         </span>
         <h2 class="text-3xl sm:text-4xl font-extrabold text-content-primary font-heading">
-          Granular Permission Roles Matrix
+          Application Permission Roles
         </h2>
         <p class="text-content-secondary text-sm sm:text-base">
-          Configure exact operational boundaries for every employee in your organization.
+          Summary of the app's role permissions. Hosted database policies and function privileges require separate verification.
         </p>
       </div>
 
@@ -145,61 +145,61 @@ import {
           <thead>
             <tr class="bg-surface-secondary border-b border-border">
               <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Role</th>
-              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Point of Sale / Billing</th>
-              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Customer Balances</th>
-              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Inventory Stock In</th>
-              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Supplier Costs</th>
-              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Financial Exports</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Inventory Writes</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Supplier Price Access</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Quotes & Orders</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Invoices & Payments</th>
+              <th class="p-4 sm:p-5 font-bold font-heading text-content-primary">Financial Reports</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">Owner / Director</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Owner</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Manage</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Read / Record</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Confirm</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Issue / Record</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Yes</td>
             </tr>
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">General Manager</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Admin</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Manage</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Read / Record</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Confirm</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Issue / Record</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Yes</td>
             </tr>
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">Accountant</td>
-              <td class="p-4 sm:p-5 text-content-secondary">Read-Only</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Reconcile / Edit</td>
-              <td class="p-4 sm:p-5 text-content-secondary">Read-Only</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">View / Verify</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Full Access</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Sales</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Confirm</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
             </tr>
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">Counter Cashier</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create Invoices</td>
-              <td class="p-4 sm:p-5 text-content-secondary">View Due Only</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Inventory</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Manage</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Read / Record</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
             </tr>
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">Warehouse Clerk</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Record GRN</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Accounts</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-content-secondary">Read</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Create / Issue / Record</td>
+              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Yes</td>
             </tr>
             <tr class="hover:bg-slate-50 transition-colors">
-              <td class="p-4 sm:p-5 font-bold text-content-primary">Sales Representative</td>
-              <td class="p-4 sm:p-5 text-emerald-600 font-semibold">Draft Estimates</td>
-              <td class="p-4 sm:p-5 text-content-secondary">Assigned Accounts</td>
-              <td class="p-4 sm:p-5 text-content-secondary">Stock Availability</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted (Hidden)</td>
-              <td class="p-4 sm:p-5 text-rose-500 font-semibold">Restricted</td>
+              <td class="p-4 sm:p-5 font-bold text-content-primary">Viewer</td>
+              <td class="p-4 sm:p-5 text-content-secondary">No write</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
+              <td class="p-4 sm:p-5 text-content-secondary">No write</td>
+              <td class="p-4 sm:p-5 text-content-secondary">No write</td>
+              <td class="p-4 sm:p-5 text-rose-500 font-semibold">No</td>
             </tr>
           </tbody>
         </table>
@@ -212,10 +212,10 @@ import {
     <Container>
       <div class="max-w-3xl mx-auto text-center space-y-6">
         <h2 class="text-2xl sm:text-3xl font-bold font-heading text-content-primary">
-          Experience secure, reliable business operations
+          Review your deployment's security and recovery setup
         </h2>
         <p class="text-content-secondary text-sm sm:text-base">
-          Schedule a personalized live demo or speak with our product architects today.
+          Schedule a demo to review the product controls and discuss hosted-environment requirements.
         </p>
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Button href="/request-demo" variant="primary" size="lg" class="font-bold">
@@ -223,7 +223,7 @@ import {
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
           <Button href="/contact" variant="outline" size="lg" class="font-semibold">
-            <span>Contact Security Desk</span>
+            <span>Contact Atlas OS</span>
           </Button>
         </div>
       </div>

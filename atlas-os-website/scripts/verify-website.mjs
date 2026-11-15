@@ -8,7 +8,7 @@ const distDir = path.resolve(__dirname, '../dist');
 console.log('--- Starting Atlas OS Website Static Verification ---');
 
 const expectedRoutes = [
-  { path: 'index.html', titleKeyword: 'Atlas OS', descKeyword: 'Distributors' },
+  { path: 'index.html', titleKeyword: 'Atlas OS', descKeyword: 'distributor-focused' },
   { path: 'product/index.html', titleKeyword: 'Product Overview', descKeyword: 'Atlas OS' },
   { path: 'features/index.html', titleKeyword: 'Features', descKeyword: 'capabilities' },
   { path: 'solutions/index.html', titleKeyword: 'Industry Solutions', descKeyword: 'Wholesale' },
@@ -170,7 +170,8 @@ if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
     [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
     [generated.includes('capability-orbit'), 'Built homepage contains original orbit layout'],
     [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
-    [generated.includes('Without the Complications.'), 'Built homepage retains original hero'],
+    [generated.includes('See Supplier Rate Changes.'), 'Built homepage leads with distributor supplier-rate review'],
+    [generated.includes('supplier-rate-review'), 'Built homepage links to the supplier-rate review feature'],
     [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
     [generated.includes('href="/product"'), 'Built homepage links to product page'],
     [generated.includes('href="/request-demo"'), 'Built homepage links to real demo request'],

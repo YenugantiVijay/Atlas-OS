@@ -21,7 +21,7 @@ import { ALL_FEATURES } from '../data/features';
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
           Explore our implemented capabilities, current architectural priorities, and future development roadmap.
-          We distinguish verified production functionality from features under development with complete honesty.
+          Status labels describe implementation readiness; availability and security configuration can still vary by hosted environment.
         </p>
       </div>
     </Container>
@@ -85,16 +85,16 @@ import { ALL_FEATURES } from '../data/features';
                 </p>
                 <div class="text-xs space-y-2 text-content-secondary">
                   <div class="flex items-center justify-between">
-                    <span>Database Engine:</span>
-                    <span class="font-mono text-content-primary font-semibold">PostgreSQL RLS</span>
+                    <span>Data boundary:</span>
+                    <span class="font-semibold text-content-primary">Organization-scoped</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span>Audit Level:</span>
-                    <span class="font-semibold text-emerald-600">Full Audit Log</span>
+                    <span>Permissions:</span>
+                    <span class="font-semibold text-content-primary">Role-based</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span>Role Access:</span>
-                    <span class="font-semibold text-content-primary">6 Tiers</span>
+                    <span>Audit events:</span>
+                    <span class="font-semibold text-content-primary">Workflow-dependent</span>
                   </div>
                 </div>
 

@@ -196,8 +196,19 @@ export const reconciliationService = {
     const products = storage.getProducts(orgId);
     const activeProducts = products.filter((p) => p.isActive);
     const lowStock = activeProducts
-      .map(({ id, sku, name, uom, reorderThreshold, currentStock }) =>
-        lowStockRow.parse({ id, sku, name, uom, reorderThreshold, quantity: currentStock }))
+      .map((product) => {
+        if (typeof product.currentStock !== 'number' || !Number.isInteger(product.currentStock)) {
+          throw new Error(`Authoritative stock balance is unavailable for product ${product.sku}.`);
+        }
+        return lowStockRow.parse({
+          id: product.id,
+          sku: product.sku,
+          name: product.name,
+          uom: product.uom,
+          reorderThreshold: product.reorderThreshold,
+          quantity: product.currentStock,
+        });
+      })
       .filter((p) => p.quantity <= p.reorderThreshold)
       .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     return {

@@ -8,6 +8,9 @@ import { productsService } from '@/services/products.service';
 import { productAlternativesService } from '@/services/product-alternatives.service';
 import { customersService } from '@/services/customers.service';
 import { ordersService } from '@/services/orders.service';
+import { invoicesService } from '@/services/invoices.service';
+import { paymentsService } from '@/services/payments.service';
+import { counterShiftsService } from '@/services/counter-shifts.service';
 import { searchCustomerDirectory } from '@/services/customer-directory-search.service';
 
 vi.mock('@/features/organizations/OrgContext', () => ({ useOrg: vi.fn() }));
@@ -26,6 +29,23 @@ vi.mock('@/services/customer-directory-search.service', () => ({
 }));
 vi.mock('@/services/orders.service', () => ({
   ordersService: { createSalesOrder: vi.fn(), confirmSalesOrder: vi.fn() },
+}));
+vi.mock('@/services/invoices.service', () => ({
+  invoicesService: { createInvoice: vi.fn(), getInvoiceById: vi.fn() },
+}));
+vi.mock('@/services/payments.service', () => ({
+  paymentsService: { recordPayment: vi.fn(), getPayments: vi.fn() },
+}));
+vi.mock('@/services/counter-shifts.service', () => ({
+  counterShiftsService: {
+    getLatestShift: vi.fn(),
+    getShiftPayments: vi.fn(),
+    getLinkedPaymentIds: vi.fn(),
+    linkPayment: vi.fn(),
+    openShift: vi.fn(),
+    closeShift: vi.fn(),
+  },
+  summarizeCounterShiftCash: vi.fn(),
 }));
 
 const orgId = 'org-POS';
@@ -56,7 +76,7 @@ describe('Retail Counter — safe draft order workflow', () => {
     vi.stubGlobal('crypto', { randomUUID: () => '93a54640-11bb-4390-84ad-1084d4bc52a3' });
     vi.mocked(useOrg).mockReturnValue({
       currentOrg: { id: orgId, name: 'Atlas Counter' }, currentUser: { id: 'u1' },
-      currentRole: 'sales', isMockAuth: false,
+      currentRole: 'owner', isMockAuth: false,
     } as any);
     check.mockReturnValue({ allowed: true });
     vi.mocked(useActionPermission).mockReturnValue({ check, can: vi.fn() });
@@ -71,12 +91,30 @@ describe('Retail Counter — safe draft order workflow', () => {
     vi.mocked(ordersService.createSalesOrder).mockResolvedValue({
       id: 'order-1', orderNumber: 'SO-POS-001', status: 'DRAFT',
     } as any);
+    vi.mocked(ordersService.confirmSalesOrder).mockResolvedValue({ success: true, status: 'CONFIRMED' });
+    vi.mocked(counterShiftsService.getLatestShift).mockResolvedValue({
+      id: 'shift-1', organizationId: orgId, openedBy: 'u1', openedAt: new Date().toISOString(),
+      openingCash: 500, status: 'OPEN', idempotencyKey: 'shift-key',
+    });
+    vi.mocked(counterShiftsService.linkPayment).mockResolvedValue(undefined);
+    vi.mocked(invoicesService.createInvoice).mockResolvedValue({
+      id: 'inv-1', invoiceNumber: 'ATL/2026-27/0001', totalAmount: 118,
+    } as any);
+    vi.mocked(invoicesService.getInvoiceById).mockResolvedValue({
+      id: 'inv-1', invoiceNumber: 'ATL/2026-27/0001', totalAmount: 118,
+    } as any);
+    vi.mocked(paymentsService.recordPayment).mockResolvedValue({
+      id: 'pay-1', paymentNumber: 'RCP-2026-0001',
+    } as any);
+    vi.mocked(paymentsService.getPayments).mockResolvedValue([{
+      id: 'pay-1', paymentNumber: 'RCP-2026-0001',
+    }] as any);
   });
 
   it('builds single-item checkout through existing authoritative draft RPC, without stock or payment writes', async () => {
     mount();
     await fillCart();
-    expect(screen.getByText(/Inventory is checked authoritatively/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Paid checkout confirms stock/i).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Save draft sales order' }));
     await waitFor(() => expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1));
     expect(ordersService.createSalesOrder).toHaveBeenCalledWith(orgId, expect.objectContaining({
@@ -142,8 +180,8 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(grid).toHaveTextContent('18%');
     expect(screen.getByText('Estimated total')).toBeInTheDocument();
     expect(screen.getAllByText('₹118.00').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/Draft-only foundation:/)).toBeInTheDocument();
-    expect(screen.getByText(/This is not a tax invoice/)).toBeInTheDocument();
+    expect(screen.getByText(/Draft vs\. paid sale:/)).toBeInTheDocument();
+    expect(screen.getByText(/Paid checkout confirms stock, issues an invoice, records payment/)).toBeInTheDocument();
   });
 
   it('adds a selected result using ArrowDown and Enter without creating an invoice', async () => {
@@ -238,6 +276,51 @@ describe('Retail Counter — safe draft order workflow', () => {
     fireEvent.click(alternative);
     expect(screen.getByRole('table')).toHaveTextContent('WIRE-2');
     expect(ordersService.createSalesOrder).not.toHaveBeenCalled();
+  });
+
+  it('completes a paid counter sale through stock confirmation, invoice, payment, and shift receipt link', async () => {
+    mount();
+    await fillCart();
+    fireEvent.click(screen.getByRole('button', { name: 'Complete paid sale' }));
+
+    await waitFor(() => expect(counterShiftsService.linkPayment).toHaveBeenCalledWith(
+      orgId, 'shift-1', 'pay-1', false,
+    ));
+    expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1);
+    expect(ordersService.confirmSalesOrder).toHaveBeenCalledWith(orgId, 'order-1', 'owner', false);
+    expect(invoicesService.createInvoice).toHaveBeenCalledWith(orgId, expect.objectContaining({
+      customerId: 'c-1',
+      salesOrderId: 'order-1',
+      status: 'ISSUED',
+      items: [expect.objectContaining({ productId: 'p-1', quantity: 1, taxRate: 18 })],
+    }), false);
+    expect(paymentsService.recordPayment).toHaveBeenCalledWith(orgId, expect.objectContaining({
+      customerId: 'c-1',
+      invoiceId: 'inv-1',
+      amount: 118,
+      paymentMethod: 'CASH',
+    }), false, 'owner');
+    expect(await screen.findByText(/Paid sale complete/)).toBeInTheDocument();
+  });
+
+  it('retries a failed payment with the same order, invoice, and payment idempotency keys', async () => {
+    vi.mocked(paymentsService.recordPayment)
+      .mockRejectedValueOnce(new Error('Temporary payment failure'))
+      .mockResolvedValueOnce({ id: 'pay-1', paymentNumber: 'RCP-2026-0001' } as any);
+    mount();
+    await fillCart();
+    fireEvent.click(screen.getByRole('button', { name: 'Complete paid sale' }));
+    expect(await screen.findByText(/Temporary payment failure/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry paid sale' }));
+
+    await waitFor(() => expect(counterShiftsService.linkPayment).toHaveBeenCalledTimes(1));
+    expect(ordersService.createSalesOrder).toHaveBeenCalledTimes(1);
+    expect(invoicesService.createInvoice).toHaveBeenCalledTimes(1);
+    expect(invoicesService.getInvoiceById).toHaveBeenCalledWith(orgId, 'inv-1', false);
+    const [firstPayment, retryPayment] = vi.mocked(paymentsService.recordPayment).mock.calls;
+    expect(firstPayment[1].idempotencyKey).toBeTruthy();
+    expect(retryPayment[1].idempotencyKey).toBe(firstPayment[1].idempotencyKey);
+    expect(await screen.findByText(/Paid sale complete/)).toBeInTheDocument();
   });
 
 });

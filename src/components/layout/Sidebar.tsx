@@ -21,6 +21,7 @@ import {
   TrendingUpDown,
   FileCode,
   X,
+  Clock3,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useOrg } from '@/features/organizations/OrgContext';
@@ -63,6 +64,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     showHeading: true,
     items: [
       { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
+      { label: 'Counter Shift', path: '/counter-shift', icon: <Clock3 className="w-[18px] h-[18px]" />, action: 'orders:create' },
       { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
