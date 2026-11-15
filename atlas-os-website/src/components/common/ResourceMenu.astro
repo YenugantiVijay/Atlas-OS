@@ -1,0 +1,26 @@
+---
+import { ArrowUpRight, type LucideIcon } from 'lucide-react';
+interface Props {
+  groups: { label: string; links: { label: string; href: string; Icon: LucideIcon; hue: string }[] }[];
+}
+const { groups } = Astro.props;
+---
+<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-9">
+  {groups.map(({ label, links }) => (
+    <div>
+      <h2 class="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-content-secondary">{label}</h2>
+      <ul class="space-y-1.5">
+        {links.map(({ label: name, href, Icon, hue }) => (
+          <li>
+            <a href={href} style={`--icon-accent:${hue}`}
+              class="atlas-icon-card flex min-h-12 items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-content-primary hover:bg-brand-50">
+              <span class="atlas-card-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg"><Icon size={18} aria-hidden="true" /></span>
+              {name}
+              {href.startsWith('https://') && <ArrowUpRight size={14} className="ml-auto shrink-0 text-content-secondary" aria-hidden="true" />}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ))}
+</div>

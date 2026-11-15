@@ -89,32 +89,7 @@ export const MAIN_NAVIGATION = [
     href: '/pricing',
   },
   { label: 'GST', href: '/gst-calculator' },
-  {
-    label: 'Resources',
-    href: '/support',
-    dropdown: [
-      {
-        label: 'Help Center & FAQs',
-        href: '/support',
-        description: 'Answers to common questions regarding workflows and access.',
-      },
-      {
-        label: 'Security & Architecture',
-        href: '/security',
-        description: 'Verified PostgreSQL RLS, role isolation, and audit policies.',
-      },
-      {
-        label: 'About Atlas OS',
-        href: '/about',
-        description: 'Our mission to simplify business software for distributors.',
-      },
-      {
-        label: 'Contact Team',
-        href: '/contact',
-        description: 'Speak directly with our product and technical team.',
-      },
-    ],
-  },
+  { label: 'Resources', href: '/resources' },
 ];
 
 export const FOOTER_SECTIONS = [
@@ -125,6 +100,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Feature Directory', href: '/features' },
       { label: 'Inventory Control', href: '/features#inventory' },
       { label: 'GST Calculator', href: '/gst-calculator/' },
+      { label: 'Atlas Calculators', href: '/calculators/' },
       { label: 'GST Tax Invoicing', href: '/features#invoicing' },
       { label: 'Customer Receivables', href: '/features#customers' },
       { label: 'Payment Settlement', href: '/features#payments' },

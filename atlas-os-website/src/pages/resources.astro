@@ -1,0 +1,23 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+import ResourceMenu from '../components/common/ResourceMenu.astro';
+import { RESOURCE_GROUPS } from '../data/resource-links';
+---
+<BaseLayout title="Resources | Atlas OS" description="Browse Atlas Calculators, templates, workflow guides and support for Atlas OS.">
+  <section class="border-b border-border bg-surface-secondary py-12 sm:py-16">
+    <Container size="wide">
+      <div class="max-w-2xl space-y-4" data-enter>
+        <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">Atlas OS <span class="text-brand-700">resources</span></h1>
+        <p class="text-lg leading-relaxed text-content-secondary">Find calculators, templates, and practical guidance for running your business with Atlas OS.</p>
+      </div>
+    </Container>
+  </section>
+  <section class="py-10 sm:py-14">
+    <Container size="wide">
+      <div class="rounded-3xl border border-border bg-white p-5 shadow-sm sm:p-8" data-reveal>
+        <ResourceMenu groups={RESOURCE_GROUPS.map(group => ({ ...group, links: group.links.filter(item => item.href !== '/resources/') }))} />
+      </div>
+    </Container>
+  </section>
+</BaseLayout>

@@ -1,0 +1,50 @@
+---
+import { ArrowRight, Calculator, ChartNoAxesColumnIncreasing, Receipt } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Button from '../../components/common/Button.astro';
+import Container from '../../components/common/Container.astro';
+import { CALCULATORS, calculatorHref } from '../../data/calculators';
+---
+<BaseLayout title="Atlas Calculators | Atlas OS" description="Free calculators and tools for GST, income tax, profit margin, EMI, inventory turnover, and more.">
+  <section class="border-b border-border bg-surface-secondary py-9 sm:py-14">
+    <Container size="wide">
+      <nav aria-label="Breadcrumb" class="mb-6 flex flex-wrap items-center gap-2 text-sm text-content-secondary" data-enter>
+        <a href="/resources/" class="hover:underline">Resources</a><span aria-hidden="true">›</span><span aria-current="page">Atlas Calculators</span>
+      </nav>
+      <div class="grid items-center gap-8 lg:grid-cols-[1.05fr_.95fr]">
+        <div class="space-y-5" data-enter>
+          <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-6xl">Atlas <span class="text-brand-700">Calculators</span></h1>
+          <p class="max-w-xl text-base leading-relaxed text-content-secondary sm:text-lg">Check a price with GST, measure your margin, or work out a monthly loan payment. Your inputs stay in your browser.</p>
+          <Button href="#calculators" variant="primary" size="md">Explore calculators <ArrowRight size={17} aria-hidden="true" /></Button>
+        </div>
+        <div class="rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-5 shadow-sm sm:p-8" data-enter data-delay="1">
+          <p class="mb-4 flex items-center gap-2 font-heading text-lg font-bold"><Calculator size={22} className="text-brand-700" aria-hidden="true" /> Popular calculators</p>
+          <div class="grid gap-2">
+            {[{ title: 'GST Calculator', href: '/gst-calculator/', Icon: Receipt }, { title: 'Profit Margin Calculator', href: '/calculators/profit-margin/', Icon: ChartNoAxesColumnIncreasing }]
+              .map(({ title, href, Icon }) => <a href={href} class="atlas-icon-card flex items-center gap-3 rounded-xl border border-border bg-white p-3 text-sm font-semibold hover:border-brand-400">
+                <span class="atlas-card-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg"><Icon size={18} aria-hidden="true" /></span>{title}<ArrowRight size={16} className="ml-auto" aria-hidden="true" />
+              </a>)}
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+  <section id="calculators" class="py-12 sm:py-16">
+    <Container size="wide">
+      <div class="mb-7 text-center" data-reveal>
+        <h2 class="font-heading text-3xl font-bold tracking-tight sm:text-4xl">Explore free calculators and tools</h2>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-reveal-group>
+        {CALCULATORS.map(tool => (
+          <a href={calculatorHref(tool)} style={`--icon-accent:${tool.hue}`} class="atlas-icon-card flex h-full flex-col gap-3 rounded-3xl border border-border bg-white p-5 shadow-sm transition-colors hover:border-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 sm:p-6">
+            <div class="flex items-center gap-3">
+              <span class="atlas-card-icon grid h-11 w-11 shrink-0 place-items-center rounded-xl"><tool.Icon size={22} aria-hidden="true" /></span>
+              <h3 class="font-heading text-lg font-bold">{tool.label}</h3>
+            </div>
+            <p class="text-sm leading-relaxed text-content-secondary">{tool.description}</p>
+          </a>
+        ))}
+      </div>
+    </Container>
+  </section>
+</BaseLayout>

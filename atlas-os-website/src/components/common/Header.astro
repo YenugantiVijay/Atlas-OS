@@ -3,7 +3,8 @@ import BrandLogo from './BrandLogo.astro';
 import Button from './Button.astro';
 import Container from './Container.astro';
 import IndustryLinks from './IndustryLinks.astro';
-import GstMenu from './GstMenu.astro';
+import ResourceMenu from './ResourceMenu.astro';
+import { GST_GROUPS, RESOURCE_GROUPS } from '../../data/resource-links';
 import { MAIN_NAVIGATION } from '../../data/navigation';
 
 interface Props {
@@ -26,10 +27,13 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
         <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-1.5" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
-              if (item.href === '/solutions' || item.href === '/gst-calculator') {
+              if (item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
                 const isGst = item.href === '/gst-calculator';
-                const key = isGst ? 'gst' : 'industries';
-                const active = isGst ? currentPath.replace(/\/$/, '') === item.href : onSolutions;
+                const isResources = item.href === '/resources';
+                const key = isResources ? 'resources' : isGst ? 'gst' : 'industries';
+                const groups = isResources ? RESOURCE_GROUPS : isGst ? GST_GROUPS : null;
+                const active = isResources ? /^\/(resources|calculators)(\/|$)/.test(currentPath)
+                  : isGst ? currentPath.replace(/\/$/, '') === item.href : onSolutions;
                 return (
                   <div id={key + '-nav'} data-mega-nav class="flex h-full items-center">
                     <button id={key + '-toggle'} data-mega-toggle type="button" aria-expanded="false" aria-controls={key + '-panel'}
@@ -44,7 +48,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                     </button>
                     <div id={key + '-panel'} data-mega-panel hidden
                       class="mega-panel site-nav-surface absolute inset-x-0 top-full overflow-y-auto overscroll-contain border-y border-border shadow-xl">
-                      {isGst ? <Container size="wide" class="py-7"><GstMenu /></Container> : <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
+                      {groups ? <Container size="wide" class="py-7"><ResourceMenu groups={groups} /></Container> : <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
                         <div class="border-r border-border pr-5">
                           <h2 class="mb-3 text-sm font-semibold text-content-primary">Explore Atlas OS</h2>
                           <div class="grid gap-1 text-sm text-content-secondary">
@@ -181,8 +185,8 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
     <div class="flex flex-col space-y-1">
       {
         MAIN_NAVIGATION.map((item) => {
-          if (item.href === '/solutions' || item.href === '/gst-calculator') {
-            const isGst = item.href === '/gst-calculator';
+          if (item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
+            const groups = item.href === '/resources' ? RESOURCE_GROUPS : item.href === '/gst-calculator' ? GST_GROUPS : null;
             return (
               <details class="group border-b border-border/50 py-1.5">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-2 py-2 text-base font-semibold text-content-primary hover:text-brand-700">
@@ -191,7 +195,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                     <path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </summary>
-                {isGst ? <GstMenu /> : <>
+                {groups ? <ResourceMenu groups={groups} /> : <>
                 <IndustryLinks />
                 <a href="/solutions" class="mt-1 block py-2 text-sm font-semibold text-brand-700 hover:underline">View all industries</a>
                 </>}
