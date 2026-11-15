@@ -35,50 +35,45 @@ const faqs = [
 
 <BaseLayout title="Atlas OS | Stock and GST billing for shops and distributors"
   description="Atlas OS connects stock, quotations, GST invoices, and customer payments for Indian retailers, wholesalers, and distributors.">
-  <section id="home-overview" class="hero-shell border-b border-border">
+  <section id="home-overview" class="hero-shell border-b border-border" aria-labelledby="home-title">
     <Container size="default">
-      <div class="hero-intro mx-auto text-center">
-        <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
-        <h1 class="hero-title mx-auto font-heading" data-enter>Run your stock, billing, and <span>payments together.</span></h1>
-        <p class="mx-auto mt-5 max-w-[55ch] text-base leading-relaxed text-content-secondary sm:text-lg" data-enter data-delay="1">Know what’s in stock before you quote. Create a GST invoice when the order is ready. See what’s paid and what’s still due.</p>
-        <div class="mt-7 flex flex-wrap justify-center gap-3" data-enter data-delay="2">
-          <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
-          <Button href="#product-preview" variant="outline" size="lg">Try the interactive preview <ArrowDown size={17} aria-hidden="true" /></Button>
+      <div class="hero-grid">
+        <div class="hero-intro">
+          <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
+          <h1 id="home-title" class="hero-title font-heading" data-enter>From stockroom <span>to paid invoice.</span></h1>
+          <p class="hero-description" data-enter data-delay="1">Check stock before you quote, create GST invoices, and see which customers still owe you. Atlas OS connects each step in one workspace.</p>
+          <div class="hero-actions" data-enter data-delay="2">
+            <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
+            <Button href="#product-preview" variant="outline" size="lg">Try the interactive preview <ArrowDown size={17} aria-hidden="true" /></Button>
+          </div>
+        </div>
+
+        <div class="hero-visual" data-enter data-delay="1">
+          <section class="workbench" aria-labelledby="counter-title">
+            <div class="workbench-top">
+              <span class="workbench-brand"><img src="/favicon.svg" alt="" width="26" height="26" /> Atlas OS</span>
+              <span class="sample-label">Sample data</span>
+            </div>
+            <div class="workbench-body">
+              <h2 id="counter-title" class="font-heading text-xl font-bold sm:text-2xl">Today at the counter</h2>
+              <p class="mt-1 text-sm text-content-secondary">An electrical wholesaler’s sale</p>
+              <ol class="order-steps">
+                {orderSteps.map(({ Icon, label, text, value }) => <li class="order-row">
+                  <span class="order-icon"><Icon size={18} aria-hidden="true" /></span>
+                  <div class="min-w-0"><p class="font-semibold">{label}</p><p class="order-detail">{text}</p></div>
+                  <span class="order-value">{value}</span>
+                </li>)}
+              </ol>
+              <div class="invoice-summary">
+                <dl class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <dt class="text-sm font-medium text-content-secondary">Balance due</dt><dd class="font-heading text-xl font-bold tabular-nums">₹0</dd>
+                </dl>
+                <span class="paid-status"><Check size={14} aria-hidden="true" /> Paid</span>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
-
-      <section class="workbench mx-auto" data-enter data-delay="2" aria-labelledby="counter-title">
-        <div class="workbench-top">
-          <div class="workbench-brand"><img src="/favicon.svg" alt="" width="25" height="25" /> Atlas OS <span class="workbench-divider" aria-hidden="true"></span><span class="workbench-context">Sales workspace</span></div>
-          <span class="sample-label">Sample data</span>
-        </div>
-        <div class="workbench-body">
-          <div class="workbench-order">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="counter-title" class="font-heading text-xl font-bold sm:text-2xl">Today at the counter</h2>
-              <span class="text-xs font-medium text-content-secondary">Order activity</span>
-            </div>
-            <ul class="mt-2 divide-y divide-border">
-              {orderSteps.map(({ Icon, label, text, value }) => <li class="order-row">
-                <span class="order-icon"><Icon size={19} aria-hidden="true" /></span>
-                <div class="min-w-0"><p class="font-semibold">{label}</p><p class="mt-0.5 text-xs leading-relaxed text-content-secondary">{text}</p></div>
-                <span class="justify-self-end text-right font-bold tabular-nums">{value}</span>
-              </li>)}
-            </ul>
-          </div>
-          <div class="invoice-summary">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-semibold">Invoice summary</span>
-              <span class="paid-status"><Check size={13} aria-hidden="true" /> Paid</span>
-            </div>
-            <dl class="mt-4 space-y-2.5">
-              <div><dt>Invoice total</dt><dd>₹5,900</dd></div>
-              <div><dt>Payment received</dt><dd>₹5,900</dd></div>
-              <div class="invoice-balance"><dt>Balance due</dt><dd>₹0</dd></div>
-            </dl>
-          </div>
-        </div>
-      </section>
     </Container>
   </section>
 
@@ -210,61 +205,119 @@ const faqs = [
 
 <style>
   .hero-shell {
-    background: radial-gradient(ellipse at 11% 4%, #e9f4ff, transparent 49%),
-      radial-gradient(ellipse at 88% 73%, #d7f3e9, transparent 61%), #f6fbfc;
-    padding-block: clamp(2.65rem, 5.6vw, 5.25rem) clamp(2.5rem, 4.5vw, 4rem);
+    padding-block: clamp(2.5rem, 6.1vw, 6rem);
+    background: radial-gradient(ellipse at 92% 0%, #e6f4ee, transparent 62%), #f7faf9;
   }
-  .hero-intro { max-width: 63rem; }
+  .hero-grid {
+    display: grid;
+    align-items: center;
+    gap: clamp(2rem, 5vw, 5.5rem);
+  }
+  .hero-intro { min-width: 0; }
   .hero-audience {
-    color: #246461;
+    margin-bottom: 1rem;
+    color: #19625b;
     font-size: .875rem;
     font-weight: 700;
-    margin-bottom: .95rem;
   }
   .hero-title {
-    max-width: 19ch;
-    font-size: clamp(2.45rem, 6.1vw, 5.65rem);
+    font-size: clamp(2.55rem, 4.95vw, 4.55rem);
     font-weight: 800;
     line-height: 1.04;
-    letter-spacing: -.059em;
-    text-wrap: balance;
+    letter-spacing: -.055em;
   }
-  .hero-title span { color: #087c70; }
+  .hero-title span { display: block; color: #0f766e; }
+  .hero-description {
+    max-width: 43ch;
+    margin-top: 1.25rem;
+    color: #445673;
+    font-size: clamp(1rem, 1.6vw, 1.175rem);
+    line-height: 1.65;
+  }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.6rem; }
+  .hero-visual {
+    min-width: 0;
+    padding: clamp(.65rem, 3vw, 2.5rem);
+    border: 1px solid #284757;
+    border-radius: clamp(1.25rem, 3vw, 2.4rem);
+    background:
+      radial-gradient(ellipse at 92% 5%, #176055, transparent 66%),
+      repeating-linear-gradient(90deg, #ffffff0e 0 1px, transparent 1px 25px), #142b43;
+  }
   .workbench {
-    max-width: 58rem;
-    margin-top: clamp(2rem, 4vw, 3.65rem);
-    border: 1px solid #ccdedc;
-    border-radius: 1.4rem;
-    background: white;
-    box-shadow: 0 24px 65px -32px #1a4e536d, 0 0 0 .5rem #ffffff79;
+    min-width: 0;
     overflow: hidden;
+    border: 1px solid #b9d4d4;
+    border-radius: 1.1rem;
+    background: white;
+    box-shadow: 0 12px 36px #081c3490;
   }
   .workbench-top {
-    min-height: 3.3rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .6rem;
-    padding: .6rem clamp(.8rem, 2.5vw, 1.6rem);
-    background: #132744;
-    color: white;
+    gap: .5rem;
+    padding: .72rem clamp(.85rem, 2.1vw, 1.5rem);
+    border-bottom: 1px solid #e2ebee;
+    background: #f5f9fa;
   }
-  .workbench-brand { display: flex; align-items: center; gap: .6rem; font-size: .88rem; font-weight: 750; }
-  .workbench-divider { width: 1px; height: 1.05rem; margin-inline: .15rem; background: #54627a; }
-  .workbench-context { color: #dce5f0; font-weight: 500; font-size: .78rem; }
-  .sample-label { border-radius: 999px; color: #b9f5e8; background: #244853; padding: .25rem .6rem; font-size: .72rem; white-space: nowrap; }
-  .workbench-body { padding: clamp(.85rem, 2.5vw, 1.65rem); display: grid; align-items: center; gap: 1.35rem; }
+  .workbench-brand { display: flex; align-items: center; gap: .55rem; font-size: .88rem; font-weight: 750; }
+  .sample-label { color: #405872; font-size: .73rem; font-weight: 600; }
+  .workbench-body { padding: clamp(.85rem, 2.1vw, 1.5rem); }
+  .order-steps { margin-top: .65rem; }
   .order-row {
-    display: grid; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: clamp(.5rem, 1.3vw, .85rem); padding-block: .72rem; font-size: .9rem;
+    display: grid;
+    position: relative;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: clamp(.48rem, 1vw, .78rem);
+    padding-block: .67rem;
+    font-size: .875rem;
   }
-  .order-icon { display: grid; place-items: center; border-radius: .65rem; width: 2.15rem; height: 2.15rem; background: #edf7f5; color: #087c70; }
-  .invoice-summary { background: #f1f8f7; border-radius: .95rem; border: 1px solid #dcebe7; padding: 1rem; font-size: .9rem; }
-  .invoice-summary dl > div { display: flex; justify-content: space-between; gap: .6rem; }
-  .invoice-summary dt { color: #445673; }
-  .invoice-summary dd { font-weight: 700; }
-  .invoice-balance { padding-top: .7rem; border-top: 1px solid #d7e6e3; }
-  .paid-status { display: inline-flex; align-items: center; gap: .2rem; border-radius: 999px; padding: .2rem .47rem; font-weight: 750; font-size: .75rem; color: #12624e; background: #d9efe4; }
+  .order-row:not(:last-child)::after {
+    position: absolute;
+    top: 50%;
+    left: calc(1.0625rem - 1px);
+    width: 2px;
+    height: 100%;
+    background: #d8e9e4;
+    content: '';
+  }
+  .order-icon {
+    z-index: 1;
+    display: grid;
+    width: 2.125rem;
+    height: 2.125rem;
+    place-items: center;
+    border: 1px solid #dcece7;
+    border-radius: .65rem;
+    background: #edf8f4;
+    color: #0f766e;
+  }
+  .order-detail { margin-top: .08rem; color: #445673; font-size: .75rem; line-height: 1.35; }
+  .order-value { justify-self: end; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .invoice-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .55rem;
+    margin-top: .6rem;
+    padding: .65rem .8rem;
+    border: 1px solid #dcece7;
+    border-radius: .8rem;
+    background: #f0f8f4;
+  }
+  .paid-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    padding: .3rem .6rem;
+    border-radius: 999px;
+    background: #d8eee1;
+    color: #12624e;
+    font-size: .75rem;
+    font-weight: 750;
+  }
   .home-section { padding-block: clamp(3.5rem, 6.2vw, 6.25rem); }
   .section-intro { margin: 0 auto 2rem; max-width: 48rem; text-align: center; }
   .home-heading { font-family: var(--font-heading, inherit); font-size: clamp(1.8rem, 3.25vw, 3.15rem); font-weight: 780; line-height: 1.12; letter-spacing: -.038em; text-wrap: balance; }
@@ -279,11 +332,11 @@ const faqs = [
   @media (min-width: 900px) {
     #industries :global(.industry-links) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  @media (min-width: 700px) {
-    .workbench-body { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 1.8rem; }
+  @media (min-width: 900px) {
+    .hero-grid { grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr); }
   }
-  @media (max-width: 360px) {
-    .workbench-context, .workbench-divider { display: none; }
-    .order-row { font-size: .82rem; }
+  @media (max-width: 390px) {
+    .hero-actions > :global(a) { width: 100%; }
+    .order-row { font-size: .81rem; }
   }
 </style>
