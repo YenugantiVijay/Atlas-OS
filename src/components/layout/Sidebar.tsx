@@ -13,6 +13,7 @@ import {
   Sparkles,
   ShieldCheck,
   Building2,
+  CalendarCheck,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
@@ -26,6 +27,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
+import { useAttendanceAccess } from '@/hooks/useAttendanceAccess';
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -39,6 +41,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   action?: Action;
+  attendance?: boolean;
 }
 
 interface NavGroup {
@@ -98,6 +101,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     showHeading: true,
     items: [
       { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
+      { label: 'Staff Attendance', path: '/attendance', icon: <CalendarCheck className="w-[18px] h-[18px]" />, attendance: true },
       { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
       { label: 'India Ecosystem', path: '/integrations', icon: <FileCode className="w-[18px] h-[18px]" />, action: 'org:manage' },
       { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
@@ -105,11 +109,22 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
   },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export function Sidebar(props: SidebarProps) {
+  const { isAuthenticated, isDemoMode } = useOrg();
+  return isAuthenticated && !isDemoMode ? <CloudSidebar {...props} /> : <SidebarNavigation {...props} />;
+}
+
+function CloudSidebar(props: SidebarProps) {
+  const { data, isError } = useAttendanceAccess();
+  return <SidebarNavigation {...props} showAttendance={data === true && !isError} />;
+}
+
+const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> = ({
   collapsed,
   onToggle,
   isMobileOpen = false,
   onCloseMobile,
+  showAttendance = false,
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
@@ -120,10 +135,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       NAV_GROUPS_CONFIG
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => !item.action || hasPermission(currentRole, item.action)),
+          items: group.items.filter((item) => item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action)),
         }))
         .filter((group) => group.items.length > 0),
-    [currentRole]
+    [currentRole, showAttendance]
   );
 
   return (

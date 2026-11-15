@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as renderUi, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { OnboardingPage } from './OnboardingPage';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthModal } from '@/features/auth/AuthModal';
 import * as OrgContextModule from '@/features/organizations/OrgContext';
 import { Organization, User } from '@/types';
+
+function render(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderUi(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 // Mock Lucide icons
 vi.mock('lucide-react', async (importOriginal) => {
