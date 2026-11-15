@@ -110,7 +110,7 @@ test('Industries spans the desktop header and supports keyboard dismissal', asyn
   await expect(toggle).toBeFocused();
   await toggle.click();
   await panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ }).click();
-  await expect(page).toHaveURL(/\/solutions\/?#agricultural-inputs$/);
+  await expect(page).toHaveURL(/\/solutions\/agricultural-inputs\/?$/);
 });
 
 test('on mobile the industry cards expand inside the navigation drawer', async ({ page }) => {
@@ -123,7 +123,7 @@ test('on mobile the industry cards expand inside the navigation drawer', async (
   await drawer.locator('summary').filter({ hasText: 'Industries' }).click();
   await expect(shop).toBeVisible();
   await shop.click();
-  await expect(page).toHaveURL(/\/solutions\/?#small-business$/);
+  await expect(page).toHaveURL(/\/solutions\/small-business\/?$/);
 });
 
 test('feature and security pages state the distributor advantage and deployment limits', async ({ page }) => {
@@ -253,9 +253,9 @@ test('pricing plans and industry links lead to the right workflows', async ({ pa
   await page.getByRole('link', { name: 'Discuss Professional' }).click();
   await expect(page.getByRole('form', { name: 'Request a demo' })).toContainText('Discuss Atlas Professional');
   await page.locator('footer').getByRole('link', { name: 'Fertilizers & Agri Inputs' }).click();
-  await expect(page).toHaveURL(/\/solutions#agricultural-inputs$/);
-  await expect(page.getByRole('heading', { name: 'Fertilizer & Agri-Input Dealers' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Small Shops & General Trade' })).toBeVisible();
+  await expect(page).toHaveURL(/\/solutions\/agricultural-inputs\/?$/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('fertilizer and agri-input dealers');
+  await expect(page.getByRole('form', { name: 'Request a demo' }).getByLabel('Business type')).toHaveValue('agricultural_inputs');
 });
 
 test('responsive mobile keeps the real navigation and orbit layout', async ({ page }) => {
@@ -272,4 +272,49 @@ test('responsive mobile keeps the real navigation and orbit layout', async ({ pa
     viewport: document.documentElement.clientWidth,
   }));
   expect(pageWidth.scroll).toBeLessThanOrEqual(pageWidth.viewport + 1);
+});
+
+test('industry pages have dedicated content and preselect the relevant demo business', async ({ page }) => {
+  for (const [id, audience, demo] of [
+    ['electrical', 'electrical distributors', 'electrical_wholesale'],
+    ['electronics', 'electronics wholesalers', 'electronics'],
+    ['hardware', 'hardware suppliers', 'hardware'],
+    ['retail-wholesale', 'retail and wholesale counters', 'general_wholesale'],
+    ['agricultural-inputs', 'fertilizer and agri-input dealers', 'agricultural_inputs'],
+    ['small-business', 'small shops and general trade', 'general_retail'],
+  ]) {
+    expect((await page.goto('/solutions/' + id + '/'))?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(audience);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', new RegExp('/solutions/' + id + '/?$'));
+    await expect(page.getByLabel('Business type')).toHaveValue(demo);
+  }
+});
+
+test('industry detail tracks the sticky contents and supports keyboard workflow tabs', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 950 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/solutions/retail-wholesale/');
+  const rail = page.getByRole('navigation', { name: 'On this page' });
+  await expect(rail.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'location');
+  await rail.getByRole('link', { name: 'Features' }).click();
+  await expect(rail.getByRole('link', { name: 'Features' })).toHaveAttribute('aria-current', 'location');
+  const first = page.getByRole('tab', { name: 'Select Customer' });
+  await expect(first).toHaveAttribute('aria-selected', 'true');
+  await first.focus();
+  await first.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Draft the Order' })).toBeFocused();
+  await expect(page.getByRole('tabpanel')).toContainText('Check quantities, discounts, and taxes');
+  await page.getByText('Where do staff finish billing and record payment?', { exact: true }).click();
+  await expect(page.getByText(/Use Retail Counter to draft/)).toBeVisible();
+  await page.getByRole('navigation', { name: 'More industries', exact: true }).getByRole('link', { name: 'Small Shops' }).click();
+  await expect(page).toHaveURL(/\/solutions\/small-business\/?$/);
+});
+
+test('industry detail fits a narrow phone and links to other industries', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/solutions/small-business/');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const related = page.getByRole('navigation', { name: 'Explore more industries' });
+  await expect(related.getByRole('link', { name: 'Hardware & Tools' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });

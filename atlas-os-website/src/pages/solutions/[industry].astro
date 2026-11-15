@@ -1,0 +1,279 @@
+---
+import { ArrowRight, BadgeCheck, BookOpen, ChevronDown, ClipboardList, FileText, Layers3, ListChecks, Package, PanelsTopLeft, Smartphone, Users } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Button from '../../components/common/Button.astro';
+import Container from '../../components/common/Container.astro';
+import RequestDemoForm from '../../components/demo/RequestDemoForm';
+import { INDUSTRY_SOLUTIONS } from '../../data/industries';
+import { INDUSTRY_PAGES } from '../../data/industry-pages';
+import { INDUSTRY_NAVIGATION } from '../../data/navigation';
+
+export function getStaticPaths() {
+  return INDUSTRY_SOLUTIONS.map(solution => ({ params: { industry: solution.id }, props: { solution } }));
+}
+const { solution } = Astro.props;
+const content = INDUSTRY_PAGES[solution.id as keyof typeof INDUSTRY_PAGES];
+const sections = [
+  { id: 'overview', label: 'Overview', Icon: FileText },
+  { id: 'benefits', label: 'Benefits', Icon: BadgeCheck },
+  { id: 'features', label: 'Features', Icon: Layers3 },
+  { id: 'business-types', label: 'Who it’s for', Icon: Users },
+  { id: 'comparison', label: 'Workflow comparison', Icon: ListChecks },
+  { id: 'web-access', label: 'Web access', Icon: Smartphone },
+  { id: 'walkthrough', label: 'Walkthrough', Icon: ClipboardList },
+  { id: 'resources', label: 'Resources', Icon: BookOpen },
+  { id: 'faq', label: 'FAQs', Icon: PanelsTopLeft },
+];
+const otherIndustries = INDUSTRY_NAVIGATION.filter(item => !item.href.endsWith('/' + solution.id + '/'));
+const workflow = solution.workflowHighlights.map(item => ({ ...item, step: item.step.replace(/^\d+\.\s*/, '') }));
+const benefitIcons = [Package, ClipboardList, ListChecks, BadgeCheck];
+const questions = [
+  content.faq,
+  ['How do I get started?', 'Request a guided walkthrough with a sample catalog or a recent order. The team can show how to set up your products, sales, and payment workflows.'],
+  ['Where can I compare editions?', 'The pricing page shows what’s included in Starter, Professional, and Enterprise Network.'],
+];
+---
+
+<BaseLayout title={solution.title + ' Software | Atlas OS'} description={solution.tagline}>
+  <div class="bg-surface-secondary">
+    <Container size="wide" class="industry-layout py-7 sm:py-10 lg:py-12">
+      <aside class="industry-rail" aria-label="Industry navigation">
+        <nav aria-label="On this page" class="rail-card">
+          <h2 class="rail-heading">On this page</h2>
+          <ul class="rail-items">
+            {sections.map(({ id, label, Icon }) => (
+              <li><a href={'#' + id} data-section-link aria-current={id === 'overview' ? 'location' : undefined}>
+                <Icon size={17} aria-hidden="true" />{label}
+              </a></li>
+            ))}
+          </ul>
+        </nav>
+        <nav aria-label="More industries" class="rail-card related-rail">
+          <h2 class="rail-heading">More industries</h2>
+          <ul class="rail-items">
+            {otherIndustries.map(item => (
+              <li><a href={item.href} class="justify-between">{item.label}<ArrowRight size={15} aria-hidden="true" /></a></li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+
+      <div class="min-w-0 industry-content">
+        <section id="overview" class="space-y-6 sm:space-y-8">
+          <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-2 text-sm text-content-secondary">
+            <a class="hover:underline" href="/">Home</a><span aria-hidden="true">›</span>
+            <a class="hover:underline" href="/solutions">Industries</a><span aria-hidden="true">›</span>
+            <span aria-current="page" class="font-semibold text-content-primary">{content.audience}</span>
+          </nav>
+          <div>
+            <h1 class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
+              Business software for <span class="text-brand-700">{content.audience.toLowerCase()}</span>
+            </h1>
+            <p class="mt-4 max-w-4xl text-base leading-relaxed text-content-secondary sm:text-lg">{solution.description}</p>
+          </div>
+          <div id="demo" class="grid gap-6 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white p-5 shadow-sm sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-center">
+            <div class="space-y-4">
+              <h2 class="font-heading text-2xl font-bold tracking-tight sm:text-4xl">{content.accent}</h2>
+              <p class="text-content-secondary">{solution.tagline}</p>
+              <ul class="grid gap-2 text-sm font-semibold text-content-primary">
+                {workflow.slice(0, 3).map(item => (
+                  <li class="flex items-start gap-2"><BadgeCheck size={18} className="shrink-0 text-brand-700" aria-hidden="true" />{item.step}</li>
+                ))}
+              </ul>
+            </div>
+            <RequestDemoForm client:load initialIndustry={content.demoIndustry} />
+          </div>
+        </section>
+
+        <section id="benefits">
+          <h2 class="section-title">What Atlas OS helps you manage</h2>
+          <div class="card-grid sm:grid-cols-2">
+            {solution.howAtlasSolves.map((item, i) => {
+              const Icon = benefitIcons[i % benefitIcons.length];
+              return <article class="info-card"><span class="icon-box"><Icon size={21} aria-hidden="true" /></span><h3 class="mt-3 font-heading text-base font-bold">{content.benefits[i]}</h3><p class="mt-1">{item}</p></article>;
+            })}
+          </div>
+        </section>
+
+        <section id="features">
+          <h2 class="section-title">Explore your daily workflows</h2>
+          <div data-industry-tabs class="overflow-hidden rounded-3xl border border-border bg-white">
+            <div data-tab-list aria-label="Daily workflows" class="flex flex-wrap gap-1 border-b border-border bg-surface-secondary p-2 sm:p-3">
+              {workflow.map((item, i) => <button type="button" id={'workflow-tab-' + i} aria-controls={'workflow-panel-' + i}
+                class="workflow-tab px-3 py-2 text-sm font-semibold">{item.step}</button>)}
+            </div>
+            {workflow.map((item, i) => (
+              <div id={'workflow-panel-' + i} class="grid gap-5 border-b border-border p-5 last:border-0 sm:p-7 xl:grid-cols-2 xl:items-center">
+                <div class="space-y-3">
+                  <h3 class="font-heading text-xl font-bold">{item.step}</h3>
+                  <p class="leading-relaxed text-content-secondary">{item.description}</p>
+                  <a href="#walkthrough" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline">See the walkthrough <ArrowRight size={16} aria-hidden="true" /></a>
+                </div>
+                <div class="rounded-2xl border border-brand-200 bg-brand-50 p-4">
+                  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p class="flex items-center gap-2 text-xs font-semibold text-brand-900"><Package size={15} aria-hidden="true" /> {item.step}</p>
+                    <span class="text-xs text-content-secondary">Sample data</span>
+                  </div>
+                  <ul class="divide-y divide-brand-200 rounded-lg bg-white px-3 text-sm text-content-secondary">
+                    {content.sample.map(row => <li class="py-2">{row}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="business-types">
+          <h2 class="section-title">Who it’s for</h2>
+          <div class="card-grid sm:grid-cols-2">
+            {content.topics.map(topic => <div class="info-card flex items-center gap-3 font-semibold"><span class="icon-box"><Users size={20} aria-hidden="true" /></span>{topic}</div>)}
+          </div>
+        </section>
+
+        <section id="comparison">
+          <h2 class="section-title">Compare the day-to-day workflow</h2>
+          <div class="overflow-hidden rounded-2xl border border-border bg-white">
+            <table class="w-full table-fixed border-collapse text-left text-xs sm:text-sm">
+              <thead><tr class="bg-surface-secondary"><th scope="col" class="w-1/4">Task</th><th scope="col">Manual records</th><th scope="col" class="bg-brand-700 text-white">With Atlas OS</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">{content.comparison[0]}</th><td>{content.comparison[1]}</td><td>{content.comparison[2]}</td></tr>
+                <tr><th scope="row">Stock lookup</th><td>Check the latest sheet or ask the store team.</td><td>Search the catalog and review recorded on-hand balances.</td></tr>
+                <tr><th scope="row">Collections</th><td>Keep payment references and invoice records separately.</td><td>Review recorded payments alongside customer balances.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5 sm:p-7">
+            <div><h3 class="font-heading text-xl font-bold">Find the right edition</h3><p class="mt-1 text-sm text-content-secondary">Compare workspace, reporting, and receipt options.</p></div>
+            <Button href="/pricing" variant="primary" size="md">Compare pricing <ArrowRight size={17} aria-hidden="true" /></Button>
+          </div>
+        </section>
+
+        <section id="web-access">
+          <h2 class="section-title">Access Atlas OS in your browser</h2>
+          <div class="info-card flex items-start gap-4">
+            <span class="icon-box"><Smartphone size={22} aria-hidden="true" /></span>
+            <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href="/download" class="mt-2 inline-block text-sm font-semibold text-brand-700 hover:underline">See web and Windows availability</a></div>
+          </div>
+        </section>
+
+        <section id="walkthrough">
+          <h2 class="section-title">How the workflow runs</h2>
+          <ol class="card-grid sm:grid-cols-2">
+            {workflow.map((item, i) => <li class="info-card"><span class="icon-box font-bold">{i + 1}</span><h3 class="mt-3 font-heading text-base font-bold">{item.step}</h3><p class="mt-1">{item.description}</p></li>)}
+          </ol>
+        </section>
+
+        <section id="resources">
+          <h2 class="section-title">Useful resources</h2>
+          <div class="card-grid sm:grid-cols-3">
+            {[
+              { label: 'Feature directory', href: '/features', Icon: Layers3 },
+              { label: 'Receipt templates', href: '/receipt-templates', Icon: FileText },
+              { label: 'Help and support', href: '/support', Icon: BookOpen },
+            ].map(({ label, href, Icon }) => <a class="info-card flex items-center gap-2 text-sm font-semibold hover:border-brand-500 hover:text-brand-700" href={href}><Icon size={19} className="shrink-0 text-brand-700" aria-hidden="true" />{label}</a>)}
+          </div>
+        </section>
+
+        <section id="faq">
+          <h2 class="section-title">Frequently asked questions</h2>
+          <div class="grid gap-3">
+            {questions.map(([question, answer]) => <details class="group rounded-2xl border border-border bg-white">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold sm:p-5 sm:text-base">{question}<ChevronDown size={18} className="shrink-0 text-brand-700 group-open:rotate-180" aria-hidden="true" /></summary>
+              <p class="px-4 pb-4 text-sm leading-relaxed text-content-secondary sm:px-5 sm:pb-5">{answer}</p>
+            </details>)}
+          </div>
+        </section>
+
+        <div class="flex flex-wrap items-center justify-between gap-5 rounded-3xl bg-[#142b4d] p-6 text-white sm:p-9">
+          <div><h2 class="font-heading text-2xl font-bold">See Atlas OS with your workflow</h2><p class="mt-1 text-sm text-slate-200">Bring a sample sale, delivery, or payment to the walkthrough.</p></div>
+          <Button href="#demo" variant="primary" size="md">Request a demo <ArrowRight size={17} aria-hidden="true" /></Button>
+        </div>
+        <nav aria-label="Explore more industries" class="related-mobile">
+          <h2 class="section-title">More industries</h2>
+          <ul class="card-grid sm:grid-cols-2">{otherIndustries.map(item => <li><a class="info-card flex items-center justify-between gap-2 text-sm font-semibold text-brand-700 hover:underline" href={item.href}>{item.label}<ArrowRight size={16} aria-hidden="true" /></a></li>)}</ul>
+        </nav>
+      </div>
+    </Container>
+  </div>
+</BaseLayout>
+
+<style>
+  .industry-layout { display: grid; gap: 1.25rem; align-items: start; }
+  .industry-rail { min-width: 0; }
+  .rail-card { border: 1px solid var(--color-border, #dce4ef); background: white; border-radius: 1.25rem; padding: 1rem; }
+  .rail-heading { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .6rem; }
+  .rail-items { display: flex; gap: .25rem; overflow: auto; }
+  .rail-items a { display: flex; align-items: center; gap: .6rem; padding: .625rem; font-size: .875rem; border-radius: .65rem; white-space: nowrap; }
+  .rail-items a:hover, .rail-items a[aria-current], .workflow-tab[aria-selected="true"] { background: #e7f6f4; color: #08665f; }
+  .workflow-tab { border-radius: .65rem; }
+  .workflow-tab:hover { background: white; }
+  .industry-content { display: grid; gap: clamp(2.75rem, 6vw, 5rem); }
+  .section-title { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; margin-bottom: 1.3rem; }
+  .card-grid { display: grid; gap: .9rem; }
+  .info-card { padding: 1.125rem; border: 1px solid var(--color-border, #dce4ef); border-radius: 1rem; background: white; }
+  .info-card p { font-size: .9375rem; line-height: 1.6; color: #445673; }
+  .icon-box { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; flex-shrink: 0; border-radius: .75rem; background: #e7f6f4; color: #08665f; }
+  .industry-content th, .industry-content td { padding: .75rem; overflow-wrap: anywhere; vertical-align: top; }
+  .industry-content tbody tr { border-top: 1px solid #dce4ef; }
+  .industry-content tbody td:last-child { background: #eef8f7; }
+  .related-rail { display: none; }
+  @media (min-width: 1024px) {
+    .industry-layout { grid-template-columns: minmax(13.5rem, 21%) minmax(0, 1fr); gap: clamp(1.75rem, 4vw, 3.75rem); }
+    .industry-rail { position: sticky; top: 6.25rem; max-height: calc(100dvh - 7.25rem); overflow: auto; display: grid; gap: 1rem; }
+    .rail-items { display: grid; }
+    .rail-items a { white-space: normal; }
+    .related-rail { display: block; }
+    .related-mobile { display: none; }
+  }
+</style>
+
+<script>
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-section-link]'));
+  const sections = links.map(link => document.getElementById(link.hash.slice(1)));
+  let frame = 0;
+  function updateContents() {
+    frame = 0;
+    const boundary = (document.getElementById('site-header')?.getBoundingClientRect().bottom ?? 80) + 32;
+    let active = 0;
+    sections.forEach((section, i) => {
+      if (section && section.getBoundingClientRect().top <= boundary) active = i;
+    });
+    links.forEach((link, i) => {
+      if (active === i) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  }
+  window.addEventListener('scroll', () => {
+    if (!frame) frame = requestAnimationFrame(updateContents);
+  }, { passive: true });
+  window.addEventListener('load', updateContents);
+  updateContents();
+
+  const tabList = document.querySelector('[data-tab-list]');
+  const tabs = Array.from(tabList?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+  function selectTab(index: number) {
+    tabs.forEach((tab, i) => {
+      const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '');
+      tab.tabIndex = i === index ? 0 : -1;
+      tab.setAttribute('aria-selected', String(i === index));
+      panel?.classList.toggle('hidden', i !== index);
+      panel?.classList.toggle('grid', i === index);
+    });
+  }
+  tabList?.setAttribute('role', 'tablist');
+  tabs.forEach((tab, i) => {
+    tab.setAttribute('role', 'tab');
+    const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '');
+    panel?.setAttribute('role', 'tabpanel');
+    panel?.setAttribute('aria-labelledby', tab.id);
+    tab.addEventListener('click', () => selectTab(i));
+    tab.addEventListener('keydown', (event) => {
+      const next = { ArrowLeft: (i - 1 + tabs.length) % tabs.length, ArrowRight: (i + 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      selectTab(next);
+      tabs[next].focus();
+    });
+  });
+  selectTab(0);
+</script>
