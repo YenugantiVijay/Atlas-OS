@@ -149,8 +149,10 @@ cd atlas-os
 ### 2. Install dependencies
 
 ```bash
-npm install
+npm ci
 ```
+
+Run `npm ci` again after pulling changes to the root `package-lock.json`.
 
 ### 3. Configure environment variables
 
