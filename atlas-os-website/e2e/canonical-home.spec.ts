@@ -69,6 +69,26 @@ test('interactive product preview really hydrates and changes content', async ({
   await expect(page.getByText('Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
 });
 
+test('Industries opens on desktop hover and stays open while moving to its links', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 650 });
+  await page.goto('/');
+  const toggle = page.getByRole('button', { name: 'Industries' });
+  const panel = page.locator('#industries-panel');
+  await expect(panel).toBeHidden();
+  await toggle.hover();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const browse = panel.getByRole('link', { name: 'Feature directory' });
+  const trigger = (await toggle.boundingBox())!;
+  const link = (await browse.boundingBox())!;
+  const x = trigger.x + trigger.width / 2;
+  const y = link.y + link.height / 2;
+  await page.mouse.move(x, y, { steps: 20 });
+  await page.mouse.move(link.x + link.width / 2, y, { steps: 20 });
+  await expect(browse).toBeVisible();
+  await page.mouse.move(4, 620);
+  await expect(panel).toBeHidden();
+});
+
 test('Industries spans the desktop header and supports keyboard dismissal', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 650 });
   await page.goto('/');

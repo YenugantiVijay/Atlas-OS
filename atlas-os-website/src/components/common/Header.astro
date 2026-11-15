@@ -17,16 +17,16 @@ const onSolutions = currentPath.replace(/\/$/, '') === '/solutions';
   <Container size="default">
     <div class="flex items-center justify-between h-20">
       <!-- Brand Logo -->
-      <div class="flex items-center gap-8">
+      <div class="flex h-full items-center gap-8">
         <BrandLogo size="md" />
 
         <!-- Desktop Navigation Links -->
-        <nav class="hidden lg:flex items-center gap-1.5" aria-label="Main Navigation">
+        <nav class="hidden h-full items-center gap-1.5 lg:flex" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
               if (item.href === '/solutions') {
                 return (
-                  <div id="industries-nav">
+                  <div id="industries-nav" class="flex h-full items-center">
                     <button id="industries-toggle" type="button" aria-expanded="false" aria-controls="industries-panel"
                       class:list={[
                         'flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700',
@@ -256,7 +256,16 @@ const onSolutions = currentPath.replace(/\/$/, '') === '/solutions';
       industriesPanel.hidden = !open;
       industriesToggle.setAttribute('aria-expanded', String(open));
     };
-    industriesToggle.addEventListener('click', () => setIndustriesOpen(industriesPanel.hidden));
+    industriesNav.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'mouse') setIndustriesOpen(true);
+    });
+    industriesNav.addEventListener('pointerleave', (event) => {
+      if (event.pointerType === 'mouse' && !industriesPanel.contains(document.activeElement)) setIndustriesOpen(false);
+    });
+    industriesToggle.addEventListener('click', (event) => {
+      const mouseClick = event instanceof PointerEvent && event.pointerType === 'mouse';
+      setIndustriesOpen(mouseClick || industriesPanel.hidden);
+    });
     industriesNav.parentElement?.querySelectorAll(':scope > :not(#industries-nav)').forEach((item) => {
       item.addEventListener('pointerenter', () => {
         if (!industriesPanel.contains(document.activeElement)) setIndustriesOpen(false);
