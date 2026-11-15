@@ -15,13 +15,14 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
 
 <header class="sticky top-0 z-50 w-full border-b border-border bg-white" id="site-header">
   <Container size="default">
-    <div class="flex items-center justify-between h-20">
+    <div class="flex h-20 items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
       <!-- Brand Logo -->
-      <div class="flex h-full items-center gap-8">
+      <div class="flex h-full items-center lg:justify-self-start">
         <BrandLogo size="md" />
+      </div>
 
         <!-- Desktop Navigation Links -->
-        <nav class="hidden h-full items-center gap-1.5 lg:flex" aria-label="Main Navigation">
+        <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-1.5" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
               if (item.href === '/solutions') {
@@ -29,7 +30,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                   <div id="industries-nav" class="flex h-full items-center">
                     <button id="industries-toggle" type="button" aria-expanded="false" aria-controls="industries-panel"
                       class:list={[
-                        'flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700',
+                        'flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700 xl:px-3.5',
                         onSolutions ? 'bg-brand-50 text-brand-700' : 'text-content-primary',
                       ]}>
                       {item.label}
@@ -68,7 +69,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                   <div class="relative group">
                     <button
                       type="button"
-                      class={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer ${
+                      class={`flex items-center gap-1.5 px-2 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer xl:px-3.5 ${
                         isActive
                           ? 'text-brand-700 bg-brand-50 font-semibold'
                           : 'text-content-primary hover:text-brand-600 hover:bg-surface-secondary'
@@ -109,7 +110,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
               return (
                 <a
                   href={item.href}
-                  class={`relative flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  class={`relative flex items-center gap-1.5 px-2 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 xl:px-3.5 ${
                     isActive
                       ? 'text-brand-700 bg-brand-50 font-semibold'
                       : 'text-content-primary hover:text-brand-600 hover:bg-surface-secondary'
@@ -121,17 +122,16 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
             })
           }
         </nav>
-      </div>
 
       <!-- Action Buttons -->
-      <div class="hidden sm:flex items-center gap-3">
+      <div class="hidden items-center gap-3 sm:flex lg:justify-self-end">
         <Button href="/download" variant="outline" size="md" class="site-header-cta hidden md:inline-flex">
           <svg class="w-4 h-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" x2="12" y1="15" y2="3"/>
           </svg>
-          <span>Download</span>
+          <span class="lg:sr-only xl:not-sr-only">Download</span>
         </Button>
         <Button href="/request-demo" variant="primary" size="md" class="site-header-cta">
           <span>Request Demo</span>

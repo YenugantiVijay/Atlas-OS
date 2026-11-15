@@ -322,3 +322,37 @@ test('industry detail fits a narrow phone and links to other industries', async 
   await expect(related.getByRole('link', { name: 'Hardware & Tools' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
+
+test('desktop header centers its links and the footer links to the Atlas OS repository', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/');
+  for (const width of [1024, 1536]) {
+    await page.setViewportSize({ width, height: 800 });
+    const navigation = (await page.getByRole('navigation', { name: 'Main Navigation' }).boundingBox())!;
+    const header = (await page.locator('#site-header').boundingBox())!;
+    const download = (await page.locator('#site-header').getByRole('link', { name: 'Download', exact: true }).boundingBox())!;
+    expect(Math.abs(navigation.x + navigation.width / 2 - (header.x + header.width / 2))).toBeLessThan(2);
+    expect(navigation.x + navigation.width).toBeLessThanOrEqual(download.x);
+  }
+  const social = page.getByRole('navigation', { name: 'Atlas OS social profiles' });
+  await expect(social.getByRole('link', { name: 'Atlas OS on GitHub' })).toHaveAttribute('href', 'https://github.com/YenugantiVijay/Atlas-OS');
+});
+
+test('each industry sidebar scrolls independently on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 840 });
+  await page.goto('/solutions/retail-wholesale/');
+  const contents = page.getByRole('navigation', { name: 'On this page' }).getByRole('list');
+  const more = page.getByRole('navigation', { name: 'More industries', exact: true }).getByRole('list');
+  for (const list of [contents, more]) {
+    expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  }
+  await contents.hover();
+  await page.mouse.wheel(0, 185);
+  await expect.poll(() => contents.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  expect(await more.evaluate(el => el.scrollTop)).toBe(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await more.hover();
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => more.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});

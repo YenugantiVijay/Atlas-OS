@@ -221,11 +221,22 @@ const questions = [
   .related-rail { display: none; }
   @media (min-width: 1024px) {
     .industry-layout { grid-template-columns: minmax(13.5rem, 21%) minmax(0, 1fr); gap: clamp(1.75rem, 4vw, 3.75rem); }
-    .industry-rail { position: sticky; top: 6.25rem; max-height: calc(100dvh - 7.25rem); overflow: auto; display: grid; gap: 1rem; }
-    .rail-items { display: grid; }
+    .industry-rail { display: grid; gap: 1rem; }
+    .rail-items {
+      display: grid;
+      max-block-size: min(16.5rem, max(5rem, calc((100dvh - 16rem) / 2)));
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: #aab6c2 transparent;
+      overscroll-behavior-y: contain;
+    }
     .rail-items a { white-space: normal; }
     .related-rail { display: block; }
+    .related-rail .rail-items { max-block-size: min(10.5rem, max(5rem, calc((100dvh - 16rem) / 2))); }
     .related-mobile { display: none; }
+  }
+  @media (min-width: 1024px) and (min-height: 440px) {
+    .industry-rail { position: sticky; top: 6.25rem; }
   }
 </style>
 
