@@ -93,54 +93,27 @@ export const MAIN_NAVIGATION = [
 ];
 
 export const FOOTER_SECTIONS = [
-  {
-    title: 'Product & Capabilities',
-    links: [
-      { label: 'Product Overview', href: '/product' },
-      { label: 'Feature Directory', href: '/features' },
-      { label: 'Inventory Control', href: '/features#inventory' },
-      { label: 'GST Calculator', href: '/gst-calculator/' },
-      { label: 'Atlas Calculators', href: '/calculators/' },
-      { label: 'GST Tax Invoicing', href: '/features#invoicing' },
-      { label: 'Customer Receivables', href: '/features#customers' },
-      { label: 'Payment Settlement', href: '/features#payments' },
-      { label: 'Receipt Templates', href: '/receipt-templates' },
-      { label: 'Excel Reporting Engine', href: '/features#reports' },
-    ],
-  },
-  {
-    title: 'Industry Solutions',
-    links: [
-      { label: 'Electrical Distributors', href: industryHref('electrical') },
-      { label: 'Electronics Wholesalers', href: industryHref('electronics') },
-      { label: 'Hardware Merchants', href: industryHref('hardware') },
-      { label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs') },
-      { label: 'Small Shops', href: industryHref('small-business') },
-      { label: 'Retail-Wholesale Trade Counters', href: industryHref('retail-wholesale') },
-      { label: 'Request Custom Workflow', href: '/request-demo' },
-    ],
-  },
-  {
-    title: 'Software & Platform',
-    links: [
-      { label: 'Download Center', href: '/download' },
-      { label: 'Windows Desktop Status', href: '/download#status' },
-      { label: 'System Requirements', href: '/download#requirements' },
-      { label: 'Release Notes', href: '/download#notes' },
-      { label: 'SaaS Pricing Plans', href: '/pricing' },
-      { label: '7-Day Commercial Trial', href: '/pricing#trial' },
-    ],
-  },
-  {
-    title: 'Security & Company',
-    links: [
-      { label: 'Security Architecture', href: '/security' },
-      { label: 'Row Level Security (RLS)', href: '/security#rls' },
-      { label: 'Audit Logging Integrity', href: '/security#audit' },
-      { label: 'About Atlas OS', href: '/about' },
-      { label: 'Product Philosophy', href: '/about#philosophy' },
-      { label: 'Support & FAQs', href: '/support' },
-      { label: 'Contact Us', href: '/contact' },
-    ],
-  },
+  { title: 'Product', links: [
+    { label: 'Product overview', href: '/product' },
+    { label: 'Feature directory', href: '/features' },
+    { label: 'Inventory control', href: '/features#inventory' },
+    { label: 'GST invoicing', href: '/features#invoicing' },
+    { label: 'Pricing plans', href: '/pricing' },
+    { label: 'Download center', href: '/download' },
+  ] },
+  { title: 'Industries', links: INDUSTRY_NAVIGATION.map(({ label, href }) => ({ label, href })) },
+  { title: 'Resources', links: [
+    { label: 'Resource directory', href: '/resources/' },
+    { label: 'Atlas Calculators', href: '/calculators/' },
+    { label: 'GST Calculator', href: '/gst-calculator/' },
+    { label: 'Receipt templates', href: '/receipt-templates' },
+    { label: 'E-way bill worksheet', href: '/calculators/eway-bill-template/' },
+  ] },
+  { title: 'Company & support', links: [
+    { label: 'About Atlas OS', href: '/about' },
+    { label: 'Security architecture', href: '/security' },
+    { label: 'Help center & FAQs', href: '/support' },
+    { label: 'Contact us', href: '/contact' },
+    { label: 'Request a demo', href: '/request-demo' },
+  ] },
 ];

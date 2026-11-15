@@ -117,10 +117,6 @@
 .site-header-cta svg { flex-shrink: 0; }
 .footer-heading { font-size: 1.125rem; line-height: 1.35; }
 .footer-link { font-size: .875rem; line-height: 1.45; }
-@media (min-width: 1024px) {
-  .site-footer-grid.grid { grid-template-columns: minmax(180px,1.6fr) repeat(4,minmax(0,1fr)); }
-  .site-footer-grid .site-footer-brand { grid-column: span 1; }
-}
 @media (max-width: 380px) { .site-header-cta { padding-inline: 12px; } }
 
 @keyframes atlas-enter {
@@ -213,4 +209,11 @@
 .atlas-icon-card:is(:hover, :focus-within) .atlas-card-icon {
   color: var(--icon-accent, #0f766e);
   background-color: color-mix(in srgb, var(--icon-accent, #0f766e) 12%, white);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .home-card, .atlas-icon-card { transition: translate 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease; }
+  .home-card:hover, main .atlas-icon-card:hover { translate: 0 -3px; box-shadow: 0 12px 24px rgb(20 43 77 / 9%); }
+  .btn-shimmer { transition: translate 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+  .btn-shimmer:hover:not(:disabled) { translate: 0 -1px; }
 }

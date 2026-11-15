@@ -1,0 +1,23 @@
+---
+import { ArrowUp } from 'lucide-react';
+---
+<button type="button" id="back-to-top" hidden aria-label="Back to top" title="Back to top"
+  class="fixed bottom-4 right-4 z-40 h-11 w-11 items-center justify-center rounded-full border border-brand-200 bg-white text-brand-700 shadow-md transition-colors hover:bg-brand-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:bottom-6 sm:right-6 print:hidden">
+  <ArrowUp size={20} aria-hidden="true" />
+</button>
+<style>
+  button:not([hidden]) { display: inline-flex; }
+  @media print { button { display: none !important; } }
+</style>
+<script>
+  const button = document.getElementById('back-to-top');
+  if (button) {
+    const sync = () => { button.hidden = window.scrollY < 360; };
+    window.addEventListener('scroll', sync, { passive: true });
+    button.addEventListener('click', () => {
+      document.getElementById('site-top')?.focus({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    sync();
+  }
+</script>

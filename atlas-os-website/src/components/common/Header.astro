@@ -16,7 +16,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
 ---
 
 <header class="sticky top-0 z-50 w-full border-b border-border site-nav-surface" id="site-header">
-  <Container size="default">
+  <Container size="wide">
     <div class="flex h-20 items-center justify-between lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
       <!-- Brand Logo -->
       <div class="flex h-full items-center lg:justify-self-start">
@@ -24,7 +24,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
       </div>
 
         <!-- Desktop Navigation Links -->
-        <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-1.5" aria-label="Main Navigation">
+        <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-4" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
               if (item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
@@ -133,14 +133,6 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
 
       <!-- Action Buttons -->
       <div class="hidden items-center gap-3 whitespace-nowrap sm:flex lg:justify-self-end">
-        <Button href="/download" variant="outline" size="md" class="site-header-cta hidden md:inline-flex">
-          <svg class="w-4 h-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" x2="12" y1="15" y2="3"/>
-          </svg>
-          <span class="lg:sr-only xl:not-sr-only">Download</span>
-        </Button>
         <Button href="/request-demo" variant="primary" size="md" class="site-header-cta">
           <span>Request Demo</span>
           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -248,9 +240,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
 
 <style>
   .site-nav-surface { background: white; }
-  @supports (backdrop-filter: blur(1px)) {
-    .site-nav-surface { background: rgb(255 255 255 / 90%); backdrop-filter: blur(16px) saturate(140%); }
-  }
+
 
   .mega-panel {
     max-height: calc(100vh - 5rem);

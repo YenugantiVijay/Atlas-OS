@@ -1,7 +1,6 @@
-import { BookOpen, Boxes, Calculator, ClipboardList, Download, FileText, Globe, HelpCircle, Info, Mail, Receipt, Search, ShieldCheck, Sigma, Truck } from 'lucide-react';
+import { BookOpen, Boxes, Calculator, ClipboardList, Download, FileText, Globe, HelpCircle, Info, Mail, Receipt, Search, ShieldCheck, Truck } from 'lucide-react';
 
 const link = (label: string, href: string, Icon: typeof BookOpen, hue = '#0f766e') => ({ label, href, Icon, hue });
-const calculator = link('GST calculator', '/gst-calculator/', Calculator);
 const receipts = link('Receipt templates', '/receipt-templates', Receipt, '#a21caf');
 const hsn = link('HSN and SAC guidance', 'https://tutorial.gst.gov.in/userguide/taxpayersdashboard/Search_HSN_SAC_Tax_Rates.htm', Search, '#1d4ed8');
 
@@ -29,7 +28,7 @@ export const RESOURCE_GROUPS = [
 ];
 
 export const GST_GROUPS = [
-  { label: 'Calculators', links: [calculator, link('How the calculation works', '/gst-calculator/#formulas', Sigma, '#6d28d9'),
+  { label: 'Tax tools', links: [
     link('Input tax credit calculator', '/calculators/input-tax-credit/', Calculator, '#6d28d9')] },
   { label: 'Billing & transport', links: [link('GST invoicing', '/features#invoicing', FileText, '#1d4ed8'), receipts,
     link('E-way bill worksheet', '/calculators/eway-bill-template/', Truck, '#b45309')] },

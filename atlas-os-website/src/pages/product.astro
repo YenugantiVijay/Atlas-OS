@@ -1,4 +1,5 @@
 ---
+import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
@@ -23,6 +24,10 @@ import Button from '../components/common/Button.astro';
         </p>
       </div>
     </Container>
+  </section>
+
+  <section class="border-b border-border bg-surface-secondary py-8 sm:py-12" aria-label="Atlas OS capabilities">
+    <Container size="default"><CapabilityOrbit /></Container>
   </section>
 
   {/* ARCHITECTURAL PILLARS */}

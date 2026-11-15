@@ -8,7 +8,7 @@ const distDir = path.resolve(__dirname, '../dist');
 console.log('--- Starting Atlas OS Website Static Verification ---');
 
 const expectedRoutes = [
-  { path: 'index.html', titleKeyword: 'Atlas OS', descKeyword: 'distributor-focused' },
+  { path: 'index.html', titleKeyword: 'Atlas OS', descKeyword: 'stock' },
   { path: 'product/index.html', titleKeyword: 'Product Overview', descKeyword: 'Atlas OS' },
   { path: 'features/index.html', titleKeyword: 'Features', descKeyword: 'capabilities' },
   { path: 'gst-calculator/index.html', titleKeyword: 'GST Calculator', descKeyword: 'GST' },
@@ -169,11 +169,11 @@ if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
   const source = fs.readFileSync(canonicalSource, 'utf8');
   const generated = fs.readFileSync(compiledHome, 'utf8');
   const checks = [
-    [source.includes('CapabilityOrbit'), 'Astro homepage source includes signature orbit component'],
+    [source.includes('home-overview'), 'Astro homepage source includes the overview'],
     [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
-    [generated.includes('capability-orbit'), 'Built homepage contains original orbit layout'],
+    [generated.includes('Today at the counter'), 'Built homepage contains a plain-language counter example'],
     [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
-    [generated.includes('See Supplier Rate Changes.'), 'Built homepage leads with distributor supplier-rate review'],
+    [generated.includes('Stock, billing, and payments'), 'Built homepage explains daily operations'],
     [generated.includes('supplier-rate-review'), 'Built homepage links to the supplier-rate review feature'],
     [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
     [generated.includes('href="/product"'), 'Built homepage links to product page'],

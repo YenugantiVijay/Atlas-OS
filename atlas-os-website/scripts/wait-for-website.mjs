@@ -23,7 +23,7 @@ function probe() {
       res.on('end', () => {
         const ready = res.statusCode === 200 &&
           /<title>[^<]*Atlas OS/i.test(body) &&
-          body.includes('capability-orbit') &&
+          body.includes('home-overview') &&
           body.includes('Connected Business Workflow');
         resolve(ready ? 'ready' : 'waiting');
       });

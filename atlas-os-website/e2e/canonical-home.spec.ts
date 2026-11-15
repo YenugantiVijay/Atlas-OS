@@ -41,19 +41,18 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-test('homepage is the original Astro experience, not the temporary HTML replica', async ({ page }) => {
+test('homepage explains the daily workflow and retains the interactive preview', async ({ page }) => {
   const response = await page.goto('/');
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /See Supplier Rate Changes.*Review Quotes Before You Send/i,
+    level: 1, name: /Stock, billing, and payments in one place/i,
   })).toBeVisible();
   await expect(page.getByRole('heading', {
     level: 2, name: /supplier rate change/i,
   })).toBeVisible();
-  await expect(page.getByText('Quotes are not silently repriced.', { exact: false })).toBeVisible();
-  await expect(page.locator('.capability-orbit')).toBeVisible();
-  await expect(page.locator('.capability-orbit .orbit-chip')).toHaveCount(6);
+  await expect(page.getByText('Your team chooses what to update before sending the quote.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Today at the counter', { exact: true })).toBeVisible();
   await expect(page.getByText('Connected Business Workflow', { exact: true })).toBeVisible();
   await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
   await expect(page.locator('astro-island')).not.toHaveCount(0);
@@ -158,7 +157,7 @@ test('header buttons and footer establish a readable hierarchy', async ({ page }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   const ctas = page.locator('#site-header .site-header-cta:visible');
-  await expect(ctas).toHaveCount(2);
+  await expect(ctas).toHaveCount(1);
   for (const cta of await ctas.all()) {
     const style = await cta.evaluate((element) => {
       const { paddingInlineStart, paddingInlineEnd, gap } = getComputedStyle(element);
@@ -208,7 +207,7 @@ test('the home introduction and scroll motion respect reduced motion', async ({ 
 test('mobile cards reveal as they enter the screen and anchors clear the header', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const card = page.getByRole('heading', { name: 'Understand Your Business' }).locator('..').locator('..');
+  const card = page.getByRole('heading', { name: 'Understand Your Business' }).locator('xpath=ancestor::li[1]');
   await expect(card).toHaveClass(/atlas-pending/);
   await card.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
   await expect(card).toHaveClass(/atlas-revealed/);
@@ -258,7 +257,7 @@ test('pricing plans and industry links lead to the right workflows', async ({ pa
   await expect(page.getByRole('form', { name: 'Request a demo' }).getByLabel('Business type')).toHaveValue('agricultural_inputs');
 });
 
-test('responsive mobile keeps the real navigation and orbit layout', async ({ page }) => {
+test('responsive mobile keeps the homepage example and navigation in view', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const menu = page.getByRole('button', { name: 'Open Navigation Menu' });
@@ -266,7 +265,7 @@ test('responsive mobile keeps the real navigation and orbit layout', async ({ pa
   await menu.click();
   await expect(menu).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#mobile-nav-menu')).toBeVisible();
-  await expect(page.locator('.capability-orbit')).toBeVisible();
+  await expect(page.locator('#home-overview')).toBeVisible();
   const pageWidth = await page.evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
     viewport: document.documentElement.clientWidth,
@@ -330,9 +329,9 @@ test('desktop header centers its links and the footer links to the Atlas OS repo
     await page.setViewportSize({ width, height: 800 });
     const navigation = (await page.getByRole('navigation', { name: 'Main Navigation' }).boundingBox())!;
     const header = (await page.locator('#site-header').boundingBox())!;
-    const download = (await page.locator('#site-header').getByRole('link', { name: 'Download', exact: true }).boundingBox())!;
+    const demo = (await page.locator('#site-header').getByRole('link', { name: 'Request Demo', exact: true }).boundingBox())!;
     expect(Math.abs(navigation.x + navigation.width / 2 - (header.x + header.width / 2))).toBeLessThan(2);
-    expect(navigation.x + navigation.width).toBeLessThanOrEqual(download.x);
+    expect(navigation.x + navigation.width).toBeLessThanOrEqual(demo.x);
   }
   const social = page.getByRole('navigation', { name: 'Atlas OS social profiles' });
   await expect(social.getByRole('link', { name: 'Atlas OS on GitHub' })).toHaveAttribute('href', 'https://github.com/YenugantiVijay/Atlas-OS');
@@ -357,7 +356,7 @@ test('each industry sidebar scrolls independently on desktop', async ({ page }) 
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('GST opens its frosted full-width menu and each icon uses its hover color', async ({ page }) => {
+test('GST has an opaque full-width menu and the calculator remains under Resources', async ({ page }) => {
   await page.setViewportSize({ width: 1536, height: 900 });
   await page.goto('/');
   const header = page.locator('#site-header');
@@ -366,14 +365,16 @@ test('GST opens its frosted full-width menu and each icon uses its hover color',
   await toggle.hover();
   await expect(panel).toBeVisible();
   expect((await panel.boundingBox())?.width).toBe((await header.boundingBox())?.width);
-  await expect(header).toHaveCSS('backdrop-filter', /blur/);
-  const tool = panel.getByRole('link', { name: 'GST calculator', exact: true });
+  await expect(panel).toHaveCSS('backdrop-filter', 'none');
+  await expect(panel).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(panel.getByRole('link', { name: 'GST calculator', exact: true })).toHaveCount(0);
+  const tool = panel.getByRole('link', { name: 'Input tax credit calculator', exact: true });
   const icon = tool.locator('.atlas-card-icon');
   await expect(icon).toHaveCSS('color', 'rgb(68, 86, 115)');
   await tool.hover();
-  await expect(icon).toHaveCSS('color', 'rgb(15, 118, 110)');
+  await expect(icon).toHaveCSS('color', 'rgb(109, 40, 217)');
   await tool.click();
-  await expect(page).toHaveURL(/\/gst-calculator\/?$/);
+  await expect(page).toHaveURL(/\/calculators\/input-tax-credit\/?$/);
 });
 
 test('GST calculator adds and removes GST, splits tax, and validates input on mobile', async ({ page }) => {
@@ -465,4 +466,32 @@ test('the e-way bill worksheet prints the entered details as working notes', asy
   await expect(page.locator('#worksheet-print')).toContainText('INV-42');
   await expect(page.locator('#worksheet-print')).toContainText('Sample shipment');
   await expect(page.locator('#site-header')).toBeHidden();
+});
+
+test('shared breadcrumbs show the current location and link back through parents', async ({ page }) => {
+  for (const [path, trail] of [
+    ['/pricing/', ['Home', 'Pricing']],
+    ['/solutions/electrical/', ['Home', 'Industries', 'Electrical Distributors']],
+    ['/gst-calculator/', ['Home', 'Resources', 'Atlas Calculators', 'GST Calculator']],
+    ['/calculators/emi/', ['Home', 'Resources', 'Atlas Calculators', 'EMI Calculator']],
+  ] as const) {
+    await page.goto(path);
+    const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(breadcrumb).toHaveCount(1);
+    await expect(breadcrumb.getByRole('listitem')).toHaveText([...trail]);
+    await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText(trail.at(-1)!);
+  }
+});
+
+test('back to top appears after scrolling and returns focus to the top', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/resources/');
+  const top = page.getByRole('button', { name: 'Back to top' });
+  await expect(top).toBeHidden();
+  await page.goto('/');
+  await page.evaluate(() => window.scrollTo({ top: 900, behavior: 'instant' }));
+  await expect(top).toBeVisible();
+  await top.click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.locator('#site-top')).toBeFocused();
 });
