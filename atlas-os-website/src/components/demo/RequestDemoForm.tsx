@@ -31,8 +31,8 @@ const PRIORITIES = [
 ];
 const CONTROL = 'block min-h-10 w-full min-w-0 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm font-normal text-content-primary focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
 
-export default function RequestDemoForm() {
-  const [formData, setFormData] = useState(EMPTY_FORM);
+export default function RequestDemoForm({ initialIndustry = EMPTY_FORM.industry }: { initialIndustry?: string }) {
+  const [formData, setFormData] = useState(() => ({ ...EMPTY_FORM, industry: initialIndustry }));
   const [plan, setPlan] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -97,7 +97,7 @@ export default function RequestDemoForm() {
       <p className="text-sm text-content-secondary">We’ll use your contact details to arrange the walkthrough.</p>
       <p className="break-all text-xs text-content-secondary">Reference <strong>{reference}</strong></p>
       <button type="button" className="text-sm font-semibold text-brand-700 underline" onClick={() => {
-        setFormData(EMPTY_FORM); setReference(''); setTurnstileToken(''); setResetCounter((value) => value + 1);
+        setFormData({ ...EMPTY_FORM, industry: initialIndustry }); setReference(''); setTurnstileToken(''); setResetCounter((value) => value + 1);
       }}>Submit another enquiry</button>
     </div>
   );

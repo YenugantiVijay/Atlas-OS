@@ -10,33 +10,35 @@ export interface NavDropdown {
   items: NavLink[];
 }
 
+export const industryHref = (id: string) => `/solutions/${id}/`;
+
 export const INDUSTRY_NAVIGATION = [
   {
     icon: 'electrical',
     label: 'Electrical Distributors',
-    href: '/solutions#electrical',
+    href: industryHref('electrical'),
     description: 'Wires, switchgear, conduits, and contractor credit ledgers.',
   },
   {
     icon: 'electronics',
     label: 'Electronics Wholesalers',
-    href: '/solutions#electronics',
+    href: industryHref('electronics'),
     description: 'High-precision SKU tracking and rapid order fulfillment.',
   },
   {
     icon: 'hardware',
     label: 'Hardware & Tools',
-    href: '/solutions#hardware',
+    href: industryHref('hardware'),
     description: 'Industrial fasteners, building materials, and multi-UOM stocks.',
   },
   {
     icon: 'retail',
     label: 'Retail & Wholesale Counters',
-    href: '/solutions#retail-wholesale',
+    href: industryHref('retail-wholesale'),
     description: 'Draft orders at the counter and reconcile cash and UPI collections.',
   },
-  { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs', description: 'Receive stock by bag and track supplier rates and credit customers.' },
-  { icon: 'shop', label: 'Small Shops', href: '/solutions#small-business', description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
+  { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs'), description: 'Receive stock by bag and track supplier rates and credit customers.' },
+  { icon: 'shop', label: 'Small Shops', href: industryHref('small-business'), description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
 ] as const;
 
 export const MAIN_NAVIGATION = [
@@ -131,12 +133,12 @@ export const FOOTER_SECTIONS = [
   {
     title: 'Industry Solutions',
     links: [
-      { label: 'Electrical Distributors', href: '/solutions#electrical' },
-      { label: 'Electronics Wholesalers', href: '/solutions#electronics' },
-      { label: 'Hardware Merchants', href: '/solutions#hardware' },
-      { label: 'Fertilizers & Agri Inputs', href: '/solutions#agricultural-inputs' },
-      { label: 'Small Shops', href: '/solutions#small-business' },
-      { label: 'Retail-Wholesale Trade Counters', href: '/solutions#retail-wholesale' },
+      { label: 'Electrical Distributors', href: industryHref('electrical') },
+      { label: 'Electronics Wholesalers', href: industryHref('electronics') },
+      { label: 'Hardware Merchants', href: industryHref('hardware') },
+      { label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs') },
+      { label: 'Small Shops', href: industryHref('small-business') },
+      { label: 'Retail-Wholesale Trade Counters', href: industryHref('retail-wholesale') },
       { label: 'Request Custom Workflow', href: '/request-demo' },
     ],
   },

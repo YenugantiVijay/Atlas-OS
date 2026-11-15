@@ -4,6 +4,7 @@ import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import InteractivePreview from '../components/home/InteractivePreview';
 import CapabilityOrbit from '../components/home/CapabilityOrbit.astro';
+import { industryHref } from '../data/navigation';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
 ---
 
@@ -510,7 +511,7 @@ import { INDUSTRY_SOLUTIONS } from '../data/industries';
 
             <div class="pt-4 border-t border-border/50">
               <a
-                href={`/solutions#${sol.id}`}
+                href={industryHref(sol.id)}
                 class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:text-brand-800"
               >
                 <span>Read Full Industry Workflow</span>
