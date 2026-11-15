@@ -7,8 +7,8 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "dev": "node scripts/run-astro.mjs dev",
-    "start": "node scripts/run-astro.mjs dev",
+    "dev": "node scripts/run-astro.mjs dev --ignore-lock",
+    "start": "node scripts/run-astro.mjs dev --ignore-lock",
     "build": "node scripts/run-astro.mjs check && node scripts/run-astro.mjs build",
     "preview": "node scripts/serve-preview.mjs",
     "astro": "node scripts/run-astro.mjs",

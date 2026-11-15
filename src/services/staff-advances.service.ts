@@ -22,6 +22,7 @@ export interface StaffRecovery {
   received_on: string;
   note: string | null;
   method: StaffPaymentMethod | null;
+  payday_reversed_at: string | null;
 }
 
 export interface StaffPayday {
@@ -32,6 +33,8 @@ export interface StaffPayday {
   advance_deductions_paise: number;
   net_paise: number;
   method: StaffPaymentMethod;
+  reversed_at: string | null;
+  reversal_reason: string | null;
 }
 
 export interface PaydayPreview {
@@ -100,18 +103,23 @@ export const staffAdvanceService = {
 
   async listPaydays(orgId: string, staffId: string, page: number) {
     const start = (page - 1) * advancePageSize;
-    const { data, count, error } = await cloud().from('staff_paydays')
-      .select('id,period,gross_paise,other_deductions_paise,advance_deductions_paise,net_paise,method', { count: 'exact' })
-      .eq('organization_id', orgId).eq('staff_id', staffId).order('period', { ascending: false })
-      .range(start, start + advancePageSize - 1);
-    if (error || count === null) throw new Error('Could not load pay records.');
-    return { rows: data as StaffPayday[], count };
+    const paydays = () => cloud().from('staff_paydays');
+    const [history, latest] = await Promise.all([
+      paydays().select('id,period,gross_paise,other_deductions_paise,advance_deductions_paise,net_paise,method,reversed_at,reversal_reason', { count: 'exact' })
+        .eq('organization_id', orgId).eq('staff_id', staffId)
+        .order('period', { ascending: false }).order('recorded_at', { ascending: false }).order('id')
+        .range(start, start + advancePageSize - 1),
+      paydays().select('id').eq('organization_id', orgId).eq('staff_id', staffId)
+        .is('reversed_at', null).order('period', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (history.error || latest.error || history.count === null) throw new Error('Could not load pay records.');
+    return { rows: history.data as StaffPayday[], count: history.count, latestActiveId: latest.data?.id ?? null };
   },
 
   async listRecoveries(orgId: string, staffId: string, advanceId: string, page: number) {
     const start = (page - 1) * advancePageSize;
-    const { data, count, error } = await cloud().from('staff_advance_recoveries')
-      .select('id,payday_id,amount_paise,received_on,note,method', { count: 'exact' })
+    const { data, count, error } = await cloud().from('staff_advance_recovery_history')
+      .select('id,payday_id,amount_paise,received_on,note,method,payday_reversed_at', { count: 'exact' })
       .eq('organization_id', orgId).eq('staff_id', staffId).eq('advance_id', advanceId)
       .order('received_on', { ascending: false }).order('recorded_at', { ascending: false }).order('id')
       .range(start, start + advancePageSize - 1);
@@ -149,5 +157,9 @@ export const staffAdvanceService = {
       p_period: period, p_gross: amounts.gross, p_wage_basis: amounts.wageBasis, p_other: amounts.other,
       p_limit: amounts.limit, p_method: method, p_snapshot: snapshot, p_deductions: deductions,
     });
+  },
+
+  reversePayday(scope: StaffScope, paydayId: string, reason: string) {
+    return write(scope, 'reverse_staff_payday', { p_payday_id: paydayId, p_reason: reason.trim() });
   },
 };

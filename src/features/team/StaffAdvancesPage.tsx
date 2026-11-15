@@ -10,8 +10,8 @@ import { useActionPermission } from '@/hooks/useActionPermission';
 import { formatDisplayDate } from '@/lib/dates';
 import { formatCurrency, fromPaise } from '@/lib/money';
 import { staffPageSize, staffPayService, type StaffProfile } from '@/services/staff-pay.service';
-import { advancePageSize, staffAdvanceService, staffPaymentMethods, type StaffAdvance } from '@/services/staff-advances.service';
-import { AdvanceForm, RepaymentForm, type AdvanceFormScope } from './StaffAdvanceForms';
+import { advancePageSize, staffAdvanceService, staffPaymentMethods, type StaffAdvance, type StaffPayday } from '@/services/staff-advances.service';
+import { AdvanceForm, RepaymentForm, ReversePaydayForm, type AdvanceFormScope } from './StaffAdvanceForms';
 import { StaffPaydayReview } from './StaffPaydayReview';
 
 const monthFormat = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
@@ -72,6 +72,8 @@ function EmployeeLedger({ person, scope, currency, editable }: {
   const [payPage, setPayPage] = useState(1);
   const [mode, setMode] = useState<'advance' | 'payday'>();
   const [repayment, setRepayment] = useState<StaffAdvance>();
+  const [reversal, setReversal] = useState<StaffPayday>();
+  const [paydayPeriod, setPaydayPeriod] = useState<string>();
   const [historyId, setHistoryId] = useState<string>();
   const [feedback, setFeedback] = useState('');
   const advances = useQuery({
@@ -88,6 +90,8 @@ function EmployeeLedger({ person, scope, currency, editable }: {
     setFeedback(message);
     setMode(undefined);
     setRepayment(undefined);
+    setReversal(undefined);
+    setPaydayPeriod(undefined);
     setAdvancePage(1);
     setPayPage(1);
     await queryClient.invalidateQueries({ queryKey: base });
@@ -103,7 +107,8 @@ function EmployeeLedger({ person, scope, currency, editable }: {
     </div>
     {!editable && <p className="text-sm text-content-secondary">Records are available in read-only mode.</p>}
     {feedback && <p role="status" className="text-sm text-teal-800">{feedback}</p>}
-    {editable && mode === 'payday' && <StaffPaydayReview scope={scope} currency={currency} joiningOn={person.joining_on}
+    {editable && mode === 'payday' && <StaffPaydayReview key={paydayPeriod ?? 'current'} scope={scope} currency={currency}
+      joiningOn={person.joining_on} initialPeriod={paydayPeriod}
       onSaved={() => saved('Payday recorded. Advance balances were updated.')} />}
     <Card className="space-y-3">
       <h3 className="text-base font-semibold">Advance register</h3>
@@ -144,10 +149,15 @@ function EmployeeLedger({ person, scope, currency, editable }: {
       <ul className="divide-y divide-border">
         {paydays.data?.rows.map(record => <li key={record.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
           <div>
-            <p className="font-medium">{monthName(record.period)}</p>
+            <p className="font-medium">{monthName(record.period)}{record.reversed_at && <span className="ml-2 text-rose-800">Reversed</span>}</p>
             <p className="text-content-secondary">Gross {money(record.gross_paise)} · Advance deducted {money(record.advance_deductions_paise)} · Other {money(record.other_deductions_paise)}</p>
+            {record.reversed_at && <p className="break-words text-content-secondary">Reversed {formatDisplayDate(record.reversed_at)} · {record.reversal_reason}</p>}
           </div>
-          <p className="font-semibold">{money(record.net_paise)} paid by {staffPaymentMethods[record.method]}</p>
+          <div className="space-y-1">
+            <p className="font-semibold">{money(record.net_paise)} {record.reversed_at ? 'originally recorded via' : 'paid by'} {staffPaymentMethods[record.method]}</p>
+            {editable && !record.reversed_at && record.id === paydays.data?.latestActiveId &&
+              <Button size="sm" variant="outline" onClick={() => setReversal(record)}>Reverse payday</Button>}
+          </div>
         </li>)}
       </ul>
       <RecordPages count={paydays.data?.count ?? 0} page={payPage} onChange={setPayPage} />
@@ -156,6 +166,12 @@ function EmployeeLedger({ person, scope, currency, editable }: {
       onClose={() => setMode(undefined)} onSaved={() => saved('Advance recorded.')} />}
     {editable && repayment && <RepaymentForm scope={scope} advance={repayment} currency={currency}
       onClose={() => setRepayment(undefined)} onSaved={() => saved('Repayment recorded.')} />}
+    {editable && reversal && <ReversePaydayForm scope={scope} payday={reversal} month={monthName(reversal.period)} currency={currency}
+      onClose={() => setReversal(undefined)} onSaved={async () => {
+        await saved('Payday reversed. You can review a corrected record for the same month.');
+        setPaydayPeriod(reversal.period);
+        setMode('payday');
+      }} />}
   </>;
 }
 
@@ -171,7 +187,7 @@ function RecoveryHistory({ scope, advanceId, currency }: { scope: AdvanceFormSco
     {history.isSuccess && history.data.rows.length === 0 && <p>No repayments or deductions recorded.</p>}
     <ul className="divide-y divide-border">
       {history.data?.rows.map(row => <li key={row.id} className="flex flex-wrap justify-between gap-2 py-2">
-        <span>{formatDisplayDate(row.received_on)} · {row.payday_id ? 'Payday deduction' : 'Direct repayment'}
+        <span>{formatDisplayDate(row.received_on)} · {row.payday_reversed_at ? 'Reversed payday deduction' : row.payday_id ? 'Payday deduction' : 'Direct repayment'}
           {row.method ? ' · ' + staffPaymentMethods[row.method] : ''}{row.note ? ' · ' + row.note : ''}</span>
         <strong>{formatCurrency(fromPaise(row.amount_paise), currency)}</strong>
       </li>)}

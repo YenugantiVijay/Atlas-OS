@@ -33,11 +33,11 @@ function readDeductions(lines: PaydayPreview['lines'], selected: Record<string, 
   }
 }
 
-export function StaffPaydayReview({ scope, joiningOn, currency, onSaved }: {
-  scope: AdvanceFormScope; joiningOn: string; currency: string; onSaved: () => Promise<void>;
+export function StaffPaydayReview({ scope, joiningOn, currency, initialPeriod, onSaved }: {
+  scope: AdvanceFormScope; joiningOn: string; currency: string; initialPeriod?: string; onSaved: () => Promise<void>;
 }) {
   const thisMonth = getBusinessDate().slice(0, 7);
-  const [month, setMonth] = useState(thisMonth);
+  const [month, setMonth] = useState(initialPeriod?.slice(0, 7) ?? thisMonth);
   const [gross, setGross] = useState('');
   const [wageBasis, setWageBasis] = useState('');
   const [other, setOther] = useState('0');
