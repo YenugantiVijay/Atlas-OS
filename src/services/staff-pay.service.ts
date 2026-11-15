@@ -15,7 +15,15 @@ export interface StaffProfile {
   joining_on: string;
   staff_location_assignments: Array<{ location_id: string }>;
 }
-export interface StaffPayRate { effective_on: string; basis: PayBasis; amount_paise: number }
+export interface StaffPayRate {
+  effective_on: string;
+  basis: PayBasis;
+  amount_paise: number;
+  revision: number;
+  reason: string | null;
+  recorded_at: string;
+  is_latest: boolean;
+}
 
 function cloud() {
   if (!supabase) throw new Error('Sign in to a cloud workspace to manage staff pay.');
@@ -54,13 +62,15 @@ export const staffPayService = {
 
   async listRates(orgId: string, staffId: string, today: string, page: number) {
     function rates() {
-      return cloud().from('staff_pay_rates').select('effective_on,basis,amount_paise', { count: 'exact' })
-        .eq('organization_id', orgId).eq('staff_id', staffId).order('effective_on', { ascending: false });
+      return cloud().from('staff_pay_rate_history')
+        .select('effective_on,basis,amount_paise,revision,reason,recorded_at,is_latest', { count: 'exact' })
+        .eq('organization_id', orgId).eq('staff_id', staffId)
+        .order('effective_on', { ascending: false }).order('revision', { ascending: false });
     }
     const from = page * staffPageSize;
     const [history, current] = await Promise.all([
       rates().range(from, from + staffPageSize - 1),
-      rates().lte('effective_on', today).limit(1).maybeSingle<StaffPayRate>(),
+      rates().eq('is_latest', true).lte('effective_on', today).limit(1).maybeSingle<StaffPayRate>(),
     ]);
     if (history.error || history.count === null || current.error) throw new Error('Could not load pay rates.');
     return { rows: history.data as StaffPayRate[], count: history.count, current: current.data };
@@ -101,5 +111,23 @@ export const staffPayService = {
       throw new Error('A different pay rate already exists for this effective date.');
     }
     if (error) throw new Error('Could not save the pay rate. Check that the effective date is on or after joining.');
+  },
+
+  async correctRate(orgId: string, staffId: string, original: StaffPayRate, basis: PayBasis, amountPaise: number, reason: string) {
+    const key = {
+      organization_id: orgId, staff_id: staffId, effective_on: original.effective_on, revision: original.revision + 1,
+    };
+    const label = reason.trim();
+    const { error } = await cloud().from('staff_pay_rate_corrections').insert({
+      ...key, basis, amount_paise: amountPaise, reason: label,
+    });
+    if (error?.code === '23505' || error?.code === '40001') {
+      const { data } = await cloud().from('staff_pay_rate_corrections')
+        .select('basis,amount_paise,reason').match(key).maybeSingle();
+      if (data?.basis === basis && data.amount_paise === amountPaise && data.reason === label) return;
+      throw new Error('The rate history changed. Reload the history before correcting this rate.');
+    }
+    if (error?.code === '23514') throw new Error('Enter a changed rate or pay basis and a correction reason.');
+    if (error) throw new Error('Could not save the pay rate correction.');
   },
 };

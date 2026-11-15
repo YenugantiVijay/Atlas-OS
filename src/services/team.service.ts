@@ -3,6 +3,16 @@ import { storage } from '@/lib/storage';
 import { Membership, Role } from '@/types';
 import { auditService } from './audit.service';
 
+interface TeamDirectoryRow {
+  id: string;
+  user_id: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  email: string | null;
+  full_name: string | null;
+}
+
 export const teamService = {
   async getMembers(orgId: string, isMockAuth: boolean = false): Promise<Membership[]> {
     if (isMockAuth) {
@@ -13,24 +23,25 @@ export const teamService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const { data, error } = await supabase
-      .from('memberships')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch memberships: ${error.message}`);
+    const members: Membership[] = [];
+    const pageSize = 100;
+    for (let start = 0; ; start += pageSize) {
+      const { data, error } = await supabase.rpc('team_member_directory', { p_org_id: orgId })
+        .order('created_at').order('id').range(start, start + pageSize - 1);
+      if (error) throw new Error(`Failed to fetch memberships: ${error.message}`);
+      members.push(...(data as TeamDirectoryRow[]).map((row) => ({
+        id: row.id,
+        organizationId: orgId,
+        userId: row.user_id,
+        role: row.role,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        user: row.email || row.full_name
+          ? { id: row.user_id, email: row.email || '', fullName: row.full_name || row.email || '' }
+          : undefined,
+      })));
+      if (data.length < pageSize) return members;
     }
-
-    return (data || []).map((row) => ({
-      id: row.id,
-      organizationId: row.organization_id,
-      userId: row.user_id,
-      role: row.role as Role,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-    }));
   },
 
   async updateMemberRole(

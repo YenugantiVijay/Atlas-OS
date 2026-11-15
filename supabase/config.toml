@@ -428,3 +428,8 @@ enabled = true
 # database throttling. Never expose Resend/Turnstile/Supabase secret keys.
 [functions.submit-website-lead]
 verify_jwt = false
+
+# This function checks the bearer token and workspace owner role through the
+# authenticated delivery-claim RPC. This also supports new-format API keys.
+[functions.send-team-invitation]
+verify_jwt = false

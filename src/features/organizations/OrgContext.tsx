@@ -51,7 +51,7 @@ export interface OrgContextType {
   createOrganization: (data: CreateOrganizationInput) => Promise<Organization>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<Organization>;
   updateCurrentUser: (updates: Partial<User>) => Promise<User>;
-  refreshOrgData: () => Promise<void>;
+  refreshOrgData: (preferredOrgId?: string) => Promise<void>;
   memberships: Membership[];
   signIn: (email: string, password: string) => Promise<{ error?: string; needsVerification?: boolean }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string; sessionPresent: boolean }>;
@@ -322,14 +322,14 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   // Load organizations, active membership, eligibility, and subscription from remote Supabase
-  const loadRemoteData = useCallback(async (activeSession: Session): Promise<void> => {
+  const loadRemoteData = useCallback(async (activeSession: Session, preferredOrgId?: string): Promise<void> => {
     if (!supabase) return;
 
     const authUser = activeSession.user;
     if (!authUser) return;
 
     // Concurrency Guard: Deduplicate in-flight loads for the same authenticated user
-    if (inFlightLoadPromiseRef.current && inFlightLoadPromiseRef.current.userId === authUser.id) {
+    if (!preferredOrgId && inFlightLoadPromiseRef.current && inFlightLoadPromiseRef.current.userId === authUser.id) {
       return inFlightLoadPromiseRef.current.promise;
     }
 
@@ -392,7 +392,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 4. Derive active organization
         const savedOrgId = localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
-        const active = orgList.find((o) => o.id === savedOrgId) || orgList[0] || null;
+        const active = orgList.find((o) => o.id === preferredOrgId)
+          || orgList.find((o) => o.id === savedOrgId) || orgList[0] || null;
 
         // 5. Hydrate business eligibility & subscription for active org
         let fetchedEligibility: OrganizationEligibility | null = null;
@@ -1300,9 +1301,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return updatedEligibility;
   };
 
-  const refreshOrgData = async () => {
+  const refreshOrgData = async (preferredOrgId?: string) => {
     if (!isMockAuth && session) {
-      await loadRemoteData(session);
+      await loadRemoteData(session, preferredOrgId);
     } else {
       loadDemoData();
     }

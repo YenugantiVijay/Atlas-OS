@@ -8,6 +8,9 @@ import { hasPermission, Action } from '@/lib/permissions';
 const OnboardingPage = React.lazy(() =>
   import('@/features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage }))
 );
+const TeamInvitationPage = React.lazy(() =>
+  import('@/features/team/TeamInvitationPage').then((m) => ({ default: m.TeamInvitationPage }))
+);
 const DashboardPage = React.lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage }))
 );
@@ -98,6 +101,10 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
 };
 
 export const router = createHashRouter([
+  {
+    path: '/invite/:inviteId',
+    element: <React.Suspense fallback={<RouteLoadingFallback />}><TeamInvitationPage /></React.Suspense>,
+  },
   {
     path: '/onboarding',
     element: (

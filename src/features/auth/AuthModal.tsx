@@ -22,12 +22,14 @@ export interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'signin' | 'signup';
+  keepInvitationOpen?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   initialMode = 'signin',
+  keepInvitationOpen = false,
 }) => {
   const { signIn, signUp, sendEmailCode, verifyEmailCode, enterDemoMode } = useOrg();
   const { showToast } = useToast();
@@ -137,7 +139,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           showToast('success', signup ? 'Email Verified' : 'Signed In', signup ? 'Your Atlas OS account is ready.' : 'Welcome back to Atlas OS.');
           resetCode();
           onClose();
-          if (signup) navigate('/onboarding');
+          if (signup && !keepInvitationOpen) navigate('/onboarding');
         }
       } else if (mode === 'signin' && useCode) {
         const res = await sendEmailCode(address, 'signin');
@@ -160,7 +162,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         } else if (res.sessionPresent) {
           showToast('success', 'Account Created', `Welcome to Atlas OS, ${fullName.trim()}`);
           onClose();
-          navigate('/onboarding');
+          if (!keepInvitationOpen) navigate('/onboarding');
         } else {
           openCode(address, 'signup');
         }
@@ -330,7 +332,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
 
         {/* Divider */}
-        {!pending && <><div className="relative flex items-center justify-center my-4">
+        {!pending && !keepInvitationOpen && <><div className="relative flex items-center justify-center my-4">
           <div className="border-t border-border w-full" />
           <span className="bg-surface-card px-3 text-[11px] font-medium text-content-muted uppercase tracking-wider absolute">
             Or

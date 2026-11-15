@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Plus,
   Lock,
-  ShieldAlert,
   UserCheck,
   UserX,
   Edit2,
@@ -25,6 +24,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { getRoleBadgeVariant } from '@/lib/permissions';
+import { CloudTeamInvitations } from './CloudTeamInvitations';
 
 function getInitials(name: string): string {
   if (!name) return 'U';
@@ -75,14 +75,7 @@ export const TeamPage: React.FC = () => {
     e.preventDefault();
     if (!currentOrg) return;
 
-    if (!isDemoMode) {
-      showToast(
-        'error',
-        'Cloud Invitation Restricted',
-        'Supabase cloud invitations require an Edge Function with email dispatch. Creating unauthenticated identities in Live Cloud mode is disabled.'
-      );
-      return;
-    }
+    if (!isDemoMode) return;
 
     if (!email.trim() || !fullName.trim()) {
       showToast('error', 'Validation Error', 'Full Name and Email are required.');
@@ -191,27 +184,21 @@ export const TeamPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
+        {isDemoMode && <Button
           variant="primary"
           onClick={() => setIsInviteModalOpen(true)}
           leftIcon={<Plus className="w-4 h-4" />}
         >
-          {isDemoMode ? 'Add Sandbox Member' : 'Invite Member'}
-        </Button>
+          Add Sandbox Member
+        </Button>}
       </div>
 
       <Link to="/team/staff" className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 text-sm font-semibold text-teal-800 hover:bg-teal-50 focus-visible:ring-2 focus-visible:ring-teal-700">
         Staff &amp; Pay Setup
       </Link>
 
-      {/* Mode Indicator Banner */}
-      {!isDemoMode && (
-        <div className="p-3.5 rounded-xl border border-atlas-200 bg-atlas-50 text-atlas-900 text-xs flex items-center gap-3">
-          <ShieldAlert className="w-4 h-4 text-atlas-600 shrink-0" />
-          <span>
-            <strong>Cloud Security Enforced:</strong> Live Cloud permissions and memberships are verified against Supabase Row Level Security. Only organization owners can reassign roles or adjust member status. <em>Team invitations in Live Cloud are intentionally managed via authorized Edge Functions with transactional email delivery.</em>
-          </span>
-        </div>
+      {!isDemoMode && isOwner && currentOrg && currentUser && (
+        <CloudTeamInvitations key={currentOrg.id + ':' + currentUser.id} orgId={currentOrg.id} userId={currentUser.id} />
       )}
 
       {/* Team Members Table */}
@@ -419,35 +406,10 @@ export const TeamPage: React.FC = () => {
       <Modal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        title={isDemoMode ? 'Simulate Sandbox Member' : 'Cloud Member Invitation'}
-        description={
-          isDemoMode
-            ? `Add a local test member to ${currentOrg?.name || 'the organization'} in Demo Sandbox.`
-            : `Supabase Cloud Invitation Policy for ${currentOrg?.name || 'the organization'}.`
-        }
+        title="Simulate Sandbox Member"
+        description={`Add a local test member to ${currentOrg?.name || 'the organization'} in Demo Sandbox.`}
         maxWidth="md"
       >
-        {!isDemoMode ? (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs space-y-2 leading-relaxed">
-              <div className="flex items-center gap-2 font-bold text-amber-900">
-                <ShieldAlert className="w-4 h-4 text-amber-700" />
-                <span>Backend Invitation Service Required</span>
-              </div>
-              <p>
-                In Live Cloud mode, Atlas OS strictly enforces PostgreSQL and Supabase Auth identity boundaries. Real invitations must be dispatched through authenticated Edge Functions invoking <code className="font-mono bg-white px-1 py-0.5 rounded border border-amber-200">supabase.auth.admin.inviteUserByEmail()</code> with transactional email delivery.
-              </p>
-              <p>
-                Browser-only creation of arbitrary cloud user accounts is prevented to protect database integrity and avoid unverified membership records.
-              </p>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="outline" onClick={() => setIsInviteModalOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        ) : (
           <form onSubmit={handleInvite} className="space-y-4">
             <ImageUpload
               label="Member Photo"
@@ -499,7 +461,6 @@ export const TeamPage: React.FC = () => {
               </Button>
             </div>
           </form>
-        )}
       </Modal>
     </div>
   );

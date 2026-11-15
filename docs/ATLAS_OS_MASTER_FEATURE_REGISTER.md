@@ -336,10 +336,12 @@ For every development task:
 
 | Next work | Audit finding to close |
 |---|---|
-| Staff administration | Add cloud team invitations and audited corrections to a salary rate on the same effective date before implementing staff advances and deductions. |
+| Staff administration | Cloud team invitations and same-date pay corrections have application and database support. Verify invitation email delivery and authenticated acceptance before building staff advances and deductions. |
 | Auth and recovery | Review remaining privileged RPCs and leaked-password protection. Verify external Gmail OTP delivery, independent backup restoration and the hosted website. |
 | Accessibility | Fix shared contrast and label mismatches, then repeat the website, counter and receiving checks at mobile widths. |
 | Counter rollout | Verify authenticated checkout, receipt printing and drawer close in staging. Track walk-in checkout, separate simultaneous drawers and offline recovery in their own increments. |
+
+**Team invitations and pay corrections.** An owner can create or revoke a seven-day invitation. A matching verified account must accept before the workspace role is assigned. Link sharing works independently of invitation email. To enable email, deploy `send-team-invitation` and set the server-side `RESEND_API_KEY`, `TEAM_INVITE_FROM` for a verified sender, and `TEAM_INVITE_APP_URL` to the HTTPS ERP app URL. Account verification uses the existing Auth email-code flow. Staff rate history keeps the original version and records the corrected amount, reason, author and effective date.
 
 ## Follow-up register improvements (optional, not blockers)
 
