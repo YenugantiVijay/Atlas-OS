@@ -221,14 +221,14 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
 
   test('7. 404 page renders and provides working navigation back to home', async ({ page }) => {
     await page.goto('/non-existent-page-test-404');
-    await expect(page.locator('text=Page Not Found')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Page Not Found', level: 1 })).toBeVisible();
     await page.click('a:has-text("Return to Homepage")');
     await expect(page).toHaveURL('http://127.0.0.1:4321/');
   });
 
   test('8. Brand workflow showcase animation continues on hover and respects container height', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/');
+    await page.goto('/product');
     const orbit = page.locator('.capability-orbit');
     await expect(orbit).toBeVisible();
 
@@ -298,12 +298,12 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
   test('11. Final CTA banner displays high-contrast buttons and updated headline copy', async ({ page }) => {
     await page.goto('/');
 
-    const ctaSection = page.locator('section:has-text("Your Business Deserves a Smarter Way to Work.")');
+    const ctaSection = page.locator('section:has-text("See Atlas OS with your workflow")');
     await expect(ctaSection).toBeVisible();
 
     // Check headline and subtitle copy
-    await expect(ctaSection.locator('text=Your Business Deserves a Smarter Way to Work.')).toBeVisible();
-    await expect(ctaSection.locator('text=Bring stock, sales, invoices, and payments together with Atlas OS. See how it can simplify your daily business.')).toBeVisible();
+    await expect(ctaSection.locator('text=See Atlas OS with your workflow')).toBeVisible();
+    await expect(ctaSection.locator('text=Bring a sample invoice, order, or stock delivery to the walkthrough.')).toBeVisible();
 
     // Check Primary Button (Request a Demo)
     const primaryBtn = ctaSection.locator('a:has-text("Request a Demo")');
@@ -331,7 +331,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.goto('/');
 
     // Primary CTA button has shimmer class
-    const ctaSection = page.locator('section:has-text("Your Business Deserves a Smarter Way to Work.")');
+    const ctaSection = page.locator('section:has-text("See Atlas OS with your workflow")');
     const primaryBtn = ctaSection.locator('a:has-text("Request a Demo")');
     const classes = await primaryBtn.getAttribute('class');
     expect(classes).toContain('btn-shimmer');

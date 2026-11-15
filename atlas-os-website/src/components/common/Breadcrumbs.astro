@@ -1,0 +1,41 @@
+---
+import { ChevronRight } from 'lucide-react';
+import Container from './Container.astro';
+import { INDUSTRY_NAVIGATION } from '../../data/navigation';
+import { CALCULATORS } from '../../data/calculators';
+
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const labels: Record<string, string> = {
+  '/product': 'Product', '/features': 'Features', '/solutions': 'Industries', '/pricing': 'Pricing',
+  '/resources': 'Resources', '/calculators': 'Atlas Calculators', '/download': 'Downloads', '/support': 'Help Center',
+  '/about': 'About', '/contact': 'Contact', '/security': 'Security', '/request-demo': 'Request a demo',
+  '/receipt-templates': 'Receipt templates',
+};
+const industry = INDUSTRY_NAVIGATION.find(item => item.href.replace(/\/$/, '') === path);
+const tool = CALCULATORS.find(item => path === '/calculators/' + item.id);
+const crumbs = [{ label: 'Home', href: '/' }];
+if (industry) crumbs.push({ label: 'Industries', href: '/solutions/' }, { label: industry.label, href: path });
+else if (tool || path === '/gst-calculator') {
+  crumbs.push({ label: 'Resources', href: '/resources/' }, { label: 'Atlas Calculators', href: '/calculators/' },
+    { label: tool?.label ?? 'GST Calculator', href: path });
+} else if (path === '/calculators') {
+  crumbs.push({ label: 'Resources', href: '/resources/' }, { label: labels[path], href: path });
+} else if (path !== '/') crumbs.push({ label: labels[path] ?? 'Page not found', href: path });
+---
+{crumbs.length > 1 && (
+  <div class="border-b border-border bg-white">
+    <Container size="wide">
+      <nav aria-label="Breadcrumb" class="py-3">
+        <ol class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-content-secondary">
+          {crumbs.map(({ label, href }, i) => (
+            <li class="flex min-w-0 items-center gap-2">
+              {i > 0 && <ChevronRight size={14} className="shrink-0" aria-hidden="true" />}
+              {i === crumbs.length - 1 ? <span aria-current="page" class="font-semibold text-content-primary">{label}</span>
+                : <a href={href} class="rounded underline-offset-4 hover:text-brand-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">{label}</a>}
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </Container>
+  </div>
+)}

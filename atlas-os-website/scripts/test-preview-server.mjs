@@ -28,7 +28,7 @@ const get = (port, uri, method = 'GET') => new Promise((resolve, reject) => {
 
 test('launcher accepts the current dev server and rejects stale previews with identical homepage markup', async () => {
   const homepage = '<html><title>Atlas OS</title>' + ' '.repeat(145000) +
-    '<main class="capability-orbit">Connected Business Workflow</main></html>';
+    '<main id="home-overview">Connected Business Workflow</main></html>';
   let version = getPreviewVersion();
   const server = createServer((_request, response) => {
     if (version) response.setHeader(previewVersionHeader, version);

@@ -1,5 +1,5 @@
 ---
-import { ArrowUpRight, ChevronRight, Printer } from 'lucide-react';
+import { ArrowUpRight, Printer } from 'lucide-react';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Container from '../../components/common/Container.astro';
 import { CALCULATORS } from '../../data/calculators';
@@ -15,9 +15,6 @@ const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-whi
 <BaseLayout title={tool.label + ' | Atlas OS'} description={tool.description}>
   <section class="bg-surface-secondary py-9 sm:py-14">
     <Container size="wide">
-      <nav aria-label="Breadcrumb" class="mb-6 flex items-center gap-2 text-sm text-content-secondary" data-enter>
-        <a class="hover:underline" href="/calculators/">Atlas Calculators</a><ChevronRight size={15} aria-hidden="true" /><span aria-current="page">{tool.label}</span>
-      </nav>
       <div class="mb-7 space-y-3" data-enter>
         <span class="grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-700"><tool.Icon size={25} aria-hidden="true" /></span>
         <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">{tool.label}</h1>
@@ -67,6 +64,7 @@ const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-whi
   @media print {
     body:has(#worksheet-print) header, body:has(#worksheet-print) footer,
     body:has(#worksheet-print) main > :not(#worksheet-print) { display: none !important; }
+    body:has(#worksheet-print) #back-to-top { display: none !important; }
     #worksheet-print { display: block; padding: 1rem; }
     #worksheet-print > dl > div { break-inside: avoid; }
   }
