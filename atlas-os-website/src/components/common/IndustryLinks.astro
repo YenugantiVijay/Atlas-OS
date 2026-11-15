@@ -3,23 +3,23 @@ import { CircuitBoard, Leaf, ShoppingBasket, Store, Wrench, Zap } from 'lucide-r
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
 
 const icons = {
-  electrical: Zap,
-  electronics: CircuitBoard,
-  hardware: Wrench,
-  retail: ShoppingBasket,
-  agriculture: Leaf,
-  shop: Store,
+  electrical: { Icon: Zap, hue: '#a16207' },
+  electronics: { Icon: CircuitBoard, hue: '#1d4ed8' },
+  hardware: { Icon: Wrench, hue: '#6d28d9' },
+  retail: { Icon: ShoppingBasket, hue: '#b45309' },
+  agriculture: { Icon: Leaf, hue: '#15803d' },
+  shop: { Icon: Store, hue: '#0f766e' },
 };
 ---
 
 <ul class="industry-links">
   {INDUSTRY_NAVIGATION.map(({ icon, label, href, description }) => {
-    const Icon = icons[icon];
+    const { Icon, hue } = icons[icon];
     return (
       <li class="min-w-0">
-        <a href={href} class="flex h-full items-start gap-3 rounded-xl border border-border bg-surface-secondary p-3.5
+        <a href={href} style={`--icon-accent:${hue}`} class="atlas-icon-card flex h-full items-start gap-3 rounded-xl border border-border bg-surface-secondary p-3.5
           text-content-primary transition-colors hover:border-brand-500 hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
-          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
+          <span class="atlas-card-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg">
             <Icon size={18} aria-hidden="true" />
           </span>
           <span class="min-w-0">

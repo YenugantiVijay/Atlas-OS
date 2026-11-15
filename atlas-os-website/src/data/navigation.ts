@@ -88,6 +88,7 @@ export const MAIN_NAVIGATION = [
     label: 'Pricing',
     href: '/pricing',
   },
+  { label: 'GST', href: '/gst-calculator' },
   {
     label: 'Resources',
     href: '/support',
@@ -123,6 +124,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Product Overview', href: '/product' },
       { label: 'Feature Directory', href: '/features' },
       { label: 'Inventory Control', href: '/features#inventory' },
+      { label: 'GST Calculator', href: '/gst-calculator/' },
       { label: 'GST Tax Invoicing', href: '/features#invoicing' },
       { label: 'Customer Receivables', href: '/features#customers' },
       { label: 'Payment Settlement', href: '/features#payments' },

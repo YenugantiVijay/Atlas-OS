@@ -356,3 +356,66 @@ test('each industry sidebar scrolls independently on desktop', async ({ page }) 
   await expect.poll(() => more.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
+
+test('GST opens its frosted full-width menu and each icon uses its hover color', async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 900 });
+  await page.goto('/');
+  const header = page.locator('#site-header');
+  const toggle = header.getByRole('button', { name: 'GST', exact: true });
+  const panel = header.locator('#gst-panel');
+  await toggle.hover();
+  await expect(panel).toBeVisible();
+  expect((await panel.boundingBox())?.width).toBe((await header.boundingBox())?.width);
+  await expect(header).toHaveCSS('backdrop-filter', /blur/);
+  const tool = panel.getByRole('link', { name: 'GST calculator', exact: true });
+  const icon = tool.locator('.atlas-card-icon');
+  await expect(icon).toHaveCSS('color', 'rgb(68, 86, 115)');
+  await tool.hover();
+  await expect(icon).toHaveCSS('color', 'rgb(15, 118, 110)');
+  await tool.click();
+  await expect(page).toHaveURL(/\/gst-calculator\/?$/);
+});
+
+test('GST calculator adds and removes GST, splits tax, and validates input on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/gst-calculator/');
+  const amount = page.locator('input[name="amount"]');
+  const rate = page.getByLabel('GST rate (%)', { exact: true });
+  const value = (key: string) => page.locator('[data-gst-value="' + key + '"]');
+  await expect(value('total')).toHaveText('₹1,180.00');
+  await expect(value('central')).toHaveText('₹90.00');
+  await page.getByLabel('Supply type').selectOption('interstate');
+  await expect(value('integrated')).toHaveText('₹180.00');
+  await expect(value('central')).toBeHidden();
+  await page.getByText('Remove GST', { exact: true }).first().click();
+  await amount.fill('1,180');
+  await expect(value('base')).toHaveText('₹1,000.00');
+  await page.getByLabel('Supply type').selectOption('territory');
+  await expect(page.getByText('UTGST', { exact: true })).toBeVisible();
+  await amount.fill('0.05');
+  await page.getByText('Add GST', { exact: true }).first().click();
+  await expect(value('tax')).toHaveText('₹0.01');
+  await expect(value('central')).toHaveText('₹0.00');
+  await expect(value('regional')).toHaveText('₹0.01');
+  await rate.fill('0');
+  await expect(value('tax')).toHaveText('₹0.00');
+  await amount.fill('-1');
+  await expect(page.locator('#gst-error')).toBeVisible();
+  await expect(value('total')).toHaveText('—');
+  await page.getByRole('button', { name: 'Reset example' }).click();
+  await expect(value('total')).toHaveText('₹1,180.00');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+});
+
+test('industry sections animate on entry and scroll while respecting reduced motion', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/solutions/retail-wholesale/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCSS('animation-name', 'atlas-enter');
+  const benefits = page.getByRole('heading', { name: 'What Atlas OS helps you manage' });
+  await expect(benefits).toHaveClass(/atlas-pending/);
+  await benefits.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await expect(benefits).toHaveClass(/atlas-revealed/);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(benefits).toHaveCSS('animation-name', 'none');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCSS('animation-name', 'none');
+});

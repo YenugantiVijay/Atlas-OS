@@ -1,0 +1,38 @@
+---
+import { ArrowUpRight, BookOpen, Calculator, FileText, Globe, Receipt, Search, Sigma } from 'lucide-react';
+
+const groups = [
+  { label: 'Calculator', links: [
+    { label: 'GST calculator', href: '/gst-calculator/', Icon: Calculator, hue: '#0f766e' },
+    { label: 'How the calculation works', href: '/gst-calculator/#formulas', Icon: Sigma, hue: '#6d28d9' },
+  ] },
+  { label: 'Atlas OS tools', links: [
+    { label: 'GST invoicing', href: '/features#invoicing', Icon: FileText, hue: '#1d4ed8' },
+    { label: 'Receipt templates', href: '/receipt-templates', Icon: Receipt, hue: '#a21caf' },
+    { label: 'Reporting', href: '/features#reports', Icon: BookOpen, hue: '#b45309' },
+  ] },
+  { label: 'Official references', links: [
+    { label: 'GST portal', href: 'https://www.gst.gov.in/', Icon: Globe, hue: '#1d4ed8' },
+    { label: 'HSN and SAC guidance', href: 'https://tutorial.gst.gov.in/userguide/taxpayersdashboard/Search_HSN_SAC_Tax_Rates.htm', Icon: Search, hue: '#0f766e' },
+  ] },
+];
+---
+<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-9">
+  {groups.map(({ label, links }) => (
+    <div>
+      <h2 class="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-content-secondary">{label}</h2>
+      <ul class="space-y-1.5">
+        {links.map(({ label: name, href, Icon, hue }) => (
+          <li>
+            <a href={href} style={`--icon-accent:${hue}`}
+              class="atlas-icon-card flex min-h-12 items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-content-primary hover:bg-brand-50">
+              <span class="atlas-card-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg"><Icon size={18} aria-hidden="true" /></span>
+              {name}
+              {href.startsWith('https://') && <ArrowUpRight size={14} className="ml-auto shrink-0 text-content-secondary" aria-hidden="true" />}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ))}
+</div>

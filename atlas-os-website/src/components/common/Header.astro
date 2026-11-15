@@ -3,6 +3,7 @@ import BrandLogo from './BrandLogo.astro';
 import Button from './Button.astro';
 import Container from './Container.astro';
 import IndustryLinks from './IndustryLinks.astro';
+import GstMenu from './GstMenu.astro';
 import { MAIN_NAVIGATION } from '../../data/navigation';
 
 interface Props {
@@ -13,7 +14,7 @@ const { currentPath = Astro.url.pathname } = Astro.props;
 const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/solutions/');
 ---
 
-<header class="sticky top-0 z-50 w-full border-b border-border bg-white" id="site-header">
+<header class="sticky top-0 z-50 w-full border-b border-border site-nav-surface" id="site-header">
   <Container size="default">
     <div class="flex h-20 items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
       <!-- Brand Logo -->
@@ -25,22 +26,25 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
         <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-1.5" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
-              if (item.href === '/solutions') {
+              if (item.href === '/solutions' || item.href === '/gst-calculator') {
+                const isGst = item.href === '/gst-calculator';
+                const key = isGst ? 'gst' : 'industries';
+                const active = isGst ? currentPath.replace(/\/$/, '') === item.href : onSolutions;
                 return (
-                  <div id="industries-nav" class="flex h-full items-center">
-                    <button id="industries-toggle" type="button" aria-expanded="false" aria-controls="industries-panel"
+                  <div id={key + '-nav'} data-mega-nav class="flex h-full items-center">
+                    <button id={key + '-toggle'} data-mega-toggle type="button" aria-expanded="false" aria-controls={key + '-panel'}
                       class:list={[
                         'flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-expanded:bg-brand-50 aria-expanded:text-brand-700 xl:px-3.5',
-                        onSolutions ? 'bg-brand-50 text-brand-700' : 'text-content-primary',
+                        active ? 'bg-brand-50 text-brand-700' : 'text-content-primary',
                       ]}>
                       {item.label}
-                      <svg aria-hidden="true" viewBox="0 0 16 16" class="industry-chevron h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <svg aria-hidden="true" viewBox="0 0 16 16" class="mega-chevron h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
                       </svg>
                     </button>
-                    <div id="industries-panel" hidden
-                      class="industries-panel absolute inset-x-0 top-full overflow-y-auto overscroll-contain border-y border-border bg-white shadow-xl">
-                      <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
+                    <div id={key + '-panel'} data-mega-panel hidden
+                      class="mega-panel site-nav-surface absolute inset-x-0 top-full overflow-y-auto overscroll-contain border-y border-border shadow-xl">
+                      {isGst ? <Container size="wide" class="py-7"><GstMenu /></Container> : <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
                         <div class="border-r border-border pr-5">
                           <h2 class="mb-3 text-sm font-semibold text-content-primary">Explore Atlas OS</h2>
                           <div class="grid gap-1 text-sm text-content-secondary">
@@ -56,7 +60,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                           </div>
                           <IndustryLinks />
                         </div>
-                      </Container>
+                      </Container>}
                     </div>
                   </div>
                 );
@@ -172,12 +176,13 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
   <!-- Mobile Drawer Menu -->
   <div
     id="mobile-nav-menu"
-    class="hidden lg:hidden border-b border-border bg-white px-4 pt-4 pb-8 space-y-4 max-h-[80vh] overflow-y-auto animate-fade-in shadow-xl"
+    class="hidden lg:hidden border-b border-border site-nav-surface px-4 pt-4 pb-8 space-y-4 max-h-[80vh] overflow-y-auto animate-fade-in shadow-xl"
   >
     <div class="flex flex-col space-y-1">
       {
         MAIN_NAVIGATION.map((item) => {
-          if (item.href === '/solutions') {
+          if (item.href === '/solutions' || item.href === '/gst-calculator') {
+            const isGst = item.href === '/gst-calculator';
             return (
               <details class="group border-b border-border/50 py-1.5">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-2 py-2 text-base font-semibold text-content-primary hover:text-brand-700">
@@ -186,8 +191,10 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                     <path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </summary>
+                {isGst ? <GstMenu /> : <>
                 <IndustryLinks />
                 <a href="/solutions" class="mt-1 block py-2 text-sm font-semibold text-brand-700 hover:underline">View all industries</a>
+                </>}
               </details>
             );
           }
@@ -236,57 +243,69 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
 </header>
 
 <style>
-  .industries-panel {
+  .site-nav-surface { background: white; }
+  @supports (backdrop-filter: blur(1px)) {
+    .site-nav-surface { background: rgb(255 255 255 / 90%); backdrop-filter: blur(16px) saturate(140%); }
+  }
+
+  .mega-panel {
     max-height: calc(100vh - 5rem);
     max-height: calc(100dvh - 5rem);
   }
 
-  #industries-toggle[aria-expanded="true"] .industry-chevron {
+  [data-mega-toggle][aria-expanded="true"] .mega-chevron {
     transform: rotate(180deg);
   }
 </style>
 
 <script>
-  const industriesNav = document.getElementById('industries-nav');
-  const industriesToggle = document.getElementById('industries-toggle');
-  const industriesPanel = document.getElementById('industries-panel');
-
-  if (industriesNav && industriesToggle && industriesPanel) {
-    const setIndustriesOpen = (open: boolean) => {
-      industriesPanel.hidden = !open;
-      industriesToggle.setAttribute('aria-expanded', String(open));
+  document.querySelectorAll<HTMLElement>('[data-mega-nav]').forEach((nav) => {
+    const toggle = nav.querySelector<HTMLButtonElement>('[data-mega-toggle]');
+    const panel = nav.querySelector<HTMLElement>('[data-mega-panel]');
+    if (!toggle || !panel) return;
+    const setOpen = (open: boolean) => {
+      if (open) {
+        document.querySelectorAll<HTMLElement>('[data-mega-panel]:not([hidden])').forEach((other) => {
+          if (other === panel) return;
+          other.hidden = true;
+          other.parentElement?.querySelector('[data-mega-toggle]')?.setAttribute('aria-expanded', 'false');
+        });
+      }
+      panel.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
     };
-    industriesNav.addEventListener('pointerenter', (event) => {
-      if (event.pointerType === 'mouse') setIndustriesOpen(true);
+    nav.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'mouse') setOpen(true);
     });
-    industriesNav.addEventListener('pointerleave', (event) => {
-      if (event.pointerType === 'mouse' && !industriesPanel.contains(document.activeElement)) setIndustriesOpen(false);
+    nav.addEventListener('pointerleave', (event) => {
+      if (event.pointerType === 'mouse' && !panel.contains(document.activeElement)) setOpen(false);
     });
-    industriesToggle.addEventListener('click', (event) => {
+    toggle.addEventListener('click', (event) => {
       const mouseClick = event instanceof PointerEvent && event.pointerType === 'mouse';
-      setIndustriesOpen(mouseClick || industriesPanel.hidden);
+      setOpen(mouseClick || panel.hidden);
     });
-    industriesNav.parentElement?.querySelectorAll(':scope > :not(#industries-nav)').forEach((item) => {
+    nav.parentElement?.querySelectorAll(':scope > *').forEach((item) => {
+      if (item === nav) return;
       item.addEventListener('pointerenter', () => {
-        if (!industriesPanel.contains(document.activeElement)) setIndustriesOpen(false);
+        if (!panel.contains(document.activeElement)) setOpen(false);
       });
     });
-    industriesNav.addEventListener('focusout', (event) => {
-      if (event.relatedTarget instanceof Node && !industriesNav.contains(event.relatedTarget)) setIndustriesOpen(false);
+    nav.addEventListener('focusout', (event) => {
+      if (event.relatedTarget instanceof Node && !nav.contains(event.relatedTarget)) setOpen(false);
     });
     document.addEventListener('click', (event) => {
-      if (event.target instanceof Node && !industriesNav.contains(event.target)) setIndustriesOpen(false);
+      if (event.target instanceof Node && !nav.contains(event.target)) setOpen(false);
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !industriesPanel.hidden) {
-        if (industriesNav.contains(document.activeElement)) industriesToggle.focus();
-        setIndustriesOpen(false);
+      if (event.key === 'Escape' && !panel.hidden) {
+        if (nav.contains(document.activeElement)) toggle.focus();
+        setOpen(false);
       }
     });
-    industriesPanel.addEventListener('click', (event) => {
-      if (event.target instanceof Element && event.target.closest('a')) setIndustriesOpen(false);
+    panel.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('a')) setOpen(false);
     });
-  }
+  });
 
   const menuBtn = document.getElementById('mobile-menu-btn');
   const mobileNav = document.getElementById('mobile-nav-menu');

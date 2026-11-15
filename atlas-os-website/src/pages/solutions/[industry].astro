@@ -67,12 +67,12 @@ const questions = [
             <span aria-current="page" class="font-semibold text-content-primary">{content.audience}</span>
           </nav>
           <div>
-            <h1 class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
+            <h1 data-enter class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
               Business software for <span class="text-brand-700">{content.audience.toLowerCase()}</span>
             </h1>
             <p class="mt-4 max-w-4xl text-base leading-relaxed text-content-secondary sm:text-lg">{solution.description}</p>
           </div>
-          <div id="demo" class="grid gap-6 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white p-5 shadow-sm sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-center">
+          <div id="demo" data-reveal class="grid gap-6 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white p-5 shadow-sm sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-center">
             <div class="space-y-4">
               <h2 class="font-heading text-2xl font-bold tracking-tight sm:text-4xl">{content.accent}</h2>
               <p class="text-content-secondary">{solution.tagline}</p>
@@ -87,17 +87,17 @@ const questions = [
         </section>
 
         <section id="benefits">
-          <h2 class="section-title">What Atlas OS helps you manage</h2>
-          <div class="card-grid sm:grid-cols-2">
+          <h2 data-reveal class="section-title">What Atlas OS helps you manage</h2>
+          <div data-reveal-group class="card-grid sm:grid-cols-2">
             {solution.howAtlasSolves.map((item, i) => {
               const Icon = benefitIcons[i % benefitIcons.length];
-              return <article class="info-card"><span class="icon-box"><Icon size={21} aria-hidden="true" /></span><h3 class="mt-3 font-heading text-base font-bold">{content.benefits[i]}</h3><p class="mt-1">{item}</p></article>;
+              return <article class="atlas-icon-card info-card" style={`--icon-accent:${['#0f766e', '#1d4ed8', '#6d28d9', '#b45309'][i % benefitIcons.length]}`}><span class="icon-box atlas-card-icon"><Icon size={21} aria-hidden="true" /></span><h3 class="mt-3 font-heading text-base font-bold">{content.benefits[i]}</h3><p class="mt-1">{item}</p></article>;
             })}
           </div>
         </section>
 
         <section id="features">
-          <h2 class="section-title">Explore your daily workflows</h2>
+          <h2 data-reveal class="section-title">Explore your daily workflows</h2>
           <div data-industry-tabs class="overflow-hidden rounded-3xl border border-border bg-white">
             <div data-tab-list aria-label="Daily workflows" class="flex flex-wrap gap-1 border-b border-border bg-surface-secondary p-2 sm:p-3">
               {workflow.map((item, i) => <button type="button" id={'workflow-tab-' + i} aria-controls={'workflow-panel-' + i}
@@ -125,14 +125,14 @@ const questions = [
         </section>
 
         <section id="business-types">
-          <h2 class="section-title">Who it’s for</h2>
-          <div class="card-grid sm:grid-cols-2">
+          <h2 data-reveal class="section-title">Who it’s for</h2>
+          <div data-reveal-group class="card-grid sm:grid-cols-2">
             {content.topics.map(topic => <div class="info-card flex items-center gap-3 font-semibold"><span class="icon-box"><Users size={20} aria-hidden="true" /></span>{topic}</div>)}
           </div>
         </section>
 
         <section id="comparison">
-          <h2 class="section-title">Compare the day-to-day workflow</h2>
+          <h2 data-reveal class="section-title">Compare the day-to-day workflow</h2>
           <div class="overflow-hidden rounded-2xl border border-border bg-white">
             <table class="w-full table-fixed border-collapse text-left text-xs sm:text-sm">
               <thead><tr class="bg-surface-secondary"><th scope="col" class="w-1/4">Task</th><th scope="col">Manual records</th><th scope="col" class="bg-brand-700 text-white">With Atlas OS</th></tr></thead>
@@ -150,7 +150,7 @@ const questions = [
         </section>
 
         <section id="web-access">
-          <h2 class="section-title">Access Atlas OS in your browser</h2>
+          <h2 data-reveal class="section-title">Access Atlas OS in your browser</h2>
           <div class="info-card flex items-start gap-4">
             <span class="icon-box"><Smartphone size={22} aria-hidden="true" /></span>
             <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href="/download" class="mt-2 inline-block text-sm font-semibold text-brand-700 hover:underline">See web and Windows availability</a></div>
@@ -158,15 +158,15 @@ const questions = [
         </section>
 
         <section id="walkthrough">
-          <h2 class="section-title">How the workflow runs</h2>
-          <ol class="card-grid sm:grid-cols-2">
+          <h2 data-reveal class="section-title">How the workflow runs</h2>
+          <ol data-reveal-group class="card-grid sm:grid-cols-2">
             {workflow.map((item, i) => <li class="info-card"><span class="icon-box font-bold">{i + 1}</span><h3 class="mt-3 font-heading text-base font-bold">{item.step}</h3><p class="mt-1">{item.description}</p></li>)}
           </ol>
         </section>
 
         <section id="resources">
-          <h2 class="section-title">Useful resources</h2>
-          <div class="card-grid sm:grid-cols-3">
+          <h2 data-reveal class="section-title">Useful resources</h2>
+          <div data-reveal-group class="card-grid sm:grid-cols-3">
             {[
               { label: 'Feature directory', href: '/features', Icon: Layers3 },
               { label: 'Receipt templates', href: '/receipt-templates', Icon: FileText },
@@ -176,7 +176,7 @@ const questions = [
         </section>
 
         <section id="faq">
-          <h2 class="section-title">Frequently asked questions</h2>
+          <h2 data-reveal class="section-title">Frequently asked questions</h2>
           <div class="grid gap-3">
             {questions.map(([question, answer]) => <details class="group rounded-2xl border border-border bg-white">
               <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold sm:p-5 sm:text-base">{question}<ChevronDown size={18} className="shrink-0 text-brand-700 group-open:rotate-180" aria-hidden="true" /></summary>
@@ -190,7 +190,7 @@ const questions = [
           <Button href="#demo" variant="primary" size="md">Request a demo <ArrowRight size={17} aria-hidden="true" /></Button>
         </div>
         <nav aria-label="Explore more industries" class="related-mobile">
-          <h2 class="section-title">More industries</h2>
+          <h2 data-reveal class="section-title">More industries</h2>
           <ul class="card-grid sm:grid-cols-2">{otherIndustries.map(item => <li><a class="info-card flex items-center justify-between gap-2 text-sm font-semibold text-brand-700 hover:underline" href={item.href}>{item.label}<ArrowRight size={16} aria-hidden="true" /></a></li>)}</ul>
         </nav>
       </div>
