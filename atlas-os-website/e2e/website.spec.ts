@@ -221,7 +221,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
 
   test('7. 404 page renders and provides working navigation back to home', async ({ page }) => {
     await page.goto('/non-existent-page-test-404');
-    await expect(page.locator('text=Page Not Found')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Page Not Found', level: 1 })).toBeVisible();
     await page.click('a:has-text("Return to Homepage")');
     await expect(page).toHaveURL('http://127.0.0.1:4321/');
   });
