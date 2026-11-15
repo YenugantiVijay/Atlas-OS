@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
+import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { getBusinessDate, formatDisplayDate } from '@/lib/dates';
 import { formatCurrency, fromPaise } from '@/lib/money';
 import {
-  payBases, parseStaffPayAmount, staffPageSize, staffPayService, type PayBasis, type StaffProfile,
+  payBases, parseStaffPayAmount, staffPageSize, staffPayService, type PayBasis, type StaffProfile, type StaffPayRate,
 } from '@/services/staff-pay.service';
 
 const selectClass = 'mt-1 h-11 w-full rounded-lg border border-border bg-surface-card px-3 text-sm focus-visible:ring-2 focus-visible:ring-teal-700';
@@ -174,6 +176,7 @@ function PaySetup({ staff, orgId, currency, editable, save, scope, newLocations 
   const [effectiveOn, setEffectiveOn] = useState(today < staff.joining_on ? staff.joining_on : today);
   const [amount, setAmount] = useState('');
   const [assignment, setAssignment] = useState('');
+  const [correction, setCorrection] = useState<StaffPayRate>();
   const rates = useQuery({
     queryKey: [...scope, 'rates', staff.id, today, page],
     queryFn: () => staffPayService.listRates(orgId, staff.id, today, page - 1),
@@ -188,6 +191,9 @@ function PaySetup({ staff, orgId, currency, editable, save, scope, newLocations 
       {rates.isSuccess && <p className="text-sm">{current
         ? `Current rate · ${formatCurrency(fromPaise(current.amount_paise), currency)} · ${payBases[current.basis]}`
         : 'No rate effective today.'}</p>}
+      {current && editable && <Button type="button" variant="outline" size="sm" onClick={() => setCorrection(current)}>
+        Correct current rate
+      </Button>}
       <form className="grid items-end gap-3 sm:grid-cols-3" onSubmit={event => {
         event.preventDefault();
         void save(async () => {
@@ -225,14 +231,69 @@ function PaySetup({ staff, orgId, currency, editable, save, scope, newLocations 
       {rates.data && rates.data.rows.length > 0 && <div>
         <h3 className="font-semibold text-sm">Rate history</h3>
         <ul className="mt-2 divide-y divide-border text-sm">
-          {rates.data.rows.map(rate => <li key={rate.effective_on} className="flex flex-wrap justify-between gap-2 py-2">
-            <span>{formatDisplayDate(rate.effective_on)}{rate.effective_on > today ? ' · Scheduled' : ''}</span>
+          {rates.data.rows.map(rate => <li key={rate.effective_on + ':' + rate.revision} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <div className="min-w-0 break-words">
+              <p>{formatDisplayDate(rate.effective_on)}{rate.effective_on > today && rate.is_latest ? ' · Scheduled' : ''}
+                {rate.is_latest ? '' : ' · Superseded'}{rate.revision > 1 ? ' · Correction ' + (rate.revision - 1) : ''}</p>
+              {rate.reason && <p className="text-xs text-content-secondary">{rate.reason} · Recorded {formatDisplayDate(rate.recorded_at)}</p>}
+            </div>
             <span>{formatCurrency(fromPaise(rate.amount_paise), currency)} · {payBases[rate.basis]}</span>
+            {rate.is_latest && editable && <Button type="button" variant="outline" size="sm"
+              onClick={() => setCorrection(rate)}>Correct<span className="sr-only"> rate for {formatDisplayDate(rate.effective_on)}</span></Button>}
           </li>)}
         </ul>
         {rates.data.count > staffPageSize && <Pagination page={page} pageSize={staffPageSize} totalCount={rates.data.count}
           totalPages={Math.ceil(rates.data.count / staffPageSize)} onPageChange={setPage} />}
       </div>}
+      {correction && <PayCorrectionForm rate={correction} currency={currency} close={() => setCorrection(undefined)}
+        onCorrect={async (nextBasis, nextAmount, reason) => {
+          await staffPayService.correctRate(orgId, staff.id, correction, nextBasis, nextAmount, reason);
+          setCorrection(undefined);
+          setPage(1);
+          await rates.refetch();
+        }} />}
     </Card>
   );
+}
+
+function PayCorrectionForm({ rate, currency, close, onCorrect }: {
+  rate: StaffPayRate;
+  currency: string;
+  close: () => void;
+  onCorrect: (basis: PayBasis, amount: number, reason: string) => Promise<void>;
+}) {
+  const [basis, setBasis] = useState(rate.basis);
+  const [amount, setAmount] = useState(fromPaise(rate.amount_paise).toFixed(2));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !reason.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onCorrect(basis, parseStaffPayAmount(amount), reason);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Could not save the rate correction.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <Modal isOpen onClose={() => { if (!busy) close(); }} title="Correct pay rate"
+    description={`Effective ${formatDisplayDate(rate.effective_on)}. The previous rate stays in history.`}>
+    <form className="space-y-4" onSubmit={event => void save(event)}>
+      <Select label="Corrected pay basis" value={basis}
+        options={Object.entries(payBases).map(([value, label]) => ({ value, label }))}
+        onChange={event => setBasis(event.target.value as PayBasis)} disabled={busy} />
+      <Input label={`Corrected rate (${currency})`} value={amount} inputMode="decimal" required
+        onChange={event => setAmount(event.target.value)} disabled={busy} />
+      <Input label="Reason for correction" value={reason} required maxLength={300}
+        onChange={event => setReason(event.target.value)} disabled={busy} />
+      {error && <p role="alert" className="text-sm text-rose-800">{error}</p>}
+      <Button type="submit" isLoading={busy} disabled={busy || !reason.trim()}>Save correction</Button>
+    </form>
+  </Modal>;
 }
