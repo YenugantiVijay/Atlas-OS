@@ -125,6 +125,19 @@ test('on mobile the industry cards expand inside the navigation drawer', async (
   await expect(page).toHaveURL(/\/solutions\/small-business\/?$/);
 });
 
+test('Escape closes the mobile navigation and returns keyboard focus', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const toggle = page.getByRole('button', { name: 'Open Navigation Menu' });
+  await toggle.click();
+  const drawer = page.locator('#mobile-nav-menu');
+  await drawer.getByRole('link', { name: 'Product', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toBeFocused();
+});
+
 test('feature and security pages state the distributor advantage and deployment limits', async ({ page }) => {
   await page.goto('/features');
   await expect(page.getByRole('heading', {
@@ -311,6 +324,8 @@ test('industry detail tracks the sticky contents and supports keyboard workflow 
   await first.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Draft the Order' })).toBeFocused();
   await expect(page.getByRole('tabpanel')).toContainText('Check quantities, discounts, and taxes');
+  await expect(page.getByRole('tabpanel')).toContainText('Draft taxable value · ₹1,000');
+  await expect(page.getByRole('tabpanel')).not.toContainText('City Trade Supplies');
   await page.getByText('Where do staff finish billing and record payment?', { exact: true }).click();
   await expect(page.getByText(/Use Retail Counter to draft/)).toBeVisible();
   await page.getByRole('navigation', { name: 'More industries', exact: true }).getByRole('link', { name: 'Small Shops' }).click();
@@ -454,10 +469,40 @@ test('Resources opens on mobile and income tax estimates respect the new-regime 
   await page.locator('#calculators').getByRole('link', { name: /Income Tax Calculator/ }).click();
   const results = page.getByRole('region', { name: 'Calculator result' });
   await expect(results).toContainText('₹1,17,000.00');
-  await page.getByLabel('New regime taxable income (₹)').fill('1210000');
-  await page.getByRole('button', { name: 'Calculate', exact: true }).click();
-  await expect(results).toContainText('₹10,400.00');
+  const year = page.getByLabel('Tax year');
+  await expect(year).toHaveValue('2026–27');
+  for (const option of ['2026–27', '2025–26']) {
+    await year.selectOption(option);
+    await page.getByLabel('New regime taxable income (₹)').fill('12,00,000');
+    await expect(results.getByText('₹0.00', { exact: true }).first()).toBeVisible();
+    await page.getByLabel('New regime taxable income (₹)').fill('12,10,000');
+    await expect(results).toContainText('₹10,400.00');
+    await expect(page.getByRole('link', { name: 'Official guidance for ' + option })).toBeVisible();
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+});
+
+test('business calculator results follow edits and accept grouped amounts', async ({ page }) => {
+  await page.goto('/calculators/profit-margin/');
+  const sellingPrice = page.getByLabel('Selling price (₹)');
+  const result = page.getByRole('region', { name: 'Calculator result' });
+  await expect(result).toContainText('20.00%');
+  await sellingPrice.fill('1,600.00');
+  await expect(result).toContainText('50.00%');
+  await sellingPrice.fill('1,6,00');
+  await expect(page.getByRole('alert')).toContainText('Enter a non-negative number');
+  await expect(result).not.toContainText('50.00%');
+  await sellingPrice.fill('1,60,000.00');
+  await expect(page.getByRole('alert')).toBeHidden();
+  await expect(result).toContainText('99.50%');
+
+  await page.goto('/calculators/gstin-check/');
+  const gstin = page.getByLabel('Vendor GSTIN');
+  await gstin.fill('27ABCDE1234F1Z5');
+  await page.getByRole('button', { name: 'Check format' }).click();
+  await expect(result).toContainText('Matches the standard format');
+  await gstin.fill('WRONG');
+  await expect(result).toContainText('Enter the GSTIN and select Check format.');
 });
 
 test('the e-way bill worksheet prints the entered details as working notes', async ({ page }) => {
