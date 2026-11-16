@@ -379,7 +379,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     expect(classes).toContain('btn-shimmer-teal');
 
     // Hero button has shimmer class
-    const heroBtn = page.getByRole('link', { name: 'Try the interactive preview' });
+    const heroBtn = page.getByRole('link', { name: 'See Atlas OS in action' });
     const heroClasses = await heroBtn.getAttribute('class');
     expect(heroClasses).toContain('btn-shimmer');
   });

@@ -5,13 +5,19 @@ import Container from './Container.astro';
 import { FOOTER_SECTIONS } from '../../data/navigation';
 import { APP_CONFIG } from '../../data/releases';
 
+const httpsUrl = (href: string | undefined): href is string =>
+  typeof href === 'string' && URL.canParse(href) && new URL(href).protocol === 'https:';
+const configuredLinkedIn = import.meta.env.PUBLIC_LINKEDIN_URL;
+const linkedInProfile = httpsUrl(configuredLinkedIn) ? configuredLinkedIn : undefined;
+const officialSite = Astro.site?.origin ?? 'https://atlasos.business';
 const socialLinks = [
-  { label: 'GitHub', href: APP_CONFIG.githubUrl, Icon: Github },
-  { label: 'LinkedIn', href: import.meta.env.PUBLIC_LINKEDIN_URL, Icon: Linkedin },
-  { label: 'YouTube', href: import.meta.env.PUBLIC_YOUTUBE_URL, Icon: Youtube },
-  { label: 'Instagram', href: import.meta.env.PUBLIC_INSTAGRAM_URL, Icon: Instagram },
-  { label: 'Facebook', href: import.meta.env.PUBLIC_FACEBOOK_URL, Icon: Facebook },
-].filter(({ href }) => href && URL.canParse(href) && new URL(href).protocol === 'https:');
+  { label: 'Atlas OS on GitHub', href: APP_CONFIG.githubUrl, Icon: Github },
+  { label: linkedInProfile ? 'Atlas OS on LinkedIn' : 'Share Atlas OS on LinkedIn',
+    href: linkedInProfile || 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(officialSite), Icon: Linkedin },
+  { label: 'Atlas OS on YouTube', href: import.meta.env.PUBLIC_YOUTUBE_URL, Icon: Youtube },
+  { label: 'Atlas OS on Instagram', href: import.meta.env.PUBLIC_INSTAGRAM_URL, Icon: Instagram },
+  { label: 'Atlas OS on Facebook', href: import.meta.env.PUBLIC_FACEBOOK_URL, Icon: Facebook },
+].filter(({ href }) => httpsUrl(href));
 ---
 
 <footer class="bg-surface-secondary border-t border-border mt-auto py-9 sm:py-12 text-content-primary">
@@ -54,11 +60,11 @@ const socialLinks = [
       </div>
       <a href="/support" class="rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">Visit Help Center</a>
     </div>
-    <div class="flex flex-wrap items-center justify-between gap-4 pt-5 text-xs text-content-secondary">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3 pb-8 pr-16 pt-5 text-xs sm:pb-0 text-content-secondary">
       <p>© {new Date().getFullYear()} Atlas OS Technologies. All rights reserved.</p>
-      <nav aria-label="Atlas OS social profiles" class="flex flex-wrap justify-center gap-2">
+      <nav aria-label="Atlas OS social links" class="flex flex-wrap justify-center gap-2">
         {socialLinks.map(({ label, href, Icon }) => (
-          <a href={href} aria-label={'Atlas OS on ' + label}
+          <a href={href} aria-label={label} title={label}
             class="grid h-10 w-10 place-items-center rounded-full border border-border bg-white text-content-secondary hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
             <Icon size={18} aria-hidden="true" />
           </a>

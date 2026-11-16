@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, '../dist');
+const invoiceFormats = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src/data/invoice-formats.json'), 'utf8'));
 
 console.log('--- Starting Atlas OS Website Static Verification ---');
 
@@ -13,6 +14,11 @@ const expectedRoutes = [
   { path: 'features/index.html', titleKeyword: 'Features', descKeyword: 'capabilities' },
   { path: 'gst-calculator/index.html', titleKeyword: 'GST Calculator', descKeyword: 'GST' },
   { path: 'calculators/index.html', titleKeyword: 'Atlas Calculators', descKeyword: 'GST' },
+  { path: 'invoice-formats/index.html', titleKeyword: 'Invoice Formats', descKeyword: 'invoice templates' },
+  { path: 'gst-documents/index.html', titleKeyword: 'E-Invoice and E-Way Bill', descKeyword: 'e-way bill' },
+  ...invoiceFormats.map(format => ({
+    path: `invoice-formats/${format.id}/index.html`, titleKeyword: `${format.name} Invoice Format`, descKeyword: 'invoice format',
+  })),
   { path: 'resources/index.html', titleKeyword: 'Resources', descKeyword: 'Atlas Calculators' },
   { path: 'solutions/index.html', titleKeyword: 'Industry Solutions', descKeyword: 'Wholesale' },
   { path: 'download/index.html', titleKeyword: 'Download Atlas OS', descKeyword: 'Distribution' },
@@ -27,6 +33,17 @@ const expectedRoutes = [
 ];
 
 let failedChecks = 0;
+
+for (const format of invoiceFormats) {
+  for (const [extension, signature] of [['docx', 'PK'], ['xlsx', 'PK'], ['pdf', '%PDF']]) {
+    const filename = `invoice-templates/${format.id}.${extension}`;
+    const asset = path.join(distDir, filename);
+    if (!fs.existsSync(asset) || fs.readFileSync(asset).subarray(0, signature.length).toString() !== signature) {
+      console.error(`[FAIL] Missing or invalid invoice download: ${filename}`);
+      failedChecks++;
+    }
+  }
+}
 
 // 1. Verify existence and content of each route
 for (const route of expectedRoutes) {
@@ -171,9 +188,9 @@ if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
   const checks = [
     [source.includes('home-overview'), 'Astro homepage source includes the overview'],
     [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
-    [generated.includes('Today at the counter'), 'Built homepage contains a plain-language counter example'],
+    [generated.includes('Built for the shop counter and the stockroom'), 'Built homepage contains a trade-shop illustration and caption'],
     [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
-    [generated.includes('From stockroom'), 'Built homepage explains daily operations'],
+    [generated.includes('Simplify stock, GST billing, and payments'), 'Built homepage explains daily operations'],
     [generated.includes('supplier-rate-review'), 'Built homepage links to the supplier-rate review feature'],
     [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
     [generated.includes('href="/product"'), 'Built homepage links to product page'],

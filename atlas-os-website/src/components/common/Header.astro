@@ -32,8 +32,8 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                 const isResources = item.href === '/resources';
                 const key = isResources ? 'resources' : isGst ? 'gst' : 'industries';
                 const groups = isResources ? RESOURCE_GROUPS : isGst ? GST_GROUPS : null;
-                const active = isResources ? /^\/(resources|calculators)(\/|$)/.test(currentPath)
-                  : isGst ? currentPath.replace(/\/$/, '') === item.href : onSolutions;
+                const active = isResources ? /^\/(resources|calculators|invoice-formats)(\/|$)/.test(currentPath)
+                  : isGst ? (currentPath.replace(/\/$/, '') === item.href || currentPath.replace(/\/$/, '') === '/gst-documents') : onSolutions;
                 return (
                   <div id={key + '-nav'} data-mega-nav class="flex h-full items-center">
                     <button id={key + '-toggle'} data-mega-toggle type="button" aria-expanded="false" aria-controls={key + '-panel'}

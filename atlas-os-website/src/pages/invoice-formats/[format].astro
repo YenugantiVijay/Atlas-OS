@@ -1,0 +1,67 @@
+---
+import { ArrowRight, Download } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Container from '../../components/common/Container.astro';
+import InvoiceExample from '../../components/invoices/InvoiceExample.astro';
+import { INVOICE_FORMATS, type InvoiceFormat } from '../../data/invoice-formats';
+
+export function getStaticPaths() {
+  return INVOICE_FORMATS.map(format => ({ params: { format: format.id }, props: { format } }));
+}
+interface Props { format: InvoiceFormat }
+const { format } = Astro.props;
+const sections = [['downloads', 'Download files'], ['sample', 'Sample invoice'], ['fields', 'Fields and instructions']];
+const files = [
+  { label: 'Word', extension: 'docx', note: 'Customize the layout and branding.' },
+  { label: 'Excel', extension: 'xlsx', note: 'Edit the line items and calculate totals.' },
+  { label: 'PDF', extension: 'pdf', note: 'View or print the example invoice.' },
+];
+---
+<BaseLayout title={format.name + ' Invoice Format | Atlas OS'} description={format.description + ' Download the free Word, Excel, or PDF invoice format.'}>
+  <Container size="wide" class="grid gap-8 py-10 md:grid-cols-[13rem_minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12 lg:py-14">
+    <header class="md:col-start-2 md:row-start-1">
+      <p class="mb-3 text-sm font-semibold text-brand-800">{format.category}</p>
+      <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">{format.name} invoice format</h1>
+      <p class="mt-4 max-w-2xl text-lg leading-relaxed text-content-secondary">{format.description}</p>
+    </header>
+    <aside class="space-y-4 md:sticky md:top-24 md:col-start-1 md:row-start-1 md:row-span-2 md:self-start">
+      <nav aria-label="On this page" class="rounded-xl border border-border bg-surface-secondary p-4">
+        <p class="font-heading text-sm font-bold">On this page</p>
+        <ul class="mt-2 space-y-1">{sections.map(([id, label]) => <li><a href={'#' + id} class="block rounded px-2 py-1.5 text-sm text-content-secondary hover:bg-white hover:text-brand-800">{label}</a></li>)}</ul>
+      </nav>
+      <nav aria-label="Other invoice formats" class="hidden rounded-xl border border-border p-4 md:block">
+        <p class="font-heading text-sm font-bold">Other invoice formats</p>
+        <ul class="mt-2 space-y-1">{INVOICE_FORMATS.filter(item => item.id !== format.id).map(item => <li><a href={'/invoice-formats/' + item.id + '/'} class="block rounded px-2 py-1.5 text-sm text-content-secondary hover:bg-brand-50 hover:text-brand-800">{item.name}</a></li>)}</ul>
+      </nav>
+    </aside>
+    <div class="min-w-0 space-y-10 md:col-start-2 md:row-start-2">
+      <section id="downloads" class="scroll-mt-28" aria-labelledby="downloads-title">
+        <h2 id="downloads-title" class="mb-4 font-heading text-2xl font-bold">Download files</h2>
+        <ul class="grid gap-3 sm:grid-cols-3">
+          {files.map(({ label, extension, note }) => <li><a download href={'/invoice-templates/' + format.id + '.' + extension}
+            class="atlas-icon-card block h-full rounded-xl border border-border bg-brand-50 p-4 hover:bg-white">
+            <span class="flex items-center gap-2 font-semibold text-brand-800"><Download size={18} aria-hidden="true" /> Download {label}</span>
+            <span class="mt-2 block text-sm text-content-secondary">{note}</span>
+          </a></li>)}
+        </ul>
+      </section>
+
+      <section id="sample" class="scroll-mt-28" aria-label="Sample invoice">
+        <InvoiceExample format={format} />
+      </section>
+
+      <section id="fields" class="scroll-mt-28" aria-labelledby="fields-title">
+        <h2 id="fields-title" class="font-heading text-2xl font-bold">Fields and instructions</h2>
+        <dl class="mt-4 divide-y divide-border rounded-xl border border-border">
+          {format.fields.map(([label, detail]) => <div class="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(8rem,1fr)_2fr] sm:gap-4"><dt class="font-semibold">{label}</dt><dd class="text-content-secondary">{detail}</dd></div>)}
+        </dl>
+        <ol class="mt-5 list-decimal space-y-2 pl-5 text-content-secondary">
+          <li>Replace the sample seller, customer, dates, and invoice number with your own details.</li>
+          <li>Enter the correct HSN or SAC, units, rates, taxable values, and GST treatment. In Excel, choose the tax split for your transaction and review the calculated amounts.</li>
+          <li>Review the applicable invoice particulars and totals before sharing or printing. The Word and PDF examples have fixed totals.</li>
+        </ol>
+        <a href="/gst-documents/" class="mt-5 inline-flex items-center gap-2 font-semibold text-brand-800 hover:underline">Check e-invoice and e-way bill requirements <ArrowRight size={17} aria-hidden="true" /></a>
+      </section>
+    </div>
+  </Container>
+</BaseLayout>

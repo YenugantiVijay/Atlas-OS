@@ -1,0 +1,45 @@
+---
+import { ArrowRight, FileCheck2, Truck } from 'lucide-react';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+---
+<BaseLayout title="GST E-Invoice and E-Way Bill Guide | Atlas OS" description="Understand when to register a GST e-invoice, when to generate an e-way bill, and why a single shipment may need both.">
+  <section class="border-b border-border bg-brand-50 py-10 sm:py-16">
+    <Container size="default">
+      <h1 class="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">GST e-invoice and e-way bill</h1>
+      <p class="mt-4 max-w-2xl text-lg leading-relaxed text-content-secondary">An e-invoice registers an eligible billing document. An e-way bill records an eligible movement of goods. One sale can require both.</p>
+    </Container>
+  </section>
+  <Container size="default" class="space-y-8 py-10 sm:py-14">
+    <div class="grid gap-5 md:grid-cols-2" data-reveal-group>
+      <article class="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <FileCheck2 size={26} className="mb-4 text-brand-700" aria-hidden="true" />
+        <h2 class="font-heading text-2xl font-bold">E-invoice</h2>
+        <p class="mt-3 text-content-secondary">Your billing software prepares the invoice. When the mandate applies, report the document to an Invoice Registration Portal (IRP) to receive an Invoice Reference Number (IRN) and signed QR code.</p>
+        <p class="mt-3 text-content-secondary">The general mandate covers applicable B2B and export documents of notified GST-registered suppliers whose PAN-level aggregate turnover exceeded ₹5 crore in any preceding financial year from 2017–18 onward. It also covers applicable debit and credit notes. Certain supplier categories are exempt. Sales to unregistered consumers are generally outside this e-invoice mandate. From 1 April 2025, taxpayers with annual aggregate turnover of ₹10 crore or more have a 30-day IRP reporting window.</p>
+        <ul class="mt-4 space-y-2 text-sm font-semibold text-brand-800">
+          <li><a class="underline underline-offset-4" href="https://gstcouncil.gov.in/node/4365">GST Council turnover notification</a></li>
+          <li><a class="underline underline-offset-4" href="https://services.gst.gov.in/services/advisoryandreleases/read/543">GSTN reporting deadline advisory</a></li>
+          <li><a class="underline underline-offset-4" href="https://tutorial.gst.gov.in/downloads/news/e_invoice_overview.pdf">GSTN e-invoicing overview and exemptions</a></li>
+        </ul>
+      </article>
+      <article class="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <Truck size={26} className="mb-4 text-brand-700" aria-hidden="true" />
+        <h2 class="font-heading text-2xl font-bold">E-way bill</h2>
+        <p class="mt-3 text-content-secondary">The e-way bill records details of goods in transit, including the underlying invoice or delivery challan and transport details where required. The portal issues an e-way bill number (EBN).</p>
+        <p class="mt-3 text-content-secondary">Rule 138 generally requires it before movement when the consignment value exceeds ₹50,000. It can apply to movements such as stock transfers as well as sales. Check state-specific rules, exemptions, and cases that require it at lower values.</p>
+        <ul class="mt-4 space-y-2 text-sm font-semibold text-brand-800">
+          <li><a class="underline underline-offset-4" href="https://docs.ewaybillgst.gov.in/documents/EWBRules.pdf">Rule 138 and exemptions</a></li>
+          <li><a class="underline underline-offset-4" href="https://ewaybillgst.gov.in/">E-way bill portal</a></li>
+          <li><a class="underline underline-offset-4" href="/calculators/eway-bill-template/">Prepare details with the e-way bill worksheet</a></li>
+        </ul>
+      </article>
+    </div>
+    <section class="rounded-2xl border border-border bg-surface-secondary p-6 sm:p-8" data-reveal>
+      <h2 class="font-heading text-2xl font-bold">Example for a distributor</h2>
+      <p class="mt-3 max-w-3xl text-content-secondary">An electrical wholesaler bills a GST-registered shop ₹80,000 and dispatches cables to another state. If the wholesaler is covered by the e-invoicing mandate, the invoice needs an IRN. The transporter also needs the e-way bill for the eligible movement. Check the supplier and shipment rules independently.</p>
+      <p class="mt-3 max-w-3xl text-content-secondary">The Atlas templates and worksheet help prepare your details. Generate official references through the relevant portal or an authorized integration.</p>
+      <a class="mt-4 inline-flex items-center gap-2 font-semibold text-brand-800 hover:underline" href="/invoice-formats/">Browse Atlas invoice formats <ArrowRight size={16} aria-hidden="true" /></a>
+    </section>
+  </Container>
+</BaseLayout>

@@ -1,0 +1,51 @@
+---
+import { ArrowDown, ArrowRight, BedDouble, Cpu, FileText, Package, Store, Truck, Zap } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Container from '../../components/common/Container.astro';
+import Button from '../../components/common/Button.astro';
+import InvoiceExample from '../../components/invoices/InvoiceExample.astro';
+import { INVOICE_FORMATS } from '../../data/invoice-formats';
+
+const icons = [Package, Zap, Cpu, Store, Truck, BedDouble, FileText];
+const accents = ['#0f766e', '#a16207', '#6d28d9', '#1d4ed8', '#0369a1', '#a21caf', '#166534'];
+---
+<BaseLayout title="Free Invoice Formats | Atlas OS" description="Browse Atlas OS invoice templates for wholesale, retail, transport, hospitality, and more. Download editable Word and Excel files or print the PDF sample.">
+  <section class="border-b border-border bg-[#f2f8f6] py-12 sm:py-20">
+    <Container size="wide" class="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+      <div>
+        <h1 class="font-heading text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">Invoice Formats <span class="block text-brand-700">for your business</span></h1>
+        <p class="mt-5 max-w-xl text-lg leading-relaxed text-content-secondary">Choose a template that matches what you sell. Edit it in Word or Excel, or download a PDF to use as a reference when printing.</p>
+        <Button class="mt-6 !bg-brand-700 hover:!bg-brand-800" href="#formats" variant="primary">Browse invoice formats <ArrowDown size={17} aria-hidden="true" /></Button>
+      </div>
+      <InvoiceExample format={INVOICE_FORMATS[0]} />
+    </Container>
+  </section>
+
+  <section id="formats" class="py-12 sm:py-20" aria-labelledby="formats-title">
+    <Container size="wide">
+      <div class="mx-auto mb-8 max-w-2xl text-center" data-reveal>
+        <h2 id="formats-title" class="font-heading text-3xl font-bold tracking-tight sm:text-4xl">Choose an invoice format</h2>
+        <p class="mt-3 text-content-secondary">Each format includes an example and separate Word, Excel, and PDF downloads.</p>
+      </div>
+      <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-reveal-group>
+        {INVOICE_FORMATS.map((format, index) => {
+          const Icon = icons[index];
+          return <li><a href={'/invoice-formats/' + format.id + '/'} style={'--icon-accent:' + accents[index]}
+            class="atlas-icon-card flex h-full flex-col gap-4 rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="atlas-card-icon grid h-11 w-11 shrink-0 place-items-center rounded-xl"><Icon size={21} aria-hidden="true" /></span>
+              <h3 class="font-heading text-xl font-bold">{format.name}</h3>
+            </div>
+            <p class="flex-1 text-content-secondary">{format.description}</p>
+            <span class="flex items-center gap-2 text-sm font-semibold text-brand-800">View format <ArrowRight size={16} aria-hidden="true" /></span>
+          </a></li>;
+        })}
+      </ul>
+      <div class="mt-10 rounded-2xl border border-border bg-surface-secondary p-6 sm:p-8" data-reveal>
+        <h2 class="font-heading text-2xl font-bold">Shipping goods or issuing a GST e-invoice?</h2>
+        <p class="mt-2 max-w-3xl text-content-secondary">Use our guide to find out when to register a GST invoice and when to generate an e-way bill for a shipment.</p>
+        <a href="/gst-documents/" class="mt-4 inline-flex items-center gap-2 font-semibold text-brand-800 hover:underline">Read the GST documents guide <ArrowRight size={16} aria-hidden="true" /></a>
+      </div>
+    </Container>
+  </section>
+</BaseLayout>
