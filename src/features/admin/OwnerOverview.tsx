@@ -1,13 +1,11 @@
 import { useId, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Activity, Bell, Building2, CircleHelp, CreditCard, IndianRupee, Sparkles } from 'lucide-react';
+import { Activity, ArrowUpRight, Bell, Building2, CircleHelp, CreditCard, IndianRupee, ReceiptText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/money';
 import { supportAreaLabel } from '@/lib/support-reports';
-import { editionLabel, generateOwnerSummary, type OwnerOverview, type PurchaseMonth } from '@/services/owner-console.service';
+import { editionLabel, type OwnerOverview, type PurchaseMonth } from '@/services/owner-console.service';
 
-const monthName = (value: string) => new Intl.DateTimeFormat('en-IN', { month: 'short', timeZone: 'UTC' })
-  .format(new Date(value + '-01T00:00:00Z'));
+import { getOwnerInsights, monthName, type OwnerSection } from './owner-insights';
 
 function PurchaseWave({ months }: { months: PurchaseMonth[] }) {
   const [metric, setMetric] = useState<'purchases' | 'revenue'>('purchases');
@@ -51,34 +49,26 @@ function PurchaseWave({ months }: { months: PurchaseMonth[] }) {
   </section>;
 }
 
-export function OwnerOverviewScreen({ snapshot, openReports }: { snapshot: OwnerOverview; openReports: () => void }) {
-  const [showAI, setShowAI] = useState(false);
-  const summary = useMutation({ mutationFn: generateOwnerSummary });
-  const reportArea = snapshot.report_areas[0];
+export function OwnerOverviewScreen({ snapshot, navigate, openAssistant }: {
+  snapshot: OwnerOverview; navigate: (section: OwnerSection) => void; openAssistant: () => void;
+}) {
   const lastMonth = snapshot.months.at(-1);
-  const lastComplete = snapshot.months.at(-2);
-  const preceding = snapshot.months.at(-3);
-  const signals = [
-    snapshot.urgent_reports > 0 && `${snapshot.urgent_reports} urgent client report${snapshot.urgent_reports === 1 ? ' needs' : 's need'} attention.`,
-    snapshot.overdue_reports > 0 && `${snapshot.overdue_reports} reports have been open for over 48 hours.`,
-    snapshot.due_renewals > 0 && `${snapshot.due_renewals} subscriptions reach their access end date within 14 days.`,
-    reportArea && `${supportAreaLabel(reportArea.area)} has the most open reports (${reportArea.reports}).`,
-    lastComplete && preceding && lastComplete.purchases < preceding.purchases &&
-      `Purchases fell from ${preceding.purchases} in ${monthName(preceding.month)} to ${lastComplete.purchases} in ${monthName(lastComplete.month)}.`,
-  ].filter(Boolean);
+  const signals = getOwnerInsights(snapshot);
   const cards = [
-    { label: 'Client workspaces', value: snapshot.clients, Icon: Building2, tone: 'violet' },
-    { label: 'Active subscriptions', value: snapshot.active, Icon: CreditCard, tone: 'teal' },
-    { label: 'Recorded this month', value: formatCurrency(lastMonth?.revenue ?? 0), Icon: IndianRupee, tone: 'amber' },
-    { label: 'Open client reports', value: snapshot.open_reports, Icon: CircleHelp, tone: 'rose' },
-  ];
+    { label: 'Client workspaces', value: snapshot.clients, Icon: Building2, tone: 'violet', destination: 'clients' },
+    { label: 'Active subscriptions', value: snapshot.active, Icon: CreditCard, tone: 'teal', destination: 'clients' },
+    { label: 'Recorded this month', value: formatCurrency(lastMonth?.revenue ?? 0), Icon: IndianRupee, tone: 'amber', destination: 'purchases' },
+    { label: 'Open client reports', value: snapshot.open_reports, Icon: CircleHelp, tone: 'rose', destination: 'tickets' },
+  ] as const;
   const top = Math.max(1, ...snapshot.products.map(p => p.purchases));
   return <>
     <div className="owner-metrics">
-      {cards.map(({ label, value, Icon, tone }) => <article className={`owner-metric tone-${tone}`} key={label}>
+      {cards.map(({ label, value, Icon, tone, destination }) => <button type="button"
+        className={`owner-metric owner-metric-link tone-${tone}`} key={label} onClick={() => navigate(destination)}>
         <span className="owner-icon"><Icon size={21} aria-hidden="true" /></span>
-        <p>{label}</p><strong>{value}</strong>
-      </article>)}
+        <span className="owner-metric-label">{label}</span><strong>{value}</strong>
+        <ArrowUpRight className="owner-metric-arrow" size={17} aria-hidden="true" />
+      </button>)}
     </div>
     <div className="owner-overview-grid">
       <PurchaseWave months={snapshot.months} />
@@ -95,24 +85,25 @@ export function OwnerOverviewScreen({ snapshot, openReports }: { snapshot: Owner
     <div className="owner-overview-grid">
       <section className="owner-panel">
         <div className="owner-panel-heading"><div><h2>Attention needed</h2><p>Refreshes every 60 seconds while the console is open</p></div><Bell size={20} aria-hidden="true" /></div>
-        {signals.length ? <ul className="owner-signal-list">{signals.map(item => <li key={String(item)}>{item}</li>)}</ul>
+        {signals.length ? <ul className="owner-signal-list">{signals.map(item => <li key={item.message}>
+          <button type="button" className="owner-text-link" onClick={() => navigate(item.area)}>
+            {item.message}<ArrowUpRight size={15} aria-hidden="true" />
+          </button>
+        </li>)}</ul>
           : <p className="owner-empty">No current warnings from the records available.</p>}
         {snapshot.recent_reports.length > 0 && <div className="owner-recent">
           <h3>Recent open reports</h3>
           <ul>{snapshot.recent_reports.map(report => <li key={report.id}>
             <span>{report.subject}</span><small>{supportAreaLabel(report.area)} · {report.source === 'erp' ? 'ERP' : 'Website'}</small>
           </li>)}</ul>
-          <Button size="sm" variant="outline" onClick={openReports}>Open support inbox</Button>
+          <Button size="sm" variant="outline" onClick={() => navigate('tickets')}>Open support inbox</Button>
         </div>}
       </section>
-      <section className="owner-panel owner-ai">
-        <div className="owner-panel-heading"><div><h2>AI report brief</h2><p>Summarise recent client reports and purchase trends.</p></div><Sparkles size={22} aria-hidden="true" /></div>
-        {showAI ? <>
-          <p className="owner-muted">This sends recent report excerpts and aggregate totals to the configured AI provider. Email addresses and phone-like numbers are masked when detected.</p>
-          <Button isLoading={summary.isPending} onClick={() => summary.mutate()}>Generate summary</Button>
-        </> : <Button variant="outline" onClick={() => setShowAI(true)}>Review AI summary options</Button>}
-        {summary.isError && <p role="alert" className="owner-error">{summary.error.message}</p>}
-        {summary.data && <p className="owner-ai-result" role="status">{summary.data}</p>}
+      <section className="owner-panel owner-quick-panel">
+        <div className="owner-panel-heading"><div><h2>Quick actions</h2><p>Open the console area you need.</p></div><Sparkles size={20} aria-hidden="true" /></div>
+        <button className="owner-shortcut" type="button" onClick={() => navigate('clients')}><Building2 size={18} aria-hidden="true" /><span>Manage subscriptions</span><ArrowUpRight size={16} aria-hidden="true" /></button>
+        <button className="owner-shortcut" type="button" onClick={() => navigate('purchases')}><ReceiptText size={18} aria-hidden="true" /><span>View purchase ledger</span><ArrowUpRight size={16} aria-hidden="true" /></button>
+        <button className="owner-shortcut" type="button" onClick={openAssistant}><Sparkles size={18} aria-hidden="true" /><span>Open Atlas Assistant</span><ArrowUpRight size={16} aria-hidden="true" /></button>
       </section>
     </div>
   </>;

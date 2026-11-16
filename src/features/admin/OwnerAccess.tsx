@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { ownerSupabase as supabase } from '@/lib/owner-supabase';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -66,8 +66,10 @@ export function OwnerAccess() {
 function PrivateScreen({ title, children }: { title: string; children: React.ReactNode }) {
   return <main className="owner-login">
     <section className="owner-login-card">
-      <span className="owner-lock"><LockKeyhole size={23} aria-hidden="true" /></span>
-      <p className="owner-kicker">Atlas OS</p>
+      <div className="owner-login-brand">
+        <img src="/favicon.svg" width={44} height={44} alt="" />
+        <span>Atlas OS</span>
+      </div>
       <h1>{title}</h1>
       <div className="space-y-4">{children}</div>
     </section>
@@ -77,6 +79,7 @@ function PrivateScreen({ title, children }: { title: string; children: React.Rea
 function OwnerLogin({ client }: { client: SupabaseClient }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
   const [method, setMethod] = useState<'password' | 'email' | 'code'>('password');
   const [error, setError] = useState('');
@@ -84,7 +87,7 @@ function OwnerLogin({ client }: { client: SupabaseClient }) {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setShowPassword(false);
     try {
       if (method === 'password') {
         const result = await client.auth.signInWithPassword({ email: email.trim(), password });
@@ -107,11 +110,18 @@ function OwnerLogin({ client }: { client: SupabaseClient }) {
     <p>Sign in with an authorized Atlas owner account.</p>
     <form onSubmit={submit} className="space-y-3">
       <Input label="Email" type="email" autoComplete="username" required value={email} disabled={method === 'code'} onChange={e => setEmail(e.target.value)} />
-      {method === 'password' && <Input label="Password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />}
+      {method === 'password' && <Input id="owner-password" label="Password" type={showPassword ? 'text' : 'password'}
+        autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)}
+        className="!pr-12"
+        rightIcon={<button type="button" className="owner-password-toggle" aria-controls="owner-password"
+          aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={busy}
+          onClick={() => setShowPassword(visible => !visible)}>
+          {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+        </button>} />}
       {method === 'code' && <Input label="Email verification code" autoComplete="one-time-code" required inputMode="numeric" value={code} onChange={e => setCode(e.target.value)} />}
       {error && <p role="alert" className="owner-error">{error}</p>}
       <Button type="submit" isLoading={busy}>{method === 'email' ? 'Send sign-in code' : method === 'code' ? 'Verify email code' : 'Sign in'}</Button>
-      <Button type="button" variant="ghost" disabled={busy} onClick={() => { setMethod(method === 'password' ? 'email' : 'password'); setError(''); }}>{method === 'password' ? 'Use email code' : 'Use password'}</Button>
+      <Button type="button" variant="ghost" disabled={busy} onClick={() => { setMethod(method === 'password' ? 'email' : 'password'); setShowPassword(false); setError(''); }}>{method === 'password' ? 'Use email code' : 'Use password'}</Button>
     </form>
   </PrivateScreen>;
 }

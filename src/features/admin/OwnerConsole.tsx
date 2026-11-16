@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, ChartNoAxesCombined, Inbox, LogOut, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Bot, Building2, ChartNoAxesCombined, Inbox, LogOut, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -10,6 +10,8 @@ import { getBusinessDate } from '@/lib/dates';
 import { supportAreaLabel, ticketStatusLabel, type TicketStatus } from '@/lib/support-reports';
 import { EDITIONS, editionLabel, ownerRequest, type OwnerClient, type OwnerOverview, type OwnerPurchase, type OwnerTicket } from '@/services/owner-console.service';
 import { OwnerOverviewScreen } from './OwnerOverview';
+import { OwnerAssistant } from './OwnerAssistant';
+import type { OwnerSection } from './owner-insights';
 
 const tabs = [
   { id: 'overview', label: 'Overview', Icon: ChartNoAxesCombined },
@@ -17,7 +19,6 @@ const tabs = [
   { id: 'tickets', label: 'Support inbox', Icon: Inbox },
   { id: 'purchases', label: 'Purchase ledger', Icon: ReceiptText },
 ] as const;
-type Tab = typeof tabs[number]['id'];
 const PAGE_SIZE = 25;
 const dateLabel = (date: string | null) => date ? new Intl.DateTimeFormat('en-IN', {
   day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata',
@@ -31,14 +32,25 @@ type Dialog = { kind: ClientAction; client: OwnerClient } | { kind: 'ticket'; ti
 
 export function OwnerConsole({ account, onSignOut }: { account: string; onSignOut: () => void }) {
   const cache = useQueryClient();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<OwnerSection>('overview');
+  const previousTab = useRef(tab);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState('');
   const overview = useQuery({
     queryKey: ['owner', account, 'overview'],
     queryFn: ({ signal }) => ownerRequest<OwnerOverview>('overview', {}, signal),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
   });
+  useEffect(() => {
+    if (previousTab.current === tab) return;
+    previousTab.current = tab;
+    heading.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0 });
+  }, [tab]);
+  const navigate = (section: OwnerSection) => { setTab(section); setNotice(''); };
   const current = tabs.find(item => item.id === tab)!;
   const saved = async (message: string) => {
     setDialog(null); setNotice(message);
@@ -50,7 +62,7 @@ export function OwnerConsole({ account, onSignOut }: { account: string; onSignOu
       <div className="owner-brand"><img src="/favicon.svg" width={35} height={35} alt="" /><div><strong>Atlas OS</strong><span>Owner console</span></div></div>
       <nav aria-label="Owner sections">
         {tabs.map(({ id, label: title, Icon }) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined}
-          onClick={() => { setTab(id); setNotice(''); }}>
+          onClick={() => navigate(id)}>
           <Icon size={18} aria-hidden="true" /><span>{title}</span>
           {id === 'tickets' && !!overview.data?.open_reports && <small>{overview.data.open_reports}</small>}
         </button>)}
@@ -61,7 +73,7 @@ export function OwnerConsole({ account, onSignOut }: { account: string; onSignOu
       <header className="owner-hero">
         <div>
           <p className="owner-kicker"><ShieldCheck size={15} aria-hidden="true" /> Private access</p>
-          <h1>{current.label}</h1>
+          <h1 ref={heading} tabIndex={-1}>{current.label}</h1>
           <p>{tab === 'overview' ? 'Subscriptions, purchases and client issues across Atlas OS.'
             : tab === 'clients' ? 'Review client activity and manage subscription access.'
             : tab === 'tickets' ? 'Reports submitted through the ERP and website.'
@@ -72,11 +84,17 @@ export function OwnerConsole({ account, onSignOut }: { account: string; onSignOu
       {notice && <p className="owner-notice" role="status">{notice}</p>}
       {tab === 'overview' && (overview.isPending ? <p role="status">Loading overview…</p>
         : overview.isError ? <p role="alert" className="owner-error">{overview.error.message}</p>
-        : <OwnerOverviewScreen snapshot={overview.data} openReports={() => setTab('tickets')} />)}
+        : <OwnerOverviewScreen snapshot={overview.data} navigate={navigate} openAssistant={() => setAssistantOpen(true)} />)}
       {tab === 'clients' && <Clients account={account} open={setDialog} />}
       {tab === 'tickets' && <Tickets account={account} open={ticket => setDialog({ kind: 'ticket', ticket })} />}
       {tab === 'purchases' && <Purchases account={account} />}
     </main>
+    {!dialog && <button type="button" className="owner-assistant-launcher"
+      aria-label="Open Atlas Assistant" aria-haspopup="dialog" aria-expanded={assistantOpen} onClick={() => setAssistantOpen(true)}>
+      <Bot size={22} aria-hidden="true" /><span>Atlas Assistant</span>
+    </button>}
+    <OwnerAssistant open={assistantOpen} onClose={() => setAssistantOpen(false)} snapshot={overview.isError ? undefined : overview.data}
+      overviewError={overview.isError} navigate={navigate} />
     {dialog && (dialog.kind === 'ticket'
       ? <TicketDialog ticket={dialog.ticket} close={() => setDialog(null)} saved={() => saved('Support report updated.')} />
       : <ClientDialog selection={dialog} close={() => setDialog(null)} saved={saved} />)}
