@@ -44,6 +44,7 @@ import { runStaffAdvancesAcceptance } from './staff_advances_acceptance.mjs';
 import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
 import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runEcommercePlatformAdminAcceptance } from './ecommerce_platform_admin_acceptance.mjs';
+import { runOwnerConsoleAcceptance } from './owner_console_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
 const { Client } = pg;
@@ -4728,6 +4729,7 @@ async function runAcceptance() {
     });
     await runIndustryReceiptsAcceptance({ client: testClient, withRoleContext, recordTest });
     await runEcommercePlatformAdminAcceptance({ client: testClient, withRoleContext, recordTest });
+    await runOwnerConsoleAcceptance({ client: testClient, withRoleContext, recordTest });
 
     // ------------------------------------------------------------------------
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030

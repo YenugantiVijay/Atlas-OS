@@ -370,4 +370,12 @@ ATLAS OS aims to become more than a collection of management screens. The goal i
 
 - Select **E-commerce / Online Sales** when setting up a workspace to use the violet industry palette and online catalog suggestions. Other workspaces can also open **Sales → E-commerce Orders** for online transactions.
 - In **E-commerce Orders**, create a draft with the channel and the original order reference. If you use several stores on one channel, include the store or marketplace name in the reference. Confirm stock using the standard order workflow. Open the confirmed order to record the carrier and tracking reference. Issue the invoice and record the payment in the existing billing and payments screens.
-- Open **`/#/admin`** to search workspaces, view eligibility and plan periods, and approve or reject declarations. The platform portal uses the separate `public.platform_reviewers` registry. A trusted database administrator must provision the intended Supabase Auth user by UUID in that registry after applying the migration. Ordinary workspace owners, admins, and demo accounts do not inherit platform access. Review decisions also appear in the existing eligibility audit log.
+- Cloud workspace users can submit a support report and follow its status in **Support**. Website support enquiries submitted through the verified contact form enter the same inbox.
+
+### Private operations build
+
+The ERP and private operations console have separate release builds. Use `npm run build` for the ERP and `npm run build:owner` for the private console. Serve the latter on a private origin and set the Supabase URL and publishable key for its build in `.env.owner.local`. The local ERP development server can open both entry points.
+
+The console requires an explicit database seat and a verified authenticator. After applying the database migration, provision the intended Supabase Auth UUID in `atlas_private.owner_console_accounts` using a trusted administrator. Seat numbers are limited to 1, 2 and 3. The existing `platform_reviewers` grant is additionally required for business verification decisions. Use individual accounts.
+
+Purchases are manually reconciled records. Subscription access changes are separate and audited. Website intake uses the existing Turnstile and rate limits. Optional AI summaries require the `owner-report-summary` Edge Function and its server-side `OWNER_CONSOLE_ORIGINS`, `OWNER_SUMMARY_MODEL`, and `OWNER_SUMMARY_OPENAI_KEY` settings. Dashboard alerts work without an AI provider and refresh while the console is open.

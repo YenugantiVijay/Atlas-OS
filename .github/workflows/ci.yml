@@ -71,6 +71,13 @@ jobs:
       - name: Production Build
         run: npm run build
 
+      - name: Verify the private console builds separately
+        run: |
+          test ! -e dist/owner/index.html
+          npm run build:owner
+          test -f dist-owner/owner/index.html
+          test ! -e dist-owner/index.html
+
       # GitHub-hosted Ubuntu runners already include Chromium's system libraries.
       # --with-deps triggers apt package downloads and can hang/fail on DNS
       # outages at the Ubuntu mirror before any Playwright test starts.
