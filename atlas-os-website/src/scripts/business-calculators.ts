@@ -1,3 +1,6 @@
+import { readDecimalHundredths } from './decimal-input';
+import { DEFAULT_TAX_YEAR, INCOME_TAX_YEARS } from '../data/income-tax-years';
+
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
 const percent = (value: number) => value.toFixed(2) + '%';
 type Result = [label: string, value: string];
@@ -20,17 +23,18 @@ export function estimateIncomeTax(income: number, regime: 'old' | 'new') {
 }
 
 function readNumber(data: FormData, field: string) {
-  const raw = String(data.get(field) ?? '').trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) throw Error('Enter valid numbers with up to two decimal places.');
-  const value = Number(raw);
-  if (value > 999999999.99) throw Error('Enter a smaller value.');
-  return value;
+  const value = readDecimalHundredths(String(data.get(field) ?? ''));
+  if (value === null) throw Error('Enter a non-negative number with up to nine whole digits and two decimal places.');
+  return value / 100;
 }
 
 export function calculateBusinessTool(tool: string, form: FormData): Result[] {
   const n = (name: string) => readNumber(form, name);
   switch (tool) {
     case 'income-tax': {
+      const year = String(form.get('taxYear') ?? DEFAULT_TAX_YEAR);
+      if (!INCOME_TAX_YEARS.some(option => option.id === year)) throw Error('Choose a supported tax year.');
+      // Both supported years use the same ordinary slabs, rebates, relief and cess for this scope.
       const oldIncome = n('oldIncome');
       const newIncome = n('newIncome');
       if (Math.max(oldIncome, newIncome) > 5000000) throw Error('This estimate supports taxable income up to ₹50 lakh under each regime.');

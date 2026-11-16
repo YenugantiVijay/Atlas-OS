@@ -161,7 +161,9 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
 
     // Click on 1-Click Excel Exports tab
     await page.click('button:has-text("1-Click Excel Exports")');
-    await expect(page.locator('text=One-Click Statutory Export Engine')).toBeVisible();
+    await expect(page.getByText('Sample reporting workbook', { exact: true })).toBeVisible();
+    await expect(page.getByText('Preview of five report sheets', { exact: true })).toBeVisible();
+    await expect(page.getByText('Export .XLSX (Multi-Sheet)', { exact: true })).toHaveCount(0);
     await expect(page.locator('text=FY 2026-27')).toBeVisible();
   });
 

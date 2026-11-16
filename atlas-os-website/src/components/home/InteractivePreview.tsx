@@ -7,7 +7,6 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   TrendingUp,
-  Download,
   ShieldCheck,
   Building2,
   ArrowUpRight,
@@ -673,15 +672,15 @@ export default function InteractivePreview() {
             <div className="p-4 rounded-xl border border-teal-200 bg-teal-50/50 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-teal-800">
-                  One-Click Statutory Export Engine
+                  Sample reporting workbook
                 </p>
                 <p className="text-sm font-bold text-[#142B4D]">
                   Indian Financial Year: FY 2026-27 (April 1 to March 31)
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-teal-700 text-white text-xs font-bold shadow-xs">
-                  <Download className="w-3.5 h-3.5" /> Export .XLSX (Multi-Sheet)
+                <span className="text-xs font-medium text-teal-900">
+                  Preview of five report sheets
                 </span>
               </div>
             </div>

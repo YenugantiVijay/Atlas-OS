@@ -3,6 +3,7 @@ import { ArrowUpRight, Printer } from 'lucide-react';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Container from '../../components/common/Container.astro';
 import { CALCULATORS } from '../../data/calculators';
+import { DEFAULT_TAX_YEAR, INCOME_TAX_YEARS } from '../../data/income-tax-years';
 
 export function getStaticPaths() {
   return CALCULATORS.flatMap(tool => 'fields' in tool ? [{ params: { tool: tool.id }, props: { tool } }] : []);
@@ -10,6 +11,7 @@ export function getStaticPaths() {
 const { tool } = Astro.props;
 const worksheet = tool.id === 'eway-bill-template';
 const isGstin = tool.id === 'gstin-check';
+const isIncomeTax = tool.id === 'income-tax';
 const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-white px-3 py-2 font-normal focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600';
 ---
 <BaseLayout title={tool.label + ' | Atlas OS'} description={tool.description}>
@@ -22,6 +24,12 @@ const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-whi
       </div>
       <div class="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]" data-enter data-delay="1">
         <form id="business-tool" data-tool={tool.id} class="space-y-5 rounded-3xl border border-border bg-white p-5 shadow-sm sm:p-7">
+          {isIncomeTax && <label class="block space-y-1 text-sm font-semibold">
+            <span>Tax year</span>
+            <select name="taxYear" class={inputStyle}>
+              {INCOME_TAX_YEARS.map(({ id, label }) => <option value={id} selected={id === DEFAULT_TAX_YEAR}>{label}</option>)}
+            </select>
+          </label>}
           <div class="grid gap-4 sm:grid-cols-2">
             {tool.fields.map(({ name, label, example }) => (
               <label class:list={['space-y-1 text-sm font-semibold', (isGstin || name === 'items') && 'sm:col-span-2']}>
@@ -46,6 +54,11 @@ const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-whi
           </section>}
           <aside class="rounded-2xl border border-border bg-white p-5 text-sm leading-relaxed text-content-secondary">
             <p>{tool.note}</p>
+            {isIncomeTax && <ul class="mt-3 grid gap-2">
+              {INCOME_TAX_YEARS.map(({ id, reference }) => (
+                <li><a href={reference} class="inline-flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">Official guidance for {id} <ArrowUpRight size={15} aria-hidden="true" /></a></li>
+              ))}
+            </ul>}
             {'reference' in tool && <a href={tool.reference} class="mt-3 inline-flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">Official reference <ArrowUpRight size={15} aria-hidden="true" /></a>}
           </aside>
         </div>
@@ -100,8 +113,15 @@ const inputStyle = 'block min-h-11 w-full rounded-xl border border-border bg-whi
     const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (submit) submit.disabled = false;
     if (form.dataset.tool === 'gstin-check') {
-      results.textContent = 'Enter the GSTIN and select Check format.';
+      function promptForGstin() {
+        if (!results || !error) return;
+        error.hidden = true;
+        results.textContent = 'Enter the GSTIN and select Check format.';
+      }
+      form.addEventListener('input', promptForGstin);
+      promptForGstin();
     } else {
+      form.addEventListener('input', render);
       render();
     }
   }

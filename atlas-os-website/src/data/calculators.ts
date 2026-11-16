@@ -3,9 +3,8 @@ import { ArrowLeftRight, Banknote, Boxes, Calculator, ClipboardList, Landmark, R
 const field = (name: string, label: string, example: string) => ({ name, label, example });
 export const CALCULATORS = [
   { id: 'gst', label: 'GST Calculator', description: 'Add or remove GST and see the tax split for your supply type.', Icon: Receipt, hue: '#0f766e', href: '/gst-calculator/' },
-  { id: 'income-tax', label: 'Income Tax Calculator', description: 'Compare old and new regime estimates for FY 2025–26.', Icon: Landmark, hue: '#1d4ed8',
+  { id: 'income-tax', label: 'Income Tax Calculator', description: 'Compare old and new regime estimates for 2025–26 and 2026–27.', Icon: Landmark, hue: '#1d4ed8',
     note: 'For resident individuals under 60 with ordinary slab-rate taxable income up to ₹50 lakh. Enter separate taxable incomes after applicable deductions. The estimate includes applicable rebate or marginal relief and cess. Special-rate income, interest and penalties are outside this estimate.',
-    reference: 'https://www.incometax.gov.in/iec/foportal/help/individual/return-applicable-1',
     fields: [field('oldIncome','Old regime taxable income (₹)','1000000'), field('newIncome','New regime taxable income (₹)','1000000')] },
   { id: 'gstin-check', label: 'Vendor GSTIN Format Check', description: 'Check the standard GSTIN format, then verify the vendor on the GST portal.', Icon: ShieldCheck, hue: '#15803d',
     note: 'This checks the character pattern only. Use Search Taxpayer on the GST portal to verify registration status and business details.',

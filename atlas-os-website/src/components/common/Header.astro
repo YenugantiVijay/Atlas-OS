@@ -307,22 +307,23 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
   const closeIcon = document.getElementById('menu-close-icon');
 
   if (menuBtn && mobileNav && openIcon && closeIcon) {
+    const setMobileOpen = (open: boolean) => {
+      menuBtn.setAttribute('aria-expanded', String(open));
+      mobileNav.classList.toggle('hidden', !open);
+      openIcon.classList.toggle('hidden', open);
+      closeIcon.classList.toggle('hidden', !open);
+    };
     menuBtn.addEventListener('click', () => {
-      const isExpanded = menuBtn.getAttribute('aria-expanded') === 'true';
-      menuBtn.setAttribute('aria-expanded', String(!isExpanded));
-      mobileNav.classList.toggle('hidden');
-      openIcon.classList.toggle('hidden');
-      closeIcon.classList.toggle('hidden');
+      setMobileOpen(menuBtn.getAttribute('aria-expanded') !== 'true');
     });
-
-    // Close when clicking mobile links
-    mobileNav.querySelectorAll('a').forEach((link) => {
-      link.addEventListener('click', () => {
-        mobileNav.classList.add('hidden');
-        menuBtn.setAttribute('aria-expanded', 'false');
-        openIcon.classList.remove('hidden');
-        closeIcon.classList.add('hidden');
-      });
+    mobileNav.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => setMobileOpen(false));
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || menuBtn.getAttribute('aria-expanded') !== 'true' ||
+          menuBtn.getClientRects().length === 0) return;
+      if (mobileNav.contains(document.activeElement)) menuBtn.focus();
+      setMobileOpen(false);
     });
   }
 </script>

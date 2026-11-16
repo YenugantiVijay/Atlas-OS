@@ -49,6 +49,7 @@ export interface IndustrySolution {
   workflowHighlights: {
     step: string;
     description: string;
+    example: string[];
   }[];
 }
 
