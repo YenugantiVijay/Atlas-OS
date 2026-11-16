@@ -1,24 +1,21 @@
 ---
-import { CircuitBoard, Leaf, ShoppingBasket, Store, Wrench, Zap } from 'lucide-react';
+import { CircuitBoard, Leaf, ShoppingBag, ShoppingBasket, Store, Wrench, Zap } from 'lucide-react';
+import { INDUSTRY_COLORS } from '../../data/industry-colors';
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
 
-const icons = {
-  electrical: { Icon: Zap, hue: '#a16207' },
-  electronics: { Icon: CircuitBoard, hue: '#1d4ed8' },
-  hardware: { Icon: Wrench, hue: '#6d28d9' },
-  retail: { Icon: ShoppingBasket, hue: '#b45309' },
-  agriculture: { Icon: Leaf, hue: '#15803d' },
-  shop: { Icon: Store, hue: '#0f766e' },
-};
+const icons = { electrical: Zap, electronics: CircuitBoard, hardware: Wrench, retail: ShoppingBasket,
+  agriculture: Leaf, shop: Store, ecommerce: ShoppingBag };
 ---
 
 <ul class="industry-links">
   {INDUSTRY_NAVIGATION.map(({ icon, label, href, description }) => {
-    const { Icon, hue } = icons[icon];
+    const Icon = icons[icon];
+    const key = href.split('/').filter(Boolean).at(-1) as keyof typeof INDUSTRY_COLORS;
+    const { color, tint } = INDUSTRY_COLORS[key];
     return (
       <li class="min-w-0">
-        <a href={href} style={`--icon-accent:${hue}`} class="atlas-icon-card flex h-full items-start gap-3 rounded-xl border border-border bg-surface-secondary p-3.5
-          text-content-primary transition-colors hover:border-brand-500 hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+        <a href={href} style={`--icon-accent:${color};--industry-tint:${tint}`} class="atlas-icon-card flex h-full items-start gap-3 rounded-xl border border-border bg-surface-secondary p-3.5
+          text-content-primary transition-colors hover:border-[var(--icon-accent)] hover:bg-[var(--industry-tint)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
           <span class="atlas-card-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg">
             <Icon size={18} aria-hidden="true" />
           </span>

@@ -17,7 +17,7 @@ const CONTACT_FIELDS = [
   { id: 'city', label: 'City / region', autoComplete: 'address-level2', maxLength: 120 },
 ] as const;
 const INDUSTRIES = [
-  ['general_retail', 'Small shop / general retail'], ['agricultural_inputs', 'Fertilizers & agri inputs'],
+  ['ecommerce', 'E-commerce / online sales'], ['general_retail', 'Small shop / general retail'], ['agricultural_inputs', 'Fertilizers & agri inputs'],
   ['general_wholesale', 'General wholesale & distribution'], ['electrical_wholesale', 'Electrical wholesale'],
   ['electronics', 'Electronics & components'], ['hardware', 'Hardware & tools'], ['other', 'Other business'],
 ];

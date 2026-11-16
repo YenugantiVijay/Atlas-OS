@@ -4,11 +4,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
+import { INDUSTRY_COLORS } from '../data/industry-colors';
 import { industryHref } from '../data/navigation';
 ---
 
 <BaseLayout title="Industry Solutions — Atlas OS for Retail, Wholesale & Distribution"
-  description="Explore Atlas OS for small shops, fertilizer and agri-input dealers, general trade, electrical, electronics, and hardware businesses.">
+  description="Explore Atlas OS for small shops, fertilizer and agri-input dealers, e-commerce, general trade, electrical, electronics, and hardware businesses.">
   <div class="bg-surface-secondary">
     <Container size="wide" class="py-12 sm:py-16">
       <div data-enter class="mb-8 max-w-3xl space-y-3 sm:mb-10">
@@ -17,11 +18,11 @@ import { industryHref } from '../data/navigation';
       </div>
       <ul data-reveal-group class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {INDUSTRY_SOLUTIONS.map(industry => (
-          <li id={industry.id}>
-            <a href={industryHref(industry.id)} class="flex h-full flex-col gap-3 rounded-2xl border border-border bg-white p-5 hover:border-brand-500 sm:p-6">
+          <li id={industry.id} style={`--industry-accent:${INDUSTRY_COLORS[industry.id as keyof typeof INDUSTRY_COLORS].color};--industry-tint:${INDUSTRY_COLORS[industry.id as keyof typeof INDUSTRY_COLORS].tint}`}>
+            <a href={industryHref(industry.id)} class="flex h-full flex-col gap-3 rounded-2xl border border-border bg-[var(--industry-tint)] p-5 hover:border-[var(--industry-accent)] sm:p-6">
               <h2 class="font-heading text-xl font-bold">{industry.title}</h2>
               <p class="text-sm leading-relaxed text-content-secondary">{industry.tagline}</p>
-              <span class="mt-auto inline-flex items-center gap-2 text-sm font-semibold text-brand-700">Explore this industry <ArrowRight size={16} aria-hidden="true" /></span>
+              <span class="mt-auto inline-flex items-center gap-2 text-sm font-semibold text-[var(--industry-accent)]">Explore this industry <ArrowRight size={16} aria-hidden="true" /></span>
             </a>
           </li>
         ))}

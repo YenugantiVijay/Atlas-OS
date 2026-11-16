@@ -297,6 +297,7 @@ test('industry pages have dedicated content and preselect the relevant demo busi
     ['hardware', 'hardware suppliers', 'hardware'],
     ['retail-wholesale', 'retail and wholesale counters', 'general_wholesale'],
     ['agricultural-inputs', 'fertilizer and agri-input dealers', 'agricultural_inputs'],
+    ['ecommerce', 'e-commerce sellers', 'ecommerce'],
     ['small-business', 'small shops and general trade', 'general_retail'],
   ]) {
     expect((await page.goto('/solutions/' + id + '/'))?.status()).toBe(200);

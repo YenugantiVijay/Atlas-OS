@@ -315,4 +315,31 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
       },
     ],
   },
+  {
+    id: 'ecommerce',
+    title: 'E-commerce & Online Sellers',
+    badge: 'Online sales',
+    tagline: 'Track online orders from stock check to payment.',
+    description: 'Capture orders from your own website, marketplaces, or chat. Keep the original order reference with the sale while your team uses one stock and billing workflow.',
+    commonChallenges: [
+      'Entering the same online order twice.',
+      'Selling the last unit online while the counter is serving another customer.',
+      'Finding the invoice for a marketplace or website order reference.',
+    ],
+    howAtlasSolves: [
+      'Record the channel and external order reference, with duplicate checks.',
+      'Confirm orders against available stock before billing.',
+      'Create the GST invoice, record carrier tracking, and record verified collections.',
+    ],
+    workflowHighlights: [
+      { step: '1. Record the order', description: 'Select the channel, enter its order reference, and add the customer and SKU.',
+        example: ['Own website · WEB-1042', 'Desk organisers · 2 pieces', 'Save as a draft'] },
+      { step: '2. Confirm stock', description: 'Confirm the order when all items are available.',
+        example: ['Desk organisers on hand · 12', 'Confirm 2 pieces', 'Stock remaining · 10 pieces'] },
+      { step: '3. Create the invoice', description: 'Generate the invoice from the confirmed order for review.',
+        example: ['Open WEB-1042', 'Create the invoice for the two items', 'Review the billing details and taxes before issue'] },
+      { step: '4. Record payment', description: 'Check the payment against your channel statement and record the collection.',
+        example: ['Match the payment reference', 'Record the amount received', 'Review the remaining balance'] },
+    ],
+  },
 ];

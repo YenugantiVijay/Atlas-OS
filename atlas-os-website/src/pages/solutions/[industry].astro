@@ -8,6 +8,7 @@ import Button from '../../components/common/Button.astro';
 import Container from '../../components/common/Container.astro';
 import RequestDemoForm from '../../components/demo/RequestDemoForm';
 import { INDUSTRY_SOLUTIONS } from '../../data/industries';
+import { INDUSTRY_COLORS } from '../../data/industry-colors';
 import { INDUSTRY_PAGES } from '../../data/industry-pages';
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
 
@@ -15,7 +16,9 @@ export function getStaticPaths() {
   return INDUSTRY_SOLUTIONS.map(solution => ({ params: { industry: solution.id }, props: { solution } }));
 }
 const { solution } = Astro.props;
-const content = INDUSTRY_PAGES[solution.id as keyof typeof INDUSTRY_PAGES];
+const industry = solution.id as keyof typeof INDUSTRY_PAGES;
+const content = INDUSTRY_PAGES[industry];
+const palette = INDUSTRY_COLORS[industry];
 const industryPhotos: Partial<Record<(typeof INDUSTRY_SOLUTIONS)[number]['id'], { image: ImageMetadata; alt: string }>> = {
   electronics: { image: componentStockroom, alt: 'A worker checking parts stored in numbered bins along a stockroom aisle' },
   'small-business': { image: generalTradeShop, alt: 'A small general store with packaged goods on shelves around the shop counter' },
@@ -43,7 +46,7 @@ const questions = [
 ---
 
 <BaseLayout title={solution.title + ' Software | Atlas OS'} description={solution.tagline}>
-  <div class="bg-surface-secondary">
+  <div class="bg-surface-secondary" style={`--industry-accent:${palette.color};--industry-tint:${palette.tint}`}>
     <Container size="wide" class="py-7 sm:py-10 lg:py-12">
       <div class="industry-layout">
       <aside class="industry-rail" aria-label="Industry navigation">
@@ -68,11 +71,11 @@ const questions = [
       </aside>
 
       <div class="min-w-0 industry-content">
-        <section id="overview" class="space-y-6 sm:space-y-8">
+        <section id="overview" class="space-y-6 rounded-2xl bg-[var(--industry-tint)] p-4 sm:space-y-8 sm:p-7">
           <div class:list={[photo && 'grid items-center gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]']}>
             <div>
               <h1 data-enter class="max-w-[24ch] font-heading text-4xl font-extrabold leading-[1.14] tracking-tight text-content-primary sm:text-5xl xl:text-[3.5rem]">
-                Business software for <span class="text-brand-700">{content.audience.toLowerCase()}</span>
+                Business software for <span class="text-[var(--industry-accent)]">{content.audience.toLowerCase()}</span>
               </h1>
               <p class="mt-4 max-w-4xl text-base leading-relaxed text-content-secondary sm:text-lg">{solution.description}</p>
             </div>
@@ -89,7 +92,7 @@ const questions = [
               <p class="text-content-secondary">{solution.tagline}</p>
               <ul class="grid gap-2 text-sm font-semibold text-content-primary">
                 {workflow.slice(0, 3).map(item => (
-                  <li class="flex items-start gap-2"><BadgeCheck size={18} className="shrink-0 text-brand-700" aria-hidden="true" />{item.step}</li>
+                  <li class="flex items-start gap-2"><BadgeCheck size={18} className="shrink-0 text-[var(--industry-accent)]" aria-hidden="true" />{item.step}</li>
                 ))}
               </ul>
             </div>
@@ -119,7 +122,7 @@ const questions = [
                 <div class="space-y-3">
                   <h3 class="font-heading text-xl font-bold">{item.step}</h3>
                   <p class="leading-relaxed text-content-secondary">{item.description}</p>
-                  <a href="#walkthrough" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline">See the walkthrough <ArrowRight size={16} aria-hidden="true" /></a>
+                  <a href="#walkthrough" class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--industry-accent)] hover:underline">See the walkthrough <ArrowRight size={16} aria-hidden="true" /></a>
                 </div>
                 <div class="rounded-2xl border border-brand-200 bg-brand-50 p-4">
                   <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -164,7 +167,7 @@ const questions = [
           <h2 data-reveal class="section-title">Access Atlas OS in your browser</h2>
           <div class="info-card flex items-start gap-4">
             <span class="icon-box"><Smartphone size={22} aria-hidden="true" /></span>
-            <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href="/download" class="mt-2 inline-block text-sm font-semibold text-brand-700 hover:underline">See web and Windows availability</a></div>
+            <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href="/download" class="mt-2 inline-block text-sm font-semibold text-[var(--industry-accent)] hover:underline">See web and Windows availability</a></div>
           </div>
         </section>
 
@@ -182,7 +185,7 @@ const questions = [
               { label: 'Feature directory', href: '/features', Icon: Layers3 },
               { label: 'Receipt templates', href: '/receipt-templates', Icon: FileText },
               { label: 'Help and support', href: '/support', Icon: BookOpen },
-            ].map(({ label, href, Icon }) => <a class="info-card flex items-center gap-2 text-sm font-semibold hover:border-brand-500 hover:text-brand-700" href={href}><Icon size={19} className="shrink-0 text-brand-700" aria-hidden="true" />{label}</a>)}
+            ].map(({ label, href, Icon }) => <a class="info-card flex items-center gap-2 text-sm font-semibold hover:border-brand-500 hover:text-[var(--industry-accent)]" href={href}><Icon size={19} className="shrink-0 text-[var(--industry-accent)]" aria-hidden="true" />{label}</a>)}
           </div>
         </section>
 
@@ -190,7 +193,7 @@ const questions = [
           <h2 data-reveal class="section-title">Frequently asked questions</h2>
           <div class="grid gap-3">
             {questions.map(([question, answer]) => <details class="group rounded-2xl border border-border bg-white">
-              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold sm:p-5 sm:text-base">{question}<ChevronDown size={18} className="shrink-0 text-brand-700 group-open:rotate-180" aria-hidden="true" /></summary>
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold sm:p-5 sm:text-base">{question}<ChevronDown size={18} className="shrink-0 text-[var(--industry-accent)] group-open:rotate-180" aria-hidden="true" /></summary>
               <p class="px-4 pb-4 text-sm leading-relaxed text-content-secondary sm:px-5 sm:pb-5">{answer}</p>
             </details>)}
           </div>
@@ -202,7 +205,7 @@ const questions = [
         </div>
         <nav aria-label="Explore more industries" class="related-mobile">
           <h2 data-reveal class="section-title">More industries</h2>
-          <ul class="card-grid sm:grid-cols-2">{otherIndustries.map(item => <li><a class="info-card flex items-center justify-between gap-2 text-sm font-semibold text-brand-700 hover:underline" href={item.href}>{item.label}<ArrowRight size={16} aria-hidden="true" /></a></li>)}</ul>
+          <ul class="card-grid sm:grid-cols-2">{otherIndustries.map(item => <li><a class="info-card flex items-center justify-between gap-2 text-sm font-semibold text-[var(--industry-accent)] hover:underline" href={item.href}>{item.label}<ArrowRight size={16} aria-hidden="true" /></a></li>)}</ul>
         </nav>
       </div>
       </div>

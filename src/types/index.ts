@@ -1,3 +1,5 @@
+import type { OnlineOrderReference, OrderDispatch } from '@/lib/online-orders';
+
 export type Role = 'owner' | 'admin' | 'sales' | 'inventory' | 'accounts' | 'viewer';
 
 export interface User {
@@ -179,6 +181,8 @@ export interface SalesOrderItem {
 }
 
 export interface SalesOrder {
+  onlineOrder?: OnlineOrderReference;
+  dispatch?: OrderDispatch;
   id: string;
   organizationId: string;
   orderNumber: string;
@@ -360,6 +364,7 @@ export type BusinessCategory =
   | 'electrical_retail'
   | 'electrical_wholesale_distributor'
   | 'hardware_electrical'
+  | 'ecommerce'
   | 'agricultural_inputs'
   | 'general_retail'
   | 'general_wholesale'

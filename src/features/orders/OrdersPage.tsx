@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
   Plus,
@@ -32,6 +32,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Pagination } from '@/components/ui/Pagination';
 import { paginateArray } from '@/lib/pagination';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
+import { ONLINE_CHANNELS, onlineChannelLabel, validateOnlineReference, type OnlineChannel } from '@/lib/online-orders';
 import { getBusinessDate } from '@/lib/dates';
 import { validateQuantityInput, validateMoneyInput, parseStrictNumber } from '@/lib/validation';
 
@@ -43,7 +44,7 @@ interface LineItemDraft {
   taxRate: number;
 }
 
-export const OrdersPage: React.FC = () => {
+export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = false }) => {
   const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
   const { check } = useActionPermission();
   const { showToast } = useToast();
@@ -69,6 +70,8 @@ export const OrdersPage: React.FC = () => {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [dispatchFields, setDispatchFields] = useState({ carrier: '', tracking: '' });
+  const [savingDispatch, setSavingDispatch] = useState(false);
   const [viewingOrder, setViewingOrder] = useState<SalesOrder | null>(null);
   const [orderToConfirm, setOrderToConfirm] = useState<SalesOrder | null>(null);
 
@@ -76,6 +79,8 @@ export const OrdersPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('');
   const [orderDate, setOrderDate] = useState(getBusinessDate());
   const [notes, setNotes] = useState('');
+  const [onlineChannel, setOnlineChannel] = useState<OnlineChannel>('storefront');
+  const [onlineReference, setOnlineReference] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([]);
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,12 +138,13 @@ export const OrdersPage: React.FC = () => {
               page: targetPage,
               pageSize: targetPageSize,
               search: searchQuery,
+              ...(onlineOnly && { onlineOnly }),
               status: statusFilter === 'ALL' ? undefined : statusFilter,
             },
             isMockAuth
           )
         : ordersService.getSalesOrders(currentOrg.id, isMockAuth).then((data) =>
-            paginateArray(data, {
+            paginateArray(onlineOnly ? data.filter(order => order.onlineOrder) : data, {
               page: targetPage,
               pageSize: targetPageSize,
               search: searchQuery,
@@ -188,7 +194,7 @@ export const OrdersPage: React.FC = () => {
         setIsLoading(false);
       }
     }
-  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, statusFilter, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, statusFilter, showToast, onlineOnly]);
 
   const initializeAndOpenCreate = useCallback((custList: Customer[], prodList: Product[]) => {
     const perm = check('orders:create');
@@ -227,6 +233,8 @@ export const OrdersPage: React.FC = () => {
     setCustomerId(custList[0]?.id || '');
     setOrderDate(getBusinessDate());
     setNotes('');
+    setOnlineChannel('storefront');
+    setOnlineReference('');
     setOrderIdempotencyKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '');
 
     setItems([
@@ -489,6 +497,7 @@ export const OrdersPage: React.FC = () => {
           customerId,
           orderDate,
           notes: notes.trim() || undefined,
+          ...(onlineOnly && { onlineOrder: validateOnlineReference({ channel: onlineChannel, reference: onlineReference }) }),
           idempotencyKey: keyToUse || undefined,
           items: formattedItems,
         },
@@ -556,12 +565,37 @@ export const OrdersPage: React.FC = () => {
     }
   };
 
+  const openOrder = (order: SalesOrder) => {
+    setDispatchFields({ carrier: order.dispatch?.carrier ?? '', tracking: order.dispatch?.tracking ?? '' });
+    setViewingOrder(order);
+  };
+
+  const saveDispatch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!currentOrg || !viewingOrder || savingDispatch || !check('orders:confirm').allowed) return;
+    const order = viewingOrder;
+    setSavingDispatch(true);
+    try {
+      const dispatch = await ordersService.recordOnlineDispatch(
+        currentOrg.id, order, dispatchFields.carrier, dispatchFields.tracking, isMockAuth,
+      );
+      setViewingOrder(current => current?.id === order.id ? { ...current, dispatch } : current);
+      showToast('success', 'Dispatch saved', 'The carrier and tracking reference are on this order.');
+      await loadData();
+    } catch (error) {
+      showToast('error', 'Dispatch could not be saved', error instanceof Error ? error.message : 'Try opening the order again.');
+    } finally {
+      setSavingDispatch(false);
+    }
+  };
+
   const totals = calculateTotals();
 
   const filteredOrders = orders.filter((o) => {
     const s = searchQuery.toLowerCase();
     const matchesSearch =
       o.orderNumber.toLowerCase().includes(s) ||
+      o.onlineOrder?.reference.toLowerCase().includes(s.trim()) ||
       o.customer?.companyName?.toLowerCase().includes(s) ||
       o.customer?.name.toLowerCase().includes(s);
 
@@ -576,14 +610,16 @@ export const OrdersPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-content-primary">
-              Sales Orders
+              {onlineOnly ? 'E-commerce Orders' : 'Sales Orders'}
             </h1>
             <Badge variant="teal" size="sm">
               {totalCount} Orders
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
-            Atomic lifecycle management: Draft → Confirmed (stock verification & deduction) → Invoiced.
+            {onlineOnly
+              ? 'Record orders from your website, marketplaces, or chat. Confirm stock before invoicing.'
+              : 'Create drafts, confirm available stock, and generate invoices.'}
           </p>
         </div>
 
@@ -597,11 +633,22 @@ export const OrdersPage: React.FC = () => {
               disabled={!createPerm.allowed}
               title={!createPerm.allowed ? createPerm.message : undefined}
             >
-              New Sales Order
+              {onlineOnly ? 'New Online Order' : 'New Sales Order'}
             </Button>
           );
         })()}
       </div>
+
+      {onlineOnly && (
+        <div className="rounded-xl border border-atlas-200 bg-atlas-50 p-4 text-sm">
+          <h2 className="font-semibold text-atlas-800">Online order workflow</h2>
+          <p className="mt-1 text-content-secondary">
+            Add the order reference from your sales channel. Confirming the order checks and deducts stock.
+            Create an invoice, record your carrier and tracking reference, and enter verified collections in Payments.
+          </p>
+          <Link to="/orders" className="mt-2 inline-block font-semibold text-atlas-800 underline">View all sales orders</Link>
+        </div>
+      )}
 
       {/* Preparing Indicator */}
       {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
@@ -624,7 +671,7 @@ export const OrdersPage: React.FC = () => {
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
           <div className="flex-1 max-w-md w-full">
             <Input
-              placeholder="Search orders by SO number or customer firm..."
+              placeholder={onlineOnly ? "Order number or external reference" : "Search orders by SO number or customer firm…"}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -679,7 +726,7 @@ export const OrdersPage: React.FC = () => {
       ) : filteredOrders.length === 0 ? (
         <EmptyState
           icon={<FileText className="w-7 h-7" />}
-          title="No sales orders found"
+          title={onlineOnly ? 'No online orders found' : 'No sales orders found'}
           description="Create sales orders directly or convert accepted contractor quotations."
           actionLabel={!check('orders:create').allowed ? undefined : "New Sales Order"}
           onAction={handleOpenCreate}
@@ -703,6 +750,11 @@ export const OrdersPage: React.FC = () => {
                   <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                     {o.orderNumber}
                   </span>
+                  {o.onlineOrder && (
+                    <div className="mt-1 max-w-52 break-words text-xs text-content-muted">
+                      {onlineChannelLabel(o.onlineOrder.channel)} · {o.onlineOrder.reference}
+                    </div>
+                  )}
                   {o.quotationId && (
                     <div className="text-xs text-content-muted mt-1">
                       From Quote
@@ -750,7 +802,7 @@ export const OrdersPage: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setViewingOrder(o)}
+                      onClick={() => openOrder(o)}
                       leftIcon={<Eye className="w-3.5 h-3.5" />}
                     >
                       View
@@ -816,7 +868,7 @@ export const OrdersPage: React.FC = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create Sales Order"
+        title={onlineOnly ? 'Create Online Order' : 'Create Sales Order'}
         description="Record commercial sales order. Stock will be verified upon confirmation."
         maxWidth="3xl"
       >
@@ -837,6 +889,7 @@ export const OrdersPage: React.FC = () => {
                 <Search className="w-3 h-3 absolute left-2 top-2 text-content-muted" />
                 <input
                   type="text"
+                  aria-label="Find a customer"
                   placeholder="Type to search customers..."
                   value={customerSearchText}
                   onChange={(e) => handleCustomerSearch(e.target.value)}
@@ -844,7 +897,7 @@ export const OrdersPage: React.FC = () => {
                 />
               </div>
               <Select
-                label=""
+                aria-label="Customer"
                 required
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
@@ -862,6 +915,15 @@ export const OrdersPage: React.FC = () => {
               onChange={(e) => setOrderDate(e.target.value)}
             />
           </div>
+
+          {onlineOnly && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select label="Sales channel" value={onlineChannel} options={[...ONLINE_CHANNELS]}
+                onChange={(event) => setOnlineChannel(event.target.value as OnlineChannel)} />
+              <Input label="External order reference" required maxLength={100} value={onlineReference}
+                onChange={(event) => setOnlineReference(event.target.value)} placeholder="e.g. WEB-1042" />
+            </div>
+          )}
 
           {/* Line items table */}
           <div>
@@ -1051,7 +1113,7 @@ export const OrdersPage: React.FC = () => {
               isLoading={isSubmitting}
               disabled={isSubmitting || (!canWriteOperations && !isMockAuth)}
             >
-              Save Sales Order
+              {onlineOnly ? 'Save Online Order' : 'Save Sales Order'}
             </Button>
           </div>
         </form>
@@ -1061,7 +1123,7 @@ export const OrdersPage: React.FC = () => {
       {viewingOrder && (
         <Modal
           isOpen={Boolean(viewingOrder)}
-          onClose={() => setViewingOrder(null)}
+          onClose={() => { if (!savingDispatch) setViewingOrder(null); }}
           title={`Sales Order ${viewingOrder.orderNumber}`}
           description={`Customer: ${viewingOrder.customer?.companyName || viewingOrder.customer?.name}`}
           maxWidth="2xl"
@@ -1094,6 +1156,21 @@ export const OrdersPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {viewingOrder.onlineOrder && <section className="space-y-3 rounded-xl border border-atlas-200 bg-atlas-50 p-3">
+              <h3 className="text-sm font-semibold">Online order and dispatch</h3>
+              <p className="break-words">{onlineChannelLabel(viewingOrder.onlineOrder.channel)} · {viewingOrder.onlineOrder.reference}</p>
+              {viewingOrder.dispatch && <p className="break-words">Dispatch recorded · {viewingOrder.dispatch.carrier} · {viewingOrder.dispatch.tracking}</p>}
+              {['CONFIRMED', 'FULFILLED'].includes(viewingOrder.status) && check('orders:confirm').allowed ? (
+                <form onSubmit={saveDispatch} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <Input label="Carrier" maxLength={80} required value={dispatchFields.carrier}
+                    onChange={event => setDispatchFields(fields => ({ ...fields, carrier: event.target.value }))} />
+                  <Input label="Tracking reference" maxLength={100} required value={dispatchFields.tracking}
+                    onChange={event => setDispatchFields(fields => ({ ...fields, tracking: event.target.value }))} />
+                  <Button type="submit" isLoading={savingDispatch}>Save dispatch</Button>
+                </form>
+              ) : viewingOrder.status === 'DRAFT' && <p>Confirm this order before recording dispatch details.</p>}
+            </section>}
 
             <Table>
               <TableHeader>
@@ -1174,7 +1251,7 @@ export const OrdersPage: React.FC = () => {
             })()}
 
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
-              <Button variant="outline" onClick={() => setViewingOrder(null)}>
+              <Button variant="outline" disabled={savingDispatch} onClick={() => setViewingOrder(null)}>
                 Close
               </Button>
 

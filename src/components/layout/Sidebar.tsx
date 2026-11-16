@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingCart,
+  ShoppingBag,
   Boxes,
   ClipboardList,
   FileText,
@@ -28,6 +29,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
+import { usePlatformReviewer } from '@/hooks/usePlatformReviewer';
 import { useAttendanceAccess } from '@/hooks/useAttendanceAccess';
 
 export interface SidebarProps {
@@ -43,6 +45,7 @@ interface NavItem {
   icon: React.ReactNode;
   action?: Action;
   attendance?: boolean;
+  platform?: boolean;
 }
 
 interface NavGroup {
@@ -65,6 +68,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     items: [
       { label: 'Retail Counter', path: '/pos', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'orders:create' },
       { label: 'Counter Shift', path: '/counter-shift', icon: <Clock3 className="w-[18px] h-[18px]" />, action: 'orders:create' },
+      { label: 'E-commerce Orders', path: '/ecommerce', icon: <ShoppingBag className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Sales Orders', path: '/orders', icon: <FileText className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Quotations', path: '/quotations', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Tax Invoices', path: '/invoices', icon: <FileText className="w-[18px] h-[18px]" />, action: 'reports:financial' },
@@ -106,6 +110,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
       { label: 'Staff Attendance', path: '/attendance', icon: <CalendarCheck className="w-[18px] h-[18px]" />, attendance: true },
       { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
       { label: 'India Ecosystem', path: '/integrations', icon: <FileCode className="w-[18px] h-[18px]" />, action: 'org:manage' },
+      { label: 'Platform Admin', path: '/admin', icon: <ShieldCheck className="w-[18px] h-[18px]" />, platform: true },
       { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
     ],
   },
@@ -118,15 +123,18 @@ export function Sidebar(props: SidebarProps) {
 
 function CloudSidebar(props: SidebarProps) {
   const { data, isError } = useAttendanceAccess();
-  return <SidebarNavigation {...props} showAttendance={data === true && !isError} />;
+  const platform = usePlatformReviewer();
+  return <SidebarNavigation {...props} showAttendance={data === true && !isError}
+    showPlatform={platform.data === true && !platform.isError} />;
 }
 
-const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> = ({
+const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean; showPlatform?: boolean }> = ({
   collapsed,
   onToggle,
   isMobileOpen = false,
   onCloseMobile,
   showAttendance = false,
+  showPlatform = false,
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
@@ -137,10 +145,10 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
       NAV_GROUPS_CONFIG
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action)),
+          items: group.items.filter((item) => item.attendance ? showAttendance : item.platform ? showPlatform : !item.action || hasPermission(currentRole, item.action)),
         }))
         .filter((group) => group.items.length > 0),
-    [currentRole, showAttendance]
+    [currentRole, showAttendance, showPlatform]
   );
 
   return (
@@ -244,7 +252,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                         <>
                           <span
                             className={`shrink-0 transition-colors ${
-                              isActive ? 'text-teal-700' : 'text-slate-400 group-hover:text-white'
+                              isActive ? 'text-atlas-700' : 'text-slate-400 group-hover:text-white'
                             }`}
                           >
                             {item.icon}

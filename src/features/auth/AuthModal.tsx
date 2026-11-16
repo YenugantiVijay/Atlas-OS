@@ -23,6 +23,7 @@ export interface AuthModalProps {
   onClose: () => void;
   initialMode?: 'signin' | 'signup';
   keepInvitationOpen?: boolean;
+  signInOnly?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -30,6 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'signin',
   keepInvitationOpen = false,
+  signInOnly = false,
 }) => {
   const { signIn, signUp, sendEmailCode, verifyEmailCode, enterDemoMode } = useOrg();
   const { showToast } = useToast();
@@ -196,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div className="space-y-5">
         {/* Mode Tabs */}
-        {!pending && <div className="flex p-1 bg-surface-panel rounded-xl border border-border">
+        {!pending && !signInOnly && <div className="flex p-1 bg-surface-panel rounded-xl border border-border">
           <button
             type="button"
             disabled={isSubmitting}
@@ -332,7 +334,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
 
         {/* Divider */}
-        {!pending && !keepInvitationOpen && <><div className="relative flex items-center justify-center my-4">
+        {!pending && !keepInvitationOpen && !signInOnly && <><div className="relative flex items-center justify-center my-4">
           <div className="border-t border-border w-full" />
           <span className="bg-surface-card px-3 text-[11px] font-medium text-content-muted uppercase tracking-wider absolute">
             Or
