@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { BusinessVerificationModal } from '@/features/organizations/BusinessVerificationModal';
+import { industryTheme } from '@/lib/industry-theme';
 import { OfflineSyncIndicator } from '@/components/ui/OfflineSyncIndicator';
 
 export const RouteLoadingFallback: React.FC = () => (
@@ -180,7 +181,7 @@ export const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
+    <div style={industryTheme(eligibility?.businessCategory)} className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
       {/* Sidebar (Desktop persistent + Mobile off-canvas drawer) */}
       <Sidebar
         collapsed={collapsed}

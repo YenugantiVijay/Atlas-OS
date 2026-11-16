@@ -365,3 +365,9 @@ A `LICENSE` file should be added to the repository to formalize the applicable t
 ATLAS OS aims to become more than a collection of management screens. The goal is to create a dependable operational foundation for electrical distributors and progressively make everyday business decisions easier through connected data, useful insights, and carefully controlled automation.
 
 **Build the foundation. Validate with real businesses. Scale with confidence.**
+
+### E-commerce and platform administration
+
+- Select **E-commerce / Online Sales** when setting up a workspace to use the violet industry palette and online catalog suggestions. Other workspaces can also open **Sales → E-commerce Orders** for online transactions.
+- In **E-commerce Orders**, create a draft with the channel and the original order reference. If you use several stores on one channel, include the store or marketplace name in the reference. Confirm stock using the standard order workflow. Open the confirmed order to record the carrier and tracking reference. Issue the invoice and record the payment in the existing billing and payments screens.
+- Open **`/#/admin`** to search workspaces, view eligibility and plan periods, and approve or reject declarations. The platform portal uses the separate `public.platform_reviewers` registry. A trusted database administrator must provision the intended Supabase Auth user by UUID in that registry after applying the migration. Ordinary workspace owners, admins, and demo accounts do not inherit platform access. Review decisions also appear in the existing eligibility audit log.

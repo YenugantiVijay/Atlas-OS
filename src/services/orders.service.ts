@@ -1,3 +1,4 @@
+import { validateOnlineReference, type OnlineOrderReference, type OrderDispatch } from '@/lib/online-orders';
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import {
@@ -51,6 +52,12 @@ export function mapDbSalesOrder(row: any, items: SalesOrderItem[] = []): SalesOr
     totalAmount: Number(row.total_amount),
     totalsVersion: row.totals_version ? Number(row.totals_version) : 1,
     notes: row.notes || undefined,
+    ...(row.online_channel && row.online_reference && {
+      onlineOrder: { channel: row.online_channel, reference: row.online_reference },
+    }),
+    ...(row.dispatch_carrier && row.dispatch_tracking && row.dispatched_at && {
+      dispatch: { carrier: row.dispatch_carrier, tracking: row.dispatch_tracking, recordedAt: row.dispatched_at },
+    }),
     createdBy: row.created_by || undefined,
     confirmedAt: row.confirmed_at || undefined,
     confirmedBy: row.confirmed_by || undefined,
@@ -107,7 +114,7 @@ export const ordersService = {
   // --------------------------------------------------------------------------
   async getSalesOrdersPaginated(
     orgId: string,
-    params: PaginationParams = {},
+    params: PaginationParams & { onlineOnly?: boolean } = {},
     isMockAuth: boolean = false
   ): Promise<PaginatedResult<SalesOrder>> {
     const page = Math.max(1, params.page || 1);
@@ -118,10 +125,11 @@ export const ordersService = {
     if (isMockAuth) {
       const allOrders = await storage.getSalesOrders(orgId);
       return paginateArray(
-        allOrders,
+        params.onlineOnly ? allOrders.filter(order => order.onlineOrder) : allOrders,
         params,
         (o, s) =>
           o.orderNumber.toLowerCase().includes(s) ||
+          Boolean(o.onlineOrder?.reference.toLowerCase().includes(s)) ||
           Boolean(o.customer?.name && o.customer.name.toLowerCase().includes(s)) ||
           Boolean(o.customer?.companyName && o.customer.companyName.toLowerCase().includes(s)) ||
           o.status.toLowerCase().includes(s),
@@ -138,10 +146,14 @@ export const ordersService = {
       .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)', { count: 'exact' })
       .eq('organization_id', orgId);
 
+    if (params.onlineOnly) query = query.not('online_channel', 'is', null);
+
     if (params.search && params.search.trim()) {
       const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
       if (s) {
-        query = query.or(`order_number.ilike.%${s}%`);
+        query = params.onlineOnly
+          ? query.or(`order_number.ilike.%${s}%,online_reference.ilike.%${s}%`)
+          : query.or(`order_number.ilike.%${s}%`);
       }
     }
 
@@ -207,6 +219,7 @@ export const ordersService = {
       quotationId?: string;
       orderDate: string;
       notes?: string;
+      onlineOrder?: OnlineOrderReference;
       idempotencyKey?: string;
       items: Array<{
         productId: string;
@@ -250,7 +263,8 @@ export const ordersService = {
     const idempotencyKey =
       input.idempotencyKey ||
       (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('create_sales_order_atomic', {
+    const online = input.onlineOrder && validateOnlineReference(input.onlineOrder);
+    const common = {
       p_org_id: orgId,
       p_customer_id: input.customerId,
       p_order_date: input.orderDate || getBusinessDate(),
@@ -265,9 +279,12 @@ export const ordersService = {
         taxRate: it.taxRate,
       })),
       p_notes: input.notes?.trim() || null,
-      p_quotation_id: input.quotationId || null,
       p_idempotency_key: idempotencyKey,
-    });
+    };
+    if (online && input.quotationId) throw new Error('Create online orders directly from the e-commerce workspace.');
+    const { data: rpcData, error: rpcErr } = online
+      ? await supabase.rpc('create_online_sales_order', { ...common, p_channel: online.channel, p_reference: online.reference })
+      : await supabase.rpc('create_sales_order_atomic', { ...common, p_quotation_id: input.quotationId || null });
 
     if (rpcErr) {
       throw new Error(`Failed to create sales order: ${rpcErr.message}`);
@@ -287,6 +304,23 @@ export const ordersService = {
 
     const items = (rpcData.items || []).map(mapDbSalesOrderItem);
     return mapDbSalesOrder(rpcData, items);
+  },
+
+  async recordOnlineDispatch(orgId: string, order: SalesOrder, carrierInput: string, trackingInput: string, isMockAuth: boolean): Promise<OrderDispatch> {
+    const carrier = carrierInput.trim();
+    const tracking = trackingInput.trim();
+    if (!carrier || carrier.length > 80 || !tracking || tracking.length > 100) {
+      throw new Error('Enter a carrier and tracking reference.');
+    }
+    const expected = order.dispatch?.recordedAt ?? null;
+    if (isMockAuth) return storage.recordOnlineDispatch(orgId, order.id, carrier, tracking, expected);
+    if (!supabase) throw new Error('Connect Atlas OS to save dispatch details.');
+    const { data, error } = await supabase.rpc('record_online_dispatch', {
+      p_org_id: orgId, p_order_id: order.id, p_carrier: carrier, p_tracking: tracking,
+      p_expected_dispatch: expected,
+    });
+    if (error) throw new Error(error.message);
+    return data as OrderDispatch;
   },
 
   /**

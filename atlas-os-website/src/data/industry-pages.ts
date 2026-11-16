@@ -34,6 +34,13 @@ export const INDUSTRY_PAGES = {
     faq: ['Does Atlas cover batch expiry and fertilizer licensing?', 'Agri-input setup covers catalog, receiving, supplier rates, sales, and collections. Batch and expiry tracking and fertilizer licensing workflows require separate tools today.'],
     comparison: ['Delivery costs', 'Record supplier rate changes in notes or separate spreadsheets.', 'Record the quantity and supplier rate as you receive stock, then review the purchase-rate history.'],
   },
+  ecommerce: {
+    audience: 'E-commerce sellers', accent: 'Take online orders from reference to receipt.',
+    demoIndustry: 'ecommerce', benefits: ['Online order references', 'Stock confirmation', 'GST billing', 'Dispatch tracking'],
+    topics: ['Independent web stores', 'Marketplace sellers', 'Social commerce businesses', 'Shops selling online and in person'],
+    faq: ['Does Atlas sync with my storefront or marketplace?', 'The e-commerce workspace supports manual entry by sales channel and external order reference. Direct storefront, marketplace, and shipping integrations require a separate setup and are not available in this release.'],
+    comparison: ['Orders across channels', 'Match website and marketplace references across separate spreadsheets.', 'Find the channel and reference in Atlas, then use the same stock and billing workflow as other sales.'],
+  },
   'small-business': {
     audience: 'Small shops and general trade', accent: 'Run stock, billing, and receipts together.',
     demoIndustry: 'general_retail', benefits: ['Everyday tools', 'SKU and stock search', 'Receipts and totals'],

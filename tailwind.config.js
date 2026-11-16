@@ -9,16 +9,16 @@ export default {
       colors: {
         // Core Brand Navy & Teal Palette (Backward-compatible atlas-* mappings anchored to Enterprise Teal)
         atlas: {
-          50: '#F0FDFA',  // Light teal canvas / active nav pill
-          100: '#CCFBF1', // Soft teal border / light badge background
-          200: '#99F6E4', // Interactive hover border
-          300: '#5EEAD4', // Accent borders
-          400: '#2DD4BF', // Vibrant teal icon / focus
-          500: '#14B8A6', // Interactive teal accent
-          600: '#0D9488', // Primary Brand Teal
-          700: '#0F766E', // Deep Teal / Hover primary
-          800: '#115E59', // Dark Teal text
-          900: '#134E4A', // Deepest Teal text
+          50: 'rgb(var(--atlas-50, 240 253 250) / <alpha-value>)',  // Light teal canvas / active nav pill
+          100: 'rgb(var(--atlas-100, 204 251 241) / <alpha-value>)', // Soft teal border / light badge background
+          200: 'rgb(var(--atlas-200, 153 246 228) / <alpha-value>)', // Interactive hover border
+          300: 'rgb(var(--atlas-300, 94 234 212) / <alpha-value>)', // Accent borders
+          400: 'rgb(var(--atlas-400, 45 212 191) / <alpha-value>)', // Vibrant teal icon / focus
+          500: 'rgb(var(--atlas-500, 20 184 166) / <alpha-value>)', // Interactive teal accent
+          600: 'rgb(var(--atlas-600, 13 148 136) / <alpha-value>)', // Primary Brand Teal
+          700: 'rgb(var(--atlas-700, 15 118 110) / <alpha-value>)', // Deep Teal / Hover primary
+          800: 'rgb(var(--atlas-800, 17 94 89) / <alpha-value>)', // Dark Teal text
+          900: 'rgb(var(--atlas-900, 19 78 74) / <alpha-value>)', // Deepest Teal text
           950: '#142B4D', // Deep Navy
         },
         // Deep Enterprise Navy Palette

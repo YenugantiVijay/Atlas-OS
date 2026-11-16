@@ -84,6 +84,9 @@ const SalesReceiptsReportPage = React.lazy(() =>
 const SettingsPage = React.lazy(() =>
   import('@/features/organizations/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const PlatformAdminPage = React.lazy(() =>
+  import('@/features/admin/PlatformAdminPage').then((m) => ({ default: m.PlatformAdminPage }))
+);
 const IntegrationsPage = React.lazy(() =>
   import('@/features/integrations/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage }))
 );
@@ -118,6 +121,11 @@ function RouteFailure() {
 
 export const router = createHashRouter([
   {
+    path: '/admin',
+    errorElement: <RouteFailure />,
+    element: <React.Suspense fallback={<RouteLoadingFallback />}><PlatformAdminPage /></React.Suspense>,
+  },
+  {
     path: '/invite/:inviteId',
     errorElement: <RouteFailure />,
     element: <React.Suspense fallback={<RouteLoadingFallback />}><TeamInvitationPage /></React.Suspense>,
@@ -149,7 +157,8 @@ export const router = createHashRouter([
         { path: 'customers', element: <CustomersPage /> },
         { path: 'suppliers', element: <SuppliersPage /> },
         { path: 'quotations', element: <QuotationsPage /> },
-        { path: 'orders', element: <OrdersPage /> },
+        { path: 'orders', element: <OrdersPage key="all-orders" /> },
+        { path: 'ecommerce', element: <RequirePermission action="data:read"><OrdersPage key="online-orders" onlineOnly /></RequirePermission> },
         { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
         { path: 'counter-shift', element: <RequirePermission action="orders:create"><CounterShiftPage /></RequirePermission> },
         { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },

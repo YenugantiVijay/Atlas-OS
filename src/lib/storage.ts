@@ -1,3 +1,4 @@
+import { validateOnlineReference, type OnlineOrderReference, type OrderDispatch } from '@/lib/online-orders';
 import {
   User,
   Organization,
@@ -1386,7 +1387,7 @@ class StorageEngine {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  public createSalesOrder(orgId: string, data: { customerId: string; orderDate: string; quotationId?: string; notes?: string; items: any[] }): SalesOrder {
+  public createSalesOrder(orgId: string, data: { customerId: string; orderDate: string; quotationId?: string; notes?: string; onlineOrder?: OnlineOrderReference; items: any[] }): SalesOrder {
     this.initialize();
 
     if (data.quotationId) {
@@ -1398,6 +1399,12 @@ class StorageEngine {
     }
 
     const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const onlineOrder = data.onlineOrder && validateOnlineReference(data.onlineOrder);
+    if (onlineOrder && orders.some(order => order.organizationId === orgId
+      && order.onlineOrder?.channel === onlineOrder.channel
+      && order.onlineOrder.reference.toLowerCase() === onlineOrder.reference.toLowerCase())) {
+      throw new Error('An order with this sales channel and reference already exists.');
+    }
     const num = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
 
     const docTotals = calculateDocumentTotals(
@@ -1429,7 +1436,7 @@ class StorageEngine {
     });
 
     const newOrder: SalesOrder = {
-      id: 'ord-' + Date.now(),
+      id: 'ord-' + crypto.randomUUID(),
       organizationId: orgId,
       orderNumber: num,
       customerId: data.customerId,
@@ -1442,6 +1449,7 @@ class StorageEngine {
       totalAmount: docTotals.totalAmount,
       totalsVersion: 2,
       notes: data.notes,
+      ...(onlineOrder && { onlineOrder }),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       items,
@@ -1451,6 +1459,23 @@ class StorageEngine {
     this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
     this.logAuditEvent(orgId, 'CREATE_ORDER', 'SALES_ORDER', newOrder.id, { orderNumber: num, totalAmount: newOrder.totalAmount });
     return newOrder;
+  }
+
+  public recordOnlineDispatch(orgId: string, orderId: string, carrier: string, tracking: string, expected: string | null): OrderDispatch {
+    const orders = this.getItem<SalesOrder[]>(STORAGE_KEYS.SALES_ORDERS, []);
+    const order = orders.find(item => item.id === orderId && item.organizationId === orgId);
+    if (!order?.onlineOrder || !['CONFIRMED', 'FULFILLED'].includes(order.status)) {
+      throw new Error('Dispatch requires a confirmed online order.');
+    }
+    if (order.dispatch?.carrier === carrier && order.dispatch?.tracking === tracking) return order.dispatch;
+    if ((order.dispatch?.recordedAt ?? null) !== expected) {
+      throw new Error('Dispatch details changed. Reopen the order to review the latest details.');
+    }
+    const dispatch = { carrier, tracking, recordedAt: new Date().toISOString() };
+    order.dispatch = dispatch;
+    this.setItem(STORAGE_KEYS.SALES_ORDERS, orders);
+    this.logAuditEvent(orgId, 'ONLINE_ORDER_DISPATCH_RECORDED', 'SALES_ORDER', orderId, { carrier });
+    return dispatch;
   }
 
   /**

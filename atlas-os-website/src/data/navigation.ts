@@ -38,6 +38,7 @@ export const INDUSTRY_NAVIGATION = [
     description: 'Draft orders at the counter and reconcile cash and UPI collections.',
   },
   { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs'), description: 'Receive stock by bag and track supplier rates and credit customers.' },
+  { icon: 'ecommerce', label: 'E-commerce', href: industryHref('ecommerce'), description: 'Record online orders, check stock, and follow invoices and collections.' },
   { icon: 'shop', label: 'Small Shops', href: industryHref('small-business'), description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
 ] as const;
 
