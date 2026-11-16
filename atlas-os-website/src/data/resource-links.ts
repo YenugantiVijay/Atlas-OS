@@ -1,6 +1,8 @@
 import { BookOpen, Boxes, Calculator, ClipboardList, Download, FileText, Globe, HelpCircle, Info, Mail, Receipt, Search, ShieldCheck, Truck } from 'lucide-react';
 
 const link = (label: string, href: string, Icon: typeof BookOpen, hue = '#0f766e') => ({ label, href, Icon, hue });
+const invoiceFormats = link('Invoice Formats', '/invoice-formats/', FileText, '#1d4ed8');
+const gstDocuments = link('E-invoice and e-way bill guide', '/gst-documents/', BookOpen, '#6d28d9');
 const receipts = link('Receipt templates', '/receipt-templates', Receipt, '#a21caf');
 const hsn = link('HSN and SAC guidance', 'https://tutorial.gst.gov.in/userguide/taxpayersdashboard/Search_HSN_SAC_Tax_Rates.htm', Search, '#1d4ed8');
 
@@ -12,6 +14,7 @@ export const RESOURCE_GROUPS = [
   ] },
   { label: 'Tools & templates', links: [
     link('Atlas Calculators', '/calculators/', Calculator),
+    invoiceFormats,
     receipts,
     link('E-way bill worksheet', '/calculators/eway-bill-template/', Truck, '#b45309'),
   ] },
@@ -30,7 +33,7 @@ export const RESOURCE_GROUPS = [
 export const GST_GROUPS = [
   { label: 'Tax tools', links: [
     link('Input tax credit calculator', '/calculators/input-tax-credit/', Calculator, '#6d28d9')] },
-  { label: 'Billing & transport', links: [link('GST invoicing', '/features#invoicing', FileText, '#1d4ed8'), receipts,
+  { label: 'Billing & transport', links: [link('GST invoicing', '/features#invoicing', FileText, '#1d4ed8'), gstDocuments, receipts,
     link('E-way bill worksheet', '/calculators/eway-bill-template/', Truck, '#b45309')] },
   { label: 'Rates & codes', links: [hsn, link('CBIC rates and schedules', 'https://cbic-gst.gov.in/hindi/gst-goods-services-rates.html', BookOpen, '#b45309'),
     link('Vendor GSTIN format check', '/calculators/gstin-check/', ShieldCheck, '#15803d')] },

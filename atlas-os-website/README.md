@@ -189,3 +189,20 @@ The configuration in `firebase.json` automatically handles:
 - The Small Shops page uses [Bustling Small Shop with Assorted Products](https://www.pexels.com/photo/bustling-small-shop-with-assorted-products-37863204/) by Valentina Lara.
 - Both photographs use the [Pexels License](https://www.pexels.com/license/) and illustrate trade settings.
 - The Product page screenshots show the Atlas OS interactive browser preview with sample data.
+
+### Invoice formats and social links
+
+Preview the site with `npm start` from this directory. Open
+`http://localhost:4321/invoice-formats/` for the downloadable formats and
+`http://localhost:4321/gst-documents/` for the GST document guide.
+
+The catalogue lives in `src/data/invoice-formats.json`. When changing an example,
+regenerate its downloadable files in `public/invoice-templates/` with
+`python scripts/generate-invoice-print-files.py` (`python-docx` and `reportlab`)
+and `node scripts/generate-invoice-workbooks.mjs "$PWD"` in an authoring
+environment that provides `@oai/artifact-tool`. Website builds use the checked-in
+files.
+
+Set `PUBLIC_LINKEDIN_URL`, `PUBLIC_YOUTUBE_URL`, `PUBLIC_INSTAGRAM_URL`, and
+`PUBLIC_FACEBOOK_URL` to your official HTTPS profile URLs at build time. The
+LinkedIn icon opens the share dialog when a company profile URL is missing.

@@ -4,21 +4,28 @@ import Container from './Container.astro';
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
 import { CALCULATORS } from '../../data/calculators';
 
+import { INVOICE_FORMATS } from '../../data/invoice-formats';
+
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 const labels: Record<string, string> = {
   '/product': 'Product', '/features': 'Features', '/solutions': 'Industries', '/pricing': 'Pricing',
   '/resources': 'Resources', '/calculators': 'Atlas Calculators', '/download': 'Downloads', '/support': 'Help Center',
   '/about': 'About', '/contact': 'Contact', '/security': 'Security', '/request-demo': 'Request a demo',
+  '/gst-documents': 'E-invoice and e-way bill', '/invoice-formats': 'Invoice Formats',
   '/receipt-templates': 'Receipt templates',
 };
 const industry = INDUSTRY_NAVIGATION.find(item => item.href.replace(/\/$/, '') === path);
 const tool = CALCULATORS.find(item => path === '/calculators/' + item.id);
+const invoice = INVOICE_FORMATS.find(item => path === '/invoice-formats/' + item.id);
 const crumbs = [{ label: 'Home', href: '/' }];
 if (industry) crumbs.push({ label: 'Industries', href: '/solutions/' }, { label: industry.label, href: path });
 else if (tool || path === '/gst-calculator') {
   crumbs.push({ label: 'Resources', href: '/resources/' }, { label: 'Atlas Calculators', href: '/calculators/' },
     { label: tool?.label ?? 'GST Calculator', href: path });
-} else if (path === '/calculators') {
+} else if (invoice) {
+  crumbs.push({ label: 'Resources', href: '/resources/' }, { label: 'Invoice Formats', href: '/invoice-formats/' },
+    { label: invoice.name, href: path });
+} else if (['/calculators', '/invoice-formats', '/gst-documents'].includes(path)) {
   crumbs.push({ label: 'Resources', href: '/resources/' }, { label: labels[path], href: path });
 } else if (path !== '/') crumbs.push({ label: labels[path] ?? 'Page not found', href: path });
 ---

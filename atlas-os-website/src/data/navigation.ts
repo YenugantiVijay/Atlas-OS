@@ -106,6 +106,7 @@ export const FOOTER_SECTIONS = [
     { label: 'Resource directory', href: '/resources/' },
     { label: 'Atlas Calculators', href: '/calculators/' },
     { label: 'GST Calculator', href: '/gst-calculator/' },
+    { label: 'Invoice Formats', href: '/invoice-formats/' },
     { label: 'Receipt templates', href: '/receipt-templates' },
     { label: 'E-way bill worksheet', href: '/calculators/eway-bill-template/' },
   ] },

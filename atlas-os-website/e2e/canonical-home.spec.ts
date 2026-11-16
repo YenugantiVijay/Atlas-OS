@@ -46,13 +46,13 @@ test('homepage explains the daily workflow and retains the interactive preview',
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /From stockroom to paid invoice/i,
+    level: 1, name: /Simplify stock, GST billing, and payments/i,
   })).toBeVisible();
   await expect(page.getByRole('heading', {
     level: 2, name: /supplier rate change/i,
   })).toBeVisible();
   await expect(page.getByText('Your team chooses what to update before sending the quote.', { exact: false })).toBeVisible();
-  await expect(page.getByText('Today at the counter', { exact: true })).toBeVisible();
+  await expect(page.getByText('Built for the shop counter and the stockroom', { exact: true })).toBeVisible();
   await expect(page.getByText('Connected Business Workflow', { exact: true })).toBeVisible();
   await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
   await expect(page.locator('astro-island')).not.toHaveCount(0);
@@ -154,7 +154,7 @@ test('feature and security pages state the distributor advantage and deployment 
 
 test('homepage CTAs navigate to the actual Astro pages', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('link', { name: 'Try the interactive preview' }).click();
+  await page.getByRole('link', { name: 'See Atlas OS in action' }).click();
   await expect(page).toHaveURL(/#product-preview$/);
   await expect(page.locator('#product-preview').getByRole('button', { name: 'Commercial Invoicing' })).toBeVisible();
 
@@ -352,7 +352,7 @@ test('desktop header centers its links and the footer links to the Atlas OS repo
     expect(Math.abs(navigation.x + navigation.width / 2 - (header.x + header.width / 2))).toBeLessThan(2);
     expect(navigation.x + navigation.width).toBeLessThanOrEqual(demo.x);
   }
-  const social = page.getByRole('navigation', { name: 'Atlas OS social profiles' });
+  const social = page.getByRole('navigation', { name: 'Atlas OS social links' });
   await expect(social.getByRole('link', { name: 'Atlas OS on GitHub' })).toHaveAttribute('href', 'https://github.com/YenugantiVijay/Atlas-OS');
 });
 
@@ -543,4 +543,56 @@ test('back to top appears after scrolling and returns focus to the top', async (
   await top.click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.locator('#site-top')).toBeFocused();
+});
+
+test('invoice formats are discoverable and download three real files', async ({ page, request }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resources' }).hover();
+  await page.locator('#resources-panel').getByRole('link', { name: 'Invoice Formats' }).click();
+  await page.getByRole('link', { name: /Hotel.*View format/i }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Hotel invoice format' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Invoice Formats' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Room accommodation/ })).toContainText('2 nights');
+  await expect(page.getByText('₹6,536.00')).toBeVisible();
+  for (const [format, magic] of [['Word', 'PK'], ['Excel', 'PK'], ['PDF', '%PDF']]) {
+    const link = page.getByRole('link', { name: new RegExp('Download ' + format) });
+    await expect(link).toHaveAttribute('download', '');
+    const file = await request.get((await link.getAttribute('href'))!);
+    expect(file.ok()).toBeTruthy();
+    expect((await file.body()).subarray(0, magic.length).toString()).toBe(magic);
+  }
+  await page.getByRole('link', { name: 'Check e-invoice and e-way bill requirements' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'GST e-invoice and e-way bill' })).toBeVisible();
+});
+
+test('homepage typing settles and respects reduced motion, and the mobile footer clears the floating control', async ({ page }) => {
+  const time = new Date('2026-11-16T10:00:00Z');
+  await page.clock.install({ time });
+  await page.clock.pauseAt(new Date(time.getTime() + 1000));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const topics = page.locator('[data-hero-topics]');
+  const word = page.locator('[data-hero-word]');
+  await expect(topics).toHaveClass(/is-typing/);
+  await page.clock.runFor(1100);
+  await expect(word).toHaveText('Stock control.');
+  await page.clock.runFor(1550);
+  await expect(word).toHaveText('Payment tracking.');
+  await page.clock.runFor(2200);
+  await expect(topics).not.toHaveClass(/is-typing/);
+  await expect(word).toHaveText('GST billing.');
+  await page.clock.resume();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.reload();
+  await expect(word).toHaveText('GST billing.');
+  await expect(page.locator('[data-hero-topics]')).not.toHaveClass(/is-typing/);
+  await page.locator('footer').evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const social = page.getByRole('navigation', { name: 'Atlas OS social links' });
+  const back = page.getByRole('button', { name: 'Back to top' });
+  const socialBox = (await social.boundingBox())!;
+  const backBox = (await back.boundingBox())!;
+  expect(socialBox.x + socialBox.width).toBeLessThanOrEqual(backBox.x);
+  await expect(social.getByRole('link', { name: /LinkedIn/ })).toBeVisible();
+  await back.click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

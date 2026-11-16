@@ -1,5 +1,7 @@
 ---
-import { ArrowDown, ArrowRight, Banknote, Boxes, Calculator, ChartNoAxesColumnIncreasing, Check, ChevronDown, FileText, ListChecks, PackageCheck, Receipt, ShieldCheck, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import { ArrowDown, ArrowRight, Banknote, Boxes, Calculator, ChartNoAxesColumnIncreasing, ChevronDown, FileText, ListChecks, Receipt, ShieldCheck, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import { Image } from 'astro:assets';
+import tradeShop from '../assets/general-trade-shop.webp';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/common/Button.astro';
 import Container from '../components/common/Container.astro';
@@ -14,11 +16,7 @@ const features = [
   { title: 'Track Customer Payments', text: 'Record a payment, print a receipt, and see which invoices still have a balance.', href: '/features#payments', Icon: Banknote, color: '#a16207', tint: '#fff7ed' },
   { title: 'Understand Your Business', text: 'Review sales and customer dues, then export the reports you need to share.', href: '/features#reports', Icon: ChartNoAxesColumnIncreasing, color: '#0369a1', tint: '#edf7fa' },
 ];
-const orderSteps = [
-  { Icon: PackageCheck, label: 'Stock received', text: 'Switches added to inventory', value: '+24 boxes' },
-  { Icon: Receipt, label: 'GST invoice issued', text: 'Contractor order · INV-1048', value: '₹5,900' },
-  { Icon: Banknote, label: 'Payment recorded', text: 'UPI payment matched to the invoice', value: '₹5,900' },
-];
+const heroTopics = ['GST billing.', 'Stock control.', 'Payment tracking.'];
 const controls = [
   { Icon: Users, title: 'Access by role', text: 'Give sales, inventory, and accounts staff access to the work they handle.' },
   { Icon: ListChecks, title: 'A record of changes', text: 'Review audit events for supported business actions.' },
@@ -40,39 +38,24 @@ const faqs = [
       <div class="hero-grid">
         <div class="hero-intro">
           <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
-          <h1 id="home-title" class="hero-title font-heading" data-enter>From stockroom <span>to paid invoice.</span></h1>
-          <p class="hero-description" data-enter data-delay="1">Check stock before you quote, create GST invoices, and see which customers still owe you. Atlas OS connects each step in one workspace.</p>
-          <div class="hero-actions" data-enter data-delay="2">
+          <h1 id="home-title" class="hero-title font-heading" data-enter>
+            <span class="sr-only">Simplify stock, GST billing, and payments with Atlas OS</span>
+            <span aria-hidden="true">Run your business.<br />Simplify the work.</span>
+          </h1>
+          <div class="hero-topics" data-hero-topics={JSON.stringify(heroTopics)} aria-hidden="true">
+            {heroTopics.map(topic => <span class="hero-topic-size">{topic}</span>)}
+            <span class="hero-topic-active"><span data-hero-word>{heroTopics[0]}</span><span class="hero-caret"></span></span>
+          </div>
+          <p class="hero-description">Find stock while a customer waits, turn a quote into a GST invoice, and see what’s still owed. Give your shop, warehouse, and accounts team the same view.</p>
+          <div class="hero-actions">
             <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
-            <Button href="#product-preview" variant="outline" size="lg">Try the interactive preview <ArrowDown size={17} aria-hidden="true" /></Button>
+            <Button href="#product-preview" variant="outline" size="lg">See Atlas OS in action <ArrowDown size={17} aria-hidden="true" /></Button>
           </div>
         </div>
-
-        <div class="hero-visual" data-enter data-delay="1">
-          <section class="workbench" aria-labelledby="counter-title">
-            <div class="workbench-top">
-              <span class="workbench-brand"><img src="/favicon.svg" alt="" width="26" height="26" /> Atlas OS</span>
-              <span class="sample-label">Sample data</span>
-            </div>
-            <div class="workbench-body">
-              <h2 id="counter-title" class="font-heading text-xl font-bold sm:text-2xl">Today at the counter</h2>
-              <p class="mt-1 text-sm text-content-secondary">An electrical wholesaler’s sale</p>
-              <ol class="order-steps">
-                {orderSteps.map(({ Icon, label, text, value }) => <li class="order-row">
-                  <span class="order-icon"><Icon size={18} aria-hidden="true" /></span>
-                  <div class="min-w-0"><p class="font-semibold">{label}</p><p class="order-detail">{text}</p></div>
-                  <span class="order-value">{value}</span>
-                </li>)}
-              </ol>
-              <div class="invoice-summary">
-                <dl class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <dt class="text-sm font-medium text-content-secondary">Balance due</dt><dd class="font-heading text-xl font-bold tabular-nums">₹0</dd>
-                </dl>
-                <span class="paid-status"><Check size={14} aria-hidden="true" /> Paid</span>
-              </div>
-            </div>
-          </section>
-        </div>
+        <figure class="hero-visual" data-enter data-delay="1">
+          <Image src={tradeShop} alt="A shopkeeper at the counter of a stocked hardware shop" widths={[480, 720, 960]} sizes="(min-width: 900px) 48vw, 95vw" loading="eager" fetchpriority="high" />
+          <figcaption><Boxes size={19} aria-hidden="true" /> Built for the shop counter and the stockroom</figcaption>
+        </figure>
       </div>
     </Container>
   </section>
@@ -167,11 +150,11 @@ const faqs = [
 
   <section class="pb-12 sm:pb-16">
     <Container size="default">
-      <div class="section-intro" data-reveal><h2 class="home-heading">Free tools and guides</h2><p class="home-description">Calculate GST, preview a receipt, or get help with a workflow.</p></div>
+      <div class="section-intro" data-reveal><h2 class="home-heading">Free tools and guides</h2><p class="home-description">Calculate GST, download an invoice format, or get help with a workflow.</p></div>
       <ul class="grid gap-4 sm:grid-cols-3" data-reveal-group>
         {[
           { name: 'Atlas Calculators', text: 'GST, margin, EMI, inventory and more.', href: '/calculators/', Icon: Calculator, tint: '#edf8f5' },
-          { name: 'Receipt templates', text: 'Preview a receipt with your own branding.', href: '/receipt-templates', Icon: Receipt, tint: '#f5f1fb' },
+          { name: 'Invoice Formats', text: 'Download Word, Excel, or PDF invoice templates.', href: '/invoice-formats/', Icon: Receipt, tint: '#f5f1fb' },
           { name: 'Help and guides', text: 'Find answers about setup, features and everyday work.', href: '/resources/', Icon: ListChecks, tint: '#eff5fc' },
         ].map(({ name, text, href, Icon, tint }) => <li><a class="home-card atlas-icon-card flex h-full gap-3 rounded-2xl border border-border p-5" style={`--tile-tint:${tint}`} href={href}>
           <span class="atlas-card-icon grid h-10 w-10 shrink-0 place-items-center rounded-lg"><Icon size={20} aria-hidden="true" /></span>
@@ -203,120 +186,68 @@ const faqs = [
   </section>
 </BaseLayout>
 
+<script>
+  const topics = document.querySelector<HTMLElement>('[data-hero-topics]');
+  const output = topics?.querySelector('[data-hero-word]');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (topics?.dataset.heroTopics && output && !motion.matches) {
+    const phrases: string[] = JSON.parse(topics.dataset.heroTopics);
+    const start = performance.now();
+    const interval = 1550;
+    const eraseDuration = 310;
+    topics.classList.add('is-typing');
+    const type = (now: number) => {
+      const elapsed = now - start;
+      if (motion.matches || elapsed >= interval * phrases.length) {
+        output.textContent = phrases[0];
+        topics.classList.remove('is-typing');
+        return;
+      }
+      const phrase = phrases[(Math.floor(elapsed / interval) + 1) % phrases.length];
+      const previous = phrases[Math.floor(elapsed / interval)];
+      const position = elapsed % interval;
+      const text = position < eraseDuration
+        ? previous.slice(0, Math.max(0, previous.length - Math.floor(position / 18)))
+        : phrase.slice(0, Math.floor((position - eraseDuration) / 34));
+      if (output.textContent !== text) output.textContent = text;
+      requestAnimationFrame(type);
+    };
+    requestAnimationFrame(type);
+  }
+</script>
+
 <style>
-  .hero-shell {
-    padding-block: clamp(2.5rem, 6.1vw, 6rem);
-    background: radial-gradient(ellipse at 92% 0%, #e6f4ee, transparent 62%), #f7faf9;
-  }
-  .hero-grid {
-    display: grid;
-    align-items: center;
-    gap: clamp(2rem, 5vw, 5.5rem);
-  }
+  .hero-shell { padding-block: clamp(2.5rem, 6vw, 6.5rem); background: #f8fbfa; }
+  .hero-grid { display: grid; align-items: center; gap: clamp(2rem, 5vw, 5.5rem); }
   .hero-intro { min-width: 0; }
-  .hero-audience {
-    margin-bottom: 1rem;
-    color: #19625b;
-    font-size: .875rem;
-    font-weight: 700;
-  }
+  .hero-audience { margin-bottom: 1.15rem; color: #14665d; font-size: .875rem; font-weight: 700; }
   .hero-title {
-    font-size: clamp(2.55rem, 4.95vw, 4.55rem);
+    font-size: clamp(2.25rem, 4.2vw, 4.2rem);
     font-weight: 800;
-    line-height: 1.04;
-    letter-spacing: -.055em;
+    line-height: 1.06;
+    letter-spacing: -.047em;
   }
-  .hero-title span { display: block; color: #0f766e; }
-  .hero-description {
-    max-width: 43ch;
-    margin-top: 1.25rem;
-    color: #445673;
-    font-size: clamp(1rem, 1.6vw, 1.175rem);
-    line-height: 1.65;
-  }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.6rem; }
-  .hero-visual {
-    min-width: 0;
-    padding: clamp(.65rem, 3vw, 2.5rem);
-    border: 1px solid #284757;
-    border-radius: clamp(1.25rem, 3vw, 2.4rem);
-    background:
-      radial-gradient(ellipse at 92% 5%, #176055, transparent 66%),
-      repeating-linear-gradient(90deg, #ffffff0e 0 1px, transparent 1px 25px), #142b43;
-  }
-  .workbench {
-    min-width: 0;
-    overflow: hidden;
-    border: 1px solid #b9d4d4;
-    border-radius: 1.1rem;
-    background: white;
-    box-shadow: 0 12px 36px #081c3490;
-  }
-  .workbench-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .5rem;
-    padding: .72rem clamp(.85rem, 2.1vw, 1.5rem);
-    border-bottom: 1px solid #e2ebee;
-    background: #f5f9fa;
-  }
-  .workbench-brand { display: flex; align-items: center; gap: .55rem; font-size: .88rem; font-weight: 750; }
-  .sample-label { color: #405872; font-size: .73rem; font-weight: 600; }
-  .workbench-body { padding: clamp(.85rem, 2.1vw, 1.5rem); }
-  .order-steps { margin-top: .65rem; }
-  .order-row {
+  .hero-topics {
     display: grid;
-    position: relative;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: clamp(.48rem, 1vw, .78rem);
-    padding-block: .67rem;
-    font-size: .875rem;
-  }
-  .order-row:not(:last-child)::after {
-    position: absolute;
-    top: 50%;
-    left: calc(1.0625rem - 1px);
-    width: 2px;
-    height: 100%;
-    background: #d8e9e4;
-    content: '';
-  }
-  .order-icon {
-    z-index: 1;
-    display: grid;
-    width: 2.125rem;
-    height: 2.125rem;
-    place-items: center;
-    border: 1px solid #dcece7;
-    border-radius: .65rem;
-    background: #edf8f4;
-    color: #0f766e;
-  }
-  .order-detail { margin-top: .08rem; color: #445673; font-size: .75rem; line-height: 1.35; }
-  .order-value { justify-self: end; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .invoice-summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .55rem;
-    margin-top: .6rem;
-    padding: .65rem .8rem;
-    border: 1px solid #dcece7;
-    border-radius: .8rem;
-    background: #f0f8f4;
-  }
-  .paid-status {
-    display: inline-flex;
-    align-items: center;
-    gap: .28rem;
-    padding: .3rem .6rem;
-    border-radius: 999px;
-    background: #d8eee1;
-    color: #12624e;
-    font-size: .75rem;
+    margin-top: .9rem;
+    color: #0d7267;
+    font-size: clamp(1.35rem, 2.6vw, 2.2rem);
     font-weight: 750;
+    line-height: 1.25;
+    letter-spacing: -.025em;
+  }
+  .hero-topics > span { grid-area: 1 / 1; }
+  .hero-topic-size { visibility: hidden; padding-inline-end: .45rem; }
+  .hero-caret { display: none; width: .095em; height: .78em; margin-inline-start: .16em; background: currentColor; }
+  .is-typing .hero-caret { display: inline-block; }
+  .hero-description { max-width: 47ch; margin-top: 1rem; color: #445673; font-size: clamp(1rem, 1.5vw, 1.15rem); line-height: 1.65; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.65rem; }
+  .hero-visual { position: relative; margin: 0; overflow: hidden; border-radius: clamp(1rem, 2vw, 1.8rem); background: #dbe9e4; }
+  .hero-visual img { display: block; width: 100%; height: auto; aspect-ratio: 1.36; object-fit: cover; }
+  .hero-visual figcaption {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .8rem 1rem; background: #e6f2ed; color: #174b46;
+    font-size: .875rem; font-weight: 650;
   }
   .home-section { padding-block: clamp(3.5rem, 6.2vw, 6.25rem); }
   .section-intro { margin: 0 auto 2rem; max-width: 48rem; text-align: center; }
@@ -337,6 +268,5 @@ const faqs = [
   }
   @media (max-width: 390px) {
     .hero-actions > :global(a) { width: 100%; }
-    .order-row { font-size: .81rem; }
   }
 </style>
