@@ -10,7 +10,7 @@ const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') |
 
 <BaseLayout
   title="Download Atlas OS — Official Software Distribution Center"
-  description="Get the official Atlas OS business application. Download the Windows desktop package preview, view release notes, system requirements, and installation instructions for wholesale distribution."
+  description="Check the Windows release status, view requirements, and request a walkthrough of Atlas OS."
 >
   {/* HERO */}
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
@@ -23,8 +23,7 @@ const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') |
           Download <span class="text-gradient">Atlas OS</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          Get the Atlas OS business application and bring your inventory, billing, orders, and financial reports
-          into one high-speed, connected workspace.
+          The Windows installer is in development. See the release status or try the interactive browser preview.
         </p>
       </div>
     </Container>
@@ -37,93 +36,20 @@ const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') |
     </Container>
   </section>
 
-  {/* INSTALLATION GUIDE & VERIFICATION */}
-  <section class="py-20 bg-white border-b border-border" id="instructions">
-    <Container size="default">
-      <div class="max-w-3xl mx-auto space-y-12">
-        <div class="text-center space-y-3">
-          <span class="inline-flex items-center gap-1.5 py-1 px-3.5 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-100 text-sky-700">
-            Step-by-Step Walkthrough
-          </span>
-          <h2 class="text-3xl font-bold font-heading text-content-primary">
-            Desktop Software Installation Guide
-          </h2>
-          <p class="text-sm text-content-secondary">
-            Clear instructions for setting up the standalone Atlas OS desktop application on Windows 11 and 10.
-          </p>
-        </div>
-
-        <div data-reveal-group class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm">
-          <div class="p-6 rounded-2xl border border-border bg-surface-secondary space-y-2 shadow-2xs">
-            <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-xs">1</span>
-            <h3 class="text-base font-bold font-heading text-content-primary">Download Official Package</h3>
-            <p class="text-content-secondary leading-relaxed text-xs">
-              Retrieve the official signed installer directly from <code class="text-brand-700">atlasos.business/download</code>. Never download Atlas OS installers from third-party software aggregators or unverified forums.
-            </p>
-          </div>
-
-          <div class="p-6 rounded-2xl border border-border bg-surface-secondary space-y-2 shadow-2xs">
-            <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-xs">2</span>
-            <h3 class="text-base font-bold font-heading text-content-primary">Open Official Setup Wizard</h3>
-            <p class="text-content-secondary leading-relaxed text-xs">
-              Launch the downloaded setup executable. Windows SmartScreen verifies the publisher signature. Follow the standard installation wizard prompts.
-            </p>
-          </div>
-
-          <div class="p-6 rounded-2xl border border-border bg-surface-secondary space-y-2 shadow-2xs">
-            <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-xs">3</span>
-            <h3 class="text-base font-bold font-heading text-content-primary">Hardware Device Configuration</h3>
-            <p class="text-content-secondary leading-relaxed text-xs">
-              Atlas OS automatically detects connected USB thermal receipt printers (80mm/58mm), ESC/POS devices, and handheld USB/Bluetooth barcode scanners.
-            </p>
-          </div>
-
-          <div class="p-6 rounded-2xl border border-border bg-surface-secondary space-y-2 shadow-2xs">
-            <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-xs">4</span>
-            <h3 class="text-base font-bold font-heading text-content-primary">Sign In & Initialize Workspace</h3>
-            <p class="text-content-secondary leading-relaxed text-xs">
-              Sign in with your verified enterprise credentials or initialize a new organization with your legal firm name, GSTIN, and default physical UOM standards.
-            </p>
-          </div>
-        </div>
-
-        {/* SHA-256 Verification Guide */}
-        <div class="p-6 rounded-3xl border border-border bg-surface-secondary space-y-3 shadow-sm">
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-brand-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            <h3 class="text-base font-bold font-heading text-content-primary">
-              Package Integrity & Security Verification
-            </h3>
-          </div>
-          <p class="text-xs text-content-secondary leading-relaxed">
-            Every production desktop package released by Atlas OS includes an authoritative SHA-256 cryptographic hash.
-            System administrators can verify file authenticity in Windows PowerShell using:
-          </p>
-          <pre class="p-3.5 rounded-xl bg-surface-dark text-white font-mono text-xs overflow-x-auto border border-brand-500/20">Get-FileHash -Path ".\AtlasOS-Setup.exe" -Algorithm SHA256</pre>
-          <p class="text-xs text-content-muted">
-            The calculated hash will be cross-referenced against the published checksum in our release manifest.
-          </p>
-        </div>
-      </div>
-    </Container>
-  </section>
-
   {/* CTA */}
   <section class="py-16 bg-surface-secondary">
     <Container size="default">
       <div class="text-center max-w-2xl mx-auto space-y-4">
-        <h3 class="text-2xl font-bold font-heading text-content-primary">Need Web Application Access in the Meantime?</h3>
+        <h3 class="text-2xl font-bold font-heading text-content-primary">See how Atlas OS works</h3>
         <p class="text-sm text-content-secondary leading-relaxed">
-          While the standalone desktop package completes certification, the cloud web application is active for eligible businesses.
+          Explore the sample workspace in your browser, or ask about access for your business.
         </p>
-        <div class="pt-2 flex justify-center gap-3">
+        <div class="flex flex-wrap justify-center gap-3 pt-2">
           <Button href="/request-demo" variant="primary" size="md" class="font-semibold">
             <span>Request Demo Access</span>
           </Button>
-          <Button href="/support" variant="outline" size="md" class="font-semibold">
-            <span>Visit Help Center</span>
+          <Button href="/#product-preview" variant="outline" size="md" class="font-semibold">
+            <span>Try the interactive preview</span>
           </Button>
         </div>
       </div>

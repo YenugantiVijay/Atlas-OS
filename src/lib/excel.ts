@@ -11,7 +11,7 @@
  * 7. Cross-period payment allocation resolution for referenced invoices
  */
 
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import { Invoice, Payment, Organization, Customer } from '@/types';
 import { roundMoney, calculateInvoiceBalance } from './money';
 import { resolvePlaceOfSupply } from './gst';
@@ -846,7 +846,8 @@ function buildPaymentAllocationsSheet(
 export async function generateSalesReceiptsWorkbook(
   payload: WorkbookPayload
 ): Promise<ArrayBuffer> {
-  const wb = new ExcelJS.Workbook();
+  const { default: Excel } = await import('exceljs');
+  const wb = new Excel.Workbook();
   wb.creator = 'Atlas OS Business ERP';
   wb.lastModifiedBy = 'Atlas OS Financial Reporting Engine';
   wb.created = new Date();

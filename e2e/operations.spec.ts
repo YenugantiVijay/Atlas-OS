@@ -19,6 +19,26 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await expect(page.getByText('Inventory Valuation')).toBeVisible();
   });
 
+  test('offline recovery explains the empty queue and handles an unloaded route', async ({ page, context }) => {
+    await expect(page.getByRole('heading', { name: 'Sri Lakshmi Electrical Distributors' })).toBeVisible();
+    await context.setOffline(true);
+    try {
+      await page.getByRole('button', { name: 'Review (0)' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Offline Action Queue — Manual Recovery' });
+      await expect(dialog).toContainText('No saved actions to review for this workspace.');
+      await expect(dialog).toContainText('Automatic synchronization is not implemented.');
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      await page.getByRole('link', { name: 'Products & SKUs' }).click();
+      await expect(page.getByRole('heading', { name: 'This page couldn’t load' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Products & SKUs' })).toBeVisible();
+      await context.setOffline(false);
+      await page.getByRole('button', { name: 'Reload page' }).click();
+      await expect(page.getByText('Products & Catalog')).toBeVisible();
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+
   test('navigates to products catalog and filters by category', async ({ page }) => {
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);

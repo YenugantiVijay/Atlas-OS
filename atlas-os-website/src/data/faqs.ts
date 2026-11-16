@@ -22,7 +22,7 @@ export const FAQS: FaqItem[] = [
   {
     id: 'multi-org-support',
     question: 'Does Atlas OS support multiple business organizations?',
-    answer: 'Yes. Atlas OS features an enterprise multi-tenant architecture. Business owners managing multiple branch offices, partner firms, or distinct legal entities can switch seamlessly between organizations from a single account without data leakage. Each organization maintains its own isolated database scope, inventory catalog, customer ledgers, and GSTIN profiles.',
+    answer: 'Yes. Atlas OS features an enterprise multi-tenant architecture. Business owners can switch between organizations they have access to from a single account. Each organization maintains its own isolated database scope, inventory catalog, customer ledgers, and GSTIN profiles.',
     category: 'Product & Features',
   },
   {
@@ -46,13 +46,13 @@ export const FAQS: FaqItem[] = [
   {
     id: 'data-security',
     question: 'How is business and financial data protected?',
-    answer: 'Atlas OS is built on PostgreSQL with Row Level Security (RLS) policies enforced directly at the database engine level. Every query is cryptographically bound to your verified organization tenant ID. We maintain granular 6-tier role permissions, complete audit logs of all inventory and financial adjustments, and zero public bucket exposure.',
+    answer: 'Atlas OS is built on PostgreSQL with Row Level Security (RLS) policies enforced directly at the database engine level. The app uses organization-scoped policies and role checks for business data. Audit events cover supported workflows. See the Security page for details on access controls and deployment settings.',
     category: 'Security & Compliance',
   },
   {
     id: 'trial-availability',
     question: 'Is a free trial available?',
-    answer: 'Atlas OS offers a seven-day trial for eligible businesses. Trial workspaces can print a customer receipt and review daily totals. Request a demo to see the two-copy receipt workflow.',
+    answer: 'Request a walkthrough to ask about trial availability and the receipt features included in each plan.',
     category: 'Pricing & Trials',
   },
   {

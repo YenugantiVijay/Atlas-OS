@@ -3,7 +3,6 @@ import {
   Wifi,
   WifiOff,
   AlertCircle,
-  CheckCircle2,
   Trash2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
@@ -138,8 +137,7 @@ export const OfflineSyncIndicator: React.FC = () => {
 
           {queuedItems.length === 0 ? (
             <div className="text-center py-6 text-slate-500">
-              <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
-              All changes are synchronized with the database.
+              No saved actions to review for this workspace.
             </div>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">

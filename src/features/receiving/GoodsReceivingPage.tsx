@@ -273,17 +273,30 @@ export const GoodsReceivingPage: React.FC = () => {
     updateRow(id, 'packageText', writeUniformCartons(nextCases, nextUnits));
   };
   const changeCartonMode = (id: string, mixed: boolean) => {
+    const row = rows.find((item) => item.product.id === id);
+    if (!row || !editable) return;
+
     if (mixed) {
-      const current = rows.find((row) => row.product.id === id);
-      let expanded = '';
-      try { expanded = current ? parsePackageCounts(current.packageText).join(', ') : ''; }
-      catch { expanded = ''; }
       setMixedRows((prev) => new Set(prev).add(id));
-      updateRow(id, 'packageText', expanded);
-    } else {
-      setMixedRows((prev) => { const next = new Set(prev); next.delete(id); return next; });
-      updateRow(id, 'packageText', '');
+      markDirty();
+      return;
     }
+
+    let packageText: string;
+    try {
+      const counts = parsePackageCounts(row.packageText);
+      if (counts.some((count) => count !== counts[0])) {
+        setError('These cartons contain different quantities. Keep variable cartons, or edit the counts to one size before switching.');
+        return;
+      }
+      packageText = counts.length ? writeUniformCartons(String(counts.length), String(counts[0])) : '';
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Correct the carton counts before switching.');
+      return;
+    }
+
+    setMixedRows((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    updateRow(id, 'packageText', packageText);
   };
 
   const calculated = rows.map((row) => {
@@ -570,7 +583,7 @@ export const GoodsReceivingPage: React.FC = () => {
                     ) : <span className="block py-2 text-[11px] text-slate-500">Same size cartons</span>}
                     <button type="button" disabled={!editable} onClick={() => changeCartonMode(row.product.id, !mixed)}
                       className="mt-1 block text-[11px] font-semibold text-teal-700 disabled:opacity-40">
-                      {mixed ? 'Switch to cases × units (clears mixed counts)' : 'Different carton sizes?'}
+                      {mixed ? 'Use cases × units' : 'Different carton sizes?'}
                     </button>
                     <span className="block text-[11px] text-slate-500">
                       {calc.data ? calc.data.packageCounts.length + ' cartons' : ''}

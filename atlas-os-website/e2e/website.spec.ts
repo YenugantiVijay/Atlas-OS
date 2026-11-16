@@ -167,6 +167,15 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await expect(page.locator('text=FY 2026-27')).toBeVisible();
   });
 
+  test('About and search metadata describe verified capabilities and trial availability', async ({ page }) => {
+    await page.goto('/about');
+    await expect(page.getByRole('heading', { name: 'How we test Atlas OS' })).toBeVisible();
+    await expect(page.getByText('Guaranteed in production.', { exact: false })).toHaveCount(0);
+    const metadata = await page.locator('script[type="application/ld+json"]').first().textContent();
+    const software = JSON.parse(metadata!)['@graph'].find((entry: { '@type': string }) => entry['@type'] === 'SoftwareApplication');
+    expect(software.offers).toBeUndefined();
+  });
+
   test('3. Download center displays honest packaging preview and email registration works', async ({ page }) => {
     await mockLeadAcknowledgement(page, 'release');
     await page.goto('/download');
@@ -182,6 +191,8 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     // Verify NO unverified direct .exe download link exists
     const fakeLinks = page.locator('a[href$=".exe"], a[href$=".msi"]');
     expect(await fakeLinks.count()).toBe(0);
+    await expect(page.getByRole('heading', { name: 'Desktop Software Installation Guide' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Try the interactive preview' })).toHaveAttribute('href', '/#product-preview');
 
     // Test notification signup form
     const notify = page.getByRole('button', { name: 'Notify Me' });
@@ -201,7 +212,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await expect(plans.nth(1)).toContainText('Customer and counter receipts on one sheet');
     await expect(plans.nth(2)).toContainText('Customer and counter receipts on one sheet');
     await expect(page.getByText(/proposed launch pricing/i)).toBeVisible();
-    await expect(page.getByText(/seven-day trial for eligible businesses/i)).toBeVisible();
+    await expect(page.getByText(/ask about trial availability/i)).toBeVisible();
   });
 
   test('5. Request Demo form validates contact details and shows the server reference', async ({ page }) => {
