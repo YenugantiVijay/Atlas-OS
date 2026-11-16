@@ -62,7 +62,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
               </span>
             </div>
             <p className="text-sm text-content-muted">
-              Official 64-bit desktop application for high-speed billing counters and wholesale warehouses.
+              Planned 64-bit Windows application for billing counters and stockrooms.
             </p>
           </div>
         </div>
@@ -87,10 +87,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
             <span>Standalone Windows Desktop Package In Active Development</span>
           </div>
           <p className="text-xs text-brand-800 leading-relaxed">
-            In accordance with our strict product integrity guidelines, we do not provide mock <code>.exe</code> or{' '}
-            <code>.msi</code> installer binaries. Atlas OS is currently active as an enterprise web application. A
-            dedicated standalone desktop package featuring native thermal receipt printing and COM-port barcode
-            integration is undergoing final certification.
+            The installer, publisher signature, and checksum will appear on this page once a verified package is published.
           </p>
         </div>
 
@@ -170,10 +167,10 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
         <div className="pt-4 border-t border-border flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="w-full md:w-auto space-y-1">
             <p className="text-sm font-bold font-display text-content-primary">
-              Be Notified The Moment Windows Desktop Launches
+              Request Windows release updates
             </p>
             <p className="text-xs text-content-secondary">
-              Receive a secure download link and release checklist as soon as the verified installer is published.
+              Leave your email with the Atlas OS team to ask for an update when the installer is available.
             </p>
           </div>
 
@@ -189,6 +186,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
                 <input
                   type="email"
                   required
+                  aria-label="Work email for release updates"
                   placeholder="Enter work email..."
                   value={notifyEmail}
                   onChange={(e) => setNotifyEmail(e.target.value)}
@@ -212,9 +210,9 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
         {/* Web Application Alternative */}
         <div className="p-4 rounded-2xl border border-border bg-surface-secondary flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
           <div className="space-y-0.5 text-center sm:text-left">
-            <span className="font-semibold text-content-primary">Need immediate wholesale billing access?</span>
+            <span className="font-semibold text-content-primary">Want to see the web workspace?</span>
             <p className="text-content-secondary">
-              Experience the full Atlas OS ERP platform right now via our live web application.
+              {webAppUrl ? 'Open the configured Atlas OS web application.' : 'Request a demo to discuss access for your business.'}
             </p>
           </div>
           <a

@@ -21,7 +21,7 @@ const {
   type = 'website',
 } = Astro.props;
 
-const siteTitle = title.includes('Atlas OS') ? title : `${title} | Atlas OS — AI-Native Business Operating System`;
+const siteTitle = title.includes('Atlas OS') ? title : `${title} | Atlas OS`;
 const siteUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : canonicalUrl;
 
 // Structured data for Google Search (SoftwareApplication & Organization)
@@ -34,7 +34,7 @@ const structuredData = {
       name: 'Atlas OS Technologies',
       url: Astro.site || 'https://atlasos.business',
       logo: `${Astro.site || 'https://atlasos.business'}/favicon.svg`,
-      description: 'Modern AI-native business operating system for wholesale and retail distribution.',
+      description: 'Business software for retail and wholesale distribution.',
       sameAs: ['https://github.com/YenugantiVijay/Atlas-OS'],
     },
     {
@@ -44,12 +44,6 @@ const structuredData = {
       operatingSystem: 'Windows 11, Windows 10, Web',
       applicationCategory: 'BusinessApplication',
       description: description,
-      offers: {
-        '@type': 'Offer',
-        price: '0',
-        priceCurrency: 'INR',
-        description: '7-Day Free Commercial Trial',
-      },
     },
   ],
 };

@@ -74,6 +74,29 @@ describe('Goods Receiving — company rate advisory and Google-style lookup',()=
     expect(suppliersService.getSuppliers).toHaveBeenCalledTimes(1); // cached, no reload
   });
 
+  it('preserves carton quantities when switching entry modes', async () => {
+    render(<MemoryRouter><GoodsReceivingPage /></MemoryRouter>);
+    await screen.findByRole('option', { name: 'Company A' });
+    fireEvent.change(screen.getByLabelText('Add product by name, SKU, brand or HSN'), { target: { value: 'Fertilizer' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Fertilizer A/ }));
+    fireEvent.change(screen.getByLabelText('Cases for Fertilizer A'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Units per case for Fertilizer A'), { target: { value: '12' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Different carton sizes?' }));
+    const variable = screen.getByLabelText('Variable cartons for Fertilizer A');
+    expect(variable).toHaveValue('2x12');
+    fireEvent.change(variable, { target: { value: '12, 10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Use cases × units' }));
+    expect(variable).toHaveValue('12, 10');
+    expect(screen.getByText(/These cartons contain different quantities/)).toBeVisible();
+
+    fireEvent.change(variable, { target: { value: '12, 12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Use cases × units' }));
+    expect(screen.queryByLabelText('Variable cartons for Fertilizer A')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Cases for Fertilizer A')).toHaveValue('2');
+    expect(screen.getByLabelText('Units per case for Fertilizer A')).toHaveValue('12');
+  });
+
   it('shows stock and selling price then flags significant incoming supplier-rate changes without modifying product data',async()=>{
     render(<MemoryRouter><GoodsReceivingPage/></MemoryRouter>);
     await waitFor(()=>expect(suppliersService.getSuppliers).toHaveBeenCalled());
