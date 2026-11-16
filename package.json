@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
     "prebuild": "node scripts/check-zod-version.mjs",
     "build": "tsc && vite build",
+    "build:owner": "tsc && vite build --mode owner --outDir dist-owner",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

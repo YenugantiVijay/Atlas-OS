@@ -33,10 +33,3 @@ test('online order references, dispatch and workspace filtering use the normal s
   await row.getByRole('button', { name: /view/i }).click();
   await expect(detail.getByText(/Dispatch recorded.*AWB-DEMO-001/i)).toBeVisible();
 });
-
-test('demo accounts cannot enter the private platform portal', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));
-  await page.goto('/#/admin');
-  await expect(page.getByRole('heading', { name: 'Atlas Platform Admin' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Workspaces' })).toHaveCount(0);
-});

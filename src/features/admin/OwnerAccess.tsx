@@ -1,0 +1,190 @@
+import { useEffect, useState } from 'react';
+import type { Session, SupabaseClient } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
+import { LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ownerSupabase as supabase } from '@/lib/owner-supabase';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { OwnerConsole } from './OwnerConsole';
+
+type Factor = { id: string; qr?: string; secret?: string };
+type Access = 'loading' | 'signed-out' | 'blocked' | 'mfa' | 'ready' | 'error';
+
+export function OwnerAccess() {
+  const cache = useQueryClient();
+  const [session, setSession] = useState<Session | null>(null);
+  const [access, setAccess] = useState<Access>('loading');
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    let sequence = 0;
+    let currentAccount: string | undefined;
+    const check = async (next: Session | null) => {
+      if (!active) return;
+      const pending = ++sequence;
+      if (currentAccount !== next?.user.id) {
+        cache.clear();
+        setAccess(next ? 'loading' : 'signed-out');
+      }
+      currentAccount = next?.user.id;
+      setSession(next);
+      if (!next) { setAccess('signed-out'); return; }
+      const [allowed, assurance] = await Promise.all([
+        supabase!.rpc('owner_console_gate'),
+        supabase!.auth.mfa.getAuthenticatorAssuranceLevel(),
+      ]);
+      if (!active || pending !== sequence) return;
+      if (allowed.error || assurance.error) setAccess('error');
+      else if (allowed.data !== true) setAccess('blocked');
+      else setAccess(assurance.data.currentLevel === 'aal2' ? 'ready' : 'mfa');
+    };
+    // Supabase auth callbacks must return before issuing any auth requests.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      window.setTimeout(() => { void check(next); }, 0);
+    });
+    const recheck = () => { void supabase!.auth.getSession().then(({ data }) => check(data.session)); };
+    window.addEventListener('focus', recheck);
+    const timer = window.setInterval(recheck, 30_000);
+    return () => { active = false; subscription.unsubscribe(); window.removeEventListener('focus', recheck); window.clearInterval(timer); };
+  }, [cache]);
+
+  if (!supabase) return <PrivateScreen title="Private Console"><p>Connect this ERP build to Supabase to continue.</p></PrivateScreen>;
+  if (access === 'ready' && session) {
+    return <OwnerConsole key={session.user.id} account={session.user.id} onSignOut={() => void supabase!.auth.signOut({ scope: 'local' })} />;
+  }
+  if (access === 'signed-out') return <OwnerLogin client={supabase} />;
+  if (access === 'mfa') return <AuthenticatorChallenge client={supabase} />;
+  return <PrivateScreen title="Private Console">
+    {access === 'loading' ? <p role="status">Checking access…</p> : <>
+      <p role="alert">{access === 'blocked' ? 'This account is not authorized for the owner console.' : 'Access could not be verified. Reload to try again.'}</p>
+      <Button variant="outline" onClick={() => void supabase!.auth.signOut({ scope: 'local' })}>Sign out</Button>
+    </>}
+  </PrivateScreen>;
+}
+
+function PrivateScreen({ title, children }: { title: string; children: React.ReactNode }) {
+  return <main className="owner-login">
+    <section className="owner-login-card">
+      <span className="owner-lock"><LockKeyhole size={23} aria-hidden="true" /></span>
+      <p className="owner-kicker">Atlas OS</p>
+      <h1>{title}</h1>
+      <div className="space-y-4">{children}</div>
+    </section>
+  </main>;
+}
+
+function OwnerLogin({ client }: { client: SupabaseClient }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [method, setMethod] = useState<'password' | 'email' | 'code'>('password');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      if (method === 'password') {
+        const result = await client.auth.signInWithPassword({ email: email.trim(), password });
+        if (result.error) throw result.error;
+      } else if (method === 'email') {
+        const result = await client.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
+        if (result.error) throw result.error;
+        setMethod('code');
+      } else {
+        const result = await client.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+        if (result.error) throw result.error;
+      }
+    } catch {
+      setError('Sign-in could not be completed. Check your details and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <PrivateScreen title="Private Console">
+    <p>Sign in with an authorized Atlas owner account.</p>
+    <form onSubmit={submit} className="space-y-3">
+      <Input label="Email" type="email" autoComplete="username" required value={email} disabled={method === 'code'} onChange={e => setEmail(e.target.value)} />
+      {method === 'password' && <Input label="Password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />}
+      {method === 'code' && <Input label="Email verification code" autoComplete="one-time-code" required inputMode="numeric" value={code} onChange={e => setCode(e.target.value)} />}
+      {error && <p role="alert" className="owner-error">{error}</p>}
+      <Button type="submit" isLoading={busy}>{method === 'email' ? 'Send sign-in code' : method === 'code' ? 'Verify email code' : 'Sign in'}</Button>
+      <Button type="button" variant="ghost" disabled={busy} onClick={() => { setMethod(method === 'password' ? 'email' : 'password'); setError(''); }}>{method === 'password' ? 'Use email code' : 'Use password'}</Button>
+    </form>
+  </PrivateScreen>;
+}
+
+function AuthenticatorChallenge({ client }: { client: SupabaseClient }) {
+  const [factor, setFactor] = useState<Factor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void client.auth.mfa.listFactors().then(({ data, error }) => {
+      if (!active) return;
+      if (error) setError('Unable to load your authenticator.');
+      else if (data.totp[0]) setFactor({ id: data.totp[0].id });
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [client]);
+
+  async function enroll() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      // An unfinished enrolment has no usable QR code after a reload.
+      const existing = await client.auth.mfa.listFactors();
+      if (existing.error) throw existing.error;
+      const verified = existing.data.totp[0];
+      if (verified) { setFactor({ id: verified.id }); return; }
+      for (const item of existing.data.all.filter(item => item.factor_type === 'totp' && item.status === 'unverified')) {
+        const result = await client.auth.mfa.unenroll({ factorId: item.id });
+        if (result.error) throw result.error;
+      }
+      const { data, error } = await client.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Atlas Owner Console' });
+      if (error) throw error;
+      setFactor({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
+    } catch {
+      setError('The authenticator could not be set up. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !factor) return;
+    setBusy(true); setError('');
+    try {
+      const result = await client.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
+      if (result.error) throw result.error;
+    } catch {
+      setError('The code could not be verified. Enter the latest code from your authenticator.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <PrivateScreen title="Verify your authenticator">
+    <p><ShieldCheck size={18} className="mr-1 inline" aria-hidden="true" /> Owner access requires a second sign-in step.</p>
+    {loading ? <p role="status">Loading authenticator…</p> : factor ? <>
+      {factor.qr && <>
+        <p>Scan this QR code in your authenticator app, then enter the six-digit code.</p>
+        <img className="rounded-xl border border-border" src={factor.qr} alt="Authenticator enrolment QR code" width={170} height={170} />
+        <details><summary>Enter the setup key manually</summary><code className="break-all">{factor.secret}</code></details>
+      </>}
+      <form onSubmit={verify} className="space-y-3">
+        <Input label="Authenticator code" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={e => setCode(e.target.value)} />
+        <Button type="submit" isLoading={busy}>Verify code</Button>
+      </form>
+    </> : <Button onClick={() => void enroll()} isLoading={busy}>Set up authenticator</Button>}
+    {error && <p role="alert" className="owner-error">{error}</p>}
+    <Button variant="ghost" onClick={() => void client.auth.signOut({ scope: 'local' })}>Sign out</Button>
+  </PrivateScreen>;
+}

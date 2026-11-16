@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
+  LifeBuoy,
   ShoppingCart,
   ShoppingBag,
   Boxes,
@@ -29,7 +30,6 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
-import { usePlatformReviewer } from '@/hooks/usePlatformReviewer';
 import { useAttendanceAccess } from '@/hooks/useAttendanceAccess';
 
 export interface SidebarProps {
@@ -45,7 +45,6 @@ interface NavItem {
   icon: React.ReactNode;
   action?: Action;
   attendance?: boolean;
-  platform?: boolean;
 }
 
 interface NavGroup {
@@ -60,6 +59,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     showHeading: false,
     items: [
       { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+      { label: 'Support', path: '/support', icon: <LifeBuoy className="w-[18px] h-[18px]" /> },
     ],
   },
   {
@@ -110,7 +110,6 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
       { label: 'Staff Attendance', path: '/attendance', icon: <CalendarCheck className="w-[18px] h-[18px]" />, attendance: true },
       { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
       { label: 'India Ecosystem', path: '/integrations', icon: <FileCode className="w-[18px] h-[18px]" />, action: 'org:manage' },
-      { label: 'Platform Admin', path: '/admin', icon: <ShieldCheck className="w-[18px] h-[18px]" />, platform: true },
       { label: 'Org Settings', path: '/settings', icon: <Building2 className="w-[18px] h-[18px]" />, action: 'org:manage' },
     ],
   },
@@ -123,18 +122,15 @@ export function Sidebar(props: SidebarProps) {
 
 function CloudSidebar(props: SidebarProps) {
   const { data, isError } = useAttendanceAccess();
-  const platform = usePlatformReviewer();
-  return <SidebarNavigation {...props} showAttendance={data === true && !isError}
-    showPlatform={platform.data === true && !platform.isError} />;
+  return <SidebarNavigation {...props} showAttendance={data === true && !isError} />;
 }
 
-const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean; showPlatform?: boolean }> = ({
+const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> = ({
   collapsed,
   onToggle,
   isMobileOpen = false,
   onCloseMobile,
   showAttendance = false,
-  showPlatform = false,
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
@@ -145,10 +141,10 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean; sho
       NAV_GROUPS_CONFIG
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => item.attendance ? showAttendance : item.platform ? showPlatform : !item.action || hasPermission(currentRole, item.action)),
+          items: group.items.filter((item) => item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action)),
         }))
         .filter((group) => group.items.length > 0),
-    [currentRole, showAttendance, showPlatform]
+    [currentRole, showAttendance]
   );
 
   return (

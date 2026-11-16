@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import TurnstileWidget from '../common/TurnstileWidget';
 import { getOrCreateRequestId, leadDeliveryConfigured, submitWebsiteLead } from '../../lib/websiteLeads';
 import { Send, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
@@ -13,12 +13,18 @@ export default function ContactForm() {
     message: '',
   });
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('department') === 'support') {
+      setFormData(previous => ({ ...previous, department: 'support' }));
+    }
+  }, []);
+
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [resetCounter, setResetCounter] = useState(0);
   const requestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [reference, setReference] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -59,8 +65,7 @@ export default function ContactForm() {
     try {
       const request = getOrCreateRequestId(requestRef.current, formData);
       requestRef.current = request;
-      await submitWebsiteLead('contact', formData, turnstileToken, request.requestId);
-      setIsSuccess(true);
+      setReference(await submitWebsiteLead('contact', formData, turnstileToken, request.requestId));
       requestRef.current = null;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to deliver your enquiry. Please retry.');
@@ -71,7 +76,7 @@ export default function ContactForm() {
     }
   };
 
-  if (isSuccess) {
+  if (reference) {
     return (
       <div className="p-8 text-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 animate-fade-in">
         <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
@@ -79,12 +84,15 @@ export default function ContactForm() {
         </div>
         <h3 className="text-xl font-bold font-display mb-2">Message Received Successfully!</h3>
         <p className="text-sm text-emerald-800 max-w-md mx-auto leading-relaxed mb-6">
-          Thank you, <strong>{formData.name}</strong>. Our email service accepted your enquiry regarding <strong>{formData.department}</strong>. Please watch <strong>{formData.email}</strong> for a response.
+          Thank you, <strong>{formData.name}</strong>. {formData.department === 'support'
+            ? 'Your support report is in the Atlas support inbox.'
+            : 'Our email service accepted your enquiry.'} Please watch <strong>{formData.email}</strong> for a response.
         </p>
+        {formData.department === 'support' && <p className="mb-4 text-sm font-semibold">Report reference · {reference}</p>}
         <button
           type="button"
           onClick={() => {
-            setIsSuccess(false);
+            setReference('');
             setTurnstileToken('');
             setResetCounter((n) => n + 1);
             setFormData({

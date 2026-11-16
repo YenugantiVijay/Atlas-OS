@@ -66,6 +66,7 @@ async function hashSubject(salt, subject) {
   return Array.from(new Uint8Array(digest), (x) => x.toString(16).padStart(2, '0')).join('');
 }
 
+/** @param {{ env?: (key: string) => string | undefined, fetchImpl?: typeof fetch }} options */
 export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
   if (typeof env !== 'function') throw new Error('A secret environment reader is required');
   return async function handle(req) {
@@ -90,11 +91,8 @@ export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
       'LEAD_NOTIFICATION_TO', 'LEAD_SENDER_EMAIL', 'TURNSTILE_SECRET_KEY',
       'LEAD_HASH_SECRET',
     ].map((key) => [key, env(key) || '']));
-    if (Object.values(settings).some((v) => !v) ||
-        !isEmail(settings.LEAD_NOTIFICATION_TO) ||
-        !isEmail(settings.LEAD_SENDER_EMAIL) ||
-        settings.LEAD_HASH_SECRET.length < 32 ||
-        !/^https:\/\//.test(settings.SUPABASE_URL)) {
+    if (!settings.SUPABASE_SERVICE_ROLE_KEY || !settings.TURNSTILE_SECRET_KEY ||
+        settings.LEAD_HASH_SECRET.length < 32 || !/^https:\/\//.test(settings.SUPABASE_URL)) {
       return failure(503, 'Enquiry delivery is not configured yet. Please try again later.', cors);
     }
 
@@ -119,6 +117,10 @@ export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
         typeof incoming?.website === 'string' && incoming.website.trim()) {
       return failure(400, 'Please review the enquiry fields and verification.', cors);
     }
+
+    const supportReport = kind === 'contact' && payload.department === 'support';
+    const emailConfigured = Boolean(settings.RESEND_API_KEY && isEmail(settings.LEAD_NOTIFICATION_TO) && isEmail(settings.LEAD_SENDER_EMAIL));
+    if (!supportReport && !emailConfigured) return failure(503, 'Enquiry delivery is not configured yet. Please try again later.', cors);
 
     try {
       // Turnstile verification happens on the SERVER. A public origin or honeypot
@@ -164,30 +166,57 @@ export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
         }
       }
 
+      if (supportReport) {
+        const saved = await fetchImpl(
+          settings.SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/rpc/record_website_support',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: settings.SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: 'Bearer ' + settings.SUPABASE_SERVICE_ROLE_KEY,
+            },
+            body: JSON.stringify({ p_id: requestId, p_email: payload.email, p_company: payload.company, p_body: payload.message }),
+            signal: AbortSignal.timeout(9000),
+          },
+        );
+        if (!saved.ok || await saved.json() !== requestId) {
+          return failure(503, 'Your support report could not be saved. Please try again.', cors);
+        }
+      }
+
+      if (!emailConfigured) return json({ ok: true, reference: requestId.slice(0, 8), notificationSent: false }, 200, cors);
       const label = { contact: 'Contact enquiry', demo: 'Demo request', release: 'Desktop release notification' }[kind];
       const details = Object.entries(payload).map(([key, value]) => key + ': ' + String(value)).join('\n');
-      const emailResponse = await fetchImpl('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer ' + settings.RESEND_API_KEY,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': 'atlas-lead-' + requestId,
-        },
-        body: JSON.stringify({
-          from: settings.LEAD_SENDER_EMAIL,
-          to: [settings.LEAD_NOTIFICATION_TO],
-          reply_to: payload.email,
-          subject: 'Atlas OS website — ' + label,
-          text: label + '\n\n' + details + '\n\nRequest ID: ' + requestId,
-        }),
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!emailResponse.ok) return failure(503, 'We could not send your enquiry. Please try again later.', cors);
-      const result = await emailResponse.json();
-      if (typeof result?.id !== 'string' || !result.id) {
-        return failure(503, 'Delivery was not confirmed by the email service.', cors);
+      try {
+        const emailResponse = await fetchImpl('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer ' + settings.RESEND_API_KEY,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': 'atlas-lead-' + requestId,
+          },
+          body: JSON.stringify({
+            from: settings.LEAD_SENDER_EMAIL,
+            to: [settings.LEAD_NOTIFICATION_TO],
+            reply_to: payload.email,
+            subject: 'Atlas OS website — ' + label,
+            text: label + '\n\n' + details + '\n\nRequest ID: ' + requestId,
+          }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!emailResponse.ok) throw new Error('Email provider rejected the message');
+        const result = await emailResponse.json();
+        if (typeof result?.id !== 'string' || !result.id) {
+          return supportReport
+            ? json({ ok: true, reference: requestId.slice(0, 8), notificationSent: false }, 200, cors)
+            : failure(503, 'Delivery was not confirmed by the email service.', cors);
+        }
+        return json({ ok: true, reference: requestId.slice(0, 8) }, 200, cors);
+      } catch {
+        if (supportReport) return json({ ok: true, reference: requestId.slice(0, 8), notificationSent: false }, 200, cors);
+        return failure(503, 'We could not send your enquiry. Please try again later.', cors);
       }
-      return json({ ok: true, reference: requestId.slice(0, 8) }, 200, cors);
     } catch {
       // Do not expose secrets, token, IP or user fields in public errors or logs.
       return failure(503, 'Enquiry service is temporarily unavailable. Please try again.', cors);

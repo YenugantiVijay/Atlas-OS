@@ -55,6 +55,9 @@ function fixture(options = {}) {
     if (name.includes('consume_website_lead_rate_limit')) {
       return Response.json(options.limit ?? true, { status: options.limitStatus || 200 });
     }
+    if (name.includes('record_website_support')) {
+      return Response.json(requestId, { status: options.supportStatus || 200 });
+    }
     if (name.includes('api.resend.com')) {
       return Response.json(options.emailBody || { id: 'accepted-email-1' }, { status: options.emailStatus || 200 });
     }
@@ -176,4 +179,23 @@ test('email provider rejection is a failure, not fake success', async () => {
 test('email provider response without accepted message id fails closed', async () => {
   const { handler } = fixture({ emailBody: {} });
   assert.equal((await handler(buildRequest())).status, 503);
+});
+
+test('website support persists a ticket after verification even when optional email is unavailable', async () => {
+  const { handler, calls } = fixture({ emailStatus: 503 });
+  const result = await handler(buildRequest('contact', { ...contacts.contact, department: 'support' }));
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).notificationSent, false);
+  const capture = calls.find(call => call.url.endsWith('/record_website_support'));
+  assert.equal(JSON.parse(capture.init.body).p_id, requestId);
+  assert(calls.findIndex(call => call.url.endsWith('/record_website_support')) > calls.findIndex(call => call.url.includes('siteverify')));
+  assert(calls.findIndex(call => call.url.endsWith('/record_website_support')) < calls.findIndex(call => call.url.endsWith('/emails')));
+});
+
+test('website support requires a durable ticket acknowledgment before showing success', async () => {
+  const { handler, calls } = fixture({ supportStatus: 503 });
+  const result = await handler(buildRequest('contact', { ...contacts.contact, department: 'support' }));
+  assert.equal(result.status, 503);
+  assert.equal((await result.json()).ok, false);
+  assert.equal(calls.some(call => call.url.endsWith('/emails')), false);
 });

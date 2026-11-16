@@ -433,3 +433,6 @@ verify_jwt = false
 # authenticated delivery-claim RPC. This also supports new-format API keys.
 [functions.send-team-invitation]
 verify_jwt = false
+
+[functions.owner-report-summary]
+verify_jwt = false
