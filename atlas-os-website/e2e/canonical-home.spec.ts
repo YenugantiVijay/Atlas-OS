@@ -566,11 +566,21 @@ test('invoice formats are discoverable and download three real files', async ({ 
 });
 
 test('homepage typing settles and respects reduced motion, and the mobile footer clears the floating control', async ({ page }) => {
-  await page.goto('/');
+  const time = new Date('2026-11-16T10:00:00Z');
+  await page.clock.install({ time });
+  await page.clock.pauseAt(new Date(time.getTime() + 1000));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const topics = page.locator('[data-hero-topics]');
   const word = page.locator('[data-hero-word]');
-  await expect.poll(() => word.textContent(), { intervals: [30, 60, 100] }).toBe('Stock control.');
-  await expect.poll(() => word.textContent(), { intervals: [30, 60, 100] }).toBe('Payment tracking.');
-  await expect(page.locator('[data-hero-topics]')).not.toHaveClass(/is-typing/);
+  await expect(topics).toHaveClass(/is-typing/);
+  await page.clock.runFor(1100);
+  await expect(word).toHaveText('Stock control.');
+  await page.clock.runFor(1550);
+  await expect(word).toHaveText('Payment tracking.');
+  await page.clock.runFor(2200);
+  await expect(topics).not.toHaveClass(/is-typing/);
+  await expect(word).toHaveText('GST billing.');
+  await page.clock.resume();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 320, height: 700 });
   await page.reload();
