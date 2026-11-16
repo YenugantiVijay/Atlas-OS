@@ -1,6 +1,7 @@
 import React from 'react';
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AppLayout, RouteLoadingFallback } from '@/components/layout/AppLayout';
+import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { hasPermission, Action } from '@/lib/permissions';
 
@@ -103,13 +104,27 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
   return children;
 };
 
+function RouteFailure() {
+  return (
+    <section className="mx-auto max-w-xl rounded-2xl border border-border bg-surface-card p-6" aria-labelledby="route-failure-title">
+      <h1 id="route-failure-title" className="text-lg font-semibold text-content-primary">This page couldn’t load</h1>
+      <p className="mt-2 text-sm text-content-secondary">Check your connection, then reload this page to continue.</p>
+      <Button type="button" onClick={() => window.location.reload()} className="mt-4">
+        Reload page
+      </Button>
+    </section>
+  );
+}
+
 export const router = createHashRouter([
   {
     path: '/invite/:inviteId',
+    errorElement: <RouteFailure />,
     element: <React.Suspense fallback={<RouteLoadingFallback />}><TeamInvitationPage /></React.Suspense>,
   },
   {
     path: '/onboarding',
+    errorElement: <RouteFailure />,
     element: (
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <OnboardingPage />
@@ -119,69 +134,73 @@ export const router = createHashRouter([
   {
     path: '/',
     element: <AppLayout />,
-    children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'products', element: <ProductsPage /> },
-      { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },
-      { path: 'inventory', element: <InventoryPage /> },
-      { path: 'receiving', element: <RequirePermission action="inventory:receive"><GoodsReceivingPage /></RequirePermission> },
-      { path: 'receiving/follow-up', element: <RequirePermission action="inventory:receive"><SupplierFollowUpPage /></RequirePermission> },
-      { path: 'purchase-orders', element: <RequirePermission action="inventory:receive"><PurchaseOrdersPage /></RequirePermission> },
-      { path: 'supplier-prices', element: <RequirePermission action="supplier-prices:read"><SupplierPriceHistoryPage /></RequirePermission> },
-      { path: 'customers', element: <CustomersPage /> },
-      { path: 'suppliers', element: <SuppliersPage /> },
-      { path: 'quotations', element: <QuotationsPage /> },
-      { path: 'orders', element: <OrdersPage /> },
-      { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
-      { path: 'counter-shift', element: <RequirePermission action="orders:create"><CounterShiftPage /></RequirePermission> },
-      { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
-      { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
-      { path: 'ai', element: <AIPage /> },
-      {
-        path: 'team',
-        element: (
-          <RequirePermission action="members:manage">
-            <TeamPage />
-          </RequirePermission>
-        ),
-      },
-      { path: 'team/staff', element: <RequirePermission action="members:manage"><StaffPaySetupPage /></RequirePermission> },
-      { path: 'team/advances', element: <RequirePermission action="members:manage"><StaffAdvancesPage /></RequirePermission> },
-      { path: 'attendance', element: <StaffAttendancePage /> },
-      {
-        path: 'audit',
-        element: (
-          <RequirePermission action="audit:read">
-            <AuditPage />
-          </RequirePermission>
-        ),
-      },
-      {
-        path: 'reports/sales-receipts',
-        element: (
-          <RequirePermission action="reports:financial">
-            <SalesReceiptsReportPage />
-          </RequirePermission>
-        ),
-      },
-      {
-        path: 'settings',
-        element: (
-          <RequirePermission action="org:manage">
-            <SettingsPage />
-          </RequirePermission>
-        ),
-      },
-      {
-        path: 'integrations',
-        element: (
-          <RequirePermission action="org:manage">
-            <IntegrationsPage />
-          </RequirePermission>
-        ),
-      },
-      { path: '*', element: <Navigate to="/" replace /> },
-    ],
+    errorElement: <RouteFailure />,
+    children: [{
+      errorElement: <RouteFailure />,
+      children: [
+        { index: true, element: <DashboardPage /> },
+        { path: 'products', element: <ProductsPage /> },
+        { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },
+        { path: 'inventory', element: <InventoryPage /> },
+        { path: 'receiving', element: <RequirePermission action="inventory:receive"><GoodsReceivingPage /></RequirePermission> },
+        { path: 'receiving/follow-up', element: <RequirePermission action="inventory:receive"><SupplierFollowUpPage /></RequirePermission> },
+        { path: 'purchase-orders', element: <RequirePermission action="inventory:receive"><PurchaseOrdersPage /></RequirePermission> },
+        { path: 'supplier-prices', element: <RequirePermission action="supplier-prices:read"><SupplierPriceHistoryPage /></RequirePermission> },
+        { path: 'customers', element: <CustomersPage /> },
+        { path: 'suppliers', element: <SuppliersPage /> },
+        { path: 'quotations', element: <QuotationsPage /> },
+        { path: 'orders', element: <OrdersPage /> },
+        { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
+        { path: 'counter-shift', element: <RequirePermission action="orders:create"><CounterShiftPage /></RequirePermission> },
+        { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
+        { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
+        { path: 'ai', element: <AIPage /> },
+        {
+          path: 'team',
+          element: (
+            <RequirePermission action="members:manage">
+              <TeamPage />
+            </RequirePermission>
+          ),
+        },
+        { path: 'team/staff', element: <RequirePermission action="members:manage"><StaffPaySetupPage /></RequirePermission> },
+        { path: 'team/advances', element: <RequirePermission action="members:manage"><StaffAdvancesPage /></RequirePermission> },
+        { path: 'attendance', element: <StaffAttendancePage /> },
+        {
+          path: 'audit',
+          element: (
+            <RequirePermission action="audit:read">
+              <AuditPage />
+            </RequirePermission>
+          ),
+        },
+        {
+          path: 'reports/sales-receipts',
+          element: (
+            <RequirePermission action="reports:financial">
+              <SalesReceiptsReportPage />
+            </RequirePermission>
+          ),
+        },
+        {
+          path: 'settings',
+          element: (
+            <RequirePermission action="org:manage">
+              <SettingsPage />
+            </RequirePermission>
+          ),
+        },
+        {
+          path: 'integrations',
+          element: (
+            <RequirePermission action="org:manage">
+              <IntegrationsPage />
+            </RequirePermission>
+          ),
+        },
+        { path: '*', element: <Navigate to="/" replace /> },
+      ],
+    }],
   },
 ]);
 

@@ -207,7 +207,7 @@ export const AppLayout: React.FC = () => {
         <div className="mx-auto max-w-7xl w-full">
           {/* Offline Sync & Queue Status Indicator */}
           <div className="mb-4">
-            <OfflineSyncIndicator />
+            <OfflineSyncIndicator key={workspaceKey} />
           </div>
 
           {/* Explicit Demo Sandbox Mode Banner */}
