@@ -66,6 +66,7 @@ async function hashSubject(salt, subject) {
   return Array.from(new Uint8Array(digest), (x) => x.toString(16).padStart(2, '0')).join('');
 }
 
+/** @param {{ env?: (key: string) => string | undefined, fetchImpl?: typeof fetch }} options */
 export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
   if (typeof env !== 'function') throw new Error('A secret environment reader is required');
   return async function handle(req) {
