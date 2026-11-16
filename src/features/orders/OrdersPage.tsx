@@ -689,7 +689,7 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
                 { id: 'ALL', label: 'All Orders' },
                 { id: 'DRAFT', label: 'Draft' },
                 { id: 'CONFIRMED', label: 'Confirmed' },
-                { id: 'FULFILLED', label: 'Fulfilled' },
+                { id: 'FULFILLED', label: onlineOnly ? 'Invoiced' : 'Fulfilled' },
                 { id: 'CANCELLED', label: 'Cancelled' },
               ] as const
             ).map((tab) => {
@@ -727,8 +727,10 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
         <EmptyState
           icon={<FileText className="w-7 h-7" />}
           title={onlineOnly ? 'No online orders found' : 'No sales orders found'}
-          description="Create sales orders directly or convert accepted contractor quotations."
-          actionLabel={!check('orders:create').allowed ? undefined : "New Sales Order"}
+          description={onlineOnly
+            ? 'Record a website, marketplace, or chat order to see it here.'
+            : 'Create sales orders directly or convert accepted contractor quotations.'}
+          actionLabel={!onlineOnly && check('orders:create').allowed ? 'New Sales Order' : undefined}
           onAction={handleOpenCreate}
         />
       ) : (
@@ -789,7 +791,7 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
                     showDot
                     size="sm"
                   >
-                    {o.status}
+                    {onlineOnly && o.status === 'FULFILLED' ? 'Invoiced' : o.status}
                   </Badge>
                 </TableCell>
 

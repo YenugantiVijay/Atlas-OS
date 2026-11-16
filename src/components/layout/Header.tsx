@@ -32,6 +32,7 @@ export interface HeaderProps {
 
 const ROUTE_BREADCRUMBS: Record<string, { section?: string; label: string }> = {
   '/': { label: 'Dashboard' },
+  '/ecommerce': { section: 'Sales Operations', label: 'E-commerce Orders' },
   '/orders': { section: 'Sales Operations', label: 'Sales Orders' },
   '/pos': { section: 'Sales Operations', label: 'Retail Counter' },
   '/quotations': { section: 'Sales Operations', label: 'Quotations' },
@@ -196,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="p-2 -ml-1 shrink-0 rounded-xl text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              className="p-2 -ml-1 shrink-0 rounded-xl text-content-secondary hover:bg-slate-100 hover:text-content-primary lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-500"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
@@ -214,16 +215,16 @@ export const Header: React.FC<HeaderProps> = ({
               aria-label={`Switch organization: ${currentOrg?.name || 'No organization selected'}`}
               aria-expanded={isOrgDropdownOpen}
               className={`flex h-9 items-center gap-2 rounded-xl border border-border/80 bg-slate-50/70 px-3 text-xs font-semibold text-content-primary hover:border-slate-300 hover:bg-slate-100/70 transition-colors shadow-2xs ${
-                isOrgDropdownOpen ? 'border-teal-400 bg-teal-50/50 ring-2 ring-teal-100' : ''
+                isOrgDropdownOpen ? 'border-atlas-400 bg-atlas-50/50 ring-2 ring-atlas-100' : ''
               }`}
             >
-              <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+              <Building2 className="w-3.5 h-3.5 text-atlas-600 shrink-0" />
               <span className="max-w-[120px] sm:max-w-[180px] md:max-w-[220px] truncate">
                 {currentOrg?.name || 'Select Organization'}
               </span>
               <ChevronDown
                 className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 shrink-0 ${
-                  isOrgDropdownOpen ? 'rotate-180 text-teal-700' : ''
+                  isOrgDropdownOpen ? 'rotate-180 text-atlas-700' : ''
                 }`}
               />
             </button>
@@ -242,7 +243,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className={`w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left transition-colors ${
                       org.id === currentOrg?.id
-                        ? 'bg-teal-50 text-teal-900 font-semibold border border-teal-200/60'
+                        ? 'bg-atlas-50 text-atlas-900 font-semibold border border-atlas-200/60'
                         : 'text-content-primary hover:bg-slate-50'
                     }`}
                   >
@@ -252,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
                         {[org.city, org.state].filter(Boolean).join(', ') || 'Location not set'}
                       </div>
                     </div>
-                    {org.id === currentOrg?.id && <Check className="w-4 h-4 text-teal-600 shrink-0" />}
+                    {org.id === currentOrg?.id && <Check className="w-4 h-4 text-atlas-600 shrink-0" />}
                   </button>
                 ))}
                 <div className="my-1 border-t border-border" />
@@ -261,7 +262,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setIsOrgDropdownOpen(false);
                     onOpenNewOrgModal();
                   }}
-                  className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs text-teal-700 font-semibold hover:bg-teal-50 transition-colors"
+                  className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs text-atlas-700 font-semibold hover:bg-atlas-50 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Organization</span>
@@ -344,7 +345,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsOrgDropdownOpen(false);
                   setIsUserMenuOpen(false);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 px-3 sm:px-3.5 text-xs font-semibold text-white shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-atlas-700 hover:bg-atlas-800 active:bg-atlas-900 px-3 sm:px-3.5 text-xs font-semibold text-white shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-400"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Quick Create</span>
@@ -362,7 +363,7 @@ export const Header: React.FC<HeaderProps> = ({
                         setIsQuickCreateOpen(false);
                         onOpenQuickCreate(act.type);
                       }}
-                      className="w-full flex items-center px-2.5 py-2 text-xs rounded-xl text-content-primary hover:bg-teal-50 hover:text-teal-900 text-left transition-colors font-medium"
+                      className="w-full flex items-center px-2.5 py-2 text-xs rounded-xl text-content-primary hover:bg-atlas-50 hover:text-atlas-900 text-left transition-colors font-medium"
                     >
                       {act.label}
                     </button>
@@ -384,10 +385,10 @@ export const Header: React.FC<HeaderProps> = ({
               aria-label="User Profile & Shop Menu"
               title="User Profile & Shop Menu"
               aria-expanded={isUserMenuOpen}
-              className={'group inline-flex h-10 max-w-[235px] items-center gap-2 rounded-xl border bg-white px-1.5 pr-2.5 text-left shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 lg:max-w-[290px] 2xl:max-w-[345px] ' +
-                (isUserMenuOpen ? 'border-teal-400 bg-teal-50/50 ring-2 ring-teal-100' : 'border-slate-200')}
+              className={'group inline-flex h-10 max-w-[235px] items-center gap-2 rounded-xl border bg-white px-1.5 pr-2.5 text-left shadow-sm transition-colors hover:border-atlas-300 hover:bg-atlas-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-500 lg:max-w-[290px] 2xl:max-w-[345px] ' +
+                (isUserMenuOpen ? 'border-atlas-400 bg-atlas-50/50 ring-2 ring-atlas-100' : 'border-slate-200')}
             >
-              <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-teal-200 bg-teal-100 text-[11px] font-bold text-teal-800">
+              <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-atlas-200 bg-atlas-100 text-[11px] font-bold text-atlas-800">
                 {currentUser?.avatarUrl ? (
                   <img src={currentUser.avatarUrl}
                     alt={currentUser.fullName || 'User avatar'}
@@ -401,13 +402,13 @@ export const Header: React.FC<HeaderProps> = ({
                   title={currentUser?.fullName || currentUser?.email || 'User'}>
                   {currentUser?.fullName || currentUser?.email || (isLoadingAuth ? 'Loading...' : 'User')}
                 </span>
-                <span className="block text-[10px] font-medium capitalize leading-4 text-teal-700">
+                <span className="block text-[10px] font-medium capitalize leading-4 text-atlas-700">
                   {currentRole || 'No Role'}
                 </span>
               </span>
               <ChevronDown
-                className={'h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-teal-700 ' +
-                  (isUserMenuOpen ? 'rotate-180 text-teal-700' : '')}
+                className={'h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-atlas-700 ' +
+                  (isUserMenuOpen ? 'rotate-180 text-atlas-700' : '')}
               />
             </button>
 
@@ -417,7 +418,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* User Profile Header Card */}
                 <div className="p-3 border border-border/70 rounded-xl bg-slate-50/70 mb-2.5">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-11 h-11 rounded-full overflow-hidden bg-teal-100 text-teal-800 font-bold text-sm flex items-center justify-center border border-teal-200 shadow-xs shrink-0">
+                    <div className="relative w-11 h-11 rounded-full overflow-hidden bg-atlas-100 text-atlas-800 font-bold text-sm flex items-center justify-center border border-atlas-200 shadow-xs shrink-0">
                       {currentUser?.avatarUrl ? (
                         <img
                           src={currentUser.avatarUrl}
@@ -458,13 +459,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="space-y-1">
                   <button
                     onClick={handleOpenProfileModal}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center group-hover:bg-teal-200 group-hover:scale-105 transition-all shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center group-hover:bg-atlas-200 group-hover:scale-105 transition-all shrink-0">
                       <Camera className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
+                      <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
                         Edit Profile & Photo
                       </div>
                       <div className="text-xs text-content-muted font-normal truncate">
@@ -477,13 +478,13 @@ export const Header: React.FC<HeaderProps> = ({
                     <a
                       href="#/settings"
                       onClick={() => setIsUserMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors shrink-0 border border-border/80">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-atlas-100 group-hover:text-atlas-700 transition-colors shrink-0 border border-border/80">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
+                        <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
                           Organization Settings
                         </div>
                         <div className="text-xs text-content-muted font-normal truncate">
@@ -497,13 +498,13 @@ export const Header: React.FC<HeaderProps> = ({
                     <a
                       href="#/team"
                       onClick={() => setIsUserMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-teal-50 hover:text-teal-900 transition-colors text-left group"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-content-primary hover:bg-atlas-50 hover:text-atlas-900 transition-colors text-left group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors shrink-0 border border-border/80">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 text-content-secondary flex items-center justify-center group-hover:bg-atlas-100 group-hover:text-atlas-700 transition-colors shrink-0 border border-border/80">
                         <Shield className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-content-primary group-hover:text-teal-900">
+                        <div className="text-sm font-semibold text-content-primary group-hover:text-atlas-900">
                           Team & Memberships
                         </div>
                         <div className="text-xs text-content-muted font-normal truncate">
@@ -540,13 +541,13 @@ export const Header: React.FC<HeaderProps> = ({
                           setIsUserMenuOpen(false);
                           setIsAuthModalOpen(true);
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-teal-700 hover:bg-teal-50 transition-colors text-left group"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-atlas-700 hover:bg-atlas-50 transition-colors text-left group"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center group-hover:bg-teal-200 transition-colors shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-atlas-100 text-atlas-700 flex items-center justify-center group-hover:bg-atlas-200 transition-colors shrink-0">
                           <Sparkles className="w-4 h-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-teal-900">Sign In to Cloud</div>
+                          <div className="text-sm font-semibold text-atlas-900">Sign In to Cloud</div>
                           <div className="text-xs text-content-muted font-normal truncate">
                             Switch from Demo to Live Supabase
                           </div>
@@ -612,7 +613,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="submit"
               disabled={isSavingProfile}
-              className="px-4 py-2 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl shadow-xs transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-semibold text-white bg-atlas-600 hover:bg-atlas-700 active:bg-atlas-800 rounded-xl shadow-xs transition-colors disabled:opacity-50"
             >
               {isSavingProfile ? 'Saving...' : 'Save Profile'}
             </button>
