@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test('the private console is direct-only and demo workspaces cannot see owner controls', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));

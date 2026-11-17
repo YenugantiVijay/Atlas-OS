@@ -67,7 +67,7 @@ test('interactive product preview really hydrates and changes content', async ({
   await page.getByRole('button', { name: 'Commercial Invoicing' }).click();
   await expect(page.getByText('Statutory Tax Invoice Details', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Multi-UOM Inventory' }).click();
-  await expect(page.getByText('Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
+  await expect(page.getByText('No products added yet.', { exact: true })).toBeVisible();
 });
 
 test('Industries opens on desktop hover and stays open while moving to its links', async ({ page }) => {
@@ -327,7 +327,7 @@ test('industry detail tracks the sticky contents and supports keyboard workflow 
   await first.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Draft the Order' })).toBeFocused();
   await expect(page.getByRole('tabpanel')).toContainText('Check quantities, discounts, and taxes');
-  await expect(page.getByRole('tabpanel')).toContainText('Draft taxable value · ₹1,000');
+  await expect(page.getByRole('tabpanel')).not.toContainText('₹1,000');
   await expect(page.getByRole('tabpanel')).not.toContainText('City Trade Supplies');
   await page.getByText('Where do staff finish billing and record payment?', { exact: true }).click();
   await expect(page.getByText(/Use Retail Counter to draft/)).toBeVisible();

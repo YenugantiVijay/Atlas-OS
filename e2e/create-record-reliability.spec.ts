@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Phase 1)', () => {
   test.beforeEach(async ({ page }) => {

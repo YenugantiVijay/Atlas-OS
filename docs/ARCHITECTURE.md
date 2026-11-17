@@ -68,7 +68,6 @@ atlas-os/
 │   └── test/               # Vitest test setup and test utilities
 ├── supabase/
 │   ├── migrations/         # PostgreSQL schema migrations
-│   └── seed.sql            # Realistic electrical distributor seed data
 ├── docs/                   # Architectural & technical documentation
 ├── e2e/                    # Playwright end-to-end tests
 ├── package.json

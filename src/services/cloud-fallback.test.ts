@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { productsService } from './products.service';
 import { customersService } from './customers.service';
@@ -27,7 +28,7 @@ describe('Phase 1 Cloud Safety: Elimination of Silent LocalStorage Fallback', ()
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     mockSupabaseInstance = null;
     vi.clearAllMocks();
   });

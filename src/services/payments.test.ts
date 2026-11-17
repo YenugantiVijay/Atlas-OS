@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { paymentsService, mapDbPayment, mapDbPaymentAllocation } from './payments.service';
 import { storage } from '@/lib/storage';
@@ -20,7 +21,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     mockSupabaseInstance = null;
     vi.clearAllMocks();
   });

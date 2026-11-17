@@ -28,9 +28,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
   const { showToast } = useToast();
   const navigate = useNavigate();
   const tool = useIndustryTool();
-  const hasElectricalStarter = !tool || tool.id === 'electrical';
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [productCount, setProductCount] = useState(0);
   const [recentBatches, setRecentBatches] = useState<any[]>([]);
   const [undoingBatchId, setUndoingBatchId] = useState<string | null>(null);
@@ -48,24 +46,6 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
-
-  const handleSeedCatalog = async () => {
-    if (!currentOrg || isSeeding) return;
-    setIsSeeding(true);
-    try {
-      const res = await guidedImportService.seedStarterElectricalCatalog(currentOrg.id, isMockAuth);
-      showToast(
-        'success',
-        'Catalog Initialized',
-        `Added ${res.seededCount} standard electrical items (Wires, MCBs, Switches, Conduit) with HSN codes & GST rates.`
-      );
-      refreshStatus();
-    } catch (err: any) {
-      showToast('error', 'Seeding Failed', err.message || 'Unable to seed starter catalog');
-    } finally {
-      setIsSeeding(false);
-    }
-  };
 
   const handleUndoBatch = async (batchId: string) => {
     if (!currentOrg || undoingBatchId) return;
@@ -166,9 +146,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                   )}
                 </div>
                 <p className="text-xs text-slate-600">
-                  {hasElectricalStarter
-                    ? 'Load sample electrical SKUs or import your product catalogue.'
-                    : 'Review products and prices or import your own catalogue.'}
+                  Add products or import your catalogue.
                 </p>
               </div>
 
@@ -176,12 +154,11 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={hasElectricalStarter ? handleSeedCatalog : () => navigate('/products')}
-                  disabled={hasElectricalStarter && isSeeding}
+                  onClick={() => navigate('/products')}
                   leftIcon={<PackagePlus className="w-3.5 h-3.5" />}
                   className="w-full text-xs h-7 bg-teal-600 hover:bg-teal-700 text-white md:w-auto md:flex-1"
                 >
-                  {hasElectricalStarter ? (isSeeding ? 'Seeding...' : '1-Click Starter SKUs') : 'Open product catalogue'}
+                  Open product catalogue
                 </Button>
                 {onOpenImportModal && (
                   <Button

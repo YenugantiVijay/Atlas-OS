@@ -77,342 +77,35 @@ const STORAGE_KEYS = {
   IMPORT_BATCHES: 'atlas_import_batches_v1',
 };
 
-const DEFAULT_CURRENT_USER: User = {
+const LOCAL_OWNER: User = {
   id: 'u0000000-0000-0000-0000-000000000001',
-  email: 'vijay@srilakshmielectricals.in',
-  fullName: 'Vijay Kumar',
-  avatarUrl: '',
+  email: '',
+  fullName: 'Local owner',
 };
 
-// Initial Seed Data for Demo & Development
-const SEED_ORG_1: Organization = {
-  id: 'a0000000-0000-0000-0000-000000000001',
-  name: 'Sri Lakshmi Electrical Distributors',
-  legalName: 'Sri Lakshmi Electricals Pvt Ltd',
-  gstin: '29ABCDE1234F1Z5',
-  pan: 'ABCDE1234F',
-  phone: '+91 98450 12345',
-  email: 'sales@srilakshmielectricals.in',
-  addressLine1: '42, BVK Iyengar Road, Chickpet',
-  city: 'Bengaluru',
-  state: 'Karnataka',
-  pincode: '560053',
-  currency: 'INR',
-  createdAt: '2026-01-15T09:00:00Z',
-  updatedAt: '2026-01-15T09:00:00Z',
-};
+const WORKSPACE_UPGRADE_KEY = 'atlas_empty_workspace_upgrade_v1';
+const LEGACY_ORGS = new Set([
+  'a0000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000002',
+]);
+const LEGACY_ROWS = /^(?:[pcsm]0000000-0000-0000-0000-00000000000[1-8]|m-0[1-8]|(?:ord|inv|pay|alloc|audit)-001)$/;
+const WORKSPACE_STORAGE_KEYS = new Set<string>(Object.values(STORAGE_KEYS));
+const FIRST_LEGACY_ORG = 'a0000000-0000-0000-0000-000000000001';
 
-const SEED_ORG_2: Organization = {
-  id: 'b0000000-0000-0000-0000-000000000002',
-  name: 'Apex Electro Controls',
-  legalName: 'Apex Electro Controls LLP',
-  gstin: '36AABCA5678H1Z2',
-  pan: 'AABCA5678H',
-  phone: '+91 94400 98765',
-  email: 'accounts@apexelectro.in',
-  addressLine1: '15-4-210, Ranigunj',
-  city: 'Secunderabad',
-  state: 'Telangana',
-  pincode: '500003',
-  currency: 'INR',
-  createdAt: '2026-02-01T10:00:00Z',
-  updatedAt: '2026-02-01T10:00:00Z',
-};
+type LegacyRow = Partial<{
+  id: string;
+  organizationId: string;
+  entityId: string;
+  paymentId: string;
+  invoiceId: string;
+  archivedAt: string;
+}>;
 
-const SEED_PRODUCTS_ORG_1: Product[] = [
-  {
-    id: 'p0000000-0000-0000-0000-000000000001',
-    organizationId: SEED_ORG_1.id,
-    sku: 'POL-W-2.5-RD',
-    name: 'Polycab 2.5 sq mm FR PVC Insulated Copper Wire (90m Red)',
-    brand: 'Polycab',
-    category: 'Wires & Cables',
-    uom: 'Coils',
-    purchaseCost: 1850,
-    sellingPrice: 2250,
-    taxRate: 18,
-    hsnCode: '8544',
-    reorderThreshold: 20,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000002',
-    organizationId: SEED_ORG_1.id,
-    sku: 'POL-W-1.5-BL',
-    name: 'Polycab 1.5 sq mm FR PVC Insulated Copper Wire (90m Blue)',
-    brand: 'Polycab',
-    category: 'Wires & Cables',
-    uom: 'Coils',
-    purchaseCost: 1220,
-    sellingPrice: 1540,
-    taxRate: 18,
-    hsnCode: '8544',
-    reorderThreshold: 25,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000003',
-    organizationId: SEED_ORG_1.id,
-    sku: 'HAV-MCB-DP-32A',
-    name: 'Havells 32A Double Pole C-Curve MCB (10kA)',
-    brand: 'Havells',
-    category: 'Switchgear',
-    uom: 'Nos',
-    purchaseCost: 480,
-    sellingPrice: 680,
-    taxRate: 18,
-    hsnCode: '8536',
-    reorderThreshold: 15,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000004',
-    organizationId: SEED_ORG_1.id,
-    sku: 'SCH-SW-10A-1W',
-    name: 'Schneider Electric Opale 10A 1-Way Modular Switch',
-    brand: 'Schneider',
-    category: 'Modular Switches',
-    uom: 'Nos',
-    purchaseCost: 38,
-    sellingPrice: 62,
-    taxRate: 18,
-    hsnCode: '8536',
-    reorderThreshold: 100,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000005',
-    organizationId: SEED_ORG_1.id,
-    sku: 'CRM-LED-DL-15W',
-    name: 'Crompton 15W Round Slim LED Recessed Downlight 6500K',
-    brand: 'Crompton',
-    category: 'Lighting',
-    uom: 'Nos',
-    purchaseCost: 210,
-    sellingPrice: 340,
-    taxRate: 18,
-    hsnCode: '9405',
-    reorderThreshold: 30, // currently stock is 8, so will trigger low stock alert!
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000006',
-    organizationId: SEED_ORG_1.id,
-    sku: 'LEG-DB-8W-SPN',
-    name: 'Legrand 8-Way SPN Distribution Board (IP40 Enclosure)',
-    brand: 'Legrand',
-    category: 'Distribution Boards',
-    uom: 'Nos',
-    purchaseCost: 950,
-    sellingPrice: 1420,
-    taxRate: 18,
-    hsnCode: '8537',
-    reorderThreshold: 8,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000007',
-    organizationId: SEED_ORG_1.id,
-    sku: 'PRE-CND-25-HD',
-    name: 'Precision 25mm Heavy Duty PVC Conduit Pipe (3m Length)',
-    brand: 'Precision',
-    category: 'Conduits & Pipes',
-    uom: 'Bundles',
-    purchaseCost: 75,
-    sellingPrice: 110,
-    taxRate: 18,
-    hsnCode: '3917',
-    reorderThreshold: 50,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-  {
-    id: 'p0000000-0000-0000-0000-000000000008',
-    organizationId: SEED_ORG_1.id,
-    sku: 'ANC-SK-16A-UNV',
-    name: 'Anchor Roma 16A 6-Pin Universal Combined Socket',
-    brand: 'Anchor',
-    category: 'Modular Switches',
-    uom: 'Nos',
-    purchaseCost: 95,
-    sellingPrice: 145,
-    taxRate: 18,
-    hsnCode: '8536',
-    reorderThreshold: 40,
-    isActive: true,
-    createdAt: '2026-01-16T10:00:00Z',
-    updatedAt: '2026-01-16T10:00:00Z',
-  },
-];
-
-const SEED_CUSTOMERS_ORG_1: Customer[] = [
-  {
-    id: 'c0000000-0000-0000-0000-000000000001',
-    organizationId: SEED_ORG_1.id,
-    name: 'Ramesh Kumar',
-    companyName: 'Bangalore Electro Enterprises',
-    phone: '+91 98860 11223',
-    email: 'ramesh@blelectro.com',
-    billingAddress: 'Site 48, Peenya Industrial Area 2nd Stage, Bengaluru 560058',
-    gstin: '29AAAAA0000A1Z5',
-    creditLimit: 300000,
-    creditDays: 30,
-    isActive: true,
-    createdAt: '2026-01-18T11:00:00Z',
-    updatedAt: '2026-01-18T11:00:00Z',
-  },
-  {
-    id: 'c0000000-0000-0000-0000-000000000002',
-    organizationId: SEED_ORG_1.id,
-    name: 'Venkatesh Rao',
-    companyName: 'Venkateshwara Power Systems',
-    phone: '+91 94480 33445',
-    email: 'venkat@vpowersys.in',
-    billingAddress: 'Plot 12, KIADB Industrial Estate, Hoskote, Bengaluru 562114',
-    gstin: '29BBBBB1111B1Z2',
-    creditLimit: 500000,
-    creditDays: 45,
-    isActive: true,
-    createdAt: '2026-01-18T11:30:00Z',
-    updatedAt: '2026-01-18T11:30:00Z',
-  },
-  {
-    id: 'c0000000-0000-0000-0000-000000000003',
-    organizationId: SEED_ORG_1.id,
-    name: 'Suresh Patel',
-    companyName: 'Surya Light House & Electricals',
-    phone: '+91 97410 55667',
-    email: 'suryalights@gmail.com',
-    billingAddress: '88, 10th Cross, Malleshwaram, Bengaluru 560003',
-    gstin: '29CCCCC2222C1Z8',
-    creditLimit: 150000,
-    creditDays: 15,
-    isActive: true,
-    createdAt: '2026-01-19T09:00:00Z',
-    updatedAt: '2026-01-19T09:00:00Z',
-  },
-];
-
-const SEED_SUPPLIERS_ORG_1: Supplier[] = [
-  {
-    id: 's0000000-0000-0000-0000-000000000001',
-    organizationId: SEED_ORG_1.id,
-    name: 'Polycab Regional Depot',
-    companyName: 'Polycab Wires & Cables Ltd',
-    contactPerson: 'Ashok Hegde',
-    phone: '+91 80 2234 5678',
-    email: 'depot.blr@polycab.com',
-    address: 'Warehouse Complex, Tumkur Road, Bengaluru 560022',
-    gstin: '29AADCP1234D1Z9',
-    paymentTerms: '30 Days Net',
-    isActive: true,
-    createdAt: '2026-01-17T10:00:00Z',
-    updatedAt: '2026-01-17T10:00:00Z',
-  },
-  {
-    id: 's0000000-0000-0000-0000-000000000002',
-    organizationId: SEED_ORG_1.id,
-    name: 'Havells India Central Hub',
-    companyName: 'Havells India Super Stockist',
-    contactPerson: 'Deepak Joshi',
-    phone: '+91 80 2345 6789',
-    email: 'hub.blr@havells.com',
-    address: 'Ring Road Industrial Layout, Rajajinagar, Bengaluru 560010',
-    gstin: '29AAACH4567J1Z3',
-    paymentTerms: '21 Days Net',
-    isActive: true,
-    createdAt: '2026-01-17T10:30:00Z',
-    updatedAt: '2026-01-17T10:30:00Z',
-  },
-];
-
-const SEED_MOVEMENTS_ORG_1: StockMovement[] = [
-  {
-    id: 'm-01',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000001',
-    quantityChange: 85,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-02',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000002',
-    quantityChange: 120,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-03',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000003',
-    quantityChange: 45,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-04',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000004',
-    quantityChange: 350,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-05',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000005',
-    quantityChange: 8, // below reorder threshold of 30!
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory (Below threshold alert)',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-06',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000006',
-    quantityChange: 14,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-07',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000007',
-    quantityChange: 200,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-  {
-    id: 'm-08',
-    organizationId: SEED_ORG_1.id,
-    productId: 'p0000000-0000-0000-0000-000000000008',
-    quantityChange: 90,
-    movementType: 'OPENING_STOCK',
-    notes: 'Initial audit inventory',
-    createdAt: '2026-01-16T12:00:00Z',
-  },
-];
+function belongsToLegacyOrg(row: LegacyRow, key: string, orgId: string) {
+  return row.organizationId === orgId || row.entityId === orgId ||
+    (key === STORAGE_KEYS.PAYMENT_ALLOCATIONS && orgId === FIRST_LEGACY_ORG &&
+      (row.paymentId === 'pay-001' || row.invoiceId === 'inv-001'));
+}
 
 class StorageEngine {
   private initialized = false;
@@ -434,193 +127,80 @@ class StorageEngine {
     }
   }
 
-  public initialize(force: boolean = false): void {
+  public initialize(): void {
+    this.removeUnusedLegacyWorkspaces();
     const orgs = this.getItem<Organization[]>(STORAGE_KEYS.ORGS, []);
-    if (this.initialized && !force && orgs.length > 0) return;
-
-    if (orgs.length === 0 || force) {
-      // Seed default data
-      this.setItem(STORAGE_KEYS.ORGS, [SEED_ORG_1, SEED_ORG_2]);
-      this.setItem(STORAGE_KEYS.CURRENT_ORG_ID, SEED_ORG_1.id);
-
-      const demoUser = {
-        id: 'u0000000-0000-0000-0000-000000000001',
-        email: 'vijay@srilakshmielectricals.in',
-        fullName: 'Vijay Kumar (Distributor Admin)',
+    if (this.initialized && orgs.length > 0) return;
+    if (orgs.length === 0) {
+      const now = new Date().toISOString();
+      const owner = this.getItem<User>(STORAGE_KEYS.CURRENT_USER, LOCAL_OWNER);
+      const workspace: Organization = {
+        id: 'local-workspace',
+        name: 'Local workspace',
+        currency: 'INR',
+        createdAt: now,
+        updatedAt: now,
       };
-
-      const memberships: Membership[] = [
-        {
-          id: 'm0000000-0000-0000-0000-000000000001',
-          organizationId: SEED_ORG_1.id,
-          userId: demoUser.id,
-          role: 'owner',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          user: demoUser,
-        },
-        {
-          id: 'm0000000-0000-0000-0000-000000000002',
-          organizationId: SEED_ORG_2.id,
-          userId: demoUser.id,
-          role: 'owner',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          user: demoUser,
-        },
-      ];
-      this.setItem(STORAGE_KEYS.MEMBERSHIPS, memberships);
-      this.setItem(STORAGE_KEYS.PRODUCTS, SEED_PRODUCTS_ORG_1);
-      this.setItem(STORAGE_KEYS.CUSTOMERS, SEED_CUSTOMERS_ORG_1);
-      this.setItem(STORAGE_KEYS.SUPPLIERS, SEED_SUPPLIERS_ORG_1);
-      this.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, SEED_MOVEMENTS_ORG_1);
-
-      // Seed initial sales order and invoice
-      const initialOrder = this.createInitialOrder(SEED_ORG_1.id);
-      this.setItem(STORAGE_KEYS.SALES_ORDERS, [initialOrder]);
-
-      const initialInvoice = this.createInitialInvoice(SEED_ORG_1.id, initialOrder);
-      this.setItem(STORAGE_KEYS.INVOICES, [initialInvoice]);
-
-      // Seed initial payment
-      const initialPayment: Payment = {
-        id: 'pay-001',
-        organizationId: SEED_ORG_1.id,
-        paymentNumber: 'PAY-20260220-001',
-        customerId: initialInvoice.customerId,
-        amount: 25000,
-        paymentMethod: 'NEFT',
-        referenceNumber: 'UTR98234871234',
-        paymentDate: '2026-02-20',
-        notes: 'Partial payment against invoice ' + initialInvoice.invoiceNumber,
-        createdAt: '2026-02-20T14:30:00Z',
-      };
-      this.setItem(STORAGE_KEYS.PAYMENTS, [initialPayment]);
-
-      const initialAlloc: PaymentAllocation = {
-        id: 'alloc-001',
-        paymentId: initialPayment.id,
-        invoiceId: initialInvoice.id,
-        amountAllocated: 25000,
-        createdAt: '2026-02-20T14:30:00Z',
-      };
-      this.setItem(STORAGE_KEYS.PAYMENT_ALLOCATIONS, [initialAlloc]);
-
-      // Seed audit event
-      const auditLog: AuditEvent = {
-        id: 'audit-001',
-        organizationId: SEED_ORG_1.id,
-        actorId: demoUser.id,
-        actorEmail: demoUser.email,
-        action: 'SYSTEM_INITIALIZATION',
-        entityType: 'ORGANIZATION',
-        entityId: SEED_ORG_1.id,
-        details: { message: 'Initialized Sri Lakshmi Electrical Distributors test ledger.' },
-        createdAt: new Date().toISOString(),
-      };
-      this.setItem(STORAGE_KEYS.AUDIT_EVENTS, [auditLog]);
+      this.setItem(STORAGE_KEYS.ORGS, [workspace]);
+      this.setCurrentOrgId(workspace.id);
+      const members = this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []);
+      this.setItem(STORAGE_KEYS.MEMBERSHIPS, [...members, {
+        id: 'local-workspace-owner',
+        organizationId: workspace.id,
+        userId: owner.id,
+        role: 'owner',
+        isActive: true,
+        createdAt: now,
+        user: owner,
+      }]);
     }
-
-    // Ensure currentUser is always initialized
-    const user = this.getItem<User | null>(STORAGE_KEYS.CURRENT_USER, null);
-    if (!user) {
-      this.setItem(STORAGE_KEYS.CURRENT_USER, DEFAULT_CURRENT_USER);
-    }
-
     this.initialized = true;
   }
 
-  private createInitialOrder(orgId: string): SalesOrder {
-    const docTotals = calculateDocumentTotals([
-      { quantity: 10, unitPrice: 2250, discountPercent: 5, taxRate: 18 },
-      { quantity: 4, unitPrice: 680, discountPercent: 0, taxRate: 18 },
-    ]);
-
-    return {
-      id: 'ord-001',
-      organizationId: orgId,
-      orderNumber: 'SO-2026-0001',
-      customerId: SEED_CUSTOMERS_ORG_1[0].id,
-      status: 'CONFIRMED',
-      orderDate: '2026-02-15',
-      subtotal: docTotals.grossSubtotal,
-      discountAmount: docTotals.discountTotal,
-      taxAmount: docTotals.taxAmount,
-      totalAmount: docTotals.totalAmount,
-      totalsVersion: 2,
-      notes: 'Urgent commercial wiring contract order',
-      createdAt: '2026-02-15T11:00:00Z',
-      updatedAt: '2026-02-15T11:30:00Z',
-      confirmedAt: '2026-02-15T11:30:00Z',
-      items: [
-        {
-          id: 'item-01',
-          salesOrderId: 'ord-001',
-          productId: SEED_PRODUCTS_ORG_1[0].id,
-          productName: SEED_PRODUCTS_ORG_1[0].name,
-          productSku: SEED_PRODUCTS_ORG_1[0].sku,
-          uom: 'Coils',
-          quantity: 10,
-          unitPrice: 2250,
-          discountPercent: 5,
-          taxRate: 18,
-          lineSubtotal: docTotals.items[0].taxableAmount,
-          lineTax: docTotals.items[0].taxAmount,
-          lineTotal: docTotals.items[0].totalAmount,
-        },
-        {
-          id: 'item-02',
-          salesOrderId: 'ord-001',
-          productId: SEED_PRODUCTS_ORG_1[2].id,
-          productName: SEED_PRODUCTS_ORG_1[2].name,
-          productSku: SEED_PRODUCTS_ORG_1[2].sku,
-          uom: 'Nos',
-          quantity: 4,
-          unitPrice: 680,
-          discountPercent: 0,
-          taxRate: 18,
-          lineSubtotal: docTotals.items[1].taxableAmount,
-          lineTax: docTotals.items[1].taxAmount,
-          lineTotal: docTotals.items[1].totalAmount,
-        },
-      ],
-    };
-  }
-
-  private createInitialInvoice(orgId: string, order: SalesOrder): Invoice {
-    return {
-      id: 'inv-001',
-      organizationId: orgId,
-      invoiceNumber: 'ATL/25-26/0001',
-      customerId: order.customerId,
-      status: 'PARTIALLY_PAID',
-      invoiceDate: '2026-02-16',
-      dueDate: '2026-03-18',
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount,
-      taxAmount: order.taxAmount,
-      totalAmount: order.totalAmount,
-      totalPaid: 25000,
-      totalsVersion: 2,
-      notes: 'Direct Tax Invoice ATL/25-26/0001',
-      createdAt: '2026-02-16T10:00:00Z',
-      updatedAt: '2026-02-20T14:30:00Z',
-      items: order.items?.map((item) => ({
-        id: 'inv-item-' + item.id,
-        invoiceId: 'inv-001',
-        productId: item.productId,
-        productName: item.productName,
-        productSku: item.productSku,
-        uom: item.uom,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discountPercent: item.discountPercent,
-        taxRate: item.taxRate,
-        lineSubtotal: item.lineSubtotal,
-        lineTax: item.lineTax,
-        lineTotal: item.lineTotal,
-      })),
-    };
+  private removeUnusedLegacyWorkspaces(): void {
+    if (localStorage.getItem(WORKSPACE_UPGRADE_KEY)) return;
+    const orgs = this.getItem<Organization[]>(STORAGE_KEYS.ORGS, []);
+    const stored = Object.keys(localStorage).map((key) => ({
+      key,
+      raw: localStorage.getItem(key) ?? '',
+    }));
+    const rawActiveOrg = localStorage.getItem(STORAGE_KEYS.CURRENT_ORG_ID);
+    const activeOrg = this.getItem(STORAGE_KEYS.CURRENT_ORG_ID, rawActiveOrg);
+    const removable = orgs.filter((org) => {
+      if (!LEGACY_ORGS.has(org.id) || org.createdAt !== org.updatedAt) return false;
+      return stored.every(({ key, raw }) => {
+        if (key === STORAGE_KEYS.ORGS || key === STORAGE_KEYS.CURRENT_ORG_ID) return true;
+        if (key.includes(org.id)) return false;
+        if (!raw.includes(org.id) &&
+          !(key === STORAGE_KEYS.PAYMENT_ALLOCATIONS && org.id === FIRST_LEGACY_ORG && /pay-001|inv-001/.test(raw))) return true;
+        if (!WORKSPACE_STORAGE_KEYS.has(key)) return false;
+        const rows = this.getItem<LegacyRow[] | null>(key, null);
+        if (!Array.isArray(rows)) return false;
+        return rows.every((row) => !row || typeof row !== 'object' ||
+          !belongsToLegacyOrg(row, key, org.id) ||
+          (LEGACY_ROWS.test(row.id ?? '') && !row.archivedAt));
+      });
+    });
+    if (removable.length) {
+      const removedIds = new Set(removable.map(({ id }) => id));
+      for (const key of WORKSPACE_STORAGE_KEYS) {
+        if (key === STORAGE_KEYS.ORGS) continue;
+        const rows = this.getItem<LegacyRow[] | null>(key, null);
+        if (!Array.isArray(rows)) continue;
+        const remaining = rows.filter((row) => !row || typeof row !== 'object' ||
+          !removable.some(({ id }) => belongsToLegacyOrg(row, key, id)));
+        if (remaining.length !== rows.length) this.setItem(key, remaining);
+      }
+      this.setItem(STORAGE_KEYS.ORGS, orgs.filter(({ id }) => !removedIds.has(id)));
+      if (activeOrg && removedIds.has(activeOrg)) localStorage.removeItem(STORAGE_KEYS.CURRENT_ORG_ID);
+      const user = this.getItem<User>(STORAGE_KEYS.CURRENT_USER, LOCAL_OWNER);
+      if (user.id === LOCAL_OWNER.id && user.email === 'vijay@srilakshmielectricals.in' &&
+        ['Vijay Kumar', 'Vijay Kumar (Distributor Admin)'].includes(user.fullName) && !user.avatarUrl) {
+        this.setItem(STORAGE_KEYS.CURRENT_USER, LOCAL_OWNER);
+      }
+      this.initialized = false;
+    }
+    this.setItem(WORKSPACE_UPGRADE_KEY, true);
   }
 
   // --- Multi-tenant context ---
@@ -662,7 +242,7 @@ class StorageEngine {
     memberships.push({
       id: 'mem-' + Date.now(),
       organizationId: newOrg.id,
-      userId: 'u0000000-0000-0000-0000-000000000001',
+      userId: this.getCurrentUser().id,
       role: 'owner',
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -693,7 +273,7 @@ class StorageEngine {
   // --- Current User & Profile ---
   public getCurrentUser(): User {
     this.initialize();
-    return this.getItem<User>(STORAGE_KEYS.CURRENT_USER, DEFAULT_CURRENT_USER);
+    return this.getItem<User>(STORAGE_KEYS.CURRENT_USER, LOCAL_OWNER);
   }
 
   public updateCurrentUser(updates: Partial<User>): User {

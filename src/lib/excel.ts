@@ -155,7 +155,7 @@ function setupWorksheetHeader(
   ws.mergeCells(1, 1, 1, 6);
 
   const defaultSub = `Organization: ${org.name || 'Business'} | Period: ${criteria.periodLabel} (${criteria.startDate} to ${criteria.endDate}) | Mode: ${
-    criteria.isDemoMode ? 'DEMO MODE (Sample Data)' : 'Production Records'
+    criteria.isDemoMode ? 'DEMO MODE (Local Storage Data)' : 'Production Records'
   }`;
 
   const subRow = ws.addRow([customSubtitle ? `${defaultSub} | ${customSubtitle}` : defaultSub]);
@@ -240,7 +240,7 @@ function buildReconciliationSheet(ws: ExcelJS.Worksheet, payload: WorkbookPayloa
   ws.addRow([
     'Execution Environment',
     criteria.isDemoMode
-      ? 'DEMO MODE — SAMPLE DATA ONLY (NOT AUTHENTICATED FINANCIAL RECORDS)'
+      ? 'DEMO MODE — LOCAL STORAGE DATA (NOT AUTHENTICATED FINANCIAL RECORDS)'
       : 'Authoritative Production Database',
   ]);
 

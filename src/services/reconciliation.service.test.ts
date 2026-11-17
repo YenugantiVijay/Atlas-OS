@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { reconciliationService, METRIC_DEFINITIONS } from './reconciliation.service';
 import { storage } from '@/lib/storage';
@@ -8,7 +9,7 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
   });
 
   it('provides statutory and business definitions for all primary metrics', () => {

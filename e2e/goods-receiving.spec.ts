@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
   test.beforeEach(async({page})=>{

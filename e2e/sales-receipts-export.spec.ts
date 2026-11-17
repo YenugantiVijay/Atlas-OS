@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 /**
  * ATLAS OS — Phase B1 End-to-End Test Suite

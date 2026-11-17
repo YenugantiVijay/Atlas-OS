@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './workspace-fixture';
 import { INDUSTRY_TOOLS, isSpecialtyToolId } from '../src/lib/industry-tools';
 
 test('each industry link opens its own dashboard and keeps specialised modules in the correct tool', async ({ page }) => {

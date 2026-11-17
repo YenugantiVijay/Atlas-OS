@@ -179,7 +179,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleDemoMode = () => {
     enterDemoMode();
-    showToast('info', 'Demo Sandbox Active', 'Exploring with offline sample business data.');
+    showToast('info', 'Demo Sandbox Active', 'Your local workspace is ready.');
     onClose();
   };
 
@@ -349,7 +349,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               Offline Demo Sandbox
             </div>
             <div className="text-[11px] text-content-muted truncate">
-              Explore ERP workflows with local sample data without signing in
+              Start an empty local workspace without signing in
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" disabled={isSubmitting} onClick={handleDemoMode}>

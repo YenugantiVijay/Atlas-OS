@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { storage } from './storage';
 import { hasPermission, getRoleBadgeVariant } from './permissions';
@@ -9,7 +10,7 @@ describe('Security & Multi-Tenant Authorization Audit Tests', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize();
+    seedTestStorage();
 
     // Setup two completely isolated organizations
     storage.createOrganization({

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 /**
  * ATLAS OS — Phase A3.3 Task 9: Real-Business Distributor Transaction Lifecycle

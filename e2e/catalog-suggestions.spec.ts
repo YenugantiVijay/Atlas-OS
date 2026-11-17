@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test('Products catalog offers immediate stock and selling-price suggestions with keyboard selection', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));

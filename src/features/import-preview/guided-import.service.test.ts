@@ -115,18 +115,6 @@ describe('Area 4: Low-Friction Onboarding & Guided Spreadsheet Import', () => {
     expect(product).toBeDefined();
   });
 
-  it('seeds standard fast-moving Indian electrical catalog on demand', async () => {
-    const seedRes = await guidedImportService.seedStarterElectricalCatalog(orgId, true);
-    expect(seedRes.seededCount).toBeGreaterThanOrEqual(5);
-
-    const products = storage.getProducts(orgId);
-    const polycabWire = products.find((p) => p.sku === 'POL-W-2.5-RD');
-    expect(polycabWire).toBeDefined();
-    expect(polycabWire?.hsnCode).toBe('8544');
-    expect(polycabWire?.taxRate).toBe(18);
-    expect(polycabWire?.uom).toBe('Coils');
-  });
-
   it('does not claim a cloud import batch was undone when no cloud batch record exists', async () => {
     const result = await guidedImportService.undoImportBatch(orgId, 'cloud-batch-not-tracked');
     expect(result.success).toBe(false);

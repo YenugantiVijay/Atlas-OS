@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   allocateDocumentNumber,
@@ -299,7 +300,7 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
   describe('Local / Demo Mode Numbering Strategy (storage.ts)', () => {
     beforeEach(() => {
       localStorage.clear();
-      storage.initialize();
+      seedTestStorage();
     });
 
     it('allocates deterministic sequential numbers starting at 0001', () => {

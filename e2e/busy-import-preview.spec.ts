@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 import ExcelJS from 'exceljs';
 
 test('previews a BUSY workbook with editable mappings and keeps records local', async ({ page }) => {

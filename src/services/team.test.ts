@@ -1,13 +1,13 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { teamService } from './team.service';
-import { storage } from '@/lib/storage';
 
 describe('Team Service & Member RBAC Operations', () => {
   const orgId = 'org-team-test-01';
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize();
+    seedTestStorage();
   });
 
   it('fetches organization memberships in demo/mock mode', async () => {
