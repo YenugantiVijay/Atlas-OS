@@ -2,10 +2,19 @@ import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { toPaise } from '@/lib/money';
 import { formatChartLabel } from './charts';
-import { Field, inputClass, money, number, panel, text, type Save } from './fields';
+import { Field, inputClass, money, panel, text, type Save } from './fields';
 import type { Till } from './operations';
 
 type Editor = { site: string } | 'new' | null;
+
+function readCashForm(form: HTMLFormElement, enterOpening: boolean) {
+  const fields = new FormData(form);
+  const site = text(fields, 'site');
+  const detail = enterOpening ? text(fields, 'staff') : '';
+  const amount = text(fields, enterOpening ? 'opening' : 'closing');
+  if (!site || (enterOpening && !detail) || !amount || !form.checkValidity()) return null;
+  return { site, detail, amount_paise: toPaise(Number(amount)) };
+}
 
 export function StallCashDesk({
   tills, today, canOpen, canClose, busy, save, onSelectStall,
@@ -19,6 +28,7 @@ export function StallCashDesk({
   onSelectStall: (site: string) => void;
 }) {
   const [editor, setEditor] = useState<Editor>(canOpen && tills.length === 0 ? 'new' : null);
+  const [validFormKey, setValidFormKey] = useState<string | null>(null);
   const till = editor && editor !== 'new' ? tills.find(({ site }) => site === editor.site) : undefined;
   const opening = till?.opening ?? null;
   const closing = till?.counted ?? null;
@@ -26,29 +36,31 @@ export function StallCashDesk({
   const closed = closing !== null;
   const enterOpening = !opened && !closed && canOpen;
   const enterClosing = opened && !closed && canClose;
+  const formKey = JSON.stringify([editor, opened, closed]);
+
+  function changeEditor(next: Editor) {
+    setValidFormKey(null);
+    setEditor(next);
+  }
 
   function select(site: string) {
-    setEditor({ site });
+    changeEditor({ site });
     onSelectStall(site);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enterOpening && !enterClosing) return;
-    const fields = new FormData(event.currentTarget);
-    const site = till?.site ?? text(fields, 'site');
-    const detail = enterOpening ? text(fields, 'staff') : '';
-    if (!site || (enterOpening && !detail)) return;
+    if (busy || (!enterOpening && !enterClosing)) return;
+    const entry = readCashForm(event.currentTarget, enterOpening);
+    if (!entry) return;
     const saved = await save({
       kind: enterOpening ? 'open' : 'close_day',
-      site,
-      detail,
-      amount_paise: toPaise(number(fields, enterOpening ? 'opening' : 'closing')),
+      ...entry,
       sku: '', unit: '', batch: '', reference: '', quantity: 0, method: '', expiry: '',
     });
     if (!saved) return;
-    if (enterOpening) select(site.toUpperCase());
-    else setEditor(null);
+    if (enterOpening) select(entry.site.toUpperCase());
+    else changeEditor(null);
   }
 
   return (
@@ -59,7 +71,7 @@ export function StallCashDesk({
           <p className="mt-1 text-sm text-content-secondary">{formatChartLabel(today)}</p>
         </div>
         {canOpen && (
-          <Button type="button" variant="outline" disabled={busy || editor === 'new'} onClick={() => setEditor('new')}>
+          <Button type="button" variant="outline" disabled={busy || editor === 'new'} onClick={() => changeEditor('new')}>
             Add stall
           </Button>
         )}
@@ -92,12 +104,18 @@ export function StallCashDesk({
         <p role="status" className="mt-3 text-sm text-content-secondary">Loading stall details…</p>
       )}
       {editor && (editor === 'new' || till) && (
-        <form key={JSON.stringify([editor, opened, closed])} aria-label="Stall cash form" className="mt-4 rounded-xl border border-border bg-surface-panel p-4" onSubmit={submit}>
+        <form
+          key={formKey}
+          aria-label="Stall cash form"
+          className="mt-4 rounded-xl border border-border bg-surface-panel p-4"
+          onSubmit={submit}
+          onChange={(event) => setValidFormKey(readCashForm(event.currentTarget, enterOpening) ? formKey : null)}
+        >
           <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
             <Field label="Stall maintainer">
               <input className={inputClass} name="staff" maxLength={120} defaultValue={till?.staff ?? ''} readOnly={!enterOpening} required={enterOpening} />
             </Field>
-            <Field label="Stall location">
+            <Field label="Stall name or location">
               <input className={inputClass} name="site" maxLength={60} defaultValue={till?.site ?? ''} readOnly={Boolean(till)} required />
             </Field>
             <Field label="Opening cash (₹)">
@@ -118,12 +136,12 @@ export function StallCashDesk({
             </p>
           )}
           {enterClosing && <p className="mt-2 text-sm text-content-secondary">Count the cash in the drawer, including opening cash.</p>}
-          {enterOpening && <p className="mt-2 text-sm text-content-secondary">Record closing cash at the end of the shift.</p>}
+          {enterOpening && <p className="mt-2 text-sm text-content-secondary">Enter the maintainer, stall name, and opening cash. Save the opening to unlock closing cash.</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             {(enterOpening || enterClosing) && (
-              <Button type="submit" disabled={busy}>{enterOpening ? 'Save opening cash' : 'Save closing cash'}</Button>
+              <Button type="submit" disabled={busy || validFormKey !== formKey}>{enterOpening ? 'Save opening cash' : 'Save closing cash'}</Button>
             )}
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setEditor(null)}>Hide form</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => changeEditor(null)}>Hide form</Button>
           </div>
         </form>
       )}
