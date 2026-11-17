@@ -160,7 +160,9 @@ class StorageEngine {
   private removeUnusedLegacyWorkspaces(): void {
     if (localStorage.getItem(WORKSPACE_UPGRADE_KEY)) return;
     const orgs = this.getItem<Organization[]>(STORAGE_KEYS.ORGS, []);
-    const stored = Object.keys(localStorage).map((key) => ({
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter((key): key is string => key !== null);
+    const stored = keys.map((key) => ({
       key,
       raw: localStorage.getItem(key) ?? '',
     }));
