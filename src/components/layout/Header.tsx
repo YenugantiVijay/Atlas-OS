@@ -34,6 +34,9 @@ export interface HeaderProps {
 const ROUTE_BREADCRUMBS: Record<string, { section?: string; label: string }> = {
   '/': { label: 'Dashboard' },
   '/support': { label: 'Support' },
+  '/studio-jobs': { section: 'Banner & Print Studio', label: 'Print Job Board' },
+  '/ice-cream-counter': { section: 'Ice Cream Stalls', label: 'Stall Counter' },
+  '/cold-chain': { section: 'Ice Cream Distribution', label: 'Distribution Desk' },
   '/ecommerce': { section: 'Sales Operations', label: 'E-commerce Orders' },
   '/orders': { section: 'Sales Operations', label: 'Sales Orders' },
   '/pos': { section: 'Sales Operations', label: 'Retail Counter' },

@@ -30,7 +30,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
-import { allowsIndustryRoute, useIndustryTool } from '@/hooks/useIndustryTool';
+import { showsIndustryNavigation, useIndustryTool } from '@/hooks/useIndustryTool';
 import { useAttendanceAccess } from '@/hooks/useAttendanceAccess';
 
 export interface SidebarProps {
@@ -60,6 +60,9 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     showHeading: false,
     items: [
       { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+      { label: 'Print Job Board', path: '/studio-jobs', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Stall Counter', path: '/ice-cream-counter', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Distribution Desk', path: '/cold-chain', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Support', path: '/support', icon: <LifeBuoy className="w-[18px] h-[18px]" /> },
     ],
   },
@@ -144,8 +147,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
       NAV_GROUPS_CONFIG
         .map((group) => ({
           ...group,
-          items: group.items.filter(item => allowsIndustryRoute(toolId, item.path) &&
-            (toolId !== 'ecommerce' || item.path !== '/orders') &&
+          items: group.items.filter(item => showsIndustryNavigation(toolId, item.path) &&
             (item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action))),
         }))
         .filter((group) => group.items.length > 0),

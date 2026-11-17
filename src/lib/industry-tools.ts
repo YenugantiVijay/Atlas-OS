@@ -83,6 +83,36 @@ export const INDUSTRY_TOOLS = {
       { label: 'Payments & receipts', detail: 'Record collections and print receipts.', path: '/payments' },
     ],
   },
+  'banner-print-studio': {
+    name: 'Banner & Print Studio',
+    headline: 'Move print jobs from quote to delivery',
+    description: 'Price print jobs by piece or square foot, track artwork approval, and see which jobs are due.',
+    category: 'banner_print_studio',
+    primary: { label: 'New Print Job', path: '/studio-jobs' },
+    tasks: [
+      { label: 'Print job board', detail: 'Quote mixed units and track proof, printing, delivery and balance.', path: '/studio-jobs' },
+    ],
+  },
+  'ice-cream-stalls': {
+    name: 'Ice Cream Stalls',
+    headline: 'Serve customers and close each stall',
+    description: 'Record packaged items, scoops in cups or cones, waste, closing counts and cash and UPI collections by stall.',
+    category: 'ice_cream_stalls',
+    primary: { label: 'Open Stall Counter', path: '/ice-cream-counter' },
+    tasks: [
+      { label: 'Stall counter', detail: 'Record sales, waste and till close against the selected stall.', path: '/ice-cream-counter' },
+    ],
+  },
+  'ice-cream-distribution': {
+    name: 'Ice Cream Distribution',
+    headline: 'Plan bulk orders and track freezer stock',
+    description: 'Receive factory cases by batch and freezer, compare promises with dispatched cases, and record returns and credits.',
+    category: 'ice_cream_distribution',
+    primary: { label: 'Open Distribution Desk', path: '/cold-chain' },
+    tasks: [
+      { label: 'Distribution desk', detail: 'Receive, commit, dispatch and reconcile case quantities in bulk.', path: '/cold-chain' },
+    ],
+  },
 } as const;
 
 export type IndustryToolId = keyof typeof INDUSTRY_TOOLS;
@@ -91,4 +121,14 @@ export type IndustryTaskPath = IndustryTool['tasks'][number]['path'];
 
 export function isIndustryToolId(value: string | null): value is IndustryToolId {
   return value !== null && Object.prototype.hasOwnProperty.call(INDUSTRY_TOOLS, value);
+}
+
+export const SPECIALTY_TOOL_ROUTES = {
+  'banner-print-studio': '/studio-jobs',
+  'ice-cream-stalls': '/ice-cream-counter',
+  'ice-cream-distribution': '/cold-chain',
+} as const;
+export type SpecialtyToolId = keyof typeof SPECIALTY_TOOL_ROUTES;
+export function isSpecialtyToolId(value: string | undefined): value is SpecialtyToolId {
+  return value !== undefined && Object.prototype.hasOwnProperty.call(SPECIALTY_TOOL_ROUTES, value);
 }

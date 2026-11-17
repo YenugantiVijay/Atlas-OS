@@ -25,7 +25,7 @@ import { Product, Supplier, Quotation, SalesOrder } from '@/types';
 import { searchCustomerDirectory, type CustomerDirectorySearchResult } from '@/services/customer-directory-search.service';
 import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
-import { allowsIndustryRoute, toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
+import { showsIndustryNavigation, toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
 import { useDialog } from '@/components/ui/useDialog';
 import { searchFinancialDocuments, type FinancialSearchResult } from '@/services/universal-search.service';
 import { searchOperationalRecords, type OperationalSearchResult } from '@/services/operational-search.service';
@@ -238,6 +238,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Sales Orders', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/orders' },
     { label: 'Retail Counter', icon: <ShoppingCart className="w-4 h-4 text-atlas-600" />, path: '/pos' },
     { label: 'Counter Shift', icon: <Clock3 className="w-4 h-4 text-atlas-600" />, path: '/counter-shift' },
+    { label: 'Print Job Board', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/studio-jobs' },
+    { label: 'Stall Counter', icon: <ShoppingCart className="w-4 h-4 text-atlas-600" />, path: '/ice-cream-counter' },
+    { label: 'Distribution Desk', icon: <Truck className="w-4 h-4 text-atlas-600" />, path: '/cold-chain' },
     { label: 'E-commerce Orders', icon: <ShoppingBag className="w-4 h-4 text-atlas-600" />, path: '/ecommerce' },
     { label: 'Invoices', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/invoices' },
     { label: 'Payments & Receivables', icon: <CreditCard className="w-4 h-4 text-atlas-600" />, path: '/payments' },
@@ -248,7 +251,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => {
     if (item.path === '/') return true;
-    if (!allowsIndustryRoute(tool?.id, item.path) || (tool?.id === 'ecommerce' && item.path === '/orders')) return false;
+    if (!showsIndustryNavigation(tool?.id, item.path)) return false;
     if (item.path === '/pos' || item.path === '/counter-shift') return hasPermission(currentRole, 'orders:create');
     if (['/invoices', '/payments', '/reports/sales-receipts'].includes(item.path)) return hasPermission(currentRole, 'reports:financial');
     if (item.path === '/audit') return hasPermission(currentRole, 'audit:read');

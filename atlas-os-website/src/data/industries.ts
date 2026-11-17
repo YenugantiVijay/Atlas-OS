@@ -342,4 +342,121 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
         example: ['Match the payment reference', 'Record the amount received', 'Review the remaining balance'] },
     ],
   },
+  {
+    "id": "banner-print-studio",
+    "title": "Banner & Print Studio",
+    "badge": "Industry tool",
+    "tagline": "Manage quotes, proof approvals and print deadlines.",
+    "description": "A studio can quote a banner by square foot and sign boards by piece on one job, then track artwork versions, production and payments.",
+    "commonChallenges": [],
+    "howAtlasSolves": [
+      "Mix square-foot and per-piece lines.",
+      "Record the latest artwork reference before approving proof.",
+      "Move approved work through printing, ready and delivery."
+    ],
+    "workflowHighlights": [
+      {
+        "step": "Prepare a quote",
+        "description": "Mix square-foot and per-piece lines.",
+        "example": [
+          "Flex banner · 18 sq ft",
+          "Sign boards · 2 pieces"
+        ]
+      },
+      {
+        "step": "Approve artwork",
+        "description": "Record the latest artwork reference before approving proof.",
+        "example": [
+          "Version 1 · customer requested a correction",
+          "Version 2 · approved for print"
+        ]
+      },
+      {
+        "step": "Schedule production",
+        "description": "Move approved work through printing, ready and delivery.",
+        "example": [
+          "Review Due Today",
+          "Collect the remaining payment"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ice-cream-stalls",
+    "title": "Ice Cream Stalls",
+    "badge": "Industry tool",
+    "tagline": "Serve packaged items and scoops, then reconcile the stall.",
+    "description": "Staff can tap stocked products at the counter, select cup or cone for scoops, record waste and compare counted cash with recorded takings.",
+    "commonChallenges": [],
+    "howAtlasSolves": [
+      "Count packaged items by piece and estimate available scoops.",
+      "Record cash or UPI, and classify wasted stock.",
+      "Count remaining stock and reconcile cash takings."
+    ],
+    "workflowHighlights": [
+      {
+        "step": "Prepare stock",
+        "description": "Count packaged items by piece and estimate available scoops.",
+        "example": [
+          "Chocolate cups · 24 pieces",
+          "Vanilla tub · 20 estimated scoops"
+        ]
+      },
+      {
+        "step": "Record sales and waste",
+        "description": "Record cash or UPI, and classify wasted stock.",
+        "example": [
+          "Vanilla scoop · cone · UPI",
+          "Melted quantity · 2 scoops"
+        ]
+      },
+      {
+        "step": "Close the stall",
+        "description": "Count remaining stock and reconcile cash takings.",
+        "example": [
+          "Counted cash versus recorded cash",
+          "UPI is shown separately"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ice-cream-distribution",
+    "title": "Ice Cream Distribution",
+    "badge": "Industry tool",
+    "tagline": "Track bulk cases from factory receipt to return.",
+    "description": "A distributor can receive cases into named freezers by factory batch and expiry, track case commitments, and dispatch only available, unexpired stock.",
+    "commonChallenges": [],
+    "howAtlasSolves": [
+      "Record a case quantity under a freezer, product and batch.",
+      "Record a customer order reference and dispatch part or all from an available batch.",
+      "Link returns to the shipped batch and record the credit allowance."
+    ],
+    "workflowHighlights": [
+      {
+        "step": "Receive factory cases",
+        "description": "Record a case quantity under a freezer, product and batch.",
+        "example": [
+          "Freezer A · batch VAN-24",
+          "Factory delivery · 3,000 cases"
+        ]
+      },
+      {
+        "step": "Commit and dispatch",
+        "description": "Record a customer order reference and dispatch part or all from an available batch.",
+        "example": [
+          "Outlet order · 1,200 cases committed",
+          "600 dispatched · 600 open"
+        ]
+      },
+      {
+        "step": "Reconcile returns",
+        "description": "Link returns to the shipped batch and record the credit allowance.",
+        "example": [
+          "Quarantine damaged returns",
+          "Restock saleable, unexpired batches"
+        ]
+      }
+    ]
+  },
 ];

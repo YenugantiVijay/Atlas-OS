@@ -1,5 +1,5 @@
 import { useOrg } from '@/features/organizations/OrgContext';
-import { INDUSTRY_TOOLS, isIndustryToolId, type IndustryToolId } from '@/lib/industry-tools';
+import { INDUSTRY_TOOLS, SPECIALTY_TOOL_ROUTES, isIndustryToolId, isSpecialtyToolId, type IndustryToolId } from '@/lib/industry-tools';
 import type { Action } from '@/lib/permissions';
 import type { BusinessCategory } from '@/types';
 
@@ -14,6 +14,9 @@ const toolsByCategory: Partial<Record<BusinessCategory, IndustryToolId>> = {
   general_wholesale: 'retail-wholesale',
   agricultural_inputs: 'agricultural-inputs',
   ecommerce: 'ecommerce',
+  banner_print_studio: 'banner-print-studio',
+  ice_cream_stalls: 'ice-cream-stalls',
+  ice_cream_distribution: 'ice-cream-distribution',
   general_retail: 'small-business',
 };
 
@@ -31,13 +34,30 @@ export function useIndustryTool() {
 }
 
 export function allowsIndustryRoute(tool: IndustryToolId | undefined, path: string) {
+  if (Object.values(SPECIALTY_TOOL_ROUTES).some(route => path === route)) {
+    return isSpecialtyToolId(tool) && SPECIALTY_TOOL_ROUTES[tool] === path;
+  }
   if (!tool) return true;
   if (path === '/pos' || path === '/counter-shift') return tool === 'retail-wholesale';
   if (path === '/ecommerce') return tool === 'ecommerce';
   return true;
 }
 
+const commonSpecialtyLinks = new Set([
+  '/', '/support', '/invoices', '/payments', '/customers', '/reports/sales-receipts',
+  '/team', '/attendance', '/settings', '/audit', ...Object.values(SPECIALTY_TOOL_ROUTES),
+]);
+
+export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {
+  if (!allowsIndustryRoute(tool, path)) return false;
+  if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path);
+  return tool !== 'ecommerce' || path !== '/orders';
+}
+
 export const toolTaskPermissions = {
+  '/studio-jobs': 'data:read',
+  '/ice-cream-counter': 'data:read',
+  '/cold-chain': 'data:read',
   '/quotations': 'data:read',
   '/inventory': 'data:read',
   '/payments': 'reports:financial',
@@ -52,6 +72,6 @@ export const toolTaskPermissions = {
 } as const satisfies Record<import('@/lib/industry-tools').IndustryTaskPath, Action>;
 
 export function toolQuickOrder(tool: ReturnType<typeof useIndustryTool>) {
-  if (tool?.id === 'ecommerce' || tool?.id === 'retail-wholesale') return tool.primary;
+  if (tool && (tool.id === 'ecommerce' || tool.id === 'retail-wholesale' || isSpecialtyToolId(tool.id))) return tool.primary;
   return { label: 'New Sales Order', path: '/orders?action=create' };
 }

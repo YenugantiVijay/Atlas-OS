@@ -17,6 +17,7 @@
  * 11. Disposes of the dedicated test database cleanly in the finally block; exits non-zero on any failure or local DB unavailability.
  */
 
+import { runIndustryWorkspaceAcceptance } from './test-industry-workspaces.mjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1403,6 +1404,8 @@ async function runAcceptance() {
       ('${orgAId}', '${prodA2Id}', 50, 'OPENING_STOCK', 'Acceptance test opening stock');
     `);
     console.log('  ✓ Test fixtures successfully created under administrative privileges.\n');
+
+    await runIndustryWorkspaceAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId });
 
     const ledgerSalesId = crypto.randomUUID();
     await testClient.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [ledgerSalesId, `ledger_sales_${runId}@example.com`]);
