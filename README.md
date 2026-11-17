@@ -186,7 +186,7 @@ On Windows, double-click **`open-atlas.cmd`** in the repository folder. Press **
 
 | Direct launcher | Opens |
 | --- | --- |
-| `preview-website.cmd` | [Website](http://127.0.0.1:4321/) |
+| `preview-website.cmd` | Website on port 4321 or the next available preview port |
 | `preview-tool.cmd` | [ERP Tool](http://127.0.0.1:5173/) |
 | `preview-owner.cmd` | [Owner Portal](http://localhost:5173/owner/) |
 

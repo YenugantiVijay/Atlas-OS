@@ -1,14 +1,16 @@
 import http from 'node:http';
+import net from 'node:net';
 import { getPreviewVersion, previewVersionHeader } from './dev-preview-version.mjs';
 
 const port = Number(process.argv.find(arg => arg.startsWith('--port='))?.split('=')[1] ?? 4321);
 const url = `http://127.0.0.1:${port}/`;
 const probeOnly = process.argv.includes('--probe');
+const selectPort = process.argv.includes('--select-port');
 const expectedVersion = getPreviewVersion();
 
-function probe() {
+function probe(candidatePort) {
   return new Promise((resolve) => {
-    const req = http.get(url, { timeout: 1400, headers: { 'Cache-Control': 'no-cache' } }, (res) => {
+    const req = http.get(`http://127.0.0.1:${candidatePort}/`, { timeout: 1400, headers: { 'Cache-Control': 'no-cache' } }, (res) => {
       if (res.headers[previewVersionHeader] !== expectedVersion) {
         res.resume();
         resolve('occupied');
@@ -34,10 +36,41 @@ function probe() {
   });
 }
 
-let status = await probe();
+function isAvailable(candidatePort) {
+  return new Promise(resolve => {
+    const listener = net.createServer();
+    listener.once('error', () => resolve(false));
+    listener.listen(candidatePort, '127.0.0.1', () => listener.close(() => resolve(true)));
+  });
+}
+
+if (!Number.isInteger(port) || port < 1 || port > (selectPort ? 65526 : 65535)) {
+  console.error('[ERROR] Invalid website preview port.');
+  process.exit(1);
+}
+
+if (selectPort) {
+  const ports = Array.from({ length: 10 }, (_, index) => port + index);
+  const statuses = await Promise.all(ports.map(probe));
+  const readyIndex = statuses.indexOf('ready');
+  if (readyIndex !== -1) {
+    console.log(`ready ${ports[readyIndex]}`);
+    process.exit(0);
+  }
+  for (const [index, candidate] of ports.entries()) {
+    if (statuses[index] === 'waiting' && await isAvailable(candidate)) {
+      console.log(`available ${candidate}`);
+      process.exit(0);
+    }
+  }
+  console.error(`[ERROR] No website preview port is available from ${port} to ${port + 9}.`);
+  process.exit(1);
+}
+
+let status = await probe(port);
 for (let attempt = 1; !probeOnly && status === 'waiting' && attempt < 50; attempt += 1) {
   await new Promise((resolve) => setTimeout(resolve, 350));
-  status = await probe();
+  status = await probe(port);
 }
 
 if (status === 'occupied') {

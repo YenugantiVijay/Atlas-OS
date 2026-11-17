@@ -36,5 +36,6 @@ goto menu
 
 :open_all
 call "%~dp0preview-website.cmd"
+if errorlevel 1 echo [ERROR] Website preview failed. Press W from the menu to retry it separately.
 call "%~dp0preview-tool.cmd" both
 goto menu

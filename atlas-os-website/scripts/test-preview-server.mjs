@@ -49,6 +49,28 @@ test('launcher accepts the current dev server and rejects stale previews with id
   await assert.rejects(probe(), { code: 1 });
 });
 
+test('launcher skips a busy port and reuses the verified fallback preview', async () => {
+  const otherApp = createServer((_request, response) => response.end('Another local app'));
+  const preview = createServer((_request, response) => {
+    response.setHeader(previewVersionHeader, getPreviewVersion());
+    response.end('<title>Atlas OS</title><main id="home-overview">Connected Business Workflow</main>');
+  });
+  await new Promise(resolve => otherApp.listen(0, '127.0.0.1', resolve));
+  const port = otherApp.address().port;
+  const select = () => execFileAsync(process.execPath, ['scripts/wait-for-website.mjs', '--select-port', `--port=${port}`], { cwd: home });
+  try {
+    const { stdout } = await select();
+    assert.match(stdout, /^available \d+\s*$/);
+    const fallback = Number(stdout.trim().split(' ')[1]);
+    assert.ok(fallback > port && fallback <= port + 9);
+    await new Promise((resolve, reject) => preview.listen(fallback, '127.0.0.1', resolve).once('error', reject));
+    assert.equal((await select()).stdout.trim(), `ready ${fallback}`);
+  } finally {
+    if (preview.listening) await new Promise(resolve => preview.close(resolve));
+    await new Promise(resolve => otherApp.close(resolve));
+  }
+});
+
 test('website preview serves only built files and blocks file traversal', {timeout: 20000}, async () => {
   await stat(path.resolve(home, 'dist/index.html'));
   const port = await getPort();

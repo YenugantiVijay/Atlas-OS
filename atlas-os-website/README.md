@@ -106,10 +106,10 @@ See [PR #51 Website Lead Delivery deployment and verification](../docs/PR51_WEBS
 
 1. Open the `atlas-os-website` folder in File Explorer.
 2. Double-click **`preview-website.cmd`**.
-3. The script checks Node/npm, installs dependencies if needed, and opens **http://127.0.0.1:4321/** after verifying that Astro is serving this checkout and Git revision.
+3. The script checks Node/npm, installs dependencies if needed, and opens the verified Astro preview. It uses port 4321 by default and prints the actual address when it selects another port. If your installed Node version is too old for Astro, npm fetches a compatible Node 24 runtime for the website preview.
 4. Keep the Astro server terminal open while previewing. Edits to `src/pages/`, `src/components/` and styles appear with hot reload. The launcher runs Astro in that terminal, even if an earlier session left an Astro lock file.
 
-After pulling updates or switching branches, close the previous **Atlas OS Website Live Server** terminal before reopening the launcher. If port 4321 is already serving a different checkout, an older revision, or a static build, the launcher identifies the conflict. Close the terminal serving that port and try again.
+After pulling updates or switching branches, close the previous **Atlas OS Website Live Server** terminal before reopening the launcher. If another server is using port 4321, the launcher uses another free preview port through 4330. Launching again reuses the verified preview for this checkout and revision.
 
 ### VS Code — live preview (with hot reload)
 
