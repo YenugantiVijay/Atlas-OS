@@ -25,14 +25,14 @@ export function operationChart(tool: SpecialtyToolId, data: Snapshot, stallUnit:
     title: studio
       ? 'Open print jobs by due date'
       : stalls
-        ? 'Sold and wasted over 7 days'
+        ? 'Stock received and sold over 7 days'
         : 'Committed and dispatched cases over 7 days',
     description: studio
       ? 'Prioritize late and same-day jobs. Delivered jobs leave this chart.'
       : stalls
-        ? 'Compare sales with melted, damaged or complimentary stock. Pick one unit at a time.'
+        ? 'Compare incoming stock with sales by unit.'
         : 'Compare new case commitments with actual dispatches. Use open commitments below to see what still needs to ship.',
-    legend: studio ? ['Open jobs'] : stalls ? ['Sold', 'Waste'] : ['Committed', 'Dispatched'],
+    legend: studio ? ['Open jobs'] : stalls ? ['Received', 'Sold'] : ['Committed', 'Dispatched'],
     rows,
     max: Math.max(1, ...rows.flatMap((row) => row.values)),
   };

@@ -385,36 +385,36 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
     "id": "ice-cream-stalls",
     "title": "Ice Cream Stalls",
     "badge": "Industry tool",
-    "tagline": "Serve packaged items and scoops, then reconcile the stall.",
-    "description": "Staff can tap stocked products at the counter, select cup or cone for scoops, record waste and compare counted cash with recorded takings.",
+    "tagline": "Track stall stock and daily cash.",
+    "description": "Assign a staff member, record incoming stock, and track opening and closing cash at each stall.",
     "commonChallenges": [],
     "howAtlasSolves": [
       "Count packaged items by piece and estimate available scoops.",
-      "Record cash or UPI, and classify wasted stock.",
-      "Count remaining stock and reconcile cash takings."
+      "Track cash and UPI sales separately.",
+      "Compare closing cash with opening cash and cash sales."
     ],
     "workflowHighlights": [
       {
-        "step": "Prepare stock",
-        "description": "Count packaged items by piece and estimate available scoops.",
+        "step": "Open the stall",
+        "description": "Enter the stall name, staff member and opening cash.",
         "example": [
-          "Chocolate cups · 24 pieces",
-          "Vanilla tub · 20 estimated scoops"
+          "Market stall · Lakshmi Rao",
+          "Opening cash · ₹500"
         ]
       },
       {
-        "step": "Record sales and waste",
-        "description": "Record cash or UPI, and classify wasted stock.",
+        "step": "Receive stock and record sales",
+        "description": "Track cash and UPI sales separately.",
         "example": [
           "Vanilla scoop · cone · UPI",
-          "Melted quantity · 2 scoops"
+          "Chocolate cups received · 24 pieces"
         ]
       },
       {
         "step": "Close the stall",
-        "description": "Count remaining stock and reconcile cash takings.",
+        "description": "Compare closing cash with opening cash and cash sales.",
         "example": [
-          "Counted cash versus recorded cash",
+          "Closing cash versus expected cash",
           "UPI is shown separately"
         ]
       }

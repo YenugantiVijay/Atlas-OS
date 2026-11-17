@@ -35,11 +35,17 @@ test('studio records mixed-unit work and updates its due-date chart', async ({ p
   await expect(board).toContainText('delivered');
 });
 
-test('stall records a scoop sale, waste and counted cash on mobile', async ({ page }) => {
+test('stall records staff, opening cash, stock and closing cash on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tool=ice-cream-stalls#/ice-cream-counter');
+  await expect(page.getByRole('button', { name: 'Record waste', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open stall', exact: true }).click();
+  await page.getByLabel('Stall name', { exact: true }).fill('Market stall');
+  await page.getByLabel('Staff member', { exact: true }).fill('Lakshmi Rao');
+  await page.getByLabel('Opening cash (₹)').fill('500');
+  await page.getByRole('button', { name: 'Save opening cash' }).click();
+  await expect(page.getByText('Staff on duty: Lakshmi Rao', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Receive stock', exact: true }).click();
-  await page.getByLabel('Stall', { exact: true }).fill('Market stall');
   await page.getByLabel('Product SKU or flavor').fill('Vanilla');
   await page.getByLabel('Stock unit').selectOption('scoop');
   await page.getByLabel('Quantity', { exact: true }).fill('20');
@@ -51,17 +57,18 @@ test('stall records a scoop sale, waste and counted cash on mobile', async ({ pa
   await page.getByLabel('Quantity', { exact: true }).fill('3');
   await page.getByLabel('Amount collected (₹)').fill('90');
   await page.getByRole('button', { name: 'Save sale' }).click();
-  await page.getByRole('button', { name: 'Record waste', exact: true }).click();
-  await page.getByLabel('Quantity', { exact: true }).fill('1');
-  await page.getByRole('button', { name: 'Save waste' }).click();
   await page.getByLabel('Graph unit').selectOption('scoop');
-  const chart = page.getByRole('region', { name: 'Sold and wasted over 7 days' });
+  const chart = page.getByRole('region', { name: 'Stock received and sold over 7 days' });
+  await expect(chart.locator('[aria-label="Received: 20"]')).toHaveCount(1);
   await expect(chart.locator('[aria-label="Sold: 3"]')).toHaveCount(1);
-  await expect(chart.locator('[aria-label="Waste: 1"]')).toHaveCount(1);
+  await expect(page.getByText('Open · Expected cash ₹590.00', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close stall', exact: true }).click();
-  await page.getByLabel('Counted cash takings (₹)').fill('85');
-  await page.getByRole('button', { name: 'Save close' }).click();
-  await expect(page.getByText(/Closed · Counted ₹85.*Difference/)).toBeVisible();
+  await page.getByLabel('Closing cash (₹)').fill('585');
+  await page.getByRole('button', { name: 'Save closing cash' }).click();
+  await expect(page.getByText(/Closed · Closing cash ₹585\.00.*Difference -₹5\.00/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('Staff on duty: Lakshmi Rao', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Closed · Closing cash ₹585\.00.*Difference -₹5\.00/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
 
