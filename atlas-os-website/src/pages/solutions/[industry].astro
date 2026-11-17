@@ -10,6 +10,7 @@ import RequestDemoForm from '../../components/demo/RequestDemoForm';
 import { INDUSTRY_SOLUTIONS } from '../../data/industries';
 import { INDUSTRY_COLORS } from '../../data/industry-colors';
 import { INDUSTRY_PAGES } from '../../data/industry-pages';
+import { industryDownloadHref } from '../../data/industry-downloads';
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
 
 export function getStaticPaths() {
@@ -167,7 +168,7 @@ const questions = [
           <h2 data-reveal class="section-title">Access Atlas OS in your browser</h2>
           <div class="info-card flex items-start gap-4">
             <span class="icon-box"><Smartphone size={22} aria-hidden="true" /></span>
-            <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href="/download" class="mt-2 inline-block text-sm font-semibold text-[var(--industry-accent)] hover:underline">See web and Windows availability</a></div>
+            <div><p>Open your cloud workspace from a supported browser. Your workspace role determines which records and actions you can access.</p><a href={industryDownloadHref(solution.id)} class="mt-2 inline-block text-sm font-semibold text-[var(--industry-accent)] hover:underline">View this tool and downloads</a></div>
           </div>
         </section>
 

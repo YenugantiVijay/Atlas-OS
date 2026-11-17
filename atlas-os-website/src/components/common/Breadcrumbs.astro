@@ -2,6 +2,7 @@
 import { ChevronRight } from 'lucide-react';
 import Container from './Container.astro';
 import { INDUSTRY_NAVIGATION } from '../../data/navigation';
+import { INDUSTRY_TOOLS, industryDownloadHref } from '../../data/industry-downloads';
 import { CALCULATORS } from '../../data/calculators';
 
 import { INVOICE_FORMATS } from '../../data/invoice-formats';
@@ -15,10 +16,12 @@ const labels: Record<string, string> = {
   '/receipt-templates': 'Receipt templates',
 };
 const industry = INDUSTRY_NAVIGATION.find(item => item.href.replace(/\/$/, '') === path);
+const download = Object.entries(INDUSTRY_TOOLS).find(([id]) => industryDownloadHref(id).slice(0, -1) === path);
 const tool = CALCULATORS.find(item => path === '/calculators/' + item.id);
 const invoice = INVOICE_FORMATS.find(item => path === '/invoice-formats/' + item.id);
 const crumbs = [{ label: 'Home', href: '/' }];
 if (industry) crumbs.push({ label: 'Industries', href: '/solutions/' }, { label: industry.label, href: path });
+else if (download) crumbs.push({ label: 'Downloads', href: '/download/' }, { label: download[1].name, href: path });
 else if (tool || path === '/gst-calculator') {
   crumbs.push({ label: 'Resources', href: '/resources/' }, { label: 'Atlas Calculators', href: '/calculators/' },
     { label: tool?.label ?? 'GST Calculator', href: path });

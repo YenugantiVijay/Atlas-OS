@@ -5,12 +5,14 @@ on:
     branches: [main, Vijay-Atlas]
     paths:
       - 'atlas-os-website/**'
+      - 'src/lib/industry-tools.ts'
       - 'supabase/functions/submit-website-lead/**'
       - '.github/workflows/website-ci.yml'
   pull_request:
     branches: [main, Vijay-Atlas]
     paths:
       - 'atlas-os-website/**'
+      - 'src/lib/industry-tools.ts'
       - 'supabase/functions/submit-website-lead/**'
       - '.github/workflows/website-ci.yml'
 
@@ -54,6 +56,7 @@ jobs:
       - name: Build production website
         run: npm run build
         env:
+          PUBLIC_APP_URL: https://app.example.test/
           PUBLIC_LEAD_ENDPOINT: https://api.example.test/functions/v1/submit-website-lead
           PUBLIC_TURNSTILE_SITE_KEY: ci-public-site-key
 

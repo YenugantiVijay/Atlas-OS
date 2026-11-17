@@ -194,6 +194,18 @@ The ERP and Owner Portal share one server. The launchers use staging mode when `
 
 On macOS or Linux, run `npm run dev:staging` for a configured staging checkout or `npm run dev` for development from the repository root, then open the ERP or Owner Portal link above. For the website, install its dependencies and run `npm --prefix atlas-os-website run dev -- --host 127.0.0.1`. For release builds, see the [website build instructions](atlas-os-website/README.md).
 
+### Industry tool workspaces
+
+The industry download pages link to a selected workspace in the shared Atlas OS web app. For example, the Retail & Wholesale Counters preview opens at `http://127.0.0.1:5173/?tool=retail-wholesale#/`. The existing business category selects the default workspace for signed-in users when the link does not name a tool. Roles and tenancy still determine record access.
+
+Set `PUBLIC_APP_URL` in the website build to the public HTTPS URL of the ERP app. The industry pages then offer a browser link and a Windows `.url` shortcut to the matching workspace. For a separate web deployment tied to one tool, use the matching Vite mode and publish its output directory. The tool mode takes priority over the URL selector. For example:
+
+```sh
+npm run build -- --mode tool-retail-wholesale --outDir dist-tools/retail-wholesale
+```
+
+Tool IDs are `electrical`, `electronics`, `hardware`, `retail-wholesale`, `agricultural-inputs`, `ecommerce`, and `small-business`. Supply the deployment's public Supabase settings in the build environment or the corresponding Vite mode environment file.
+
 ### Local development notes
 
 The project includes a local mock-storage implementation for development and demonstration.

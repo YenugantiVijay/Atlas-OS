@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { BusinessVerificationModal } from '@/features/organizations/BusinessVerificationModal';
+import { toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
 import { industryTheme } from '@/lib/industry-theme';
 import { OfflineSyncIndicator } from '@/components/ui/OfflineSyncIndicator';
 
@@ -34,6 +35,7 @@ export const AppLayout: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const navigate = useNavigate();
+  const tool = useIndustryTool();
   const { showToast } = useToast();
   const { check: checkActionPermission } = useActionPermission();
 
@@ -105,13 +107,13 @@ export const AppLayout: React.FC = () => {
         navigate('/quotations?action=create');
         break;
       case 'order':
-        navigate('/orders?action=create');
+        navigate(toolQuickOrder(tool).path);
         break;
       case 'payment':
         navigate('/payments?action=record');
         break;
       default:
-        navigate('/orders?action=create');
+        navigate(toolQuickOrder(tool).path);
     }
   };
 
@@ -181,7 +183,7 @@ export const AppLayout: React.FC = () => {
   }
 
   return (
-    <div style={industryTheme(eligibility?.businessCategory)} className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
+    <div style={industryTheme(tool?.category ?? eligibility?.businessCategory)} className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
       {/* Sidebar (Desktop persistent + Mobile off-canvas drawer) */}
       <Sidebar
         collapsed={collapsed}
@@ -418,9 +420,9 @@ export const AppLayout: React.FC = () => {
               <div className="w-12 h-12 rounded-xl bg-atlas-100 text-atlas-600 mx-auto flex items-center justify-center">
                 <Lock className="w-6 h-6" />
               </div>
-              <h2 className="text-lg font-bold text-content-primary">Authentication Required</h2>
+              <h2 className="text-lg font-bold text-content-primary">{tool ? 'Sign in to ' + tool.name : 'Authentication Required'}</h2>
               <p className="text-xs text-content-secondary leading-relaxed">
-                Atlas OS is configured in Live Cloud mode. Please sign in with your verified Supabase credentials to access your organization data.
+                {tool?.description ?? 'Atlas OS is configured in Live Cloud mode. Sign in to access your organization data.'}
               </p>
               <div className="pt-2 flex flex-col gap-2.5">
                 <Button

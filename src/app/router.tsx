@@ -3,6 +3,7 @@ import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AppLayout, RouteLoadingFallback } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { allowsIndustryRoute, useIndustryTool } from '@/hooks/useIndustryTool';
 import { hasPermission, Action } from '@/lib/permissions';
 
 // Code-split feature modules for production bundle optimization and fast initial shell render
@@ -107,6 +108,11 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
   return children;
 };
 
+function IndustryRoute({ path, children }: { path: string; children: React.ReactElement }) {
+  const tool = useIndustryTool();
+  return allowsIndustryRoute(tool?.id, path) ? children : <Navigate to="/" replace />;
+}
+
 function RouteFailure() {
   return (
     <section className="mx-auto max-w-xl rounded-2xl border border-border bg-surface-card p-6" aria-labelledby="route-failure-title">
@@ -154,9 +160,9 @@ export const router = createHashRouter([
         { path: 'quotations', element: <QuotationsPage /> },
         { path: 'orders', element: <OrdersPage key="all-orders" /> },
         { path: 'support', element: <SupportReportsPage /> },
-        { path: 'ecommerce', element: <RequirePermission action="data:read"><OrdersPage key="online-orders" onlineOnly /></RequirePermission> },
-        { path: 'pos', element: <RequirePermission action="orders:create"><RetailPosPage /></RequirePermission> },
-        { path: 'counter-shift', element: <RequirePermission action="orders:create"><CounterShiftPage /></RequirePermission> },
+        { path: 'ecommerce', element: <RequirePermission action="data:read"><IndustryRoute path="/ecommerce"><OrdersPage key="online-orders" onlineOnly /></IndustryRoute></RequirePermission> },
+        { path: 'pos', element: <RequirePermission action="orders:create"><IndustryRoute path="/pos"><RetailPosPage /></IndustryRoute></RequirePermission> },
+        { path: 'counter-shift', element: <RequirePermission action="orders:create"><IndustryRoute path="/counter-shift"><CounterShiftPage /></IndustryRoute></RequirePermission> },
         { path: 'invoices', element: <RequirePermission action="reports:financial"><InvoicesPage /></RequirePermission> },
         { path: 'payments', element: <RequirePermission action="reports:financial"><PaymentsPage /></RequirePermission> },
         { path: 'ai', element: <AIPage /> },

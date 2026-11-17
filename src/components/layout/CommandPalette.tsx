@@ -4,6 +4,8 @@ import {
   Search,
   LayoutDashboard,
   ShoppingCart,
+  ShoppingBag,
+  Clock3,
   Boxes,
   ClipboardList,
   FileText,
@@ -23,6 +25,7 @@ import { Product, Supplier, Quotation, SalesOrder } from '@/types';
 import { searchCustomerDirectory, type CustomerDirectorySearchResult } from '@/services/customer-directory-search.service';
 import { hasPermission, Action } from '@/lib/permissions';
 import { useActionPermission } from '@/hooks/useActionPermission';
+import { allowsIndustryRoute, toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
 import { useDialog } from '@/components/ui/useDialog';
 import { searchFinancialDocuments, type FinancialSearchResult } from '@/services/universal-search.service';
 import { searchOperationalRecords, type OperationalSearchResult } from '@/services/operational-search.service';
@@ -43,6 +46,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
+  const tool = useIndustryTool();
   const { currentOrg, currentRole, isMockAuth, isAuthenticated, currentUser } = useOrg();
   const { check: checkActionPermission } = useActionPermission();
   const [products, setProducts] = useState<Product[]>([]);
@@ -233,6 +237,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Quotations', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/quotations' },
     { label: 'Sales Orders', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/orders' },
     { label: 'Retail Counter', icon: <ShoppingCart className="w-4 h-4 text-atlas-600" />, path: '/pos' },
+    { label: 'Counter Shift', icon: <Clock3 className="w-4 h-4 text-atlas-600" />, path: '/counter-shift' },
+    { label: 'E-commerce Orders', icon: <ShoppingBag className="w-4 h-4 text-atlas-600" />, path: '/ecommerce' },
     { label: 'Invoices', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/invoices' },
     { label: 'Payments & Receivables', icon: <CreditCard className="w-4 h-4 text-atlas-600" />, path: '/payments' },
     { label: 'Sales & Receipts Reports', icon: <FileSpreadsheet className="w-4 h-4 text-atlas-600" />, path: '/reports/sales-receipts' },
@@ -242,7 +248,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Audit Trail', icon: <ShieldCheck className="w-4 h-4 text-atlas-600" />, path: '/audit' },
   ].filter((item) => {
     if (item.path === '/') return true;
-    if (item.path === '/pos') return hasPermission(currentRole, 'orders:create');
+    if (!allowsIndustryRoute(tool?.id, item.path) || (tool?.id === 'ecommerce' && item.path === '/orders')) return false;
+    if (item.path === '/pos' || item.path === '/counter-shift') return hasPermission(currentRole, 'orders:create');
     if (['/invoices', '/payments', '/reports/sales-receipts'].includes(item.path)) return hasPermission(currentRole, 'reports:financial');
     if (item.path === '/audit') return hasPermission(currentRole, 'audit:read');
     return hasPermission(currentRole, 'data:read');
@@ -252,7 +259,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'New Product', type: 'product', action: 'products:create' as Action },
     { label: 'New Customer', type: 'customer', action: 'customers:manage' as Action },
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
-    { label: 'New Sales Order', type: 'order', action: 'orders:create' as Action },
+    { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
   ].filter((item) => checkActionPermission(item.action).allowed &&
     item.label.toLowerCase().includes(query.trim().toLowerCase()));

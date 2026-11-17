@@ -5,7 +5,7 @@ import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import { INDUSTRY_SOLUTIONS } from '../data/industries';
 import { INDUSTRY_COLORS } from '../data/industry-colors';
-import { industryHref } from '../data/navigation';
+import { industryDownloadHref } from '../data/industry-downloads';
 ---
 
 <BaseLayout title="Industry Solutions — Atlas OS for Retail, Wholesale & Distribution"
@@ -19,10 +19,10 @@ import { industryHref } from '../data/navigation';
       <ul data-reveal-group class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {INDUSTRY_SOLUTIONS.map(industry => (
           <li id={industry.id} style={`--industry-accent:${INDUSTRY_COLORS[industry.id as keyof typeof INDUSTRY_COLORS].color};--industry-tint:${INDUSTRY_COLORS[industry.id as keyof typeof INDUSTRY_COLORS].tint}`}>
-            <a href={industryHref(industry.id)} class="flex h-full flex-col gap-3 rounded-2xl border border-border bg-[var(--industry-tint)] p-5 hover:border-[var(--industry-accent)] sm:p-6">
+            <a href={industryDownloadHref(industry.id)} class="flex h-full flex-col gap-3 rounded-2xl border border-border bg-[var(--industry-tint)] p-5 hover:border-[var(--industry-accent)] sm:p-6">
               <h2 class="font-heading text-xl font-bold">{industry.title}</h2>
               <p class="text-sm leading-relaxed text-content-secondary">{industry.tagline}</p>
-              <span class="mt-auto inline-flex items-center gap-2 text-sm font-semibold text-[var(--industry-accent)]">Explore this industry <ArrowRight size={16} aria-hidden="true" /></span>
+              <span class="mt-auto inline-flex items-center gap-2 text-sm font-semibold text-[var(--industry-accent)]">View tool and downloads <ArrowRight size={16} aria-hidden="true" /></span>
             </a>
           </li>
         ))}

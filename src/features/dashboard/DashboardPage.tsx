@@ -10,11 +10,13 @@ import {
   Plus,
   Sparkles,
   ChevronRight,
+  ArrowRight,
   IndianRupee,
   Clock,
   CheckCircle2,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { toolTaskPermissions, useIndustryTool } from '@/hooks/useIndustryTool';
 import { useActionPermission } from '@/hooks/useActionPermission';
 import { hasPermission } from '@/lib/permissions';
 import { dashboardService } from '@/services/dashboard.service';
@@ -29,10 +31,16 @@ import { ReconciliationCard } from '@/features/dashboard/ReconciliationCard';
 import { QuickStartGuide } from '@/features/onboarding/QuickStartGuide';
 
 export const DashboardPage: React.FC = () => {
-  const { currentOrg, isMockAuth, currentRole, eligibility, currentUser } = useOrg();
+  const { currentOrg, isMockAuth, currentRole, currentUser } = useOrg();
   const canSeeFinancialBalances = hasPermission(currentRole, 'reports:financial');
   const { check } = useActionPermission();
   const navigate = useNavigate();
+  const tool = useIndustryTool();
+  const primary = tool?.primary ?? { label: 'New Sales Order', path: '/orders?action=create' };
+  const dailyTasks = tool?.tasks.filter(task => hasPermission(currentRole, toolTaskPermissions[task.path]));
+  const orderList = tool?.id === 'ecommerce' ? '/ecommerce' : '/orders';
+  const primaryPermission = primary.path.startsWith('/quotations') ? 'quotations:create'
+    : primary.path === '/receiving' ? 'inventory:receive' : 'orders:create';
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [salesTrend, setSalesTrend] = useState<SalesTrendPoint[]>([]);
   const [receivablesSummary, setReceivablesSummary] = useState<ReceivablesSummary | null>(null);
@@ -131,23 +139,23 @@ export const DashboardPage: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-teal-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                Operations Center
+                {tool?.name ?? 'Operations Center'}
               </span>
               <span className="text-xs font-medium text-slate-300">
                 {isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              {currentOrg?.name || 'Operations Workspace'}
+              {tool?.headline ?? (currentOrg?.name || 'Operations Workspace')}
             </h1>
             <p className="text-sm text-slate-300/90 max-w-xl leading-relaxed">
-              Real-time operational command for inventory movements, sales orders, and financial workflows.
+              {tool?.description ?? 'Real-time operational command for inventory movements, sales orders, and financial workflows.'}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             {(() => {
-              const orderPerm = check('orders:create');
+              const orderPerm = check(primaryPermission);
               return (
                 <Button
                   variant="primary"
@@ -156,13 +164,13 @@ export const DashboardPage: React.FC = () => {
                   title={!orderPerm.allowed ? orderPerm.message : undefined}
                   onClick={() => {
                     if (orderPerm.allowed) {
-                      navigate('/orders?action=create');
+                      navigate(primary.path);
                     }
                   }}
                   leftIcon={<Plus className="w-4 h-4" />}
                   className="h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-semibold shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                 >
-                  New Sales Order
+                  {primary.label}
                 </Button>
               );
             })()}
@@ -179,22 +187,25 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Onboarding & Quick Setup */}
-      <QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} />
+      {dailyTasks && dailyTasks.length > 0 && (
+        <section aria-labelledby="tool-workflows">
+          <h2 id="tool-workflows" className="mb-3 text-lg font-bold">
+            {tool?.id === 'small-business' ? 'Shop essentials' : 'Daily workflows'}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {dailyTasks.map(task => (
+              <button key={task.path} type="button" onClick={() => navigate(task.path)}
+                className="group flex min-h-28 items-start justify-between gap-3 rounded-xl border border-border bg-surface-card p-4 text-left transition-colors hover:border-atlas-400 hover:bg-atlas-50">
+                <span><span className="block font-semibold">{task.label}</span>
+                  <span className="mt-1 block text-sm text-content-secondary">{task.detail}</span></span>
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-atlas-700" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {eligibility?.businessCategory === 'general_retail' && <Card>
-        <CardHeader><CardTitle>Shop essentials</CardTitle></CardHeader>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {[
-            { label: 'Products & stock', path: '/products', allowed: check('data:read').allowed },
-            { label: 'Sales counter', path: '/pos', allowed: hasPermission(currentRole, 'orders:create') },
-            { label: 'Customers', path: '/customers', allowed: check('data:read').allowed },
-            { label: 'Invoices', path: '/invoices', allowed: canSeeFinancialBalances },
-            { label: 'Payments & receipts', path: '/payments', allowed: canSeeFinancialBalances },
-          ].filter((item) => item.allowed).map((item) => <Button key={item.path} type="button" variant="outline" size="sm"
-            className="h-auto min-h-10 whitespace-normal px-2" onClick={() => navigate(item.path)}>{item.label}</Button>)}
-        </div>
-      </Card>}
+      <QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} />
 
       {/* Actionable Alerts (Low Stock Warning Banner) */}
       {metrics.lowStockItemsCount > 0 && (
@@ -370,7 +381,7 @@ export const DashboardPage: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/orders')}
+              onClick={() => navigate(orderList)}
               rightIcon={<ChevronRight className="w-4 h-4" />}
               className="text-xs text-teal-700 hover:text-teal-900"
             >
@@ -387,7 +398,7 @@ export const DashboardPage: React.FC = () => {
               {metrics.recentOrders.map((order) => (
                 <div
                   key={order.id}
-                  onClick={() => navigate('/orders')}
+                  onClick={() => navigate(orderList)}
                   className="py-3.5 flex items-center justify-between hover:bg-slate-50/80 rounded-lg px-2.5 -mx-2.5 cursor-pointer transition-colors"
                 >
                   <div className="space-y-0.5">
