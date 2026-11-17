@@ -63,6 +63,7 @@ jobs:
       - name: Run Master Database Lifecycle & Security Acceptance
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/postgres
+          ATLAS_TEST_RESTORE: '1'
         run: npm run test:db
 
       - name: Run Unit & Integration Tests (Vitest)

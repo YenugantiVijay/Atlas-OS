@@ -44,6 +44,7 @@ import { runStaffAdvancesAcceptance } from './staff_advances_acceptance.mjs';
 import { runInvoiceRolesAcceptance } from './invoice_roles_acceptance.mjs';
 import { runLedgerReconciliationAcceptance } from './ledger_reconciliation_acceptance.mjs';
 import { runEcommercePlatformAdminAcceptance } from './ecommerce_platform_admin_acceptance.mjs';
+import { runDisposableRestoreAcceptance } from './disposable_restore_acceptance.mjs';
 import { runOwnerConsoleAcceptance } from './owner_console_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
 
@@ -1260,6 +1261,8 @@ async function runAcceptance() {
 
   const runId = 'sec_' + crypto.randomBytes(4).toString('hex');
   const testDbName = `atlas_test_${runId}`;
+  const testDbUrl = new URL(DATABASE_URL);
+  testDbUrl.pathname = '/' + testDbName;
 
   // Parse maintenance database endpoint
   const maintUrl = new URL(DATABASE_URL);
@@ -1297,8 +1300,6 @@ async function runAcceptance() {
     testDbCreated = true;
     console.log(`  ✓ Dedicated test database "${testDbName}" created successfully.`);
 
-    const testDbUrl = new URL(DATABASE_URL);
-    testDbUrl.pathname = '/' + testDbName;
 
     testClient = new Client({
       connectionString: testDbUrl.toString(),
@@ -4730,6 +4731,18 @@ async function runAcceptance() {
     await runIndustryReceiptsAcceptance({ client: testClient, withRoleContext, recordTest });
     await runEcommercePlatformAdminAcceptance({ client: testClient, withRoleContext, recordTest });
     await runOwnerConsoleAcceptance({ client: testClient, withRoleContext, recordTest });
+
+    if (process.env.ATLAS_TEST_RESTORE === '1') {
+      try {
+        const details = await runDisposableRestoreAcceptance({
+          client: testClient, maintenance: maintClient, sourceUrl: testDbUrl,
+          Client, withRoleContext,
+        });
+        recordTest('RESTORE-01', 'An isolated logical restore preserves operations data and owner access boundaries', true, details);
+      } catch (error) {
+        recordTest('RESTORE-01', 'An isolated logical restore preserves operations data and owner access boundaries', false, null, error);
+      }
+    }
 
     // ------------------------------------------------------------------------
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030
