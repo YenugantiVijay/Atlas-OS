@@ -106,6 +106,8 @@ BEGIN
       IF EXISTS (SELECT 1 FROM atlas_private.ice_events WHERE organization_id=p_org AND tool=p_tool AND site=site_name AND day=trade_day AND ice_events.kind='close')
       THEN RAISE EXCEPTION 'This stall is already closed for today'; END IF;
       IF kind IN ('open','close','close_day') THEN
+        IF kind IN ('open','close_day') AND jsonb_typeof(p_command->'amount_paise') IS DISTINCT FROM 'number'
+        THEN RAISE EXCEPTION 'Enter the cash amount'; END IF;
         SELECT EXISTS (
           SELECT 1 FROM atlas_private.ice_events
           WHERE organization_id=p_org AND tool=p_tool AND site=site_name AND day=trade_day AND ice_events.kind='open'

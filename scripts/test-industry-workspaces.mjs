@@ -72,6 +72,7 @@ export async function runIndustryWorkspaceAcceptance({
   await report('IND-02', 'Named staff, opening and closing cash, stock and UPI isolation', async () => {
     const entry = { site: 'stall one', sku: 'vanilla', unit: 'scoop' };
     const opening = { site: entry.site, kind: 'open', detail: 'Lakshmi Rao', amount_paise: 50000 };
+    await assert.rejects(save(stalls, { ...opening, amount_paise: undefined }), /enter the cash amount/i);
     await assert.rejects(save(stalls, { site: entry.site, kind: 'close_day', amount_paise: 0 }), /record opening cash/i);
     const openId = randomUUID();
     await save(stalls, opening, openId);
