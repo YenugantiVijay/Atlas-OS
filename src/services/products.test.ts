@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { productsService } from './products.service';
 import { storage } from '@/lib/storage';
@@ -53,7 +54,7 @@ describe('Products Service — DEF-002 Opening Stock Movement Type Regression Te
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     mockSupabaseInstance = null;
     vi.clearAllMocks();
   });

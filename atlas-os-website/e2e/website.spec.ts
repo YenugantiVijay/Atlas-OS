@@ -100,10 +100,9 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     }
   });
 
-  test('product screenshots and industry photos load as responsive local images', async ({ page }) => {
+  test('industry photos load as responsive local images', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const examples = [
-      { path: '/product', labels: [/Inventory preview/, /GST invoice preview/] },
       { path: '/solutions/electronics/', labels: [/worker checking parts/] },
       { path: '/solutions/small-business/', labels: [/small general store/] },
     ];
@@ -122,49 +121,21 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     }
   });
 
-  test('2. Interactive Concept Preview on Homepage switches tabs and displays realistic data', async ({ page }) => {
+  test('2. Interactive workspace preview switches between empty views', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
+    await expect(page.getByText('No sales recorded yet.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Bharat Electricals & Hardware Ltd.', { exact: false })).toHaveCount(0);
 
-    // Verify top window chrome and badges
-    await expect(page.locator('text=Bharat Electricals & Hardware Ltd.')).toBeVisible();
-    await expect(page.locator('text=Atlas OS Desktop Edition Preview')).toBeVisible();
-
-    // Verify initial dashboard tab is rendered with KPI cards and ₹ amounts
-    await expect(page.locator('text=Executive Dashboard').first()).toBeVisible();
-    await expect(page.locator('text=₹48,24,500')).toBeVisible();
-    await expect(page.locator('text=₹12,40,250')).toBeVisible();
-    await expect(page.locator('text=₹36,18,900')).toBeVisible();
-    await expect(page.locator('text=₹14,92,000')).toBeVisible();
-
-    // Verify monthly revenue progression chartlet
-    await expect(page.locator('text=Revenue Progression (FY 26-27)')).toBeVisible();
-
-    // Verify recent commercial transactions and status badges
-    await expect(page.locator('text=Gayatri Electrical Contractors').first()).toBeVisible();
-    await expect(page.locator('text=Paid in Full').first()).toBeVisible();
-    await expect(page.locator('text=Partially Paid (₹1.5L Rec.)').first()).toBeVisible();
-
-    // Click on Commercial Invoicing tab
-    await page.click('button:has-text("Commercial Invoicing")');
-    await expect(page.locator('text=Statutory Tax Invoice Details')).toBeVisible();
-    await expect(page.locator('text=Polycab 2.5 sq mm FR-LSH Copper Wire (Red)')).toBeVisible();
-
-    // Click on Multi-UOM Inventory tab
-    await page.click('button:has-text("Multi-UOM Inventory")');
-    await expect(page.locator('text=Polycab 2.5mm Wire (Red 90m)')).toBeVisible();
-    await expect(page.locator('text=Schneider Acti9 32A 3-Pole MCB')).toBeVisible();
-
-    // Click on Customer Receivables tab
-    await page.click('button:has-text("Customer Receivables")');
-    await expect(page.locator('text=Total Active Debtors')).toBeVisible();
-    await expect(page.locator('text=32 Accounts')).toBeVisible();
-
-    // Click on 1-Click Excel Exports tab
-    await page.click('button:has-text("1-Click Excel Exports")');
-    await expect(page.getByText('Sample reporting workbook', { exact: true })).toBeVisible();
-    await expect(page.getByText('Preview of five report sheets', { exact: true })).toBeVisible();
-    await expect(page.getByText('Export .XLSX (Multi-Sheet)', { exact: true })).toHaveCount(0);
-    await expect(page.locator('text=FY 2026-27')).toBeVisible();
+    for (const [tab, state] of [
+      ['Commercial Invoicing', 'No invoices created yet.'],
+      ['Multi-UOM Inventory', 'No products added yet.'],
+      ['Customer Receivables', 'No customer balances yet.'],
+      ['1-Click Excel Exports', 'No records available to export.'],
+    ]) {
+      await page.getByRole('button', { name: tab, exact: true }).click();
+      await expect(page.getByText(state, { exact: true })).toBeVisible();
+    }
   });
 
   test('About and search metadata describe verified capabilities and trial availability', async ({ page }) => {

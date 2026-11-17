@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test as unseededTest } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', () => {
   test.beforeEach(async ({ page }) => {
@@ -135,4 +136,15 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     // 5. Confirm newly recorded receipt appears in the table
     await expect(page.getByText('UPI-E2E-TEST-9988')).toBeVisible();
   });
+});
+
+
+unseededTest('an unseeded browser opens an empty local workspace', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Explore Demo Sandbox' }).click();
+  await expect(page.getByRole('heading', { name: 'Local workspace', exact: true })).toBeVisible();
+  await expect(page.getByText('Sri Lakshmi Electrical Distributors')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Products & SKUs' }).click();
+  await expect(page.getByText('Products & Catalog')).toBeVisible();
+  await expect(page.getByText('POL-W-2.5-RD')).toHaveCount(0);
 });

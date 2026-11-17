@@ -506,24 +506,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       setCurrentRole(activeMem ? activeMem.role : null);
 
-      setEligibility({
-        organizationId: found.id,
-        businessCategory: 'electrical_retail',
-        sellsElectricalProducts: true,
-        productLines: ['Wires & Cables', 'Switches & Sockets', 'LED Lighting'],
-        status: 'approved',
-        declaredAt: found.createdAt,
-        declaredBy: user.id,
-      });
-
-      setSubscription({
-        organizationId: found.id,
-        status: 'trialing',
-        planTier: 'trial',
-        trialStartedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        trialEndsAt: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
-        paymentMethodEntered: false,
-      });
+      setEligibility(null);
+      setSubscription(null);
     } else {
       setMemberships([]);
       setCurrentRole(null);

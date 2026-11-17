@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './workspace-fixture';
 
 test('opens Purchase Orders from inventory and directs demo users to cloud sign-in', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));

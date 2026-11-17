@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { coreWorkflowService } from './core-workflow.service';
 import { storage } from '@/lib/storage';
@@ -8,7 +9,7 @@ describe('Area 1: Seamless Core Workflows & Financial Lifecycle', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
   });
 
   it('executes seamless lifecycle: quotation -> order -> confirm -> invoice -> payment', async () => {

@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 /**
  * Inventory Service & Sprint 1 Stock Invariant Test Suite
  *
@@ -42,7 +43,7 @@ describe('Inventory Integrity & Stock Mutation Invariant Suite (Sprint 1)', () =
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     mockSupabaseInstance = null;
     vi.clearAllMocks();
 

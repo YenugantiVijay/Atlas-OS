@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { productsService, mapDbProduct } from './products.service';
 import { customersService, mapDbCustomer } from './customers.service';
@@ -13,7 +14,7 @@ describe('Data-Access Layer Services (Phase C & D)', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
   });
 
   describe('Products Service', () => {

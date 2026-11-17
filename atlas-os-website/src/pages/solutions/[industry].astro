@@ -119,21 +119,13 @@ const questions = [
                 class="workflow-tab px-3 py-2 text-sm font-semibold">{item.step}</button>)}
             </div>
             {workflow.map((item, i) => (
-              <div id={'workflow-panel-' + i} class="grid gap-5 border-b border-border p-5 last:border-0 sm:p-7 xl:grid-cols-2 xl:items-center">
+              <div id={'workflow-panel-' + i} class="grid gap-5 border-b border-border p-5 last:border-0 sm:p-7">
                 <div class="space-y-3">
                   <h3 class="font-heading text-xl font-bold">{item.step}</h3>
                   <p class="leading-relaxed text-content-secondary">{item.description}</p>
                   <a href="#walkthrough" class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--industry-accent)] hover:underline">See the walkthrough <ArrowRight size={16} aria-hidden="true" /></a>
                 </div>
-                <div class="rounded-2xl border border-brand-200 bg-brand-50 p-4">
-                  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p class="flex items-center gap-2 text-xs font-semibold text-brand-900"><Package size={15} aria-hidden="true" /> {item.step}</p>
-                    <span class="text-xs text-content-secondary">Sample data</span>
-                  </div>
-                  <ul class="divide-y divide-brand-200 rounded-lg bg-white px-3 text-sm text-content-secondary">
-                    {item.example.map(row => <li class="py-2">{row}</li>)}
-                  </ul>
-                </div>
+
               </div>
             ))}
           </div>

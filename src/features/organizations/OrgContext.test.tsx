@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -11,7 +12,6 @@ import {
   mapDbEligibility,
   mapDbSubscription,
 } from './OrgContext';
-import { storage } from '@/lib/storage';
 
 interface QueryMockInstance {
   then: (resolve: (val: unknown) => unknown, reject: (err: unknown) => unknown) => Promise<unknown>;
@@ -104,7 +104,7 @@ describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Con
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     vi.clearAllMocks();
 
     mockFromFn.mockImplementation((table: string) => {

@@ -1,5 +1,38 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { storage } from './storage';
+
+describe('Empty local workspaces', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('starts with an empty business ledger', () => {
+    const [workspace] = storage.getOrganizations();
+    expect(workspace.name).toBe('Local workspace');
+    expect(storage.getProducts(workspace.id)).toEqual([]);
+    expect(storage.getCustomers(workspace.id)).toEqual([]);
+    expect(storage.getSalesOrders(workspace.id)).toEqual([]);
+    expect(storage.getInvoices(workspace.id)).toEqual([]);
+  });
+
+  it('removes the untouched legacy sample workspaces on upgrade', () => {
+    seedTestStorage();
+    localStorage.removeItem('atlas_empty_workspace_upgrade_v1');
+    expect(storage.getOrganizations().map(({ name }) => name)).toEqual(['Local workspace']);
+    expect(JSON.parse(localStorage.getItem('atlas_payment_allocations_v1') ?? '[]')).toEqual([]);
+    expect(storage.getCurrentUser().fullName).toBe('Local owner');
+  });
+
+  it('preserves a legacy workspace that contains user-created records', () => {
+    seedTestStorage();
+    const workspaceId = storage.getOrganizations()[0].id;
+    const key = 'atlas_sales_orders_v1';
+    const orders = JSON.parse(localStorage.getItem(key) ?? '[]');
+    localStorage.setItem(key, JSON.stringify([...orders, { id: 'user-order', organizationId: workspaceId }]));
+    localStorage.removeItem('atlas_empty_workspace_upgrade_v1');
+    expect(storage.getOrganizations().map(({ id }) => id)).toEqual([workspaceId]);
+    expect(JSON.parse(localStorage.getItem(key) ?? '[]')).toContainEqual({ id: 'user-order', organizationId: workspaceId });
+  });
+});
 
 describe('Storage Engine Multi-Tenant & Transaction Integrity', () => {
   const orgA = 'test-org-a';
@@ -7,7 +40,7 @@ describe('Storage Engine Multi-Tenant & Transaction Integrity', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize();
+    seedTestStorage();
   });
 
   it('guarantees tenant isolation: Org A cannot view Org B products or orders', () => {

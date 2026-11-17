@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 /**
  * ATLAS OS — Phase A3.3 Task 9: Real-Business Distributor Transaction Lifecycle
@@ -59,6 +59,7 @@ test.describe('ATLAS OS — Complete Distributor Transaction Lifecycle (Phase A3
     await prodDialog.getByLabel('Product Title & Description').fill('Finolex 4.0 sq mm Industrial Copper Cable (90m Blue)');
     await prodDialog.getByLabel('Purchase Cost (₹)').fill('2800');
     await prodDialog.getByLabel('Selling Price (₹)').fill('3400');
+    await prodDialog.getByLabel('GST Tax Rate (%)').fill('18');
 
     await prodDialog.getByRole('button', { name: 'Create Product' }).click();
     await expect(prodDialog).not.toBeVisible();

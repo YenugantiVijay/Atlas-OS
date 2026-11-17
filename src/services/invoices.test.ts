@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { invoicesService, CreateInvoiceInput } from './invoices.service';
 import { storage } from '@/lib/storage';
@@ -22,7 +23,7 @@ describe('Invoices Service & Atomic Invoice Creation (DEF-001 Repair)', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    storage.initialize(true);
+    seedTestStorage();
     mockSupabaseInstance = null;
     vi.clearAllMocks();
   });

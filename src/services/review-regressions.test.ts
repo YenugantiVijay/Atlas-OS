@@ -1,3 +1,4 @@
+import { seedTestStorage } from '@/test/storage-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { productsService, mapDbProduct } from './products.service';
 import { customersService, mapDbCustomer } from './customers.service';
@@ -71,7 +72,7 @@ describe('Review: truthful cloud reads', () => {
 
 it('does not recognize draft orders as sales before confirmation', () => {
   localStorage.clear();
-  storage.initialize(true);
+  seedTestStorage();
   const orgId = storage.getOrganizations()[0].id;
   const before = storage.getDashboardMetrics(orgId).todaySales;
   const product = storage.getProducts(orgId)[0];

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('PR #53 — Retail Counter billing workstation', () => {
   test.beforeEach(async ({ page }) => {

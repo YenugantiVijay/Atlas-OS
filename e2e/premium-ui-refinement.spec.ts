@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
   test.beforeEach(async ({ page }) => {

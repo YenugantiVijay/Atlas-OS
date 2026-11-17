@@ -116,7 +116,6 @@ atlas-os/
 │   └── test/                # Test setup
 ├── supabase/
 │   ├── migrations/          # Versioned database schema
-│   └── seed.sql             # Development seed data
 ├── docs/                    # Architecture, security and setup docs
 ├── e2e/                     # Intended browser-test location
 ├── package.json

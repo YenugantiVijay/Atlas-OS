@@ -372,7 +372,7 @@ export const AppLayout: React.FC = () => {
                 </div>
               )}
 
-              {!eligibility && !authError && !isSwitchingOrg && (
+              {!isDemoMode && !eligibility && !authError && !isSwitchingOrg && (
                 <div
                   className="mb-5 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-950 text-xs flex items-center justify-between gap-3 animate-in fade-in"
                   data-testid="eligibility-missing-banner"

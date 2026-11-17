@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './workspace-fixture';
 
 test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Phase 1)', () => {
   test.beforeEach(async ({ page }) => {
@@ -203,6 +203,7 @@ test.describe('ATLAS OS — Create Record Reliability & Permission Hardening (Ph
       await dialog.getByLabel('Product Title & Description').fill('Finolex 4.0 sq mm Flexible Cable');
       await dialog.getByLabel('Purchase Cost (₹)').fill('3200');
       await dialog.getByLabel('Selling Price (₹)').fill('3800');
+      await dialog.getByLabel('GST Tax Rate (%)').fill('18');
 
       await dialog.getByRole('button', { name: 'Create Product' }).click();
       await expect(dialog).not.toBeVisible();
