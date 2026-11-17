@@ -182,16 +182,17 @@ Use the correct public key type supported by your Supabase project and the appli
 
 ### 4. Open a local preview
 
-On Windows, double-click a launcher in the Atlas OS repository folder.
+On Windows, double-click **`open-atlas.cmd`** in the repository folder. Press **W** for Website, **E** for ERP Tool, **O** for Owner Portal, or **A** to open all three tabs.
 
-| Launcher | Opens |
+| Direct launcher | Opens |
 | --- | --- |
-| `preview-tool.cmd` | ERP at `http://127.0.0.1:5173/` |
-| `preview-website.cmd` | Marketing website at `http://127.0.0.1:4321/` |
+| `preview-website.cmd` | [Website](http://127.0.0.1:4321/) |
+| `preview-tool.cmd` | [ERP Tool](http://127.0.0.1:5173/) |
+| `preview-owner.cmd` | [Owner Portal](http://localhost:5173/owner/) |
 
-Keep the server windows open while you work. Both previews reload when you edit local files. Pull the latest changes in Git when you want updates from GitHub, then restart your preview. For a website release build, see the [website build instructions](atlas-os-website/README.md).
+The ERP and Owner Portal share one server. The launchers use staging mode when `.env.staging` or `.env.staging.local` exists and development mode otherwise. The Owner Portal requires a configured Supabase project and an enrolled owner account. Keep the server windows open for live reload. After switching branches or pulling new commits, close the old server windows and reopen the launcher.
 
-On macOS or Linux, run `npm run dev` at the repository root for the ERP. Run `npm --prefix atlas-os-website run dev` for the website after installing its dependencies in that folder.
+On macOS or Linux, run `npm run dev:staging` for a configured staging checkout or `npm run dev` for development from the repository root, then open the ERP or Owner Portal link above. For the website, install its dependencies and run `npm --prefix atlas-os-website run dev -- --host 127.0.0.1`. For release builds, see the [website build instructions](atlas-os-website/README.md).
 
 ### Local development notes
 

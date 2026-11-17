@@ -1,10 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { getPreviewIdentity, previewIdentityHeader } from './scripts/dev-server-identity.mjs';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'atlas-erp-preview-identity',
+    configureServer(server) {
+      const identity = getPreviewIdentity(mode);
+      server.middlewares.use((_request, response, next) => {
+        response.setHeader(previewIdentityHeader, identity);
+        next();
+      });
+    },
+  }],
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
