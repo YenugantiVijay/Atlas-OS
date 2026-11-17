@@ -3,7 +3,7 @@ import { toPaise } from '@/lib/money';
 import { Button } from '@/components/ui/Button';
 import type { IceInput, Snapshot } from './operations';
 import { Field, Text, NumberField, inputClass, money, panel, text, number, type Save } from './fields';
-import { formatChartLabel } from './charts';
+import { StallCashDesk } from './StallCashDesk';
 
 const eventLabels = {
   receive: 'Receive stock',
@@ -20,17 +20,17 @@ const eventLabels = {
 const submitLabels = {
   receive: 'Save receipt',
   sale: 'Save sale',
-  open: 'Save opening cash',
-  close_day: 'Save closing cash',
   count: 'Save stock count',
   promise: 'Save commitment',
   dispatch: 'Save dispatch',
   return: 'Save return',
 } as const;
-const choicesFor = (distribution: boolean): IceInput['kind'][] =>
+type StockAction = Exclude<IceInput['kind'], 'open' | 'close_day'>;
+
+const choicesFor = (distribution: boolean): StockAction[] =>
   distribution
     ? ['receive', 'promise', 'dispatch', 'return']
-    : ['open', 'receive', 'sale', 'count', 'close_day'];
+    : ['receive', 'sale', 'count'];
 
 export function IceDesk({
   snapshot,
@@ -47,34 +47,31 @@ export function IceDesk({
   distribution: boolean;
   role?: string | null;
 }) {
+  const managesStalls = ['owner', 'admin'].includes(role ?? '');
   const choices = choicesFor(distribution).filter(
     (kind) =>
-      ['owner', 'admin'].includes(role ?? '') ||
+      managesStalls ||
       (role === 'inventory' && ['receive', 'count'].includes(kind)) ||
-      (role === 'sales' && ['sale', 'close_day', 'promise', 'dispatch'].includes(kind)) ||
-      (role === 'accounts' && ['return', 'close_day'].includes(kind)),
+      (role === 'sales' && ['sale', 'promise', 'dispatch'].includes(kind)) ||
+      (role === 'accounts' && kind === 'return'),
   );
-  const [selected, setSelected] = useState<IceInput['kind']>(distribution ? 'receive' : 'open');
+  const [selected, setSelected] = useState<StockAction>('receive');
   const [site, setSite] = useState('');
   const [sku, setSku] = useState('');
   const [unit, setUnit] = useState('piece');
   const kind = choices.includes(selected) ? selected : choices[0];
   const stock = snapshot.stock ?? [];
-  const cashAction = kind === 'open' || kind === 'close_day';
-  const selectedTill = snapshot.tills?.find((till) => till.site === site.trim().toUpperCase());
-  const openStalls = snapshot.tills?.filter((till) => till.opening != null && till.counted === null) ?? [];
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!kind || (!cashAction && !sku.trim()) || !site.trim()) return;
+    if (!kind || !sku.trim() || !site.trim()) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
     if (
       await save({
         kind,
         site: site.trim(),
-        sku: cashAction ? '' : sku.trim(),
-        unit: distribution ? 'case' : cashAction ? '' : unit,
+        sku: sku.trim(),
+        unit: distribution ? 'case' : unit,
         batch: distribution && kind !== 'promise' ? text(fields, 'batch') : '',
         quantity: number(fields, 'quantity'),
         reference: text(fields, 'reference'),
@@ -89,12 +86,23 @@ export function IceDesk({
 
   return (
     <>
+      {!distribution && (
+        <StallCashDesk
+          key={snapshot.today}
+          tills={snapshot.tills ?? []}
+          today={snapshot.today}
+          canOpen={canWrite && managesStalls}
+          canClose={canWrite && (managesStalls || role === 'sales' || role === 'accounts')}
+          busy={busy}
+          save={save}
+          onSelectStall={setSite}
+        />
+      )}
       {canWrite && choices.length > 0 && (
         <section className={panel} aria-labelledby="ice-operation">
           <h2 id="ice-operation" className="text-lg font-bold">
             {distribution ? 'Distribution desk' : 'Stall counter'}
           </h2>
-          {!distribution && <p className="mt-1 text-sm text-content-secondary">{formatChartLabel(snapshot.today)}</p>}
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Operations">
             {choices.map((choice) => (
               <Button
@@ -144,58 +152,39 @@ export function IceDesk({
                   value={site}
                   onChange={(event) => setSite(event.target.value)}
                   maxLength={60}
-                  list={kind === 'close_day' && openStalls.length ? 'open-stall-names' : undefined}
                   required
                 />
               </Field>
-              {kind === 'close_day' && openStalls.length > 0 && (
-                <datalist id="open-stall-names">
-                  {openStalls.map((till) => <option key={till.site} value={till.site} />)}
-                </datalist>
+              <Field label="Product SKU or flavor">
+                <input
+                  className={inputClass}
+                  value={sku}
+                  onChange={(event) => setSku(event.target.value)}
+                  maxLength={80}
+                  required
+                />
+              </Field>
+              {distribution ? (
+                kind !== 'promise' && <Text name="batch" label="Factory batch" maxLength={60} />
+              ) : (
+                <Field label="Stock unit">
+                  <select
+                    className={inputClass}
+                    value={unit}
+                    onChange={(event) => setUnit(event.target.value)}
+                  >
+                    <option value="piece">Packaged piece</option>
+                    <option value="scoop">Estimated scoop</option>
+                  </select>
+                </Field>
               )}
-              {kind === 'open' && <Text name="detail" label="Staff member" maxLength={120} />}
-              {kind === 'close_day' && selectedTill?.staff && (
-                <p className="self-center text-sm text-content-secondary">
-                  Staff on duty: <strong>{selectedTill.staff}</strong>
-                  {selectedTill.opening != null && (
-                    <span className="block">Expected cash {money(selectedTill.opening + selectedTill.cash)}</span>
-                  )}
-                </p>
-              )}
-              {!cashAction && (
-                <>
-                  <Field label="Product SKU or flavor">
-                    <input
-                      className={inputClass}
-                      value={sku}
-                      onChange={(event) => setSku(event.target.value)}
-                      maxLength={80}
-                      required
-                    />
-                  </Field>
-                  {distribution ? (
-                    kind !== 'promise' && <Text name="batch" label="Factory batch" maxLength={60} />
-                  ) : (
-                    <Field label="Stock unit">
-                      <select
-                        className={inputClass}
-                        value={unit}
-                        onChange={(event) => setUnit(event.target.value)}
-                      >
-                        <option value="piece">Packaged piece</option>
-                        <option value="scoop">Estimated scoop</option>
-                      </select>
-                    </Field>
-                  )}
-                  <NumberField
-                    name="quantity"
-                    label={kind === 'count' ? 'Counted quantity' : distribution ? 'Cases' : 'Quantity'}
-                    min={kind === 'count' ? 0 : 1}
-                    max={100000000}
-                    step="1"
-                  />
-                </>
-              )}
+              <NumberField
+                name="quantity"
+                label={kind === 'count' ? 'Counted quantity' : distribution ? 'Cases' : 'Quantity'}
+                min={kind === 'count' ? 0 : 1}
+                max={100000000}
+                step="1"
+              />
               {kind === 'receive' && distribution && (
                 <Field label="Batch expiry">
                   <input
@@ -245,36 +234,23 @@ export function IceDesk({
                   </select>
                 </Field>
               )}
-              {(cashAction || kind === 'sale' || kind === 'return') && (
+              {(kind === 'sale' || kind === 'return') && (
                 <NumberField
                   name="amount"
-                  label={
-                    kind === 'open'
-                      ? 'Opening cash (₹)'
-                      : kind === 'close_day'
-                        ? 'Closing cash (₹)'
-                        : kind === 'return'
-                          ? 'Credit allowance (₹)'
-                          : 'Amount collected (₹)'
-                  }
+                  label={kind === 'return' ? 'Credit allowance (₹)' : 'Amount collected (₹)'}
                   min={kind === 'sale' ? 0.01 : 0}
                   max={100000000}
                   step="0.01"
                 />
               )}
             </fieldset>
-            {kind === 'close_day' && (
-              <p className="mt-2 text-sm text-content-secondary">
-                Enter the total cash in the drawer, including the opening cash. UPI is separate.
-              </p>
-            )}
             <Button type="submit" className="mt-4" disabled={busy}>
               {submitLabels[kind]}
             </Button>
           </form>
         </section>
       )}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className={distribution ? 'grid gap-4 xl:grid-cols-2' : undefined}>
         <section className={panel}>
           <h2 className="text-lg font-bold">
             {distribution ? 'Stock by freezer and batch' : 'Stock by stall'}
@@ -306,11 +282,9 @@ export function IceDesk({
             <p className="text-sm text-content-secondary">Receive stock to populate this list.</p>
           )}
         </section>
-        <section className={panel}>
-          <h2 className="text-lg font-bold">
-            {distribution ? 'Open case commitments' : 'Today’s till by stall'}
-          </h2>
-          {distribution ? (
+        {distribution && (
+          <section className={panel}>
+            <h2 className="text-lg font-bold">Open case commitments</h2>
             <ul className="mt-3 max-h-96 divide-y overflow-y-auto">
               {snapshot.orders?.map((order) => (
                 <li key={order.reference + '/' + order.sku} className="break-words py-2 text-sm">
@@ -324,35 +298,11 @@ export function IceDesk({
                 </li>
               ))}
             </ul>
-          ) : (
-            <ul className="mt-3 max-h-96 divide-y overflow-y-auto">
-              {snapshot.tills?.map((till) => {
-                const expected = (till.opening ?? 0) + till.cash;
-                return (
-                  <li key={till.site} className="break-words py-2 text-sm">
-                    <strong>{till.site}</strong>
-                    {till.staff && <p>Staff on duty: {till.staff}</p>}
-                    <p>
-                      {till.opening == null ? 'Opening cash not recorded' : `Opening cash ${money(till.opening)}`}
-                      {' · '}Cash sales {money(till.cash)} · UPI {money(till.upi)}
-                    </p>
-                    {till.counted === null ? (
-                      <p>{till.opening == null ? 'Opening pending' : `Open · Expected cash ${money(expected)}`}</p>
-                    ) : (
-                      <p>
-                        Closed · {till.opening == null ? 'Counted takings' : 'Closing cash'} {money(till.counted)}
-                        {' · '}Difference {money(till.counted - expected)}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {!(distribution ? snapshot.orders?.length : snapshot.tills?.length) && (
-            <p className="text-sm text-content-secondary">No entries to display.</p>
-          )}
-        </section>
+            {!snapshot.orders?.length && (
+              <p className="text-sm text-content-secondary">No entries to display.</p>
+            )}
+          </section>
+        )}
       </div>
       <section className={panel}>
         <h2 className="text-lg font-bold">Recent activity</h2>

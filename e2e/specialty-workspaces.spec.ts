@@ -35,16 +35,36 @@ test('studio records mixed-unit work and updates its due-date chart', async ({ p
   await expect(board).toContainText('delivered');
 });
 
-test('stall records staff, opening cash, stock and closing cash on mobile', async ({ page }) => {
+test('a manager opens two stall forms and saves each closing amount separately on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tool=ice-cream-stalls#/ice-cream-counter');
   await expect(page.getByRole('button', { name: 'Record waste', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Open stall', exact: true }).click();
-  await page.getByLabel('Stall name', { exact: true }).fill('Market stall');
-  await page.getByLabel('Staff member', { exact: true }).fill('Lakshmi Rao');
-  await page.getByLabel('Opening cash (₹)').fill('500');
-  await page.getByRole('button', { name: 'Save opening cash' }).click();
-  await expect(page.getByText('Staff on duty: Lakshmi Rao', { exact: true })).toBeVisible();
+  const cash = page.getByRole('region', { name: 'Daily stall cash' });
+  const form = cash.getByRole('form', { name: 'Stall cash form' });
+
+  await form.getByLabel('Stall location').fill('Market stall');
+  await form.getByLabel('Stall maintainer').fill('Lakshmi Rao');
+  await form.getByLabel('Opening cash (₹)').fill('500');
+  await expect(form.getByLabel('Closing cash (₹)')).toBeDisabled();
+  await form.getByRole('button', { name: 'Save opening cash' }).click();
+  const market = cash.getByRole('button', { name: /Market stall.*Lakshmi Rao/i });
+  await expect(market).toContainText('Closing cash pending');
+  await expect(form.getByLabel('Stall maintainer')).toHaveValue('Lakshmi Rao');
+  await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('');
+  await form.getByRole('button', { name: 'Hide form' }).click();
+  await expect(form).toBeHidden();
+  await cash.getByRole('button', { name: 'Add stall' }).click();
+  await form.getByLabel('Stall location').fill('Park gate');
+  await form.getByLabel('Stall maintainer').fill('Ravi Kumar');
+  await form.getByLabel('Opening cash (₹)').fill('0');
+  await form.getByRole('button', { name: 'Save opening cash' }).click();
+  const park = cash.getByRole('button', { name: /Park gate.*Ravi Kumar/i });
+  await expect(park).toContainText('Closing cash pending');
+
+  await page.reload();
+  await market.click();
+  await expect(form.getByLabel('Opening cash (₹)')).toHaveValue('500');
+  await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('');
   await page.getByRole('button', { name: 'Receive stock', exact: true }).click();
   await page.getByLabel('Product SKU or flavor').fill('Vanilla');
   await page.getByLabel('Stock unit').selectOption('scoop');
@@ -61,14 +81,25 @@ test('stall records staff, opening cash, stock and closing cash on mobile', asyn
   const chart = page.getByRole('region', { name: 'Stock received and sold over 7 days' });
   await expect(chart.locator('[aria-label="Received: 20"]')).toHaveCount(1);
   await expect(chart.locator('[aria-label="Sold: 3"]')).toHaveCount(1);
-  await expect(page.getByText('Open · Expected cash ₹590.00', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close stall', exact: true }).click();
-  await page.getByLabel('Closing cash (₹)').fill('585');
-  await page.getByRole('button', { name: 'Save closing cash' }).click();
-  await expect(page.getByText(/Closed · Closing cash ₹585\.00.*Difference -₹5\.00/)).toBeVisible();
+  await expect(form.getByText(/Expected cash ₹590\.00/)).toBeVisible();
+
+  await form.getByLabel('Closing cash (₹)').fill('585');
+  await form.getByRole('button', { name: 'Save closing cash' }).click();
+  await expect(market).toContainText('Closed');
+  await expect(park).toContainText('Closing cash pending');
+
+  await park.click();
+  await expect(form.getByLabel('Stall maintainer')).toHaveValue('Ravi Kumar');
+  await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('');
+  await form.getByLabel('Closing cash (₹)').fill('0');
+  await form.getByRole('button', { name: 'Save closing cash' }).click();
+  await expect(park).toContainText('Closed');
+
   await page.reload();
-  await expect(page.getByText('Staff on duty: Lakshmi Rao', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Closed · Closing cash ₹585\.00.*Difference -₹5\.00/)).toBeVisible();
+  await market.click();
+  await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('585');
+  await expect(form.getByText('Difference -₹5.00', { exact: true })).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Save closing cash' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });
 
