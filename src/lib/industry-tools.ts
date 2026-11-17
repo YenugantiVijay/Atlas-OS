@@ -1,8 +1,8 @@
 export const INDUSTRY_TOOLS = {
   electrical: {
     name: 'Electrical Distribution',
-    headline: 'From contractor quotes to collections',
-    description: 'Quote wires and switchgear, check stock before confirming orders, and track customer credit and collections.',
+    headline: 'Sales & Inventory',
+    description: 'Create quotes, check stock, and track payments.',
     category: 'electrical_wholesale_distributor',
     primary: { label: 'New Quotation', path: '/quotations?action=create' },
     tasks: [
