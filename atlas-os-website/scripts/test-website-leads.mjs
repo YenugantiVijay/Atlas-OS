@@ -148,6 +148,46 @@ test('rejects invalid payloads, bot honeypot and oversized requests', async () =
   assert.equal(calls.length, 0);
 });
 
+test('rejects an oversized streamed body in bytes before any external API calls', async () => {
+  const { handler, calls } = fixture();
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const request = new Request('https://example.supabase.co/functions/v1/submit-website-lead', {
+    method: 'POST',
+    headers: { origin, 'content-type': 'application/json' },
+    duplex: 'half',
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('₹'.repeat(3000)));
+        controller.enqueue(encoder.encode('₹'.repeat(1001)));
+      },
+      cancel() { cancelled = true; },
+    }),
+  });
+  assert.equal((await handler(request)).status, 413);
+  assert.equal(cancelled, true);
+  assert.equal(calls.length, 0);
+});
+
+test('accepts verification data when a Unicode character spans body chunks', async () => {
+  const { handler, calls } = fixture();
+  const input = buildRequest('contact', { ...contacts.contact, message: 'Shipping quote for ₹500' });
+  const bytes = new Uint8Array(await input.arrayBuffer());
+  const split = bytes.indexOf(226) + 1;
+  const request = new Request(input.url, {
+    method: 'POST', headers: input.headers, duplex: 'half',
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes.subarray(0, split));
+        controller.enqueue(bytes.subarray(split));
+        controller.close();
+      },
+    }),
+  });
+  assert.equal((await handler(request)).status, 200);
+  assert.match(JSON.parse(calls.find(call => call.url.endsWith('/emails')).init.body).text, /₹500/);
+});
+
 test('CAPTCHA action and hostname must match request', async () => {
   for (const challenge of [
     { success: false, action: 'lead_contact', hostname: 'atlasos.business' },

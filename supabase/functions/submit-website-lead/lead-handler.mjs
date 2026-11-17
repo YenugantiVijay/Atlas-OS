@@ -5,6 +5,7 @@
  * a localStorage entry was created or that an inbox delivery is guaranteed.
  */
 const emailPattern = /^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/;
+const maxBodyBytes = 12_000;
 const types = new Set(['contact', 'demo', 'release']);
 
 const clean = (value, max = 500) =>
@@ -60,6 +61,28 @@ const json = (body, status, headers) =>
     status, headers: { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
+/** Read at most maxBodyBytes, including when the request has no Content-Length. */
+async function readLeadBody(req) {
+  const reader = req.body?.getReader();
+  if (!reader) return '';
+  const buffer = new Uint8Array(maxBodyBytes);
+  let length = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length));
+      if (value.byteLength > maxBodyBytes - length) {
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      buffer.set(value, length);
+      length += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function hashSubject(salt, subject) {
   const input = new TextEncoder().encode(salt + ':' + subject);
   const digest = await crypto.subtle.digest('SHA-256', input);
@@ -96,13 +119,13 @@ export function createLeadHandler({ env, fetchImpl = fetch } = {}) {
       return failure(503, 'Enquiry delivery is not configured yet. Please try again later.', cors);
     }
 
-    if (Number(req.headers.get('content-length') || 0) > 12000) {
+    if (Number(req.headers.get('content-length') || 0) > maxBodyBytes) {
       return failure(413, 'Enquiry is too large.', cors);
     }
     let incoming;
     try {
-      const body = await req.text();
-      if (body.length > 12000) return failure(413, 'Enquiry is too large.', cors);
+      const body = await readLeadBody(req);
+      if (body === null) return failure(413, 'Enquiry is too large.', cors);
       incoming = JSON.parse(body);
     } catch {
       return failure(400, 'Invalid request data.', cors);

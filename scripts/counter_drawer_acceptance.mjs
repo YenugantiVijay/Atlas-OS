@@ -5,6 +5,9 @@ export async function runCounterDrawerAcceptance({ client, withRoleContext, reco
   const org = randomUUID();
   const product = randomUUID();
   const customer = randomUUID();
+  const receiver = randomUUID();
+  const supplier = randomUUID();
+  const receipt = randomUUID();
   const as = (userId, fn) => withRoleContext(client, { userId, role: userId ? 'authenticated' : 'anon' }, fn);
   const asOwner = fn => as(ownerAId, fn);
   const one = async (sql, args) => (await client.query(sql, args)).rows[0].result;
@@ -26,16 +29,16 @@ export async function runCounterDrawerAcceptance({ client, withRoleContext, reco
   [org, product]).then(result => result.rows[0]);
 
   await client.query("INSERT INTO public.organizations(id,name) VALUES ($1,'Drawer acceptance business')", [org]);
-  await client.query(`INSERT INTO public.memberships(organization_id,user_id,role) VALUES ($1,$2,'owner'),($1,$3,'sales')`,
-    [org, ownerAId, salesAId]);
+  await client.query("INSERT INTO auth.users(id,email) VALUES($1,$2)", [receiver, receiver + '@example.test']);
+  await client.query(`INSERT INTO public.memberships(organization_id,user_id,role)
+    VALUES ($1,$2,'owner'),($1,$3,'sales'),($1,$4,'inventory')`, [org, ownerAId, salesAId, receiver]);
   await client.query(`INSERT INTO public.organization_eligibility(organization_id,business_category,sells_electrical_products,status,declared_by)
     VALUES ($1,'general_retail',false,'approved',$2)`, [org, ownerAId]);
   await client.query('INSERT INTO public.organization_subscriptions(organization_id) VALUES ($1)', [org]);
   await client.query("INSERT INTO public.customers(id,organization_id,name) VALUES ($1,$2,'Counter customer')", [customer, org]);
   await client.query(`INSERT INTO public.products(id,organization_id,name,sku,category,uom,purchase_cost,selling_price,tax_rate,is_active)
     VALUES ($1,$2,'Counter product','DRAWER-TEST','General','Nos',50,100,18,true)`, [product, org]);
-  await client.query(`INSERT INTO public.stock_movements(organization_id,product_id,quantity_change,movement_type)
-    VALUES ($1,$2,10,'OPENING_STOCK')`, [org, product]);
+  await client.query("INSERT INTO public.suppliers(id,organization_id,name) VALUES ($1,$2,'Counter supplier')", [supplier, org]);
   const shift = (await as(salesAId, () => open(500))).id;
   const unrelated = (await client.query(`INSERT INTO public.payments(organization_id,payment_number,customer_id,amount,payment_method)
     VALUES ($1,'SYNTHETIC-WHOLESALE',$2,350,'CASH') RETURNING id`, [org, customer])).rows[0].id;
@@ -50,6 +53,20 @@ export async function runCounterDrawerAcceptance({ client, withRoleContext, reco
       recordTest(id, name, false, null, error);
     }
   }
+
+  await check('DAY-01', 'Inventory staff receive the stock that will be sold and reconciled at the counter', async () => {
+    assert.equal((await counts()).stock, null);
+    const items = JSON.stringify([{ productId: product, packageCounts: [4, 4], looseUnits: 2, unitCost: 50 }]);
+    const draft = await as(receiver, () => one(`SELECT public.save_goods_receipt_draft(
+      $1,$2,$3,'PILOT-RECEIVING',CURRENT_DATE,'Delivery for counter checkout',$4) AS result`, [org, receipt, supplier, items]));
+    assert.equal(draft.status, 'DRAFT');
+    assert.equal((await counts()).stock, null);
+    const post = () => one('SELECT public.post_goods_receipt($1,$2) AS result', [org, receipt]);
+    const posted = await as(receiver, post);
+    assert.equal(posted.status, 'POSTED');
+    assert.equal((await as(receiver, post)).idempotent_replay, true);
+    assert.equal((await counts()).stock, 10);
+  });
 
   await check('DRAWER-01', 'Drawer receipt reads exclude separate business payments and manual links are closed', async () => {
     assert.equal((await as(salesAId, () => receipts(shift))).rowCount, 0);
@@ -94,6 +111,7 @@ export async function runCounterDrawerAcceptance({ client, withRoleContext, reco
     const closed = await as(salesAId, () => close(shift, 607.90));
     assert.equal(closed.expected_cash, 607.90);
     assert.equal(closed.variance, 0);
+    assert.deepEqual(await counts(), { orders: 2, invoices: 2, payments: 3, stock: 8 });
     assert.equal((await as(salesAId, () => receipts(shift))).rowCount, 2);
     assert.deepEqual(await asOwner(() => checkout(shift, cashRequest)), completed);
     const rejected = await asOwner(() => checkout(shift, randomUUID()));

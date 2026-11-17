@@ -4,11 +4,12 @@ import { randomUUID } from 'node:crypto';
 export async function runOwnerConsoleAcceptance({ client, withRoleContext, recordTest }) {
   const [owner, staff, visitor, spare] = Array.from({ length: 4 }, () => randomUUID());
   const asUser = (userId, callback, options = {}) => withRoleContext(client, { userId, ...options }, callback);
-  const asOwner = callback => asUser(owner, async () => {
-    await client.query("SELECT set_config('request.jwt.claims',$1,false)", [JSON.stringify({ aal: 'aal2', sub: owner })]);
+  const withMfa = (userId, callback) => asUser(userId, async () => {
+    await client.query("SELECT set_config('request.jwt.claims',$1,false)", [JSON.stringify({ aal: 'aal2', sub: userId })]);
     try { return await callback(); }
     finally { await client.query("SELECT set_config('request.jwt.claims','',false)"); }
   });
+  const asOwner = callback => withMfa(owner, callback);
   const request = async (action, fields = {}) => (
     await client.query('SELECT public.owner_console_request($1,$2) AS data', [action, JSON.stringify(fields)])
   ).rows[0].data;
@@ -37,6 +38,18 @@ export async function runOwnerConsoleAcceptance({ client, withRoleContext, recor
     await assert.rejects(client.query('INSERT INTO atlas_private.owner_console_accounts(slot,user_id) VALUES(4,$1)', [spare]), { code: '23514' });
     await assert.rejects(client.query('INSERT INTO atlas_private.owner_console_accounts(slot,user_id) VALUES(1,$1)', [spare]), { code: '23505' });
     assert.equal((await asOwner(() => request('overview'))).months.length, 6);
+  });
+
+  await check('OWNER-05', 'A separate emergency owner seat works with MFA and loses access when revoked', async () => {
+    await client.query('INSERT INTO atlas_private.owner_console_accounts(slot,user_id) VALUES(2,$1)', [spare]);
+    try {
+      await assert.rejects(asUser(spare, () => request('overview')), { code: '42501' });
+      assert.equal((await withMfa(spare, () => request('overview'))).months.length, 6);
+    } finally {
+      await client.query('DELETE FROM atlas_private.owner_console_accounts WHERE slot=2 AND user_id=$1', [spare]);
+    }
+
+    await assert.rejects(withMfa(spare, () => request('overview')), { code: '42501' });
   });
 
   await check('OWNER-02', 'Support sources share one owner inbox while ERP reporters can only see their own reports', async () => {
