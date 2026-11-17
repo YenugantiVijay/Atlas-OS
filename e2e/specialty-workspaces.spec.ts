@@ -42,19 +42,29 @@ test('a manager opens two stall forms and saves each closing amount separately o
   const cash = page.getByRole('region', { name: 'Daily stall cash' });
   const form = cash.getByRole('form', { name: 'Stall cash form' });
 
-  await form.getByLabel('Stall location').fill('Market stall');
-  await form.getByLabel('Stall maintainer').fill('Lakshmi Rao');
+  const saveOpening = form.getByRole('button', { name: 'Save opening cash' });
+  const saveClosing = form.getByRole('button', { name: 'Save closing cash' });
+  const closingCash = form.getByLabel('Closing cash (₹)');
+  await expect(saveOpening).toBeDisabled();
+  await expect(closingCash).toBeDisabled();
+  await form.getByLabel('Stall name or location').fill('Market stall');
+  await form.getByLabel('Stall maintainer').fill('   ');
   await form.getByLabel('Opening cash (₹)').fill('500');
-  await expect(form.getByLabel('Closing cash (₹)')).toBeDisabled();
-  await form.getByRole('button', { name: 'Save opening cash' }).click();
+  await expect(saveOpening).toBeDisabled();
+  await form.getByLabel('Stall maintainer').fill('Lakshmi Rao');
+  await expect(saveOpening).toBeEnabled();
+  await expect(closingCash).toBeDisabled();
+  await saveOpening.click();
   const market = cash.getByRole('button', { name: /Market stall.*Lakshmi Rao/i });
   await expect(market).toContainText('Closing cash pending');
   await expect(form.getByLabel('Stall maintainer')).toHaveValue('Lakshmi Rao');
-  await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('');
+  await expect(closingCash).toBeEnabled();
+  await expect(closingCash).toHaveValue('');
+  await expect(saveClosing).toBeDisabled();
   await form.getByRole('button', { name: 'Hide form' }).click();
   await expect(form).toBeHidden();
   await cash.getByRole('button', { name: 'Add stall' }).click();
-  await form.getByLabel('Stall location').fill('Park gate');
+  await form.getByLabel('Stall name or location').fill('Park gate');
   await form.getByLabel('Stall maintainer').fill('Ravi Kumar');
   await form.getByLabel('Opening cash (₹)').fill('0');
   await form.getByRole('button', { name: 'Save opening cash' }).click();
@@ -83,16 +93,21 @@ test('a manager opens two stall forms and saves each closing amount separately o
   await expect(chart.locator('[aria-label="Sold: 3"]')).toHaveCount(1);
   await expect(form.getByText(/Expected cash ₹590\.00/)).toBeVisible();
 
-  await form.getByLabel('Closing cash (₹)').fill('585');
-  await form.getByRole('button', { name: 'Save closing cash' }).click();
+  await closingCash.fill('-1');
+  await expect(saveClosing).toBeDisabled();
+  await closingCash.fill('585');
+  await expect(saveClosing).toBeEnabled();
+  await saveClosing.click();
   await expect(market).toContainText('Closed');
   await expect(park).toContainText('Closing cash pending');
 
   await park.click();
   await expect(form.getByLabel('Stall maintainer')).toHaveValue('Ravi Kumar');
   await expect(form.getByLabel('Closing cash (₹)')).toHaveValue('');
-  await form.getByLabel('Closing cash (₹)').fill('0');
-  await form.getByRole('button', { name: 'Save closing cash' }).click();
+  await expect(saveClosing).toBeDisabled();
+  await closingCash.fill('0');
+  await expect(saveClosing).toBeEnabled();
+  await saveClosing.click();
   await expect(park).toContainText('Closed');
 
   await page.reload();
