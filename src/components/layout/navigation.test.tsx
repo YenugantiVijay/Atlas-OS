@@ -157,10 +157,8 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
       const dashboardLink = screen.getByRole('link', { name: /dashboard/i });
       const auditLink = screen.getByRole('link', { name: /audit trail/i });
 
-      // Dashboard should NOT have the active class on /audit
-      expect(dashboardLink.className).not.toContain('bg-atlas-50');
-      // Audit Trail should have active styling
-      expect(auditLink.className).toContain('bg-atlas-50');
+      expect(dashboardLink).not.toHaveAttribute('aria-current');
+      expect(auditLink).toHaveAttribute('aria-current', 'page');
     });
   });
 

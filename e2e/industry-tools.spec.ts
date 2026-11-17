@@ -25,3 +25,28 @@ test('each industry link opens its own dashboard and keeps specialised modules i
   await page.getByRole('button', { name: 'Open Retail Counter', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Retail Counter', exact: true })).toBeVisible();
 });
+
+test('the electrical workspace fits a phone and closes navigation after a link is selected', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));
+  await page.goto('/?tool=electrical#/');
+
+  const heading = page.getByRole('heading', { name: INDUSTRY_TOOLS.electrical.headline });
+  await expect(heading).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New Quotation', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ATLAS AI', exact: true })).toBeVisible();
+  expect(await heading.evaluate((element) => {
+    const banner = element.closest('header');
+    const width = banner?.getBoundingClientRect().width ?? 0;
+    return width > 0 && width <= document.documentElement.clientWidth;
+  })).toBe(true);
+
+  const navigation = page.getByRole('navigation', { name: 'Workspace navigation' });
+  const openMenu = page.getByRole('button', { name: 'Open navigation menu' });
+  await expect(navigation).toBeHidden();
+  await openMenu.click();
+  await expect(navigation.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+  await navigation.getByRole('link', { name: 'Quotations', exact: true }).click();
+  await expect(page).toHaveURL(/#\/quotations$/);
+  await expect(navigation).toBeHidden();
+});

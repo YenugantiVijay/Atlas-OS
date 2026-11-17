@@ -40,7 +40,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           >
             ATLAS
           </span>
-          <span className="ml-1 text-xl font-extrabold tracking-tight text-teal-400">
+          <span className={`ml-1 text-xl font-extrabold tracking-tight ${isDark ? 'text-teal-400' : 'text-teal-700'}`}>
             OS
           </span>
         </div>

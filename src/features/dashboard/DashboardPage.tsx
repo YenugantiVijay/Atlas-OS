@@ -3,6 +3,7 @@ import { LoadError } from '@/components/ui/LoadError';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
+  Building2,
   AlertTriangle,
   FileText,
   CreditCard,
@@ -22,6 +23,7 @@ import { hasPermission } from '@/lib/permissions';
 import { dashboardService } from '@/services/dashboard.service';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { WorkspaceBanner } from '@/components/layout/WorkspaceBanner';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/money';
@@ -41,6 +43,7 @@ export const DashboardPage: React.FC = () => {
   const orderList = tool?.id === 'ecommerce' ? '/ecommerce' : '/orders';
   const primaryPermission = primary.path.startsWith('/quotations') ? 'quotations:create'
     : primary.path === '/receiving' ? 'inventory:receive' : 'orders:create';
+  const primaryAction = check(primaryPermission);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [salesTrend, setSalesTrend] = useState<SalesTrendPoint[]>([]);
   const [receivablesSummary, setReceivablesSummary] = useState<ReceivablesSummary | null>(null);
@@ -126,66 +129,34 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Executive Operations Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 border border-white/10 p-5 sm:p-6 md:p-7 text-white shadow-sm">
-        {/* Subtle decorative radial teal accent */}
-        <div
-          className="pointer-events-none absolute right-0 sm:-right-6 -top-6 h-56 w-56 rounded-full bg-teal-500/15 blur-3xl"
-          aria-hidden="true"
-        />
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-teal-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                {tool?.name ?? 'Operations Center'}
-              </span>
-              <span className="text-xs font-medium text-slate-300">
-                {isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              {tool?.headline ?? (currentOrg?.name || 'Operations Workspace')}
-            </h1>
-            <p className="text-sm text-slate-300/90 max-w-xl leading-relaxed">
-              {tool?.description ?? 'Real-time operational command for inventory movements, sales orders, and financial workflows.'}
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-            {(() => {
-              const orderPerm = check(primaryPermission);
-              return (
-                <Button
-                  variant="primary"
-                  size="md"
-                  disabled={!orderPerm.allowed}
-                  title={!orderPerm.allowed ? orderPerm.message : undefined}
-                  onClick={() => {
-                    if (orderPerm.allowed) {
-                      navigate(primary.path);
-                    }
-                  }}
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  className="h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-semibold shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-50 disabled:cursor-not-allowed justify-center"
-                >
-                  {primary.label}
-                </Button>
-              );
-            })()}
+      <WorkspaceBanner
+        name={tool?.name ?? 'Operations Center'}
+        title={tool?.headline ?? (currentOrg?.name || 'Operations Workspace')}
+        description={tool?.description ?? 'Real-time operational command for inventory movements, sales orders, and financial workflows.'}
+        status={isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
+        icon={<Building2 className="h-4 w-4" />}
+        actions={(
+          <>
+            <Button
+              disabled={!primaryAction.allowed}
+              title={!primaryAction.allowed ? primaryAction.message : undefined}
+              onClick={() => navigate(primary.path)}
+              leftIcon={<Plus className="h-4 w-4" aria-hidden="true" />}
+              className="h-11 rounded-xl px-4"
+            >
+              {primary.label}
+            </Button>
             <Button
               variant="outline"
-              size="md"
               onClick={() => navigate('/ai')}
-              leftIcon={<Sparkles className="w-4 h-4 text-teal-300" />}
-              className="h-10 px-4 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/30 text-white font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-teal-300 justify-center"
+              leftIcon={<Sparkles className="h-4 w-4 text-atlas-700" aria-hidden="true" />}
+              className="h-11 rounded-xl border-slate-300 px-4"
             >
               ATLAS AI
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {dailyTasks && dailyTasks.length > 0 && (
         <section aria-labelledby="tool-workflows">
