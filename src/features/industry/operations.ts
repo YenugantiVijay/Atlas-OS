@@ -16,7 +16,8 @@ export type Job = {
   stage: Stage;
   proof_history: string[];
 };
-type IceKind = 'receive' | 'sale' | 'waste' | 'count' | 'close' | 'promise' | 'dispatch' | 'return';
+type IceKind = 'receive' | 'sale' | 'count' | 'open' | 'close_day' | 'promise' | 'dispatch' | 'return';
+type StoredIceKind = Exclude<IceKind, 'close_day'> | 'close' | 'waste';
 export type IceInput = {
   kind: IceKind;
   site: string;
@@ -43,7 +44,8 @@ export type Command =
   | { kind: 'advance'; job_id: string; amount_paise: number }
   | { kind: 'proof'; job_id: string; detail: string }
   | { kind: 'progress'; job_id: string; expected_stage: Stage };
-export type IceEvent = Omit<IceInput, 'amount_paise'> & {
+export type IceEvent = Omit<IceInput, 'amount_paise' | 'kind'> & {
+  kind: StoredIceKind;
   id: string;
   day: string;
   delta: number;
@@ -53,7 +55,14 @@ export type Stock = Pick<IceInput, 'site' | 'sku' | 'batch' | 'unit' | 'quantity
   expiry: string | null;
 };
 export type IceSeries = { day: string; unit: string; first: number | null; second: number | null };
-export type Till = { site: string; cash: number; upi: number; counted: number | null };
+export type Till = {
+  site: string;
+  staff: string | null;
+  opening: number | null;
+  cash: number;
+  upi: number;
+  counted: number | null;
+};
 export type Commitment = {
   reference: string;
   sku: string;
@@ -95,7 +104,7 @@ const normalize = (value: string) => value.trim().toUpperCase();
 const iceKey = (event: Pick<IceInput, 'site' | 'sku' | 'batch' | 'unit'>) =>
   JSON.stringify([event.site, event.sku, event.batch, event.unit]);
 const orderKey = (event: IceEvent) => JSON.stringify([event.reference, event.sku]);
-const sum = (values: IceEvent[], kind: IceKind) =>
+const sum = (values: IceEvent[], kind: StoredIceKind) =>
   values.reduce((total, row) => total + (row.kind === kind ? row.quantity : 0), 0);
 
 function stockByBin(events: IceEvent[]) {
@@ -131,20 +140,25 @@ export function localSnapshot(tool: SpecialtyToolId, data: LocalData, today: str
   const grouped = new Map<string, IceSeries>();
   const tills = new Map<string, Till>();
   const orders = new Map<string, Commitment>();
+  const firstKind = tool === 'ice-cream-stalls' ? 'receive' : 'promise';
+  const secondKind = tool === 'ice-cream-stalls' ? 'sale' : 'dispatch';
   for (const event of data.events) {
-    if (
-      event.day >= shiftDay(today, -6) &&
-      ['sale', 'waste', 'promise', 'dispatch'].includes(event.kind)
-    ) {
+    if (event.day >= shiftDay(today, -6) && (event.kind === firstKind || event.kind === secondKind)) {
       const key = event.day + ':' + event.unit;
       const point = grouped.get(key) ?? { day: event.day, unit: event.unit, first: 0, second: 0 };
-      if (event.kind === 'sale' || event.kind === 'promise')
+      if (event.kind === firstKind)
         point.first = (point.first ?? 0) + event.quantity;
       else point.second = (point.second ?? 0) + event.quantity;
       grouped.set(key, point);
     }
     if (tool === 'ice-cream-stalls' && event.day === today) {
-      const till = tills.get(event.site) ?? { site: event.site, cash: 0, upi: 0, counted: null };
+      const till = tills.get(event.site) ?? {
+        site: event.site, staff: null, opening: null, cash: 0, upi: 0, counted: null,
+      };
+      if (event.kind === 'open') {
+        till.opening = event.amount_paise ?? 0;
+        till.staff = event.detail;
+      }
       if (event.kind === 'sale' && event.method === 'cash') till.cash += event.amount_paise ?? 0;
       if (event.kind === 'sale' && event.method === 'upi') till.upi += event.amount_paise ?? 0;
       if (event.kind === 'close') till.counted = event.amount_paise ?? 0;
@@ -225,8 +239,9 @@ export function addLocalOperation(
     }
   } else {
     const { kind, quantity, detail } = command;
-    const event = {
+    const event: IceEvent = {
       ...command,
+      kind: kind === 'close_day' ? 'close' : kind,
       id,
       day: today,
       site: normalize(command.site),
@@ -235,12 +250,26 @@ export function addLocalOperation(
       reference: normalize(command.reference),
       delta: 0,
     };
-    if (data.events.some((row) => row.kind === 'close' && row.day === today && row.site === event.site))
-      throw new Error('This stall is already closed for today');
+    if (tool === 'ice-cream-stalls') {
+      const todayAtStall = data.events.filter((row) => row.day === today && row.site === event.site);
+      const opened = todayAtStall.some((row) => row.kind === 'open');
+      if (todayAtStall.some((row) => row.kind === 'close'))
+        throw new Error('This stall is already closed for today');
+      if (kind === 'open' || kind === 'close_day') {
+        if (!event.site || !Number.isSafeInteger(command.amount_paise) || command.amount_paise < 0 || command.amount_paise > 10000000000)
+          throw new Error('Check the stall name and cash amount');
+        event.detail = detail.trim();
+      }
+      if (kind === 'open') {
+        if (opened) throw new Error('This stall is already open for today');
+        if (!event.detail || event.detail.length > 120) throw new Error('Enter the staff member’s name');
+      }
+      if (kind === 'close_day' && !opened) throw new Error('Record opening cash before closing this stall');
+    }
     const bin = stockByBin(data.events).get(iceKey(event));
     const available = bin?.quantity ?? 0;
     if (kind === 'receive' || (kind === 'return' && detail === 'Restock')) event.delta = quantity;
-    if (['sale', 'waste', 'dispatch'].includes(kind)) event.delta = -quantity;
+    if (['sale', 'dispatch'].includes(kind)) event.delta = -quantity;
     if (kind === 'count') event.delta = quantity - available;
     if (available + event.delta < 0)
       throw new Error('Quantity exceeds stock available at this location');

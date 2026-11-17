@@ -69,8 +69,14 @@ export async function runIndustryWorkspaceAcceptance({
     assert.deepEqual((await read(studio)).series, [0, 0, 0, 0]);
   });
 
-  await report('IND-02', 'Stall stock, waste, till close and independent units', async () => {
+  await report('IND-02', 'Named staff, opening and closing cash, stock and UPI isolation', async () => {
     const entry = { site: 'stall one', sku: 'vanilla', unit: 'scoop' };
+    const opening = { site: entry.site, kind: 'open', detail: 'Lakshmi Rao', amount_paise: 50000 };
+    await assert.rejects(save(stalls, { site: entry.site, kind: 'close_day', amount_paise: 0 }), /record opening cash/i);
+    const openId = randomUUID();
+    await save(stalls, opening, openId);
+    await save(stalls, opening, openId);
+    await assert.rejects(save(stalls, opening), /already open/i);
     await save(stalls, { ...entry, kind: 'receive', quantity: 20 });
     await save(stalls, {
       ...entry,
@@ -88,18 +94,21 @@ export async function runIndustryWorkspaceAcceptance({
       method: 'upi',
       detail: 'Cup',
     });
-    await save(stalls, { ...entry, kind: 'waste', quantity: 1, detail: 'Melted' });
-    await assert.rejects(
-      save(stalls, { ...entry, kind: 'waste', quantity: 15, detail: 'Damaged' }),
-      /exceeds stock/i,
-    );
+    await assert.rejects(save(stalls, { ...entry, kind: 'waste', quantity: 1, detail: 'Melted' }), /unknown stall operation/i);
     await save(stalls, { ...entry, kind: 'count', quantity: 13 });
-    await save(stalls, { site: 'stall one', kind: 'close', amount_paise: 8800 });
+    await assert.rejects(save(stalls, { site: entry.site, kind: 'close', amount_paise: 8800 }), /refresh atlas os/i);
+    await save(stalls, { site: entry.site, kind: 'close_day', amount_paise: 58800 });
     await assert.rejects(save(stalls, { ...entry, kind: 'receive', quantity: 1 }), /already closed/i);
+    await save(stalls, { site: 'legacy stall', kind: 'close', amount_paise: 0 });
     const data = await read(stalls);
     assert.equal(data.stock[0].quantity, 13);
-    assert.deepEqual(data.series, [{ day: today, unit: 'scoop', first: 5, second: 1 }]);
-    assert.deepEqual(data.tills, [{ site: 'STALL ONE', cash: 9000, upi: 6000, counted: 8800 }]);
+    assert.deepEqual(data.series, [{ day: today, unit: 'scoop', first: 20, second: 5 }]);
+    assert.deepEqual(data.tills.find((till) => till.site === 'STALL ONE'), {
+      site: 'STALL ONE', staff: 'Lakshmi Rao', opening: 50000, cash: 9000, upi: 6000, counted: 58800,
+    });
+    assert.deepEqual(data.tills.find((till) => till.site === 'LEGACY STALL'), {
+      site: 'LEGACY STALL', staff: null, opening: null, cash: 0, upi: 0, counted: 0,
+    });
   });
 
   await report(

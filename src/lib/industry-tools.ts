@@ -95,12 +95,12 @@ export const INDUSTRY_TOOLS = {
   },
   'ice-cream-stalls': {
     name: 'Ice Cream Stalls',
-    headline: 'Serve customers and close each stall',
-    description: 'Record packaged items, scoops in cups or cones, waste, closing counts and cash and UPI collections by stall.',
+    headline: 'Stall Stock & Cash',
+    description: 'Receive stock, record sales, and track opening and closing cash by stall.',
     category: 'ice_cream_stalls',
     primary: { label: 'Open Stall Counter', path: '/ice-cream-counter' },
     tasks: [
-      { label: 'Stall counter', detail: 'Record sales, waste and till close against the selected stall.', path: '/ice-cream-counter' },
+      { label: 'Stall counter', detail: 'Record staff, opening cash, stock and closing cash.', path: '/ice-cream-counter' },
     ],
   },
   'ice-cream-distribution': {

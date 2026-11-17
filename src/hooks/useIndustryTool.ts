@@ -49,7 +49,7 @@ const commonSpecialtyLinks = new Set([
 ]);
 
 export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {
-  if (!allowsIndustryRoute(tool, path)) return false;
+  if (!allowsIndustryRoute(tool, path) || (tool === 'ice-cream-stalls' && path === '/customers')) return false;
   if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path);
   return tool !== 'ecommerce' || path !== '/orders';
 }

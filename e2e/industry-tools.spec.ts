@@ -7,12 +7,14 @@ test('each industry link opens its own dashboard and keeps specialised modules i
     await page.goto('/?tool=' + id + '#/');
     await expect(page.getByRole('heading', { name: tool.headline })).toBeVisible();
     if (isSpecialtyToolId(id)) {
-      await expect(page.getByRole('region', {name: /open print jobs by due date|sold and wasted|committed and dispatched/i})).toBeVisible();
+      await expect(page.getByRole('region', {name: /open print jobs by due date|stock received and sold|committed and dispatched/i})).toBeVisible();
     } else {
       const workflows = page.getByRole('region', { name: id === 'small-business' ? 'Shop essentials' : 'Daily workflows' });
       for (const task of tool.tasks) await expect(workflows.getByRole('button', { name: new RegExp('^' + task.label, 'i') })).toBeVisible();
     }
     const sidebar = page.getByRole('complementary');
+    if (id === 'ice-cream-stalls' || id === 'ice-cream-distribution')
+      await expect(sidebar.getByRole('link', { name: 'Customers', exact: true })).toHaveCount(id === 'ice-cream-stalls' ? 0 : 1);
     await expect(sidebar.getByRole('link', { name: 'Counter Shift' })).toHaveCount(id === 'retail-wholesale' ? 1 : 0);
     await expect(sidebar.getByRole('link', { name: 'E-commerce Orders' })).toHaveCount(id === 'ecommerce' ? 1 : 0);
   }

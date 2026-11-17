@@ -396,7 +396,7 @@ Purchases are manually reconciled records. Subscription access changes are separ
 ### Specialty operations
 
 - **Banner & Print Studio** keeps mixed-unit quotes, artwork revision references, staged jobs, received amounts and balances together. Open print jobs by due date shows the production queue to prioritize.
-- **Ice Cream Stalls** tracks named stalls, packaged pieces and estimated scoops, cash/UPI sales, waste, physical counts and counted cash takings. Sold and wasted over 7 days compares each stock unit separately.
+- **Ice Cream Stalls** records the staff member and opening and closing cash for each named stall and business day. Stock receipts and sales track packaged pieces and estimated scoops separately, and the till compares closing cash with opening cash plus cash sales.
 - **Ice Cream Distribution** tracks bulk case receipts, batch expiry, freezer stock, outlet commitments, partial dispatch and returns or credit allowances. Committed and dispatched cases over 7 days tracks throughput; Open case commitments shows backlog by order and SKU.
 
 The specialty records are operational records. Use the existing invoicing and payment tools for GST invoices, credit notes and accounting entries. Demo changes are browser-local. Apply the industry-workspaces migration to the target cloud database before using live specialty operations.

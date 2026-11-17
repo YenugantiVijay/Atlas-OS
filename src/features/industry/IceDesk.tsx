@@ -3,23 +3,26 @@ import { toPaise } from '@/lib/money';
 import { Button } from '@/components/ui/Button';
 import type { IceInput, Snapshot } from './operations';
 import { Field, Text, NumberField, inputClass, money, panel, text, number, type Save } from './fields';
+import { formatChartLabel } from './charts';
 
 const eventLabels = {
   receive: 'Receive stock',
   sale: 'Record sale',
-  waste: 'Record waste',
+  waste: 'Waste (history)',
+  open: 'Open stall',
+  close_day: 'Close stall',
   count: 'Count closing stock',
   close: 'Close stall',
   promise: 'Commit cases',
   dispatch: 'Dispatch cases',
   return: 'Record return or credit',
-} satisfies Record<IceInput['kind'], string>;
+} satisfies Record<IceInput['kind'] | 'close' | 'waste', string>;
 const submitLabels = {
   receive: 'Save receipt',
   sale: 'Save sale',
-  waste: 'Save waste',
+  open: 'Save opening cash',
+  close_day: 'Save closing cash',
   count: 'Save stock count',
-  close: 'Save close',
   promise: 'Save commitment',
   dispatch: 'Save dispatch',
   return: 'Save return',
@@ -27,7 +30,7 @@ const submitLabels = {
 const choicesFor = (distribution: boolean): IceInput['kind'][] =>
   distribution
     ? ['receive', 'promise', 'dispatch', 'return']
-    : ['sale', 'receive', 'waste', 'count', 'close'];
+    : ['open', 'receive', 'sale', 'count', 'close_day'];
 
 export function IceDesk({
   snapshot,
@@ -47,28 +50,31 @@ export function IceDesk({
   const choices = choicesFor(distribution).filter(
     (kind) =>
       ['owner', 'admin'].includes(role ?? '') ||
-      (role === 'inventory' && ['receive', 'waste', 'count'].includes(kind)) ||
-      (role === 'sales' && ['sale', 'close', 'promise', 'dispatch'].includes(kind)) ||
-      (role === 'accounts' && ['return', 'close'].includes(kind)),
+      (role === 'inventory' && ['receive', 'count'].includes(kind)) ||
+      (role === 'sales' && ['sale', 'close_day', 'promise', 'dispatch'].includes(kind)) ||
+      (role === 'accounts' && ['return', 'close_day'].includes(kind)),
   );
-  const [selected, setSelected] = useState<IceInput['kind']>(distribution ? 'receive' : 'sale');
+  const [selected, setSelected] = useState<IceInput['kind']>(distribution ? 'receive' : 'open');
   const [site, setSite] = useState('');
   const [sku, setSku] = useState('');
   const [unit, setUnit] = useState('piece');
   const kind = choices.includes(selected) ? selected : choices[0];
   const stock = snapshot.stock ?? [];
+  const cashAction = kind === 'open' || kind === 'close_day';
+  const selectedTill = snapshot.tills?.find((till) => till.site === site.trim().toUpperCase());
+  const openStalls = snapshot.tills?.filter((till) => till.opening != null && till.counted === null) ?? [];
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!kind || (kind !== 'close' && !sku.trim()) || !site.trim()) return;
+    if (!kind || (!cashAction && !sku.trim()) || !site.trim()) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
     if (
       await save({
         kind,
         site: site.trim(),
-        sku: kind === 'close' ? '' : sku.trim(),
-        unit: distribution ? 'case' : kind === 'close' ? '' : unit,
+        sku: cashAction ? '' : sku.trim(),
+        unit: distribution ? 'case' : cashAction ? '' : unit,
         batch: distribution && kind !== 'promise' ? text(fields, 'batch') : '',
         quantity: number(fields, 'quantity'),
         reference: text(fields, 'reference'),
@@ -88,6 +94,7 @@ export function IceDesk({
           <h2 id="ice-operation" className="text-lg font-bold">
             {distribution ? 'Distribution desk' : 'Stall counter'}
           </h2>
+          {!distribution && <p className="mt-1 text-sm text-content-secondary">{formatChartLabel(snapshot.today)}</p>}
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Operations">
             {choices.map((choice) => (
               <Button
@@ -131,16 +138,31 @@ export function IceDesk({
           )}
           <form key={kind} onSubmit={submit} className="mt-4">
             <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label={distribution ? 'Freezer or depot' : 'Stall'}>
+              <Field label={distribution ? 'Freezer or depot' : 'Stall name'}>
                 <input
                   className={inputClass}
                   value={site}
                   onChange={(event) => setSite(event.target.value)}
                   maxLength={60}
+                  list={kind === 'close_day' && openStalls.length ? 'open-stall-names' : undefined}
                   required
                 />
               </Field>
-              {kind !== 'close' && (
+              {kind === 'close_day' && openStalls.length > 0 && (
+                <datalist id="open-stall-names">
+                  {openStalls.map((till) => <option key={till.site} value={till.site} />)}
+                </datalist>
+              )}
+              {kind === 'open' && <Text name="detail" label="Staff member" maxLength={120} />}
+              {kind === 'close_day' && selectedTill?.staff && (
+                <p className="self-center text-sm text-content-secondary">
+                  Staff on duty: <strong>{selectedTill.staff}</strong>
+                  {selectedTill.opening != null && (
+                    <span className="block">Expected cash {money(selectedTill.opening + selectedTill.cash)}</span>
+                  )}
+                </p>
+              )}
+              {!cashAction && (
                 <>
                   <Field label="Product SKU or flavor">
                     <input
@@ -215,15 +237,6 @@ export function IceDesk({
                   )}
                 </>
               )}
-              {kind === 'waste' && (
-                <Field label="Waste reason">
-                  <select className={inputClass} name="detail">
-                    <option>Melted</option>
-                    <option>Damaged</option>
-                    <option>Complimentary</option>
-                  </select>
-                </Field>
-              )}
               {kind === 'return' && (
                 <Field label="Stock treatment">
                   <select className={inputClass} name="detail">
@@ -232,15 +245,17 @@ export function IceDesk({
                   </select>
                 </Field>
               )}
-              {['sale', 'return', 'close'].includes(kind) && (
+              {(cashAction || kind === 'sale' || kind === 'return') && (
                 <NumberField
                   name="amount"
                   label={
-                    kind === 'close'
-                      ? 'Counted cash takings (₹)'
-                      : kind === 'return'
-                        ? 'Credit allowance (₹)'
-                        : 'Amount collected (₹)'
+                    kind === 'open'
+                      ? 'Opening cash (₹)'
+                      : kind === 'close_day'
+                        ? 'Closing cash (₹)'
+                        : kind === 'return'
+                          ? 'Credit allowance (₹)'
+                          : 'Amount collected (₹)'
                   }
                   min={kind === 'sale' ? 0.01 : 0}
                   max={100000000}
@@ -248,9 +263,9 @@ export function IceDesk({
                 />
               )}
             </fieldset>
-            {kind === 'close' && (
+            {kind === 'close_day' && (
               <p className="mt-2 text-sm text-content-secondary">
-                Exclude opening float. Closing locks today’s stall entries.
+                Enter the total cash in the drawer, including the opening cash. UPI is separate.
               </p>
             )}
             <Button type="submit" className="mt-4" disabled={busy}>
@@ -311,19 +326,27 @@ export function IceDesk({
             </ul>
           ) : (
             <ul className="mt-3 max-h-96 divide-y overflow-y-auto">
-              {snapshot.tills?.map((till) => (
-                <li key={till.site} className="break-words py-2 text-sm">
-                  <strong>{till.site}</strong>
-                  <p>
-                    Expected cash {money(till.cash)} · UPI {money(till.upi)}
-                  </p>
-                  <p>
-                    {till.counted === null
-                      ? 'Open'
-                      : `Closed · Counted ${money(till.counted)} · Difference ${money(till.counted - till.cash)}`}
-                  </p>
-                </li>
-              ))}
+              {snapshot.tills?.map((till) => {
+                const expected = (till.opening ?? 0) + till.cash;
+                return (
+                  <li key={till.site} className="break-words py-2 text-sm">
+                    <strong>{till.site}</strong>
+                    {till.staff && <p>Staff on duty: {till.staff}</p>}
+                    <p>
+                      {till.opening == null ? 'Opening cash not recorded' : `Opening cash ${money(till.opening)}`}
+                      {' · '}Cash sales {money(till.cash)} · UPI {money(till.upi)}
+                    </p>
+                    {till.counted === null ? (
+                      <p>{till.opening == null ? 'Opening pending' : `Open · Expected cash ${money(expected)}`}</p>
+                    ) : (
+                      <p>
+                        Closed · {till.opening == null ? 'Counted takings' : 'Closing cash'} {money(till.counted)}
+                        {' · '}Difference {money(till.counted - expected)}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
           {!(distribution ? snapshot.orders?.length : snapshot.tills?.length) && (
@@ -341,7 +364,7 @@ export function IceDesk({
               {event.batch && ` · Batch ${event.batch}`}
               {event.reference && ` · ${event.reference}`}
               {event.detail && ` · ${event.detail}`}
-              {Boolean(event.amount_paise) && ` · ${money(event.amount_paise ?? 0)}`}
+              {(Boolean(event.amount_paise) || ((event.kind === 'open' || event.kind === 'close') && event.amount_paise != null)) && ` · ${money(event.amount_paise ?? 0)}`}
             </li>
           ))}
         </ul>
