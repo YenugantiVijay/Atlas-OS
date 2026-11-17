@@ -12,6 +12,9 @@ export const BUSINESS_CATEGORIES: Record<BusinessCategory, { label: string; elec
   electrical_retail: { label: 'Electrical Retail Shop', electrical: true, products: ['Wires & Cables', 'Switches & Sockets', 'LED Lighting', 'Fans & Ventilation'], unit: 'Nos' },
   hardware_electrical: { label: 'Hardware & Electrical Store', electrical: true, products: ['Wires & Cables', 'Switches & Sockets', 'Tools & Hardware', 'Fasteners'], unit: 'Nos' },
   ecommerce: { label: 'E-commerce / Online Sales', electrical: false, products: ['Apparel', 'Accessories', 'Home & Living', 'Packaged Goods'], unit: 'Nos' },
+  banner_print_studio: { label: 'Banner & Print Studio', electrical: false, products: ['Flex Banners', 'Vinyl Prints', 'Sign Boards'], unit: 'Nos' },
+  ice_cream_stalls: { label: 'Ice Cream Stalls', electrical: false, products: ['Packaged Cups', 'Cones', 'Scoop Tubs'], unit: 'Nos' },
+  ice_cream_distribution: { label: 'Ice Cream Distribution', electrical: false, products: ['Factory Cases', 'Frozen Desserts', 'Multipacks'], unit: 'Nos' },
   other_unsupported: { label: 'Specialized workflow / other', electrical: false, products: [], unit: 'Nos' },
 };
 

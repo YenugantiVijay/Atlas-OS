@@ -204,7 +204,7 @@ Set `PUBLIC_APP_URL` in the website build to the public HTTPS URL of the ERP app
 npm run build -- --mode tool-retail-wholesale --outDir dist-tools/retail-wholesale
 ```
 
-Tool IDs are `electrical`, `electronics`, `hardware`, `retail-wholesale`, `agricultural-inputs`, `ecommerce`, and `small-business`. Supply the deployment's public Supabase settings in the build environment or the corresponding Vite mode environment file.
+Tool IDs are `electrical`, `electronics`, `hardware`, `retail-wholesale`, `agricultural-inputs`, `ecommerce`, `small-business`, `banner-print-studio`, `ice-cream-stalls`, and `ice-cream-distribution`. Supply the deployment's public Supabase settings in the build environment or the corresponding Vite mode environment file.
 
 ### Local development notes
 
@@ -392,3 +392,11 @@ The ERP and private operations console have separate release builds. Use `npm ru
 The console requires an explicit database seat and a verified authenticator. After applying the database migration, provision the intended Supabase Auth UUID in `atlas_private.owner_console_accounts` using a trusted administrator. Seat numbers are limited to 1, 2 and 3. The existing `platform_reviewers` grant is additionally required for business verification decisions. Use individual accounts.
 
 Purchases are manually reconciled records. Subscription access changes are separate and audited. Website intake uses the existing Turnstile and rate limits. Optional AI summaries require the `owner-report-summary` Edge Function and its server-side `OWNER_CONSOLE_ORIGINS`, `OWNER_SUMMARY_MODEL`, and `OWNER_SUMMARY_OPENAI_KEY` settings. Dashboard alerts work without an AI provider and refresh while the console is open.
+
+### Specialty operations
+
+- **Banner & Print Studio** keeps mixed-unit quotes, artwork revision references, staged jobs, received amounts and balances together. Open print jobs by due date shows the production queue to prioritize.
+- **Ice Cream Stalls** tracks named stalls, packaged pieces and estimated scoops, cash/UPI sales, waste, physical counts and counted cash takings. Sold and wasted over 7 days compares each stock unit separately.
+- **Ice Cream Distribution** tracks bulk case receipts, batch expiry, freezer stock, outlet commitments, partial dispatch and returns or credit allowances. Committed and dispatched cases over 7 days tracks throughput; Open case commitments shows backlog by order and SKU.
+
+The specialty records are operational records. Use the existing invoicing and payment tools for GST invoices, credit notes and accounting entries. Demo changes are browser-local. Apply the industry-workspaces migration to the target cloud database before using live specialty operations.

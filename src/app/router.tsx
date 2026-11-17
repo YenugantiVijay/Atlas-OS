@@ -3,6 +3,7 @@ import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AppLayout, RouteLoadingFallback } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/Button';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { isSpecialtyToolId } from '@/lib/industry-tools';
 import { allowsIndustryRoute, useIndustryTool } from '@/hooks/useIndustryTool';
 import { hasPermission, Action } from '@/lib/permissions';
 
@@ -13,6 +14,7 @@ const OnboardingPage = React.lazy(() =>
 const TeamInvitationPage = React.lazy(() =>
   import('@/features/team/TeamInvitationPage').then((m) => ({ default: m.TeamInvitationPage }))
 );
+const SpecialtyWorkspace = React.lazy(() => import('@/features/industry/SpecialtyWorkspace'));
 const DashboardPage = React.lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage }))
 );
@@ -108,6 +110,11 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
   return children;
 };
 
+function WorkspaceHome() {
+  const tool = useIndustryTool();
+  return isSpecialtyToolId(tool?.id) ? <SpecialtyWorkspace /> : <DashboardPage />;
+}
+
 function IndustryRoute({ path, children }: { path: string; children: React.ReactElement }) {
   const tool = useIndustryTool();
   return allowsIndustryRoute(tool?.id, path) ? children : <Navigate to="/" replace />;
@@ -147,7 +154,10 @@ export const router = createHashRouter([
     children: [{
       errorElement: <RouteFailure />,
       children: [
-        { index: true, element: <DashboardPage /> },
+        { index: true, element: <WorkspaceHome /> },
+        { path: 'studio-jobs', element: <RequirePermission action="data:read"><IndustryRoute path="/studio-jobs"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
+        { path: 'ice-cream-counter', element: <RequirePermission action="data:read"><IndustryRoute path="/ice-cream-counter"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
+        { path: 'cold-chain', element: <RequirePermission action="data:read"><IndustryRoute path="/cold-chain"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
         { path: 'products', element: <ProductsPage /> },
         { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },
         { path: 'inventory', element: <InventoryPage /> },
