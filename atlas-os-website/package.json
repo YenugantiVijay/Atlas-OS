@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "node scripts/run-astro.mjs dev --ignore-lock",
     "start": "node scripts/run-astro.mjs dev --ignore-lock",
+    "preview:prepare": "node scripts/preview-runtime.mjs prepare",
+    "preview:serve": "node scripts/preview-runtime.mjs serve",
     "build": "node scripts/run-astro.mjs check && node scripts/run-astro.mjs build",
     "preview": "node scripts/serve-preview.mjs",
     "astro": "node scripts/run-astro.mjs",

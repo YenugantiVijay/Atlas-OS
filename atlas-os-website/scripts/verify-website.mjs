@@ -213,7 +213,7 @@ const readinessPath = path.resolve(__dirname, 'wait-for-website.mjs');
 const command = fs.readFileSync(commandPath, 'utf8');
 if (!command.includes('node scripts\\wait-for-website.mjs') ||
     !command.includes('if errorlevel 1') ||
-    !command.includes('start "" "http://127.0.0.1:4321/"') ||
+    !command.includes('start "" "http://127.0.0.1:%ATLAS_WEBSITE_PORT%/"') ||
     !fs.existsSync(readinessPath)) {
   console.error('[FAIL] One-click website launcher no longer verifies readiness before opening');
   failedChecks++;
