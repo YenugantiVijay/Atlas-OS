@@ -3,6 +3,7 @@ import { BarChart3, ClipboardList, PackageCheck, Snowflake } from 'lucide-react'
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useIndustryTool } from '@/hooks/useIndustryTool';
 import { isSpecialtyToolId, type SpecialtyToolId } from '@/lib/industry-tools';
+import { WorkspaceBanner } from '@/components/layout/WorkspaceBanner';
 import { Button } from '@/components/ui/Button';
 import { formatChartLabel, operationChart } from './charts';
 import { Field, inputClass, panel } from './fields';
@@ -73,14 +74,13 @@ export default function SpecialtyWorkspace() {
   const chart = snapshot && operationChart(id, snapshot, chartUnit);
   return (
     <div className="space-y-4">
-      <header className="rounded-2xl bg-gradient-to-br from-navy-900 to-navy-700 p-6 text-white shadow-sm sm:p-8">
-        <div className="flex items-center gap-2 text-sm font-semibold text-teal-200">
-          <Icon size={18} aria-hidden="true" />
-          {tool.name}
-        </div>
-        <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl">{tool.headline}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-200 sm:text-base">{tool.description}</p>
-      </header>
+      <WorkspaceBanner
+        name={tool.name}
+        title={tool.headline}
+        description={tool.description}
+        status={isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
+        icon={<Icon size={16} />}
+      />
       {error && (
         <div
           role="alert"

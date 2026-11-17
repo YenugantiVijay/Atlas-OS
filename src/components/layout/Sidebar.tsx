@@ -103,7 +103,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     title: 'Intelligence',
     showHeading: false,
     items: [
-      { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px] text-teal-400" />, action: 'data:read' },
+      { label: 'ATLAS AI Assistant', path: '/ai', icon: <Sparkles className="w-[18px] h-[18px]" />, action: 'data:read' },
     ],
   },
   {
@@ -140,6 +140,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
   const supabaseStatus = getSupabaseStatus();
   const tool = useIndustryTool();
   const toolId = tool?.id;
+  const iconOnly = collapsed && !isMobileOpen;
 
   // Strictly filter by authorized permissions; roles cannot see links without permission
   const authorizedGroups = useMemo(
@@ -159,7 +160,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
       {/* Mobile Backdrop */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
+          className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden motion-safe:animate-in motion-safe:fade-in duration-150"
           onClick={onCloseMobile}
           aria-hidden="true"
         />
@@ -167,9 +168,9 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
 
       {/* Main Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col border-r border-[#0F1E36] bg-[#142B4D] transition-all duration-200 select-none ${
+        className={`fixed inset-y-0 left-0 z-40 flex max-w-full select-none flex-col border-r border-slate-200 bg-[#f4f5fb] transition-[transform,width] duration-200 motion-reduce:transition-none ${
           // Mobile: drawer that translates in/out
-          isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'
+          isMobileOpen ? 'visible w-72 translate-x-0 shadow-xl lg:shadow-none' : 'invisible -translate-x-full lg:visible lg:translate-x-0'
         } ${
           // Desktop: width depends on collapsed state
           collapsed ? 'lg:w-20' : 'lg:w-64'
@@ -177,16 +178,15 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
       >
         {/* Brand Header */}
         <div
-          className={`flex h-16 items-center border-b border-white/10 shrink-0 ${
-            collapsed && !isMobileOpen ? 'justify-between px-3' : 'justify-between px-4'
-          }`}
+          className={`flex h-16 shrink-0 items-center justify-between gap-1 border-b border-slate-200 bg-white/80 ${iconOnly ? 'px-2' : 'px-4'}`}
         >
-          <BrandLogo collapsed={collapsed && !isMobileOpen} variant="dark" />
+          <BrandLogo collapsed={iconOnly} />
 
           {/* Desktop Collapse Toggle */}
           <button
+            type="button"
             onClick={onToggle}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors hidden lg:flex"
+            className="hidden shrink-0 rounded-lg p-1.5 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700 lg:flex"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -195,8 +195,9 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
           {/* Mobile Close Button */}
           {onCloseMobile && (
             <button
+              type="button"
               onClick={onCloseMobile}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors lg:hidden"
+              className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700 lg:hidden"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -205,31 +206,31 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
         </div>
 
         {/* Tenant Indicator */}
-        {(!collapsed || isMobileOpen) && currentOrg && (
-          <div className="mx-3.5 mt-3 p-3 rounded-xl bg-white/5 border border-white/10 shadow-xs shrink-0">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-xs font-bold text-white truncate">
+        {!iconOnly && currentOrg && (
+          <div className="mx-3 mt-3 shrink-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="truncate text-sm font-bold text-navy-800">
                 {currentOrg.name}
               </span>
               <Badge variant={getRoleBadgeVariant(currentRole)} size="sm" className="shrink-0">
                 {currentRole || 'No Role'}
               </Badge>
             </div>
-            {tool && <p className="mb-1 text-xs font-semibold text-white">{tool.name}</p>}
-            <div className="text-xs text-slate-300 truncate">
+            {tool && <p className="mb-1 text-xs font-semibold text-atlas-800">{tool.name}</p>}
+            <div className="truncate text-xs text-slate-600">
               {[currentOrg.city, currentOrg.state].filter(Boolean).join(', ') || 'Location not set'}
             </div>
           </div>
         )}
 
         {/* Navigation list */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
+        <nav aria-label="Workspace navigation" className={`min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain py-3 ${iconOnly ? 'px-2' : 'px-3'}`}>
           {authorizedGroups.map((group) => (
             <div key={group.title} className="space-y-1">
-              {(!collapsed || isMobileOpen) && group.showHeading !== false && (
-                <h5 className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-slate-400 select-none">
+              {!iconOnly && group.showHeading !== false && (
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-600">
                   {group.title}
-                </h5>
+                </p>
               )}
 
               <ul className="space-y-1">
@@ -243,25 +244,27 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                           onCloseMobile();
                         }
                       }}
-                      title={collapsed && !isMobileOpen ? item.label : undefined}
+                      title={iconOnly ? item.label : undefined}
+                      aria-label={iconOnly ? item.label : undefined}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ${
+                        `group relative flex min-h-10 items-center gap-2.5 rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700 ${
                           isActive
-                            ? 'bg-atlas-50 text-atlas-900 font-semibold border border-teal-200/80 shadow-xs'
-                            : 'font-normal text-slate-300 hover:bg-white/10 hover:text-white'
-                        } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`
+                            ? 'border-atlas-200 bg-atlas-100/70 font-semibold text-atlas-900 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r-full before:bg-atlas-700 before:content-[""]'
+                            : 'border-transparent font-medium text-slate-700 hover:bg-slate-200/70 hover:text-navy-800'
+                        } ${iconOnly ? 'justify-center px-0' : 'px-3'}`
                       }
                     >
                       {({ isActive }) => (
                         <>
                           <span
+                            aria-hidden="true"
                             className={`shrink-0 transition-colors ${
-                              isActive ? 'text-atlas-700' : 'text-slate-400 group-hover:text-white'
+                              isActive ? 'text-atlas-700' : 'text-slate-600 group-hover:text-navy-800'
                             }`}
                           >
                             {item.icon}
                           </span>
-                          {(!collapsed || isMobileOpen) && <span className="truncate">{item.label}</span>}
+                          {!iconOnly && <span className="truncate">{item.label}</span>}
                         </>
                       )}
                     </NavLink>
@@ -270,26 +273,26 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
               </ul>
             </div>
           ))}
-        </div>
+        </nav>
 
         {/* Bottom status */}
-        <div className="p-3.5 border-t border-white/10 bg-black/20 shrink-0">
-          <div className={`flex items-center ${collapsed && !isMobileOpen ? 'justify-center' : 'justify-between'}`}>
+        <div className="shrink-0 border-t border-slate-200 bg-white/80 p-3.5">
+          <div className={`flex items-center gap-2 ${iconOnly ? 'justify-center' : 'justify-between'}`}>
             <div className="flex items-center gap-2">
               <span
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  supabaseStatus.configured ? 'bg-emerald-400' : 'bg-slate-400'
+                  supabaseStatus.configured ? 'bg-emerald-700' : 'bg-slate-500'
                 }`}
                 aria-hidden="true"
               />
-              {(!collapsed || isMobileOpen) && (
-                <span className="text-xs font-medium text-slate-300 truncate max-w-[140px]">
+              {!iconOnly && (
+                <span className="max-w-[140px] truncate text-xs font-medium text-slate-700">
                   {supabaseStatus.configured ? 'Supabase Connected' : 'Local Deterministic'}
                 </span>
               )}
             </div>
-            {(!collapsed || isMobileOpen) && (
-              <span className="text-xs text-slate-400 font-mono font-medium">v0.1.0</span>
+            {!iconOnly && (
+              <span className="font-mono text-xs font-medium text-slate-600">v0.1.0</span>
             )}
           </div>
         </div>
