@@ -16,6 +16,8 @@ import {
   X,
   Check,
 } from 'lucide-react';
+import { selectedIndustryTool } from '@/hooks/useIndustryTool';
+import { INDUSTRY_TOOLS } from '@/lib/industry-tools';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { BusinessCategory } from '@/types';
 import { BUSINESS_CATEGORIES, BUSINESS_CATEGORY_OPTIONS, DEFAULT_BUSINESS_CATEGORY } from '@/lib/business-categories';
@@ -65,10 +67,11 @@ export const OnboardingPage: React.FC = () => {
   const [pincode, setPincode] = useState('');
 
   // Business Eligibility State
-  const [businessCategory, setBusinessCategory] =
-    useState<BusinessCategory>(DEFAULT_BUSINESS_CATEGORY);
-  const [sellsElectricalProducts, setSellsElectricalProducts] = useState<boolean>(false);
-  const [productLines, setProductLines] = useState<string[]>(() => BUSINESS_CATEGORIES[DEFAULT_BUSINESS_CATEGORY].products.slice(0, 2));
+  const selectedTool = selectedIndustryTool();
+  const initialCategory = selectedTool ? INDUSTRY_TOOLS[selectedTool].category : DEFAULT_BUSINESS_CATEGORY;
+  const [businessCategory, setBusinessCategory] = useState<BusinessCategory>(initialCategory);
+  const [sellsElectricalProducts, setSellsElectricalProducts] = useState(() => BUSINESS_CATEGORIES[initialCategory].electrical);
+  const [productLines, setProductLines] = useState<string[]>(() => BUSINESS_CATEGORIES[initialCategory].products.slice(0, 2));
   const [customTagInput, setCustomTagInput] = useState('');
   const changeBusinessCategory = (category: BusinessCategory) => {
     if (category === businessCategory) return;

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
 import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { INDUSTRY_TOOLS } from '../../src/lib/industry-tools';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -109,7 +111,7 @@ test('Industries spans the desktop header and supports keyboard dismissal', asyn
   await expect(toggle).toBeFocused();
   await toggle.click();
   await panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ }).click();
-  await expect(page).toHaveURL(/\/solutions\/agricultural-inputs\/?$/);
+  await expect(page).toHaveURL(/\/download\/agricultural-inputs\/?$/);
 });
 
 test('on mobile the industry cards expand inside the navigation drawer', async ({ page }) => {
@@ -122,7 +124,7 @@ test('on mobile the industry cards expand inside the navigation drawer', async (
   await drawer.locator('summary').filter({ hasText: 'Industries' }).click();
   await expect(shop).toBeVisible();
   await shop.click();
-  await expect(page).toHaveURL(/\/solutions\/small-business\/?$/);
+  await expect(page).toHaveURL(/\/download\/small-business\/?$/);
 });
 
 test('Escape closes the mobile navigation and returns keyboard focus', async ({ page }) => {
@@ -596,4 +598,22 @@ test('homepage typing settles and respects reduced motion, and the mobile footer
   await expect(social.getByRole('link', { name: /LinkedIn/ })).toBeVisible();
   await back.click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('the seven industry cards open matching download pages and portable shortcuts', async ({ page }) => {
+  for (const [id, tool] of Object.entries(INDUSTRY_TOOLS)) {
+    await page.goto('/solutions/');
+    await page.locator(`main a[href="/download/${id}/"]`).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(tool.name);
+    await expect(page.getByRole('region', { name: 'Workspace preview' })).toContainText(tool.tasks[0].label);
+    const start = page.getByRole('link', { name: 'Open in browser' });
+    const download = page.getByRole('link', { name: 'Download Windows shortcut' });
+    await expect(start).toHaveAttribute('href', new RegExp('[?&]tool=' + id + '#/$'));
+    const opened = page.waitForEvent('download');
+    await download.click();
+    const file = await opened;
+    expect(file.suggestedFilename()).toBe('Atlas-OS-' + id + '.url');
+    const shortcut = await readFile(await file.path(), 'utf8');
+    expect(shortcut).toBe('[InternetShortcut]\r\nURL=' + await start.getAttribute('href') + '\r\n');
+  }
 });

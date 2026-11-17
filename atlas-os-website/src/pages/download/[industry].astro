@@ -1,0 +1,81 @@
+---
+import { ArrowDownToLine, ArrowRight, PanelsTopLeft } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Container from '../../components/common/Container.astro';
+import Button from '../../components/common/Button.astro';
+import { INDUSTRY_COLORS } from '../../data/industry-colors';
+import { INDUSTRY_TOOLS, industryLaunch } from '../../data/industry-downloads';
+import { industryHref } from '../../data/navigation';
+import type { IndustryToolId } from '../../../../src/lib/industry-tools';
+
+export function getStaticPaths() {
+  return Object.keys(INDUSTRY_TOOLS).map(id => ({ params: { industry: id } }));
+}
+
+const id = Astro.params.industry as IndustryToolId;
+const tool = INDUSTRY_TOOLS[id];
+const launch = industryLaunch(id);
+const { color, tint } = INDUSTRY_COLORS[id];
+---
+
+<BaseLayout title={`Atlas OS ${tool.name} | Tool download`} description={tool.description}>
+  <div class="bg-surface-secondary" style={`--tool-color:${color};--tool-tint:${tint}`}>
+    <Container size="wide" class="space-y-10 py-10 sm:space-y-14 sm:py-16">
+      <div class="grid gap-7 rounded-3xl border border-border bg-[var(--tool-tint)] p-5 sm:p-9 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
+        <div class="space-y-5">
+          <h1 class="font-heading text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">Atlas OS <span class="block text-[var(--tool-color)]">{tool.name}</span></h1>
+          <p class="max-w-2xl text-base leading-relaxed text-content-secondary sm:text-lg">{tool.description}</p>
+          <div class="flex flex-wrap gap-3">
+            {launch ? (
+              <>
+                <a href={launch.shortcut} download={launch.filename}
+                  class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--tool-color)] px-4 py-2 text-sm font-semibold text-white hover:brightness-90">
+                  <ArrowDownToLine size={18} aria-hidden="true" /> Download Windows shortcut
+                </a>
+                <Button href={launch.url} variant="outline" size="md">Open in browser <ArrowRight size={17} aria-hidden="true" /></Button>
+              </>
+            ) : (
+              <Button href={industryHref(id) + '#demo'} variant="primary" size="md">Request access <ArrowRight size={17} aria-hidden="true" /></Button>
+            )}
+          </div>
+          <p class="max-w-xl text-sm leading-relaxed text-content-secondary">
+            {launch
+              ? (launch.local ? 'Start the Atlas OS ERP preview first. ' : '') + 'Open the downloaded .url shortcut to launch this workspace in your browser. An internet connection and Atlas OS sign-in are required for cloud data.'
+              : 'Browser access and the Windows shortcut will be available once this workspace has a configured web address.'}
+          </p>
+          <a href={industryHref(id)} class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--tool-color)] hover:underline">
+            Explore the industry workflow <ArrowRight size={16} aria-hidden="true" />
+          </a>
+        </div>
+
+        <section aria-label="Workspace preview" class="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+          <div class="flex items-center gap-3 border-b border-border bg-navy-800 px-5 py-4 text-white">
+            <PanelsTopLeft size={21} aria-hidden="true" />
+            <span class="font-semibold">{tool.name}</span>
+          </div>
+          <div class="space-y-4 p-5">
+            <h2 class="font-heading text-xl font-bold text-content-primary">{tool.headline}</h2>
+            <ul class="grid gap-2">
+              {tool.tasks.map(task => (
+                <li class="flex items-center gap-3 rounded-xl border border-border bg-[var(--tool-tint)] p-3 text-sm font-semibold text-content-primary">
+                  <span class="h-2 w-2 shrink-0 rounded-full bg-[var(--tool-color)]" aria-hidden="true"></span>{task.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </div>
+      <section aria-labelledby="industry-workflows">
+        <h2 id="industry-workflows" class="mb-4 font-heading text-2xl font-bold">What you can do with this tool</h2>
+        <div class="grid gap-4 sm:grid-cols-3">
+          {tool.tasks.map(task => (
+            <article class="rounded-2xl border border-border bg-white p-5">
+              <h3 class="font-heading text-lg font-bold">{task.label}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-content-secondary">{task.detail}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </Container>
+  </div>
+</BaseLayout>

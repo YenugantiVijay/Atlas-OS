@@ -30,6 +30,7 @@ import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { getSupabaseStatus } from '@/lib/supabase';
+import { allowsIndustryRoute, useIndustryTool } from '@/hooks/useIndustryTool';
 import { useAttendanceAccess } from '@/hooks/useAttendanceAccess';
 
 export interface SidebarProps {
@@ -134,6 +135,8 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
+  const tool = useIndustryTool();
+  const toolId = tool?.id;
 
   // Strictly filter by authorized permissions; roles cannot see links without permission
   const authorizedGroups = useMemo(
@@ -141,10 +144,12 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
       NAV_GROUPS_CONFIG
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action)),
+          items: group.items.filter(item => allowsIndustryRoute(toolId, item.path) &&
+            (toolId !== 'ecommerce' || item.path !== '/orders') &&
+            (item.attendance ? showAttendance : !item.action || hasPermission(currentRole, item.action))),
         }))
         .filter((group) => group.items.length > 0),
-    [currentRole, showAttendance]
+    [currentRole, showAttendance, toolId]
   );
 
   return (
@@ -208,6 +213,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                 {currentRole || 'No Role'}
               </Badge>
             </div>
+            {tool && <p className="mb-1 text-xs font-semibold text-white">{tool.name}</p>}
             <div className="text-xs text-slate-300 truncate">
               {[currentOrg.city, currentOrg.state].filter(Boolean).join(', ') || 'Location not set'}
             </div>

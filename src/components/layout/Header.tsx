@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/Input';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { useToast } from '@/components/ui/Toast';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
+import { toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
 import { AuthModal } from '@/features/auth/AuthModal';
 
 export interface HeaderProps {
@@ -99,11 +100,12 @@ export const Header: React.FC<HeaderProps> = ({
 
   const currentBreadcrumb = ROUTE_BREADCRUMBS[location.pathname] || { label: 'Dashboard' };
 
+  const tool = useIndustryTool();
   const availableQuickActions = [
     { label: 'New Product', type: 'product', action: 'products:create' as Action },
     { label: 'New Customer', type: 'customer', action: 'customers:manage' as Action },
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
-    { label: 'New Sales Order', type: 'order', action: 'orders:create' as Action },
+    { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
   ].filter((act) => hasPermission(currentRole, act.action));
 

@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import ReleaseCard from '../components/download/ReleaseCard';
+import { INDUSTRY_TOOLS, industryDownloadHref } from '../data/industry-downloads';
 import { OFFICIAL_RELEASES, APP_CONFIG } from '../data/releases';
 
 const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') || OFFICIAL_RELEASES[0];
@@ -23,9 +24,23 @@ const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') |
           Download <span class="text-gradient">Atlas OS</span>
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          The Windows installer is in development. See the release status or try the interactive browser preview.
+          Choose your industry to open its workspace or get a Windows browser shortcut.
         </p>
       </div>
+    </Container>
+  </section>
+
+  <section class="border-b border-border bg-white py-12">
+    <Container size="wide">
+      <h2 class="mb-5 font-heading text-2xl font-bold">Industry tools</h2>
+      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Object.entries(INDUSTRY_TOOLS).map(([id, tool]) => (
+          <li><a href={industryDownloadHref(id)} class="block h-full rounded-xl border border-border p-4 hover:border-brand-500">
+            <span class="block font-semibold text-content-primary">{tool.name}</span>
+            <span class="mt-1 block text-sm text-content-secondary">{tool.headline}</span>
+          </a></li>
+        ))}
+      </ul>
     </Container>
   </section>
 

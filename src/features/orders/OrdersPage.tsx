@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useIndustryTool } from '@/hooks/useIndustryTool';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -47,6 +48,7 @@ interface LineItemDraft {
 export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = false }) => {
   const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
   const { check } = useActionPermission();
+  const tool = useIndustryTool();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -646,7 +648,7 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
             Add the order reference from your sales channel. Confirming the order checks and deducts stock.
             Create an invoice, record your carrier and tracking reference, and enter verified collections in Payments.
           </p>
-          <Link to="/orders" className="mt-2 inline-block font-semibold text-atlas-800 underline">View all sales orders</Link>
+          {!tool && <Link to="/orders" className="mt-2 inline-block font-semibold text-atlas-800 underline">View all sales orders</Link>}
         </div>
       )}
 

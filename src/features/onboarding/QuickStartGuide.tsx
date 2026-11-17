@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { useIndustryTool } from '@/hooks/useIndustryTool';
 import { storage } from '@/lib/storage';
 import { guidedImportService } from '@/features/import-preview/guided-import.service';
 
@@ -26,6 +27,8 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
   const { currentOrg, isMockAuth } = useOrg();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const tool = useIndustryTool();
+  const hasElectricalStarter = !tool || tool.id === 'electrical';
   const [isExpanded, setIsExpanded] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
   const [productCount, setProductCount] = useState(0);
@@ -95,7 +98,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold text-navy-800">Fast-Track Setup Guide</h3>
               <Badge variant="teal" size="sm" className="min-w-0 whitespace-normal">
-                Indian Electrical Retail & Distribution
+                {tool?.name ?? 'Indian Electrical Retail & Distribution'}
               </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -163,7 +166,9 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                   )}
                 </div>
                 <p className="text-xs text-slate-600">
-                  Seed fast-moving electrical SKUs or upload your distributor Excel sheet.
+                  {hasElectricalStarter
+                    ? 'Load sample electrical SKUs or import your product catalogue.'
+                    : 'Review products and prices or import your own catalogue.'}
                 </p>
               </div>
 
@@ -171,12 +176,12 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={handleSeedCatalog}
-                  disabled={isSeeding}
+                  onClick={hasElectricalStarter ? handleSeedCatalog : () => navigate('/products')}
+                  disabled={hasElectricalStarter && isSeeding}
                   leftIcon={<PackagePlus className="w-3.5 h-3.5" />}
                   className="w-full text-xs h-7 bg-teal-600 hover:bg-teal-700 text-white md:w-auto md:flex-1"
                 >
-                  {isSeeding ? 'Seeding...' : '1-Click Starter SKUs'}
+                  {hasElectricalStarter ? (isSeeding ? 'Seeding...' : '1-Click Starter SKUs') : 'Open product catalogue'}
                 </Button>
                 {onOpenImportModal && (
                   <Button
@@ -196,15 +201,15 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
             <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
-                  <span>3. First Bill or Quotation</span>
+                  <span>{tool ? '3. Billing' : '3. First Bill or Quotation'}</span>
                   <Store className="w-4 h-4 text-slate-400" />
                 </div>
                 <p className="text-xs text-slate-600">
-                  Open Retail Counter for fast OTC billing or create a B2B contractor tax invoice.
+                  {tool ? 'Find customer invoices and review their billing status.' : 'Open Retail Counter for fast billing or prepare a contractor invoice.'}
                 </p>
               </div>
               <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-2 md:flex-row">
-                <Button
+                {!tool && <Button
                   variant="outline"
                   size="sm"
                   onClick={() => navigate('/pos')}
@@ -212,7 +217,7 @@ export const QuickStartGuide: React.FC<QuickStartGuideProps> = ({ onOpenImportMo
                   className="w-full text-xs h-7 text-navy-800 md:w-auto md:flex-1"
                 >
                   Retail Counter
-                </Button>
+                </Button>}
                 <Button
                   variant="outline"
                   size="sm"
