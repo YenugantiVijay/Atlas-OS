@@ -9,7 +9,7 @@ Record the release commit, deployed URLs, migration parity, check date, and oper
 | Owner console | From the private origin, exercise the primary and emergency accounts with separate authenticators. Send one report through ERP Support and use the website report above. Update a report, record a test purchase in staging, and generate a brief from the test reports. | Both enrolled owners can sign in. A normal workspace user is denied. The inbox shows both sources, the ERP reporter sees the update, the purchase totals agree with the ledger, and the provider returns a brief. |
 | Recovery | Restore an approved backup to an isolated environment. Reconcile stock and financial totals. Verify authentication, staff boundaries, owner access, and any separately restored storage and service configuration. | Save the restore point, recovery timing, and reconciliation result. Use test data for checks against external providers. |
 
-The automated PostgreSQL drill runs in ERP CI. For local acceptance, install `pg_dump` and `pg_restore` compatible with the disposable PostgreSQL server, then run:
+The automated PostgreSQL drill runs in ERP CI. For local acceptance, install `pg_dump` and `pg_restore` with the same major version as the disposable PostgreSQL server, then run:
 
 ```sh
 ATLAS_TEST_RESTORE=1 npm run test:db

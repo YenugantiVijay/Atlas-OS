@@ -60,10 +60,26 @@ jobs:
       - name: TypeScript Type Check
         run: npm run typecheck
 
+      - name: Use PostgreSQL 15 backup and restore clients
+        run: |
+          mkdir -p "$RUNNER_TEMP/atlas-pg-tools"
+          cat > "$RUNNER_TEMP/atlas-pg-tools/pg_dump" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --network host --user "$(id -u):$(id -g)" \
+            --env PGHOST --env PGHOSTADDR --env PGPORT --env PGUSER --env PGPASSWORD --env PGDATABASE \
+            --volume "$RUNNER_TEMP:$RUNNER_TEMP" \
+            postgres:15-alpine "$(basename "$0")" "$@"
+          SH
+          chmod +x "$RUNNER_TEMP/atlas-pg-tools/pg_dump"
+          ln -s pg_dump "$RUNNER_TEMP/atlas-pg-tools/pg_restore"
+          echo "$RUNNER_TEMP/atlas-pg-tools" >> "$GITHUB_PATH"
+
       - name: Run Master Database Lifecycle & Security Acceptance
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/postgres
           ATLAS_TEST_RESTORE: '1'
+          TMPDIR: ${{ runner.temp }}
         run: npm run test:db
 
       - name: Run Unit & Integration Tests (Vitest)
