@@ -66,7 +66,7 @@ test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
   });
 
   test('verifies top header controls have unified height and no horizontal overflow on mobile', async ({ page }) => {
-    const header = page.locator('header');
+    const header = page.getByRole('banner');
     await expect(header).toBeVisible();
 
     // Verify search button
