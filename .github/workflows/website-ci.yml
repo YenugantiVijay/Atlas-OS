@@ -42,7 +42,9 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Block high and critical website dependency advisories
-        run: npm audit --audit-level=high
+        run: |
+          node --test scripts/check-dependency-audit.test.mjs
+          node scripts/check-dependency-audit.mjs
 
       - name: Verify TypeScript
         run: npm run typecheck
