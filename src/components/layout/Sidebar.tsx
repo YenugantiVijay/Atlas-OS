@@ -84,6 +84,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     showHeading: true,
     items: [
       { label: 'Products & SKUs', path: '/products', icon: <Boxes className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'Stock Count & Expiry', path: '/stock-count', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Stock Movements', path: '/inventory', icon: <TrendingUp className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Purchase Orders', path: '/purchase-orders', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'inventory:receive' },
       { label: 'Goods Receiving', path: '/receiving', icon: <PackagePlus className="w-[18px] h-[18px]" />, action: 'inventory:receive' },
