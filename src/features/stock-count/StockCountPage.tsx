@@ -128,7 +128,7 @@ function StockCountWorkspace({ orgId, userId, demo, openingAccess }: {
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <Input label="Stock count file" type="file" accept=".xlsx,.csv" disabled={reading}
-            onChange={onFile} helperText={preview ? 'Opening a new file replaces this preview and its edits.' : 'Excel (.xlsx) or CSV, up to 10 MB.'} />
+            onChange={onFile} helperText={workbook ? 'Choose another file to replace this workbook and its preview.' : 'Excel (.xlsx) or CSV, up to 10 MB.'} />
           <Input label="Stock count date" type="date" required value={countDate} onChange={(event) => setCountDate(event.target.value)}
             error={countDateValid ? undefined : 'Enter a valid count date.'} />
           <Select label="Date order in text cells" value={order} onChange={(event) => setOrder(event.target.value as DateOrder)}
@@ -139,7 +139,7 @@ function StockCountWorkspace({ orgId, userId, demo, openingAccess }: {
         {fileError && <p role="alert" className="text-sm text-rose-700">{fileError}</p>}
         {workbook && sheet && (
           <form onSubmit={buildPreview} className="space-y-4 border-t border-border pt-4">
-            <h2 className="break-all font-semibold text-content-primary">{workbook.file}</h2>
+            <p className="break-words text-sm text-content-secondary">Loaded workbook <strong className="text-content-primary">{workbook.file}</strong></p>
             <div className="grid gap-4 sm:grid-cols-3">
               <Select label="Worksheet" value={String(sheetIndex)} onChange={(event) => {
                 const index = Number(event.target.value);
@@ -230,7 +230,7 @@ function StockCountPreview({ preview, file, countDate, order, products, openingA
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="count-preview-heading" className="text-xl font-semibold text-content-primary">Review counted stock</h2>
-          <p className="text-sm text-content-secondary">Changes apply to this preview only. Download the workbook to keep a copy.</p>
+          <p className="text-sm text-content-secondary">Use Edit to fill in missing counts or godowns. Download the review to keep a copy of your edits.</p>
         </div>
         <Button variant="outline" onClick={() => void exportReview()} disabled={exportDisabled || exporting}
           leftIcon={<Download className="h-4 w-4" aria-hidden="true" />}>

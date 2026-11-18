@@ -1,0 +1,120 @@
+.demo-request {
+  --demo-accent: var(--industry-accent, #0f766e);
+  min-width: 0;
+  container-type: inline-size;
+  border: 1px solid #dbe4ec;
+  border-top: 3px solid var(--demo-accent);
+  border-radius: 1rem;
+  background: #fff;
+  padding: clamp(0.875rem, 3vw, 1.25rem);
+  box-shadow: 0 6px 24px rgb(15 35 60 / 5%);
+}
+
+.demo-request__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.demo-request__icon {
+  display: grid;
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 0.65rem;
+  color: var(--demo-accent);
+  background: color-mix(in srgb, var(--demo-accent) 9%, white);
+}
+
+.demo-request__fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem 0.75rem;
+}
+
+.demo-request__control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #dbe4ec;
+  border-radius: 0.5rem;
+  background-color: #f8fafc;
+  color: #172b4d;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.demo-request__control:focus-visible {
+  outline: 2px solid var(--demo-accent);
+  outline-offset: 1px;
+}
+
+.demo-request__notes {
+  grid-column: 1 / -1;
+  padding-top: 0.1rem;
+}
+
+.demo-request__actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.65rem;
+}
+
+.demo-request__submit {
+  display: inline-flex;
+  min-height: 2.5rem;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.55rem;
+  background-color: var(--demo-accent);
+  padding: 0.5rem 0.95rem;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.demo-request__submit:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--demo-accent) 86%, black);
+}
+
+.demo-request__submit:focus-visible {
+  outline: 2px solid var(--demo-accent);
+  outline-offset: 2px;
+}
+
+.demo-request__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@container (min-width: 19rem) {
+  .demo-request__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .demo-request__selection {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (min-width: 26rem) {
+  .demo-request__selection {
+    grid-column: auto;
+  }
+
+  .demo-request__control {
+    font-size: 0.875rem;
+  }
+
+  .demo-request__submit {
+    width: auto;
+  }
+}

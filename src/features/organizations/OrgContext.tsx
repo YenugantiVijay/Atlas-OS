@@ -16,6 +16,9 @@ import { storage } from '@/lib/storage';
 import { BUSINESS_CATEGORIES } from '@/lib/business-categories';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { queryClient } from '@/app/query-client';
+import { requestSignInCode } from '@/features/auth/email-sign-in';
+import { AuthenticatorChallenge } from '@/features/auth/AuthenticatorChallenge';
+import { Button } from '@/components/ui/Button';
 
 export type CreateOrganizationInput = Omit<Organization, 'id' | 'createdAt' | 'updatedAt'> & {
   businessCategory?: BusinessCategory;
@@ -284,8 +287,22 @@ export function evaluateOperationalWriteAccess(
   return false;
 }
 
-export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Keep the workspace mounted across normal token refreshes. Supabase verifies
+// the token before this key can be marked verified.
+function assuranceKey(session: Session): string {
+  try {
+    const payload = session.access_token.split('.')[1];
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    if (typeof claims.session_id === 'string') return JSON.stringify([session.user.id, claims.session_id, claims.aal]);
+  } catch {
+    // Fall back to an exact token match when claims are unavailable.
+  }
+  return session.access_token;
+}
+
+export const OrgProvider: React.FC<{ children: React.ReactNode; requireAuthenticator?: boolean }> = ({ children, requireAuthenticator = false }) => {
   const [session, setSession] = useState<Session | null>(null);
+  const [assurance, setAssurance] = useState<{ key: string; status: 'verified' | 'challenge' | 'error' } | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [currentRole, setCurrentRole] = useState<Role | null>(null);
@@ -308,7 +325,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth may emit SIGNED_IN repeatedly when a browser tab regains focus.
   // Track the last fully loaded identity to avoid full-screen reloads.
   const loadedUserIdRef = useRef<string | null>(null);
-  const inFlightLoadPromiseRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
+  const verifiedAssuranceRef = useRef<string | null>(null);
+  const inFlightLoadPromiseRef = useRef<{ token: string; promise: Promise<void> } | null>(null);
 
   const isMockAuth = isDemoMode;
   const isAuthenticated = Boolean(session && !isDemoMode);
@@ -329,7 +347,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!authUser) return;
 
     // Concurrency Guard: Deduplicate in-flight loads for the same authenticated user
-    if (!preferredOrgId && inFlightLoadPromiseRef.current && inFlightLoadPromiseRef.current.userId === authUser.id) {
+    if (!preferredOrgId && inFlightLoadPromiseRef.current && inFlightLoadPromiseRef.current.token === activeSession.access_token) {
       return inFlightLoadPromiseRef.current.promise;
     }
 
@@ -353,6 +371,23 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const loadPromise = (async () => {
       try {
+        const key = requireAuthenticator ? assuranceKey(activeSession) : null;
+        if (key && verifiedAssuranceRef.current !== key) {
+          try {
+            const { data, error } = await supabase!.auth.mfa.getAuthenticatorAssuranceLevel(activeSession.access_token);
+            if (error) throw error;
+            if (loadGenerationRef.current !== currentGen) return;
+            const verified = data.currentLevel === 'aal2';
+            verifiedAssuranceRef.current = verified ? key : null;
+            setAssurance({ key, status: verified ? 'verified' : 'challenge' });
+            if (!verified) return;
+          } catch {
+            if (loadGenerationRef.current === currentGen) {
+              setAssurance({ key, status: 'error' });
+            }
+            return;
+          }
+        }
         // 1. Set current user profile
         const userProfile: User = {
           id: authUser.id,
@@ -473,7 +508,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     })();
 
-    inFlightLoadPromiseRef.current = { userId: authUser.id, promise: loadPromise };
+    inFlightLoadPromiseRef.current = { token: activeSession.access_token, promise: loadPromise };
 
     try {
       await loadPromise;
@@ -482,7 +517,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inFlightLoadPromiseRef.current = null;
       }
     }
-  }, []);
+  }, [requireAuthenticator]);
 
   // Load offline demo data from storage.ts
   const loadDemoData = useCallback(() => {
@@ -595,25 +630,34 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Listen to real Supabase Auth events
     let authSub: { unsubscribe: () => void } | null = null;
     if (supabase) {
-      const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
         if (!isMounted) return;
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'MFA_CHALLENGE_VERIFIED') {
+          // Read the persisted session after Supabase releases its auth lock.
+          window.setTimeout(() => {
+            if (!isMounted) return;
+            void supabase!.auth.getSession().then(({ data }) => {
+              if (!isMounted || !data.session || data.session.access_token !== newSession?.access_token) return;
+              setSession(data.session);
+              void loadRemoteData(data.session);
+            });
+          }, 0);
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(newSession);
           setIsDemoMode(false);
           localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
-          // Supabase may emit SIGNED_IN on tab focus and TOKEN_REFRESHED
-          // periodically. The JWT changed, not the user or their worksheet.
-          // Rehydrating the organization and purging every query here caused
-          // needless loading/flicker across pages.
-          if (newSession && loadedUserIdRef.current !== newSession.user.id) {
-            queryClient.clear(); // only when the authenticated identity changes
-            await loadRemoteData(newSession);
+          if (newSession && (loadedUserIdRef.current !== newSession.user.id ||
+            (requireAuthenticator && verifiedAssuranceRef.current !== assuranceKey(newSession)))) {
+            if (loadedUserIdRef.current !== newSession.user.id) queryClient.clear();
+            void loadRemoteData(newSession);
           }
         } else if (event === 'SIGNED_OUT') {
           clearAllReceivingTabData(); // no supplier prices or unsaved receipt data retained after logout
           activeUserIdRef.current = null;
           loadedUserIdRef.current = null;
+          verifiedAssuranceRef.current = null;
+          setAssurance(null);
           loadGenerationRef.current++;
           switchGenerationRef.current++;
           inFlightLoadPromiseRef.current = null;
@@ -645,7 +689,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         authSub.unsubscribe();
       }
     };
-  }, [loadRemoteData, loadDemoData]);
+  }, [loadRemoteData, loadDemoData, requireAuthenticator]);
 
   // Organization Switching: Flushes query cache and derives new server-enforced role with race-condition protection
   const switchOrganization = async (orgId: string) => {
@@ -820,9 +864,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendEmailCode: OrgContextType['sendEmailCode'] = async (email, purpose) => {
     if (!supabase) return { error: 'Cloud sign-in is unavailable in this environment.' };
-    const { error } = purpose === 'signup'
-      ? await supabase.auth.resend({ email, type: 'signup' })
-      : await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+    if (purpose === 'signin') return requestSignInCode(supabase, email);
+    const { error } = await supabase.auth.resend({ email, type: 'signup' });
     if (!error) return {};
     if (error.status === 429) return { error: 'Too many requests. Wait before requesting another code.' };
     if (error.code === 'otp_disabled' || error.code === 'signup_disabled' || error.code === 'user_not_found' || error.code === 'user_already_exists' || error.code === 'email_not_confirmed') {
@@ -847,6 +890,8 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signOut = async () => {
     activeUserIdRef.current = null;
+    verifiedAssuranceRef.current = null;
+    setAssurance(null);
     loadGenerationRef.current++;
     switchGenerationRef.current++;
     inFlightLoadPromiseRef.current = null;
@@ -1293,6 +1338,9 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const assuranceStatus = session && assurance && assurance.key === assuranceKey(session) ? assurance.status : null;
+  const needsAuthenticator = requireAuthenticator && isAuthenticated && assuranceStatus !== 'verified';
+
   return (
     <OrgContext.Provider
       value={{
@@ -1327,7 +1375,24 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exitDemoMode,
       }}
     >
-      {children}
+      {needsAuthenticator && supabase && session ? (
+        <main className="grid min-h-dvh place-items-center bg-surface-panel p-4">
+          <section aria-labelledby="industry-auth-title" className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-surface-card p-6 shadow-sm">
+            <img src="/favicon.svg" width={44} height={44} alt="Atlas OS" />
+            <h1 id="industry-auth-title" className="text-xl font-bold text-content-primary">Verify your authenticator</h1>
+            {assuranceStatus === 'challenge' ? (
+              <AuthenticatorChallenge key={session.user.id} client={supabase} name="Atlas OS"
+                onSignOut={() => void signOut()} />
+            ) : assuranceStatus === 'error' ? (
+              <>
+                <p role="alert" className="text-sm text-rose-700">Atlas OS couldn’t verify your sign-in. Try again.</p>
+                <Button onClick={() => { setAssurance(null); void loadRemoteData(session); }}>Try again</Button>
+                <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
+              </>
+            ) : <p role="status">Checking sign-in…</p>}
+          </section>
+        </main>
+      ) : children}
     </OrgContext.Provider>
   );
 };

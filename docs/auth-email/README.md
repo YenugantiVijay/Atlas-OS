@@ -18,3 +18,9 @@ Atlas OS verifies new email and password accounts with a six-digit email code. E
 Local Auth uses the email settings in `supabase/config.toml`. Changing the repo templates prepares the application release. Hosted Auth template and SMTP settings are configured per project.
 
 [Supabase email templates](https://supabase.com/docs/guides/auth/auth-email-templates) · [Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
+
+## Owner console and industry sign-in
+
+Both builds use the same hosted email templates and SMTP settings when they point to the same Supabase project. If a request is accepted but the code does not arrive, check the Auth logs and the SMTP provider delivery log for the request time. Confirm that the Magic link template renders `{{ .Token }}` and that the provider has verified the sender. Built-in SMTP restricts delivery to project team addresses.
+
+For an industry build, enable TOTP enrollment and verification in Supabase Auth and build with `VITE_REQUIRE_WORKSPACE_AUTHENTICATOR=true`. The app prompts for an authenticator after password or email-code sign-in. First-time users set up a factor before the app loads workspace data. The owner console already requires a verified second factor independently of this flag. The ERP flag gates the app only and does not add new AAL2 restrictions to its Supabase tables, RPCs or storage. Verify those server-side policies before promising mandatory MFA across all access paths.

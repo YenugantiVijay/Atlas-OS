@@ -7,7 +7,7 @@ import { getPreviewVersion, previewVersionHeader } from "./scripts/dev-preview-v
 
 // https://astro.build/config
 export default defineConfig({
-  site: process.env.PUBLIC_SITE_URL || "https://atlasos.business",
+  site: process.env.PUBLIC_SITE_URL || "https://atlas-os-8328y.web.app",
   output: "static",
   integrations: [
     react(),
