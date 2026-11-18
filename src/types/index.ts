@@ -71,6 +71,12 @@ export type MovementType =
   | 'ADJUSTMENT'
   | 'REVERSAL';
 
+export interface ReceivedStockBatch {
+  number: string;
+  godown: string;
+  expiryDate?: string;
+}
+
 export interface StockMovement {
   id: string;
   organizationId: string;
@@ -80,6 +86,7 @@ export interface StockMovement {
   referenceType?: string;
   referenceId?: string;
   actorId?: string;
+  receivedBatch?: ReceivedStockBatch;
   notes?: string;
   createdAt: string;
   product?: Product;

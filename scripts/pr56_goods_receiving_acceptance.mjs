@@ -299,4 +299,30 @@ export async function runGoodsReceivingAcceptance({
     await stock(deliveryProduct)===100 && JSON.stringify(await storedLine(checkedId))===JSON.stringify(savedLine) &&
     priceAfterResolution.length===1 && Number(priceAfterResolution[0].unit_cost)===21.5,
     JSON.stringify({resolutionAudit,priceAfterResolution}));
+  const batchId = crypto.randomUUID(), expiredId = crypto.randomUUID();
+  const batch = { number: '0008', godown: 'Annex' };
+  await asA(() => save(orgAId,batchId,supplierA,[
+    { ...items[0], batch: { ...batch, godown: ' Annex ' } },
+  ],'INV-BATCH-ACCEPTANCE'));
+  const firstBatchPost = (await asA(() => post(orgAId,batchId))).rows[0].result;
+  const replayBatchPost = (await asA(() => post(orgAId,batchId))).rows[0].result;
+  const batchMoves = (await client.query(
+    'SELECT quantity_change,received_batch FROM public.stock_movements WHERE organization_id=$1 AND reference_id=$2',[orgAId,batchId],
+  )).rows;
+  const invalidBatchCode = await errorCode(() => asA(() => save(orgAId,expiredId,supplierA,[
+    { ...items[0], batch: { number: '0008' } },
+  ],'INV-INCOMPLETE-BATCH')));
+  await asA(() => save(orgAId,expiredId,supplierA,[
+    { ...items[0], batch: { ...batch, expiryDate: '2000-01-01' } },
+  ],'INV-EXPIRED-BATCH'));
+  const expiredCode = await errorCode(() => asA(() => post(orgAId,expiredId)));
+  const failedPost = (await client.query(`SELECT r.status, (SELECT count(*)::int FROM public.stock_movements
+    WHERE organization_id=$1 AND reference_id=$2) AS movements FROM public.goods_receipts r WHERE r.id=$2`,[orgAId,expiredId])).rows[0];
+  recordTest('GRN-BATCH-01','A posted receipt attributes usable stock exactly once and rejects expired stock atomically',
+    !firstBatchPost.idempotent_replay && replayBatchPost.idempotent_replay && batchMoves.length===1 &&
+    batchMoves[0].quantity_change===38 && batchMoves[0].received_batch?.number===batch.number &&
+    batchMoves[0].received_batch?.godown===batch.godown && invalidBatchCode==='22023' && expiredCode==='23514' &&
+    failedPost?.status==='DRAFT' && failedPost?.movements===0,
+    JSON.stringify({batchMoves,invalidBatchCode,expiredCode,failedPost}));
+
 }

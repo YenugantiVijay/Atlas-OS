@@ -30,6 +30,15 @@ describe('PR56 variable carton receiving',()=>{
     expect(()=>parsePackageCounts(writeUniformCartons('10',''))).toThrow(/positive integers/);
     expect(()=>writeUniformCartons('1.5','12')).toThrow(/whole numbers/);
   });
+  it('keeps optional batch identity in the receipt payload and rejects incomplete attribution', () => {
+    expect(buildGoodsReceiptPayload(org, [{ ...row, batchNumber: ' 0008 ', godown: ' Annex ', expiryDate: '2027-02-28' }])[0].batch)
+      .toEqual({ number: '0008', godown: 'Annex', expiryDate: '2027-02-28' });
+    expect(buildGoodsReceiptPayload(org, [row])[0]).not.toHaveProperty('batch');
+    expect(() => buildGoodsReceiptPayload(org, [{ ...row, batchNumber: '0008' }])).toThrow(/godown/i);
+    expect(() => buildGoodsReceiptPayload(org, [{ ...row, batchNumber: '0008', godown: 'Annex', expiryDate: '2027-02-29' }]))
+      .toThrow(/expiry date/i);
+  });
+
   it('supports repeat shorthand and 200 explicit cartons safely',()=>{
     expect(parsePackageCounts('5x12, 10, 2×3')).toEqual([12,12,12,12,12,10,3,3]);
     expect(parsePackageCounts('200x2')).toHaveLength(200);
