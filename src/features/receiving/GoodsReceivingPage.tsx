@@ -361,6 +361,7 @@ export const GoodsReceivingPage: React.FC = () => {
           looseUnits: String(row.looseUnits), unitCost: Number(row.unitCost).toFixed(2),
           billedUnits: row.billedUnits === undefined ? undefined : String(row.billedUnits ?? ''),
           damagedUnits: row.damagedUnits === undefined ? undefined : String(row.damagedUnits),
+          batchNumber: row.batch?.number, godown: row.batch?.godown, expiryDate: row.batch?.expiryDate,
         });
       }
       if (activeOrgRef.current !== orgId) return;
@@ -555,6 +556,26 @@ export const GoodsReceivingPage: React.FC = () => {
                   <td className="px-3 py-4 font-semibold">{i + 1}</td>
                   <td className="min-w-[155px] px-3 py-3">
                     <strong>{row.product.name}</strong><p className="text-slate-500">{row.product.sku}</p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer font-medium text-violet-800">
+                        {row.batchNumber || 'Add batch details'}
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {([
+                          { key: 'batchNumber', label: 'Batch number', type: 'text' },
+                          { key: 'godown', label: 'Godown', type: 'text' },
+                          { key: 'expiryDate', label: 'Expiry date (optional)', type: 'date' },
+                        ] as const).map(({ key, label, type }) => (
+                          <label key={key} className="block">
+                            <span className="text-slate-700">{label}</span>
+                            <input aria-label={label + ' for ' + row.product.name} type={type} maxLength={255}
+                              value={row[key] ?? ''} disabled={!editable}
+                              onChange={event => updateRow(row.product.id, key, event.target.value)}
+                              className="mt-1 block h-8 w-full min-w-28 rounded border border-slate-300 px-2" />
+                          </label>
+                        ))}
+                      </div>
+                    </details>
                   </td>
                   <td className="px-3 py-2">
                     <input id={'grn-cases-' + row.product.id} aria-label={'Cases for ' + row.product.name}

@@ -1,4 +1,5 @@
-import type { Product } from '@/types';
+import { parseCountDate } from '@/features/stock-count/stock-count';
+import type { Product, ReceivedStockBatch } from '@/types';
 
 export interface ReceiptWorksheetLine {
   product: Product;
@@ -7,6 +8,9 @@ export interface ReceiptWorksheetLine {
   unitCost: string;
   billedUnits?: string;
   damagedUnits?: string;
+  batchNumber?: string;
+  godown?: string;
+  expiryDate?: string;
 }
 export interface ReceiptPayloadLine {
   productId: string;
@@ -15,6 +19,7 @@ export interface ReceiptPayloadLine {
   unitCost: number;
   billedUnits?: number | null;
   damagedUnits?: number;
+  batch?: ReceivedStockBatch;
 }
 export const MAX_RECEIPT_LINES = 50;
 export const MAX_PACKAGES = 200;
@@ -129,10 +134,19 @@ export function buildGoodsReceiptPayload(organizationId: string, lines: ReceiptW
     }
     unique.add(line.product.id);
     try {
-      const { packageCounts, looseUnits, unitCost, billedUnits, damagedUnits } = computeReceiptLine(line);
+      const { packageCounts, looseUnits, unitCost, billedUnits, damagedUnits, usableUnits } = computeReceiptLine(line);
+      const batchNumber = line.batchNumber?.trim() ?? '';
+      const godown = line.godown?.trim() ?? '';
+      const expiryDate = line.expiryDate?.trim() ?? '';
+      const hasBatchInfo = !!(batchNumber || godown || expiryDate);
+      if (hasBatchInfo && (!batchNumber || !godown || batchNumber.length > 255 || godown.length > 255 || usableUnits <= 0)) {
+        throw new Error('Batch details require a batch number, godown, and usable stock.');
+      }
+      if (expiryDate && parseCountDate(expiryDate) !== expiryDate) throw new Error('Enter a valid batch expiry date.');
       return {
         productId: line.product.id, packageCounts, looseUnits, unitCost,
         ...(checksDelivery && { billedUnits, damagedUnits }),
+        ...(hasBatchInfo && { batch: { number: batchNumber, godown, ...(expiryDate && { expiryDate }) } }),
       };
     } catch (error) {
       throw new Error('Row ' + (index + 1) + ': ' + (error instanceof Error ? error.message : 'Invalid quantities.'));

@@ -14,6 +14,7 @@ export function mapDbStockMovement(row: any): StockMovement {
     referenceId: row.reference_id || undefined,
     actorId: row.actor_id || undefined,
     notes: row.notes || undefined,
+    ...(row.received_batch && { receivedBatch: row.received_batch }),
     createdAt: row.created_at,
     product: row.products ? mapDbProduct(row.products) : undefined,
   };

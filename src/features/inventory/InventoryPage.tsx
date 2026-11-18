@@ -435,6 +435,12 @@ export const InventoryPage: React.FC = () => {
                         {m.product?.sku || products.find((p) => p.id === m.productId)?.sku}
                       </span>
                     )}
+                    {m.receivedBatch && (
+                      <p className="mt-1 break-words text-xs text-content-secondary">
+                        Batch {m.receivedBatch.number} · {m.receivedBatch.godown}
+                        {m.receivedBatch.expiryDate && ` · Expires ${m.receivedBatch.expiryDate}`}
+                      </p>
+                    )}
                   </TableCell>
 
                   <TableCell>{getMovementBadge(m.movementType)}</TableCell>

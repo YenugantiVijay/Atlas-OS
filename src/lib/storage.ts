@@ -1739,6 +1739,7 @@ class StorageEngine {
           movementType: 'GOODS_RECEIVED',
           referenceType: 'GOODS_RECEIPT',
           referenceId: receipt.id,
+          ...(line.batch && { receivedBatch: line.batch }),
           notes: `Goods received via supplier invoice ${receipt.supplierInvoiceNumber}`,
         });
       }
