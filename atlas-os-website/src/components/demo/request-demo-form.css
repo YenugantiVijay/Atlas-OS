@@ -74,7 +74,7 @@
   justify-content: center;
   gap: 0.5rem;
   border-radius: 0.55rem;
-  background-color: #0f766e;
+  background-color: var(--demo-accent);
   padding: 0.5rem 0.95rem;
   color: #fff;
   font-size: 0.875rem;
@@ -82,11 +82,11 @@
 }
 
 .demo-request__submit:not(:disabled):hover {
-  background-color: #115e59;
+  background-color: color-mix(in srgb, var(--demo-accent) 86%, black);
 }
 
 .demo-request__submit:focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid var(--demo-accent);
   outline-offset: 2px;
 }
 

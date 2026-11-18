@@ -123,9 +123,9 @@ export default function RequestDemoForm({ initialIndustry = EMPTY_FORM.industry 
   if (!leadDeliveryConfigured) return (
     <section aria-label="Request a demo" className="demo-request space-y-3">
       {heading}
-      <p role="status" className="text-sm text-content-secondary">Online demo requests are temporarily unavailable.</p>
-      <a href="/product" className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand-700 underline-offset-4 hover:underline">
-        Explore Atlas OS <ArrowRight size={15} aria-hidden="true" />
+      <p role="status" className="text-sm text-content-secondary">Online booking is temporarily unavailable. Contact us to arrange a walkthrough.</p>
+      <a href="/contact/" className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand-700 underline-offset-4 hover:underline">
+        Contact Atlas OS <ArrowRight size={15} aria-hidden="true" />
       </a>
     </section>
   );

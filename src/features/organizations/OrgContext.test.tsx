@@ -1,7 +1,7 @@
 import { seedTestStorage } from '@/test/storage-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, act, waitFor } from '@testing-library/react';
 import {
   OrgProvider,
   useOrg,
@@ -48,24 +48,22 @@ let mockFromFn = vi.fn();
 let authStateCallback: ((event: string, session: any) => Promise<void> | void) | null = null;
 let mockSignOutFn = vi.fn().mockResolvedValue({ error: null });
 
+const initialSession = {
+  access_token: 'workspace-initial-token',
+  user: { id: 'user-test-uuid', email: 'owner@atlas.in', user_metadata: { full_name: 'Test Owner' } },
+};
+let mockSession = initialSession;
+const mockAssurance = vi.fn();
+const mockListFactors = vi.fn();
+
 vi.mock('@/lib/supabase', () => ({
   get supabase() {
     return {
       rpc: mockRpcFn,
       from: mockFromFn,
       auth: {
-        getSession: vi.fn().mockResolvedValue({
-          data: {
-            session: {
-              user: {
-                id: 'user-test-uuid',
-                email: 'owner@atlas.in',
-                user_metadata: { full_name: 'Test Owner' },
-              },
-            },
-          },
-          error: null,
-        }),
+        getSession: vi.fn().mockImplementation(async () => ({ data: { session: mockSession }, error: null })),
+        mfa: { getAuthenticatorAssuranceLevel: mockAssurance, listFactors: mockListFactors },
         onAuthStateChange: vi.fn().mockImplementation((cb) => {
           authStateCallback = cb;
           return {
@@ -79,6 +77,27 @@ vi.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: () => true,
   validateSupabaseConfig: () => ({ valid: true }),
 }));
+
+it('blocks workspace routes and data until the authenticator session is verified', async () => {
+  localStorage.clear();
+  mockFromFn.mockReset().mockImplementation(() => createQueryMock());
+  mockAssurance.mockResolvedValueOnce({ data: { currentLevel: 'aal1' } })
+    .mockResolvedValueOnce({ data: { currentLevel: 'aal2' } });
+  mockListFactors.mockResolvedValue({ data: { totp: [{ id: 'factor-id' }] } });
+  try {
+    render(<OrgProvider requireAuthenticator><p>Workspace content</p></OrgProvider>);
+    expect(await screen.findByLabelText(/Authenticator code/)).toBeVisible();
+    expect(screen.queryByText('Workspace content')).toBeNull();
+    expect(mockFromFn).not.toHaveBeenCalled();
+
+    mockSession = { ...initialSession, access_token: 'workspace-verified-token' };
+    act(() => { void authStateCallback?.('MFA_CHALLENGE_VERIFIED', mockSession); });
+    expect(await screen.findByText('Workspace content')).toBeVisible();
+    await waitFor(() => expect(mockFromFn).toHaveBeenCalledWith('memberships'));
+  } finally {
+    mockSession = initialSession;
+  }
+});
 
 describe('Phase 2.5: Hardened Organization Creation Contract & Auxiliary Row Confirmation', () => {
   const mockOrgRpc: CreateOrganizationRpcResponse = {
