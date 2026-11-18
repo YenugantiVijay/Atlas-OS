@@ -13,6 +13,7 @@ import { loadImportProducts } from '@/features/import-preview/import-catalog.ser
 import { readImportFile, type SourceSheet } from '@/features/import-preview/import-file';
 import { normalizeHeader, type ProductIdentity } from '@/features/import-preview/import-preview';
 import { useOrg } from '@/features/organizations/OrgContext';
+import { BatchOpeningPanel } from './BatchOpeningPanel';
 import { getBusinessDate } from '@/lib/dates';
 import {
   countFields, countStatuses, parseCountDate, readCountRows, reviewCount, suggestCountMapping, suggestCountSetup,
@@ -29,13 +30,20 @@ interface Workbook { file: string; sheets: SourceSheet[] }
 interface Preview { rows: CountSource[]; sheet: string; revision: number }
 
 export default function StockCountPage() {
-  const { currentOrg, currentUser, isMockAuth } = useOrg();
+  const { currentOrg, currentUser, currentRole, isMockAuth, canWriteOperations } = useOrg();
   if (!currentOrg) return null;
   return <StockCountWorkspace key={`${currentOrg.id}:${currentUser?.id}:${isMockAuth}`}
-    orgId={currentOrg.id} userId={currentUser?.id} demo={isMockAuth} />;
+    orgId={currentOrg.id} userId={currentUser?.id} demo={isMockAuth}
+    openingAccess={isMockAuth || !currentRole || !['owner', 'admin', 'inventory'].includes(currentRole) ? undefined : {
+      orgId: currentOrg.id, userId: currentUser?.id, canSave: canWriteOperations && ['owner', 'admin'].includes(currentRole),
+    }} />;
 }
 
-function StockCountWorkspace({ orgId, userId, demo }: { orgId: string; userId?: string; demo: boolean }) {
+interface OpeningAccess { orgId: string; userId?: string; canSave: boolean }
+
+function StockCountWorkspace({ orgId, userId, demo, openingAccess }: {
+  orgId: string; userId?: string; demo: boolean; openingAccess?: OpeningAccess;
+}) {
   const [workbook, setWorkbook] = useState<Workbook>();
   const [sheetIndex, setSheetIndex] = useState(0);
   const [header, setHeader] = useState('');
@@ -176,15 +184,15 @@ function StockCountWorkspace({ orgId, userId, demo }: { orgId: string; userId?: 
             </div>
           )}
           <StockCountPreview key={preview.revision} preview={preview} file={workbook.file} countDate={countDate}
-            order={order} products={catalog.data} exportDisabled={catalog.isFetching || !countDateValid} />
+            order={order} products={catalog.data} openingAccess={openingAccess} exportDisabled={catalog.isFetching || !countDateValid} />
         </>
       )}
     </div>
   );
 }
 
-function StockCountPreview({ preview, file, countDate, order, products, exportDisabled }: {
-  preview: Preview; file: string; countDate: string; order: DateOrder; products?: ProductIdentity[]; exportDisabled: boolean;
+function StockCountPreview({ preview, file, countDate, order, products, openingAccess, exportDisabled }: {
+  preview: Preview; file: string; countDate: string; order: DateOrder; products?: ProductIdentity[]; openingAccess?: OpeningAccess; exportDisabled: boolean;
 }) {
   const [edits, setEdits] = useState<Record<number, CountSource>>({});
   const [editing, setEditing] = useState<ReviewRow>();
@@ -229,6 +237,7 @@ function StockCountPreview({ preview, file, countDate, order, products, exportDi
           {exporting ? 'Preparing report…' : 'Download Excel review'}
         </Button>
       </div>
+      {openingAccess && <BatchOpeningPanel {...openingAccess} rows={reviewed} countDate={countDate} />}
       {exportError && <p role="alert" className="text-sm text-rose-700">{exportError}</p>}
       <div aria-label="Filter stock count rows" role="group" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(['All rows', ...countStatuses] as const).map((status) => {

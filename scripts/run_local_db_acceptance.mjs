@@ -17,6 +17,7 @@
  * 11. Disposes of the dedicated test database cleanly in the finally block; exits non-zero on any failure or local DB unavailability.
  */
 
+import { runBatchOpeningAcceptance } from './batch_opening_acceptance.mjs';
 import { runIndustryWorkspaceAcceptance } from './test-industry-workspaces.mjs';
 import fs from 'fs';
 import path from 'path';
@@ -4746,6 +4747,11 @@ async function runAcceptance() {
         recordTest('RESTORE-01', 'An isolated logical restore preserves operations data and owner access boundaries', false, null, error);
       }
     }
+
+    await runBatchOpeningAcceptance({
+      client: testClient, withRoleContext, recordTest, orgAId, orgBId,
+      ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
+    });
 
     // ------------------------------------------------------------------------
     // Execute Scenario B: Upgrade Pre-existing 029 Database to 030
