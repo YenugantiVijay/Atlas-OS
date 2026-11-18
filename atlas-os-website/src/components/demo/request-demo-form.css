@@ -99,17 +99,9 @@
   .demo-request__fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .demo-request__selection {
-    grid-column: 1 / -1;
-  }
 }
 
 @container (min-width: 26rem) {
-  .demo-request__selection {
-    grid-column: auto;
-  }
-
   .demo-request__control {
     font-size: 0.875rem;
   }

@@ -23,4 +23,17 @@ Local Auth uses the email settings in `supabase/config.toml`. Changing the repo 
 
 Both builds use the same hosted email templates and SMTP settings when they point to the same Supabase project. If a request is accepted but the code does not arrive, check the Auth logs and the SMTP provider delivery log for the request time. Confirm that the Magic link template renders `{{ .Token }}` and that the provider has verified the sender. Built-in SMTP restricts delivery to project team addresses.
 
-For an industry build, enable TOTP enrollment and verification in Supabase Auth and build with `VITE_REQUIRE_WORKSPACE_AUTHENTICATOR=true`. The app prompts for an authenticator after password or email-code sign-in. First-time users set up a factor before the app loads workspace data. The owner console already requires a verified second factor independently of this flag. The ERP flag gates the app only and does not add new AAL2 restrictions to its Supabase tables, RPCs or storage. Verify those server-side policies before promising mandatory MFA across all access paths.
+Industry builds require an authenticator by default. Enable TOTP enrollment and verification in Supabase Auth before deploying. An explicit `VITE_REQUIRE_WORKSPACE_AUTHENTICATOR=false` opts out for a local development build. The app prompts for an authenticator after password or email-code sign-in. First-time users set up a factor before the app loads workspace data. The owner console already requires a verified second factor independently of this flag. The ERP flag gates the app only and does not add new AAL2 restrictions to its Supabase tables, RPCs or storage. Verify those server-side policies before promising mandatory MFA across all access paths.
+
+## Apply the hosted email-code settings
+
+The screenshot showing **Your sign-in link** means the hosted Magic link template still contains a confirmation link. The application calls the same Supabase OTP endpoint for email codes. Its email content comes from the hosted template.
+
+After setting `SUPABASE_ACCESS_TOKEN` in your own terminal, run from the repository root. The first command previews whether changes are needed. The second applies the two repository email templates, six-digit code length, ten-minute expiry, and TOTP enrollment and verification settings, then reads the settings back to verify them.
+
+```sh
+node scripts/configure-hosted-auth.mjs --project-ref hrxjgbupjtikokqxjzbh
+node scripts/configure-hosted-auth.mjs --project-ref hrxjgbupjtikokqxjzbh --apply
+```
+
+Use `bwswqnhlebbzdxumlkih` as the project reference for staging. The command requires project management access and reports no credentials or complete Auth configuration. Request a new sign-in code after the template update. Previously delivered messages retain their original content. Custom email hooks, if enabled, control their own email content.
