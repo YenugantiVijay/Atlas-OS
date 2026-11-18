@@ -253,6 +253,8 @@ describe('OrdersPage — Asynchronous Form Opening & Race Condition Protection',
       ).toBeInTheDocument();
     });
 
+    expect(mockShowToast.mock.calls.filter(([, title]) => title === 'No Customers Found')).toHaveLength(1);
+
     // Action button to Add Customer exists
     const addCustomerBtn = screen.getByRole('button', { name: /Add Customer/i });
     expect(addCustomerBtn).toBeInTheDocument();

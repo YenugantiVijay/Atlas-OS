@@ -58,7 +58,7 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isPreparingCreate, setIsPreparingCreate] = useState(false);
+  const createRequested = searchParams.get('action') === 'create';
   const [pendingOpenCreate, setPendingOpenCreate] = useState(false);
   const [prerequisite, setPrerequisite] = useState<PrerequisiteInfo | null>(null);
   const linkedSearch = searchParams.get('search') || '';
@@ -115,17 +115,6 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
       setPage(1);
     }
   }, [currentOrg?.id]);
-
-  const clearActionParam = useCallback(() => {
-    setSearchParams((prev) => {
-      const nextParams = new URLSearchParams(prev);
-      if (nextParams.has('action')) {
-        nextParams.delete('action');
-        return nextParams;
-      }
-      return prev;
-    }, { replace: true });
-  }, [setSearchParams]);
 
   const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<{ customers: Customer[]; products: Product[] } | null> => {
     if (!currentOrg) return null;
@@ -202,7 +191,6 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
     const perm = check('orders:create');
     if (!perm.allowed) {
       showToast('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-      clearActionParam();
       return;
     }
 
@@ -215,7 +203,6 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
         actionRoute: '/customers?action=create',
         actionLabel: 'Add Customer',
       });
-      clearActionParam();
       return;
     }
 
@@ -228,7 +215,6 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
         actionRoute: '/products?action=create',
         actionLabel: 'Add Product',
       });
-      clearActionParam();
       return;
     }
 
@@ -249,65 +235,31 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
       },
     ]);
     setIsCreateModalOpen(true);
-    clearActionParam();
-  }, [check, clearActionParam, showToast]);
+  }, [check, showToast]);
 
-  const checkRef = useRef(check);
-  checkRef.current = check;
-  const showToastRef = useRef(showToast);
-  showToastRef.current = showToast;
-  const clearActionParamRef = useRef(clearActionParam);
-  clearActionParamRef.current = clearActionParam;
-  const initializeAndOpenCreateRef = useRef(initializeAndOpenCreate);
-  initializeAndOpenCreateRef.current = initializeAndOpenCreate;
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
-
-  // Initial load effect
   useEffect(() => {
-    let active = true;
-    const params = searchParamsRef.current;
-    const requestedAction = params.get('action');
-
-    if (requestedAction === 'create') {
-      const perm = checkRef.current('orders:create');
-      if (!perm.allowed) {
-        showToastRef.current('error', perm.title || 'Permission Denied', perm.message || 'Write operations are disabled.');
-        clearActionParamRef.current();
-        loadData();
-        return;
-      }
-      setIsPreparingCreate(true);
-    }
-
-    loadData().then((result) => {
-      if (!active) return;
-      setIsPreparingCreate(false);
-      if (requestedAction === 'create') {
-        if (!result) {
-          showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
-          return;
-        }
-        initializeAndOpenCreateRef.current(result.customers, result.products);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
+    void loadData();
   }, [loadData]);
 
-  // Listen for action=create if navigation happens while component is already mounted
+  const handledCreateParams = useRef<URLSearchParams | null>(null);
   useEffect(() => {
-    const action = searchParams.get('action');
-    if (action === 'create' && !isLoading && !isPreparingCreate) {
-      if (loadError) {
-        showToast('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
-        return;
-      }
-      initializeAndOpenCreate(customers, products);
+    if (!createRequested) {
+      handledCreateParams.current = null;
+      return;
     }
-  }, [searchParams, isLoading, isPreparingCreate, loadError, customers, products, initializeAndOpenCreate, showToast]);
+    if (handledCreateParams.current === searchParams) return;
+
+    const allowed = check('orders:create').allowed;
+    if (allowed && (isLoading || loadError)) return;
+
+    // Consume the URL action once, including when effects re-run before the
+    // router commits the replacement. Button opens do not rewrite the URL.
+    handledCreateParams.current = searchParams;
+    const remaining = new URLSearchParams(searchParams);
+    remaining.delete('action');
+    setSearchParams(remaining, { replace: true });
+    initializeAndOpenCreate(customers, products);
+  }, [createRequested, searchParams, setSearchParams, isLoading, loadError, customers, products, check, initializeAndOpenCreate]);
 
   // Handle pending open if user clicked "New Sales Order" while initial load was running
   useEffect(() => {
@@ -653,7 +605,7 @@ export const OrdersPage: React.FC<{ onlineOnly?: boolean }> = ({ onlineOnly = fa
       )}
 
       {/* Preparing Indicator */}
-      {(isPreparingCreate || (pendingOpenCreate && isLoading)) && (
+      {((createRequested || pendingOpenCreate) && isLoading) && (
         <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-sm font-medium animate-in fade-in">
           <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
           <span>Preparing sales order...</span>
