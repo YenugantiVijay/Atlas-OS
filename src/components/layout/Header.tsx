@@ -43,6 +43,7 @@ const ROUTE_BREADCRUMBS: Record<string, { section?: string; label: string }> = {
   '/quotations': { section: 'Sales Operations', label: 'Quotations' },
   '/customers': { section: 'Sales Operations', label: 'Customers' },
   '/products': { section: 'Inventory & Stock', label: 'Products & SKUs' },
+  '/stock-count': { section: 'Inventory & Stock', label: 'Stock Count & Expiry' },
   '/inventory': { section: 'Inventory & Stock', label: 'Stock Movements' },
   '/invoices': { section: 'Finance & Accounts', label: 'Tax Invoices' },
   '/payments': { section: 'Finance & Accounts', label: 'Payments & Ledger' },

@@ -233,6 +233,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const navigationItems = [
     { label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4 text-atlas-600" />, path: '/' },
     { label: 'Products & SKUs', icon: <Boxes className="w-4 h-4 text-atlas-600" />, path: '/products' },
+    { label: 'Stock Count & Expiry', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/stock-count' },
     { label: 'Inventory Ledger', icon: <Boxes className="w-4 h-4 text-atlas-600" />, path: '/inventory' },
     { label: 'Quotations', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/quotations' },
     { label: 'Sales Orders', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/orders' },

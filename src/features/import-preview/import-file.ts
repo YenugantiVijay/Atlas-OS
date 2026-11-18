@@ -177,7 +177,7 @@ async function verifyWorkbookArchive(buffer: ArrayBuffer) {
   if (offset !== end) throw new Error('The workbook archive layout is inconsistent.');
 }
 
-export async function readImportFile(file: File): Promise<SourceSheet[]> {
+export async function readImportFile(file: Pick<File, 'name' | 'size' | 'arrayBuffer'>, options?: { calendarDates?: boolean }): Promise<SourceSheet[]> {
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension !== 'xlsx' && extension !== 'csv') {
     throw new Error('Choose an .xlsx or .csv file. For older .xls files, use Save As in Excel.');
@@ -225,7 +225,13 @@ export async function readImportFile(file: File): Promise<SourceSheet[]> {
           return;
         }
         const format = cell.numFmt?.replace(/"[^"]*"|\\./g, '') ?? '';
-        if (typeof value === 'number' && format.includes('%')) {
+        if (options?.calendarDates && value instanceof Date && Number.isFinite(value.getTime())) {
+          // Keep month-only expiry values incomplete even when Excel stores a hidden day.
+          const dateOnly = value.toISOString().split('T')[0];
+          const hasDay = /(?:^|[^d])d{1,2}(?!d)/i.test(format);
+          const hasMonthAndYear = /m/i.test(format) && /y/i.test(format);
+          cells[index] = hasMonthAndYear ? (hasDay ? dateOnly : dateOnly.slice(0, 7)) : 'Incomplete Excel date';
+        } else if (typeof value === 'number' && format.includes('%')) {
           cells[index] = Number((value * 100).toPrecision(15)) + '%';
         } else if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && /^0{2,30}$/.test(cell.numFmt)) {
           cells[index] = String(value).padStart(cell.numFmt.length, '0');
