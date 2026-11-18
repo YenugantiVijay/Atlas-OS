@@ -300,9 +300,15 @@ export async function runGoodsReceivingAcceptance({
     priceAfterResolution.length===1 && Number(priceAfterResolution[0].unit_cost)===21.5,
     JSON.stringify({resolutionAudit,priceAfterResolution}));
   const batchId = crypto.randomUUID(), expiredId = crypto.randomUUID();
+  const batchProductId = crypto.randomUUID();
+  await client.query(
+    "INSERT INTO public.products(id,organization_id,sku,name,category,uom,purchase_cost,selling_price) VALUES($1,$2,'GRN-BATCH','Batch receipt fixture','Test','Nos',10,20)",
+    [batchProductId,orgAId],
+  );
+  const batchItem = { ...items[0], productId: batchProductId };
   const batch = { number: '0008', godown: 'Annex' };
   await asA(() => save(orgAId,batchId,supplierA,[
-    { ...items[0], batch: { ...batch, godown: ' Annex ' } },
+    { ...batchItem, batch: { ...batch, godown: ' Annex ' } },
   ],'INV-BATCH-ACCEPTANCE'));
   const firstBatchPost = (await asA(() => post(orgAId,batchId))).rows[0].result;
   const replayBatchPost = (await asA(() => post(orgAId,batchId))).rows[0].result;
@@ -310,10 +316,10 @@ export async function runGoodsReceivingAcceptance({
     'SELECT quantity_change,received_batch FROM public.stock_movements WHERE organization_id=$1 AND reference_id=$2',[orgAId,batchId],
   )).rows;
   const invalidBatchCode = await errorCode(() => asA(() => save(orgAId,expiredId,supplierA,[
-    { ...items[0], batch: { number: '0008' } },
+    { ...batchItem, batch: { number: '0008' } },
   ],'INV-INCOMPLETE-BATCH')));
   await asA(() => save(orgAId,expiredId,supplierA,[
-    { ...items[0], batch: { ...batch, expiryDate: '2000-01-01' } },
+    { ...batchItem, batch: { ...batch, expiryDate: '2000-01-01' } },
   ],'INV-EXPIRED-BATCH'));
   const expiredCode = await errorCode(() => asA(() => post(orgAId,expiredId)));
   const failedPost = (await client.query(`SELECT r.status, (SELECT count(*)::int FROM public.stock_movements
