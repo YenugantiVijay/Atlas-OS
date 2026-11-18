@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 export const AppProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <QueryClientProvider client={queryClient}>
-      <OrgProvider requireAuthenticator={import.meta.env.VITE_REQUIRE_WORKSPACE_AUTHENTICATOR === 'true'}>
+      <OrgProvider requireAuthenticator={import.meta.env.VITE_REQUIRE_WORKSPACE_AUTHENTICATOR !== 'false'}>
         <ToastProvider>{children}</ToastProvider>
       </OrgProvider>
     </QueryClientProvider>

@@ -144,15 +144,28 @@ export default function RequestDemoForm({ initialIndustry = EMPTY_FORM.industry 
           <input id={item.id} className={CONTROL} type={'type' in item ? item.type : 'text'} required autoComplete={item.autoComplete}
             maxLength={item.maxLength} value={formData[item.id]} onChange={(event) => update(item.id, event.target.value)} />
         </label>)}
-        {([
-          ['industry', 'Business type', INDUSTRIES], ['businessSize', 'Team size', TEAM_SIZES],
-          ['primaryRequirement', 'Demo focus', PRIORITIES],
-        ] as const).map(([key, label, options]) => <label key={key} htmlFor={key} className="demo-request__selection min-w-0 space-y-1 text-xs font-semibold">
-          <span>{label}</span>
-          <select id={key} className={CONTROL + ' appearance-auto'} value={formData[key]} onChange={(event) => update(key, event.target.value)}>
-            {options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
+        <label htmlFor="industry" className="min-w-0 space-y-1 text-xs font-semibold">
+          <span>Business type</span>
+          <select id="industry" className={CONTROL + ' appearance-auto'} value={formData.industry}
+            onChange={(event) => update('industry', event.target.value)}>
+            {INDUSTRIES.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
           </select>
-        </label>)}
+        </label>
+        <details className="demo-request__notes">
+          <summary className="w-fit cursor-pointer text-sm font-semibold text-brand-700">Demo preferences <span className="font-normal text-content-secondary">(optional)</span></summary>
+          <div className="demo-request__fields mt-2">
+            {([
+              ['businessSize', 'Team size', TEAM_SIZES],
+              ['primaryRequirement', 'Demo focus', PRIORITIES],
+            ] as const).map(([key, label, options]) => <label key={key} htmlFor={key} className="min-w-0 space-y-1 text-xs font-semibold">
+              <span>{label}</span>
+              <select id={key} className={CONTROL + ' appearance-auto'} value={formData[key]}
+                onChange={(event) => update(key, event.target.value)}>
+                {options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
+              </select>
+            </label>)}
+          </div>
+        </details>
         <details className="demo-request__notes">
           <summary className="w-fit cursor-pointer text-sm font-semibold text-brand-700">Add a note <span className="font-normal text-content-secondary">(optional)</span></summary>
           <label htmlFor="additionalMessage" className="sr-only">Notes</label>
