@@ -131,7 +131,7 @@ export function mappingIssues(dataset: ImportDataset, mapping: ColumnMapping, he
 
 interface MappedRow { number: number; values: FieldValues; issues: string[] }
 export interface PreviewRow extends MappedRow { matchedProduct?: string; normalizedUnit?: UOM }
-export interface ProductIdentity { sku: string; name: string; uom: string }
+export interface ProductIdentity { id?: string; sku: string; name: string; uom: string }
 export interface CustomerIdentity { name: string; gstin?: string; phone?: string }
 const identifierFields = new Set<Field>(['sku', 'hsn', 'gstin', 'phone']);
 
