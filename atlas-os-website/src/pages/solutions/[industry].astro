@@ -87,9 +87,9 @@ const questions = [
                 class="aspect-[3/2] w-full rounded-2xl border border-border object-cover" />
             )}
           </div>
-          <div id="demo" data-reveal class="grid gap-6 rounded-3xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white p-5 shadow-sm sm:p-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-center">
-            <div class="space-y-4">
-              <h2 class="font-heading text-2xl font-bold tracking-tight sm:text-4xl">{content.accent}</h2>
+          <div id="demo" data-reveal class="grid items-start gap-5 rounded-2xl border border-border bg-white/65 p-4 sm:p-5 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] xl:gap-6">
+            <div class="space-y-3 xl:py-3">
+              <h2 class="font-heading text-xl font-bold tracking-tight sm:text-3xl">{content.accent}</h2>
               <p class="text-content-secondary">{solution.tagline}</p>
               <ul class="grid gap-2 text-sm font-semibold text-content-primary">
                 {workflow.slice(0, 3).map(item => (

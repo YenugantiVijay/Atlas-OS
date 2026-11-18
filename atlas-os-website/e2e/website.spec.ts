@@ -190,7 +190,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await mockLeadAcknowledgement(page, 'demo');
     await page.goto('/request-demo');
     const form = page.getByRole('form', { name: 'Request a demo' });
-    const submit = form.getByRole('button', { name: 'Confirm Demonstration Request' });
+    const submit = form.getByRole('button', { name: 'Send demo request' });
     await expect(submit).toBeEnabled();
     await expect(form.locator('#fullName')).toHaveJSProperty('required', true);
     await expect(form.locator('#businessName')).toHaveJSProperty('required', true);
