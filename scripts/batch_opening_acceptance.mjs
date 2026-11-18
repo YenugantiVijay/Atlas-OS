@@ -60,6 +60,51 @@ export async function runBatchOpeningAcceptance({
     assert.equal((await read()).opening.current, false);
     assert.equal((await read()).opening.quantity, 100);
     recordTest('BATCH-OPENING-01', 'Batch opening reconciles without adding stock, is isolated and expires as a live balance after stock movement', true);
+    const approvalState = async () => (await as(ownerAId, () =>
+      client.query('SELECT public.get_stock_count_approval($1,$2) AS result', [orgAId, productId]),
+    )).rows[0].result;
+    const approve = async (rows, destination, version, previous = null, user = ownerAId) => (await as(user, () =>
+      client.query('SELECT public.approve_stock_count($1,$2,$3,$4,$5,$6,$7) AS id',
+        [orgAId, productId, today, JSON.stringify(rows), version, previous, destination]),
+    )).rows[0].id;
+
+    try {
+      const usable = { godown: 'Main Godown', batch_number: '0012', expiry_date: null, quantity: 94 };
+      const expired = { godown: 'Main Godown', batch_number: '0008', expiry_date: today, quantity: 4 };
+      const current = await approvalState();
+      const version = current.ledger_movement_count;
+      await assert.rejects(approve([usable, expired], 'Expiry', version, null, salesAId), { code: '42501' });
+      await assert.rejects(approve([usable, expired], 'Main Godown', version), /separate expiry godown/i);
+      await assert.rejects(approve([usable, expired], 'Expiry', version - 1), { code: '40001' });
+      const approved = await approve([usable, expired], 'Expiry', version);
+      assert.equal(await approve([expired, usable], 'Expiry', version), approved);
+
+      const state = await approvalState();
+      assert.equal(state.ledger_quantity, 98);
+      assert.equal(state.approval.sellable_quantity, 94);
+      assert.equal(state.approval.quarantine_quantity, 4);
+      assert.equal(state.approval.current, true);
+      assert.deepEqual(state.approval.lines, [{ ...expired, godown: 'Expiry' }, usable]);
+      await assert.rejects(approve([usable], null, state.ledger_movement_count, approved), /previously quarantined/i);
+
+      const deduct = (quantity) => as(ownerAId, () =>
+        client.query('SELECT public.record_stock_adjustment($1,$2,$3,$4,$5)',
+          [orgAId, productId, quantity, 'Quarantine acceptance', randomUUID()]),
+      );
+      await assert.rejects(deduct(-95), /only 94 sellable units/i);
+      await deduct(-94);
+      await assert.rejects(deduct(-1), /only 0 sellable units/i);
+      assert.equal((await approvalState()).ledger_quantity, 4);
+
+      const after = await approvalState();
+      await approve([{ ...expired, godown: 'Expiry', quantity: 0 }], null, after.ledger_movement_count, approved);
+      assert.equal((await approvalState()).ledger_quantity, 0);
+      assert.equal((await approvalState()).approval.quarantine_quantity, 0);
+      recordTest('BATCH-APPROVAL-01', 'Approved count posts one delta, transfers expiry, protects sellable stock, and requires recount of quarantined batches', true);
+    } catch (error) {
+      recordTest('BATCH-APPROVAL-01', 'Approved count posts one delta, transfers expiry, protects sellable stock, and requires recount of quarantined batches',
+        false, error.message, error);
+    }
   } catch (error) {
     recordTest('BATCH-OPENING-01', 'Batch opening reconciles without adding stock, is isolated and expires as a live balance after stock movement',
       false, error.message, error);
