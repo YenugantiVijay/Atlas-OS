@@ -70,7 +70,7 @@ export function normalizeKey(value = '') {
   return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-const normalizeHeader = (value: string) => normalizeKey(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+export const normalizeHeader = (value: string) => normalizeKey(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const unitLookup = new Map(Object.entries(units).flatMap(([unit, aliases]) => aliases.map((alias) => [alias, unit as UOM] as const)));
 export const normalizeUnit = (value = '') => unitLookup.get(normalizeHeader(value));
 
@@ -184,7 +184,7 @@ function groupBy<T>(rows: T[], keyOf: (row: T) => string) {
   return index;
 }
 
-function numericText(value: string) {
+export function numericText(value: string) {
   const text = value.trim();
   return /^[+-]?(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3})(?:\.\d+)?$/.test(text)
     ? text.replace(/,/g, '') : text;

@@ -39,6 +39,7 @@ export function allowsIndustryRoute(tool: IndustryToolId | undefined, path: stri
   }
   if (!tool) return true;
   if (path === '/pos' || path === '/counter-shift') return tool === 'retail-wholesale';
+  if (path === '/stock-count') return !isSpecialtyToolId(tool) || tool === 'ice-cream-distribution';
   if (path === '/ecommerce') return tool === 'ecommerce';
   return true;
 }
@@ -50,7 +51,7 @@ const commonSpecialtyLinks = new Set([
 
 export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {
   if (!allowsIndustryRoute(tool, path) || (tool === 'ice-cream-stalls' && path === '/customers')) return false;
-  if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path);
+  if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path) || path === '/stock-count';
   return tool !== 'ecommerce' || path !== '/orders';
 }
 
