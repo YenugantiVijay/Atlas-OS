@@ -7,6 +7,7 @@ import {
   quotationFormSchema,
   salesOrderFormSchema,
   stockAdjustmentSchema,
+  orderItemSchema,
   validatePan,
   validateGstin,
   extractPanFromGstin,
@@ -148,11 +149,77 @@ describe('Domain Input Validation Schemas', () => {
       }).success
     ).toBe(true);
 
+    // Supports fractional stock adjustments up to 3 decimal places (e.g. wire in meters, flux in kg)
+    expect(
+      stockAdjustmentSchema.safeParse({
+        productId: 'prod-123',
+        quantityChange: -2.575,
+        notes: 'Damaged cable cut scrap',
+      }).success
+    ).toBe(true);
+
+    expect(
+      stockAdjustmentSchema.safeParse({
+        productId: 'prod-123',
+        quantityChange: 12.3456, // exceeds 3 decimal places
+        notes: 'Too many decimals',
+      }).success
+    ).toBe(false);
+
     expect(
       stockAdjustmentSchema.safeParse({
         productId: 'prod-123',
         quantityChange: 0, // cannot be zero
         notes: 'Nothing changed',
+      }).success
+    ).toBe(false);
+  });
+
+  it('allows fractional quantities for continuous UOMs in order items and products', () => {
+    const fractionalProduct = {
+      sku: 'COP-WIRE-1.5',
+      name: 'Bare Copper Earth Wire',
+      category: 'Cables',
+      uom: 'Meters',
+      purchaseCost: 45,
+      sellingPrice: 70,
+      taxRate: 18,
+      reorderThreshold: 25.5,
+      openingStock: 150.25,
+    };
+    expect(productSchema.safeParse(fractionalProduct).success).toBe(true);
+
+    const fractionalOrderItem = {
+      productId: '11111111-1111-1111-1111-111111111111',
+      productName: 'Flexible Conduit Pipe',
+      productSku: 'FLEX-PIPE-25',
+      uom: 'Meters',
+      quantity: 12.75, // Fractional quantity (12.75 meters)
+      unitPrice: 85,
+      discountPercent: 5,
+      taxRate: 18,
+    };
+    expect(orderItemSchema.safeParse(fractionalOrderItem).success).toBe(true);
+
+    // Rejects > 3 decimal places
+    expect(
+      orderItemSchema.safeParse({
+        ...fractionalOrderItem,
+        quantity: 12.1234,
+      }).success
+    ).toBe(false);
+
+    // Rejects non-positive quantity
+    expect(
+      orderItemSchema.safeParse({
+        ...fractionalOrderItem,
+        quantity: 0,
+      }).success
+    ).toBe(false);
+    expect(
+      orderItemSchema.safeParse({
+        ...fractionalOrderItem,
+        quantity: -5,
       }).success
     ).toBe(false);
   });

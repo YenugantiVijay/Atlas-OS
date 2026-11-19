@@ -222,6 +222,18 @@ describe('Retail Counter — safe draft order workflow', () => {
     expect(ordersService.confirmSalesOrder).not.toHaveBeenCalled();
   });
 
+  it('focuses product search on F2 and clears active search on Escape', async () => {
+    mount();
+    const productLookup = screen.getByLabelText('Search POS products');
+    expect(document.activeElement).not.toBe(productLookup);
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(document.activeElement).toBe(productLookup);
+    fireEvent.change(productLookup, { target: { value: 'Wire' } });
+    expect(productLookup).toHaveValue('Wire');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(productLookup).toHaveValue('');
+  });
+
   it('disables search, cart changes and saving when order creation is forbidden', () => {
     check.mockReturnValue({ allowed: false, message: 'Orders are restricted' });
     mount();

@@ -24,7 +24,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
   const orgId = currentOrg?.id || '';
   const readAllowed = check('supplier-prices:read').allowed;
   const recordPermission = check('supplier-prices:record');
-  const canRecord = recordPermission.allowed && !isMockAuth;
+  const canRecord = recordPermission.allowed;
   const requestIdentity = `${orgId}:${currentRole || 'none'}:${isMockAuth}`;
   const activeIdentity = useRef(requestIdentity);
   activeIdentity.current = requestIdentity;
@@ -54,15 +54,15 @@ export const SupplierPriceHistoryPage: React.FC = () => {
   }, [selectedReview, requestIdentity]);
 
   const refresh = useCallback(async () => {
-    if (!orgId || isMockAuth || !readAllowed) {
+    if (!orgId || !readAllowed) {
       setSuppliers([]); setEntries([]); return;
     }
     const requestedIdentity = requestIdentity;
     setLoading(true);
     try {
       const [supplierRows, history] = await Promise.all([
-        suppliersService.getSuppliers(orgId, false),
-        supplierPriceHistoryService.list(orgId, { limit: 60 }),
+        suppliersService.getSuppliers(orgId, isMockAuth),
+        supplierPriceHistoryService.list(orgId, { limit: 60 }, isMockAuth),
       ]);
       if (activeIdentity.current !== requestedIdentity) return;
       setSuppliers(supplierRows);
@@ -94,7 +94,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
       try {
         const page = await productsService.getProductsPaginated(orgId, {
           search: productQuery.trim(), page: 1, pageSize: 8, isActive: true,
-        }, false);
+        }, isMockAuth);
         if (active) { setMatches(page.data); setSearchError(''); }
       } catch (cause) {
         if (active) {
@@ -104,17 +104,17 @@ export const SupplierPriceHistoryPage: React.FC = () => {
       }
     }, 180);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [orgId, productQuery, canRecord]);
+  }, [orgId, productQuery, canRecord, isMockAuth]);
 
   useEffect(() => {
-    if (!orgId || !supplierId || !product || !readAllowed || isMockAuth) {
+    if (!orgId || !supplierId || !product || !readAllowed) {
       setPrevious(null); return;
     }
     let active = true;
     setPrevious(null);
     void supplierPriceHistoryService.list(orgId, {
       supplierId, productId: product.id, asOf: effectiveOn, limit: 1,
-    }).then((rows) => {
+    }, isMockAuth).then((rows) => {
       if (active) setPrevious(rows[0] || null);
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : 'Unable to compare supplier rates.');
@@ -139,7 +139,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
         organizationId: requestOrg, entryId, supplierId,
         productId: product.id, unitCost: validatedPrice,
         effectiveOn, notes: reference.trim(),
-      });
+      }, isMockAuth);
       if (activeIdentity.current !== requestedIdentity) return;
       const change = supplierRateChange(result.previous_rate, validatedPrice);
       const movement = change.percent === null ? 'no comparable prior rate' :
@@ -179,8 +179,8 @@ export const SupplierPriceHistoryPage: React.FC = () => {
         </Link>
       </div>
       {isMockAuth && (
-        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Supplier rate history is cloud-only. Demo Mode never simulates a saved quote or purchase history.
+        <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+          Demo Mode: Supplier quotes and price history are saved in this browser.
         </p>
       )}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}

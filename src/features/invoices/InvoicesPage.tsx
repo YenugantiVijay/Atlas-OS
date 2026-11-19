@@ -167,7 +167,7 @@ export const InvoicesPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Invoice #</TableHead>
+              <TableHead className="sticky left-0 z-20 bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">Invoice #</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Date / Due Date</TableHead>
               <TableHead>Status</TableHead>
@@ -180,8 +180,8 @@ export const InvoicesPage: React.FC = () => {
             {filteredInvoices.map((inv) => {
               const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
               return (
-                <TableRow key={inv.id}>
-                  <TableCell>
+                <TableRow key={inv.id} className="group">
+                  <TableCell className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/90 shadow-[1px_0_0_0_#e2e8f0]">
                     <span className="font-mono font-bold text-xs text-atlas-800 bg-atlas-50 px-2 py-0.5 rounded border border-atlas-200/80">
                       {inv.invoiceNumber}
                     </span>

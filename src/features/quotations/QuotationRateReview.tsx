@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function QuotationRateReview({ organizationId, scope, description }: Props) {
-  const { currentRole } = useOrg();
+  const { currentRole, isMockAuth } = useOrg();
   const { check } = useActionPermission();
   const canRequest = check('quotations:update').allowed;
   const canReview = canRequest && (currentRole === 'owner' || currentRole === 'admin');
@@ -45,7 +45,10 @@ export function QuotationRateReview({ organizationId, scope, description }: Prop
     setLoadError('');
     setSaveError('');
     const filter = quotationId ? { quotationId } : { rateId: rateId! };
-    void quotationRateReviewService.list(organizationId, filter, page)
+    const listPromise = isMockAuth
+      ? quotationRateReviewService.list(organizationId, filter, page, true)
+      : quotationRateReviewService.list(organizationId, filter, page);
+    void listPromise
       .then((result) => {
         if (!active) return;
         setRows(result.rows);
@@ -56,14 +59,16 @@ export function QuotationRateReview({ organizationId, scope, description }: Prop
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [organizationId, quotationId, rateId, page, refresh]);
+  }, [organizationId, quotationId, rateId, page, refresh, isMockAuth]);
 
   const save = async (row: QuotationRateImpact, status: Exclude<RateReviewStatus, 'OPEN'>) => {
     if (saving) return;
     setSaving(rowKey(row));
     setSaveError('');
     try {
-      const savedStatus = await quotationRateReviewService.save(organizationId, row, status);
+      const savedStatus = isMockAuth
+        ? await quotationRateReviewService.save(organizationId, row, status, true)
+        : await quotationRateReviewService.save(organizationId, row, status);
       setRows((current) => current.map((item) =>
         rowKey(item) === rowKey(row) ? { ...item, review_status: savedStatus } : item));
     } catch (error) {

@@ -108,6 +108,133 @@ export function mapDbQuotation(row: any, items: QuotationItem[] = []): Quotation
   };
 }
 
+async function getQuotationsPaginatedImpl(
+  orgId: string,
+  params: PaginationParams = {},
+  isMockAuth: boolean = false
+): Promise<PaginatedResult<Quotation>> {
+  const page = Math.max(1, params.page || 1);
+  const pageSize = Math.max(1, Math.min(100, params.pageSize || 25));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  if (isMockAuth) {
+    const allQuotes = await storage.getQuotations(orgId);
+    return paginateArray(
+      allQuotes,
+      params,
+      (q, s) =>
+        q.quotationNumber.toLowerCase().includes(s) ||
+        Boolean(q.customer?.name && q.customer.name.toLowerCase().includes(s)) ||
+        Boolean(q.customer?.companyName && q.customer.companyName.toLowerCase().includes(s)) ||
+        q.status.toLowerCase().includes(s),
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  if (!supabase) {
+    throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+  }
+
+  let query = supabase
+    .from('quotations')
+    .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)', { count: 'exact' })
+    .eq('organization_id', orgId);
+
+  if (params.search && params.search.trim()) {
+    const s = params.search.trim().replace(/[,()":\\]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (s) {
+      // Query matching customer IDs in tenant organization for cross-table search parity
+      const { data: matchedCustomers } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('organization_id', orgId)
+        .or(`name.ilike.%${s}%,company_name.ilike.%${s}%`);
+
+      const matchingCustomerIds = (matchedCustomers || [])
+        .map((c: any) => c.id)
+        .filter(Boolean);
+
+      if (matchingCustomerIds.length > 0) {
+        query = query.or(`quotation_number.ilike.%${s}%,customer_id.in.(${matchingCustomerIds.join(',')})`);
+      } else {
+        query = query.or(`quotation_number.ilike.%${s}%`);
+      }
+    }
+  }
+
+  if (params.status && params.status !== 'ALL') {
+    query = query.eq('status', params.status);
+  }
+
+  const ALLOWED_QUOT_SORT_FIELDS: Record<string, string> = {
+    quotationNumber: 'quotation_number',
+    validUntil: 'valid_until',
+    totalAmount: 'total_amount',
+    status: 'status',
+    createdAt: 'created_at',
+  };
+  const sortBy = ALLOWED_QUOT_SORT_FIELDS[params.sortBy || 'createdAt'] || 'created_at';
+  const ascending = params.sortOrder === 'asc' ? true : false;
+  query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
+
+  const { data: dbQuotations, error, count } = await query;
+
+  if (error) {
+    throw new Error(`Failed to fetch quotations: ${error.message}`);
+  }
+
+  const totalCount = count || 0;
+  const mapped = (dbQuotations || []).map((row) => {
+    const items = (row.items || []).map(mapDbQuotationItem);
+    return mapDbQuotation(row, items);
+  });
+
+  return buildPaginatedResult(mapped, totalCount, page, pageSize);
+}
+
+function getQuotationsImpl(
+  orgId: string,
+  params: PaginationParams,
+  isMockAuth?: boolean
+): Promise<PaginatedResult<Quotation>>;
+function getQuotationsImpl(
+  orgId: string,
+  isMockAuth?: boolean
+): Promise<Quotation[]>;
+async function getQuotationsImpl(
+  orgId: string,
+  paramsOrMock: PaginationParams | boolean = false,
+  isMockAuth: boolean = false
+): Promise<Quotation[] | PaginatedResult<Quotation>> {
+  if (typeof paramsOrMock === 'object' && paramsOrMock !== null) {
+    return getQuotationsPaginatedImpl(orgId, paramsOrMock, isMockAuth);
+  }
+  const mock = typeof paramsOrMock === 'boolean' ? paramsOrMock : isMockAuth;
+  if (mock) {
+    return storage.getQuotations(orgId);
+  }
+
+  if (!supabase) {
+    throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
+  }
+
+  const { data: dbQuotations, error } = await supabase
+    .from('quotations')
+    .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch quotations: ${error.message}`);
+  }
+
+  return (dbQuotations || []).map((row) => {
+    const items = (row.items || []).map(mapDbQuotationItem);
+    return mapDbQuotation(row, items);
+  });
+}
+
 export const ordersService = {
   // --------------------------------------------------------------------------
   // SALES ORDERS
@@ -149,11 +276,25 @@ export const ordersService = {
     if (params.onlineOnly) query = query.not('online_channel', 'is', null);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').replace(/\s+/g, ' ').trim();
       if (s) {
+        // Query matching customer IDs in tenant organization for cross-table search parity
+        const { data: matchedCustomers } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('organization_id', orgId)
+          .or(`name.ilike.%${s}%,company_name.ilike.%${s}%`);
+
+        const matchingCustomerIds = (matchedCustomers || [])
+          .map((c: any) => c.id)
+          .filter(Boolean);
+
+        const customerFilter =
+          matchingCustomerIds.length > 0 ? `,customer_id.in.(${matchingCustomerIds.join(',')})` : '';
+
         query = params.onlineOnly
-          ? query.or(`order_number.ilike.%${s}%,online_reference.ilike.%${s}%`)
-          : query.or(`order_number.ilike.%${s}%`);
+          ? query.or(`order_number.ilike.%${s}%,online_reference.ilike.%${s}%${customerFilter}`)
+          : query.or(`order_number.ilike.%${s}%${customerFilter}`);
       }
     }
 
@@ -361,30 +502,8 @@ export const ordersService = {
   // --------------------------------------------------------------------------
   // QUOTATIONS
   // --------------------------------------------------------------------------
-  async getQuotations(orgId: string, isMockAuth: boolean = false): Promise<Quotation[]> {
-    if (isMockAuth) {
-      return storage.getQuotations(orgId);
-    }
-
-    if (!supabase) {
-      throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
-    }
-
-    const { data: dbQuotations, error } = await supabase
-      .from('quotations')
-      .select('*, items:quotation_items(*), customer:customers!fk_quotations_customer_org(*)')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch quotations: ${error.message}`);
-    }
-
-    return (dbQuotations || []).map((row) => {
-      const items = (row.items || []).map(mapDbQuotationItem);
-      return mapDbQuotation(row, items);
-    });
-  },
+  getQuotationsPaginated: getQuotationsPaginatedImpl,
+  getQuotations: getQuotationsImpl,
 
   async getQuotationById(orgId: string, quotationId: string): Promise<Quotation | null> {
     if (!supabase) throw new Error('Cloud backend is not configured.');

@@ -80,7 +80,13 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/postgres
           ATLAS_TEST_RESTORE: '1'
           TMPDIR: ${{ runner.temp }}
-        run: npm run test:db
+        run: |
+          npm run test:db 2>&1 | tee db-test.log || {
+            tail -n 40 db-test.log | while IFS= read -r line; do
+              echo "::error title=DB Test Failure::$line"
+            done
+            exit 1
+          }
 
       - name: Run Unit & Integration Tests (Vitest)
         run: npm test -- --run
@@ -102,4 +108,10 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run End-to-End Operational Tests (Playwright)
-        run: npm run test:e2e
+        run: |
+          npx playwright test --reporter=list 2>&1 | tee playwright.log || {
+            tail -n 60 playwright.log | while IFS= read -r line; do
+              echo "::error title=Playwright Test Failure::$line"
+            done
+            exit 1
+          }

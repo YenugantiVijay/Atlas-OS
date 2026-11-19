@@ -12,6 +12,7 @@ import {
   Sparkles,
   Cloud,
   Menu,
+  RefreshCw,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { Badge } from '@/components/ui/Badge';
@@ -22,6 +23,8 @@ import { useToast } from '@/components/ui/Toast';
 import { getRoleBadgeVariant, hasPermission, Action } from '@/lib/permissions';
 import { toolQuickOrder, useIndustryTool } from '@/hooks/useIndustryTool';
 import { AuthModal } from '@/features/auth/AuthModal';
+import { offlineQueue, OFFLINE_QUEUE_EVENT } from '@/lib/offline-queue';
+import { flushOfflineSync, initOfflineSyncListener } from '@/lib/offline-sync';
 
 export interface HeaderProps {
   collapsed: boolean;
@@ -101,6 +104,57 @@ export const Header: React.FC<HeaderProps> = ({
   const [editEmail, setEditEmail] = useState(currentUser?.email || '');
   const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatarUrl || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Offline Sync State
+  const [offlinePendingCount, setOfflinePendingCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    const updateCount = () => {
+      if (currentOrg?.id) {
+        const summary = offlineQueue.getSummary(currentOrg.id);
+        setOfflinePendingCount(summary.pending);
+      } else {
+        setOfflinePendingCount(0);
+      }
+    };
+
+    updateCount();
+
+    window.addEventListener(OFFLINE_QUEUE_EVENT, updateCount);
+    window.addEventListener('storage', updateCount);
+
+    const cleanupSync = initOfflineSyncListener(() => currentOrg?.id);
+
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_EVENT, updateCount);
+      window.removeEventListener('storage', updateCount);
+      cleanupSync();
+    };
+  }, [currentOrg?.id]);
+
+  const handleSyncNow = async () => {
+    if (isSyncing || !currentOrg?.id) return;
+    setIsSyncing(true);
+    try {
+      const res = await flushOfflineSync(currentOrg.id);
+      if (res.succeeded > 0) {
+        showToast('success', 'Sync Complete', `Synchronized ${res.succeeded} queued action(s) to cloud.`);
+      } else if (res.failed > 0) {
+        showToast('warning', 'Sync Issues', `${res.failed} action(s) failed to sync. Review offline queue.`);
+      } else {
+        showToast('info', 'Up to Date', 'All offline actions are synchronized.');
+      }
+    } catch (err: any) {
+      showToast('error', 'Sync Failed', err?.message || 'Unable to complete offline queue sync.');
+    } finally {
+      setIsSyncing(false);
+      if (currentOrg?.id) {
+        const summary = offlineQueue.getSummary(currentOrg.id);
+        setOfflinePendingCount(summary.pending);
+      }
+    }
+  };
 
   const currentBreadcrumb = ROUTE_BREADCRUMBS[location.pathname] || { label: 'Dashboard' };
 
@@ -309,6 +363,22 @@ export const Header: React.FC<HeaderProps> = ({
               </>
             )}
           </button>
+
+          {/* Offline Pending Sync Badge with manual trigger */}
+          {offlinePendingCount > 0 && (
+            <button
+              type="button"
+              onClick={handleSyncNow}
+              disabled={isSyncing}
+              title={`${offlinePendingCount} action(s) pending sync. Click to sync now.`}
+              aria-label={`${offlinePendingCount} pending actions, click to sync now`}
+              className="inline-flex h-9 items-center gap-1.5 px-2.5 sm:px-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100/90 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : `${offlinePendingCount} pending`}</span>
+              <span className="hidden lg:inline text-2xs text-amber-700 font-normal underline ml-0.5">Sync now</span>
+            </button>
+          )}
 
           {/* Breadcrumb Trail (Desktop) */}
           <nav

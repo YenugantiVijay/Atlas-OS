@@ -32,10 +32,10 @@ export const PosBillingGrid: React.FC<Props> = ({
     </div>
     <div className="max-h-[460px] w-full min-w-0 max-w-full overflow-x-auto overflow-y-auto touch-pan-x" role="region" aria-label="Scroll billing line items" tabIndex={0}>
       <table className="w-full min-w-[1030px] border-collapse text-left text-xs text-slate-700">
-        <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+        <thead className="sticky top-0 z-20 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
           <tr className="border-b border-slate-200">
-            <th scope="col" className="w-10 px-3 py-3 text-center">Sl.</th>
-            <th scope="col" className="min-w-[205px] px-3 py-3">Product / SKU</th>
+            <th scope="col" className="sticky left-0 z-20 w-10 min-w-[40px] bg-slate-100 px-3 py-3 text-center">Sl.</th>
+            <th scope="col" className="sticky left-10 z-20 min-w-[205px] bg-slate-100 px-3 py-3 shadow-[1px_0_0_0_#e2e8f0]">Product / SKU</th>
             <th scope="col" className="w-20 px-3 py-3">HSN</th>
             <th scope="col" className="w-40 px-3 py-3 text-center">Qty</th>
             <th scope="col" className="w-16 px-2 py-3">Unit</th>
@@ -53,9 +53,9 @@ export const PosBillingGrid: React.FC<Props> = ({
             const calculation = calculatedLines?.[index];
             const lowStock = product.currentStock !== undefined && quantity > product.currentStock;
             return (
-              <tr key={product.id} className="align-middle hover:bg-teal-50/40">
-                <td className="px-3 py-3 text-center font-medium tabular-nums text-slate-500">{index + 1}</td>
-                <td className="px-3 py-3">
+              <tr key={product.id} className="group align-middle hover:bg-teal-50/40">
+                <td className="sticky left-0 z-10 w-10 min-w-[40px] bg-white group-hover:bg-teal-50/60 px-3 py-3 text-center font-medium tabular-nums text-slate-500">{index + 1}</td>
+                <td className="sticky left-10 z-10 min-w-[205px] bg-white group-hover:bg-teal-50/60 px-3 py-3 shadow-[1px_0_0_0_#e2e8f0]">
                   <p className="max-w-[250px] truncate font-semibold text-[#142B4D]" title={product.name}>{product.name}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-500" title={product.sku}>{product.sku}{product.brand ? ` · ${product.brand}` : ''}</p>
                 </td>

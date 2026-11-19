@@ -141,7 +141,7 @@ export const GoodsReceivingPage: React.FC = () => {
   }, [userId, orgId, receiptId]);
 
   const refresh = useCallback(async (force = false) => {
-    if (!orgId || isMockAuth) return;
+    if (!orgId) return;
     const fresh = readReceivingLists(userId, orgId);
     if (fresh && !force) {
       setSuppliers(fresh.suppliers);
@@ -158,7 +158,8 @@ export const GoodsReceivingPage: React.FC = () => {
     }
     try {
       const [supplierRows, receiptRows] = await Promise.all([
-        suppliersService.getSuppliers(orgId, false), goodsReceivingService.list(orgId),
+        isMockAuth ? suppliersService.getSuppliers(orgId, true) : suppliersService.getSuppliers(orgId),
+        isMockAuth ? goodsReceivingService.list(orgId, true) : goodsReceivingService.list(orgId),
       ]);
       if (activeOrgRef.current !== orgId) return;
       const activeSuppliers = supplierRows.filter((supplier) => supplier.isActive);
@@ -174,15 +175,16 @@ export const GoodsReceivingPage: React.FC = () => {
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (!orgId || !canReceive.allowed || isMockAuth || term.trim().length < 2) {
+    if (!orgId || !canReceive.allowed || term.trim().length < 2) {
       setMatches([]); setSearchError(''); return;
     }
     let active = true;
     const timer = window.setTimeout(async () => {
       try {
-        const result = await productsService.getProductsPaginated(
-          orgId, { search: term.trim(), page: 1, pageSize: 8, isActive: true }, false,
-        );
+        const queryParams = { search: term.trim(), page: 1, pageSize: 8, isActive: true };
+        const result = isMockAuth
+          ? await productsService.getProductsPaginated(orgId, queryParams, true)
+          : await productsService.getProductsPaginated(orgId, queryParams);
         if (active) { setMatches(result.data); setSearchError(''); }
       } catch (e) {
         if (active) {
@@ -200,7 +202,7 @@ export const GoodsReceivingPage: React.FC = () => {
   const rateLookupKey = JSON.stringify([orgId, supplierId, date, rateProductIds]);
   useEffect(() => {
     let active = true;
-    if (!orgId || !supplierId || !date || !rateProductIds || !canReadSupplierRates || isMockAuth) {
+    if (!orgId || !supplierId || !date || !rateProductIds || !canReadSupplierRates) {
       setPriorRates({ key: '', entries: {}, error: false });
       return;
     }
@@ -210,9 +212,10 @@ export const GoodsReceivingPage: React.FC = () => {
         const entries: Record<string, Pick<SupplierPriceEntry, 'unitCost' | 'effectiveOn' | 'sourceType'>> = {};
         for (let offset = 0; offset < selectedIds.length; offset += 5) {
           const batch = await Promise.all(selectedIds.slice(offset, offset + 5).map(async (productId) => {
-            const history = await supplierPriceHistoryService.list(orgId, {
-              supplierId, productId, asOf: date, limit: 1,
-            });
+            const historyFilter = { supplierId, productId, asOf: date, limit: 1 };
+            const history = isMockAuth
+              ? await supplierPriceHistoryService.list(orgId, historyFilter, true)
+              : await supplierPriceHistoryService.list(orgId, historyFilter);
             return { productId, latest: history[0] };
           }));
           if (!active) return;
@@ -231,7 +234,7 @@ export const GoodsReceivingPage: React.FC = () => {
 
   const visiblePriorRates = priorRates.key === rateLookupKey ? priorRates.entries : {};
   const priorRatesUnavailable = priorRates.key === rateLookupKey && priorRates.error;
-  const editable = !busy && !isMockAuth && canReceive.allowed && savedState !== 'POSTED';
+  const editable = !busy && canReceive.allowed && savedState !== 'POSTED';
   const canQuickCreate = editable && canCreateProduct.allowed && rows.length < 50;
   const markDirty = () => {
     setDirty(true); setConfirmPosting(false); setError(''); setSuccess('');
@@ -321,10 +324,15 @@ export const GoodsReceivingPage: React.FC = () => {
     if (!ready) { setError('Choose a supplier, invoice number and valid product quantities first.'); return; }
     await runOnce(async () => {
       const payload = buildGoodsReceiptPayload(orgId, rows);
-      await goodsReceivingService.saveDraft({
+      const command = {
         organizationId: orgId, receiptId, supplierId, supplierInvoiceNumber: invoice.trim(),
         receivedOn: date, notes, lines: payload,
-      });
+      };
+      if (isMockAuth) {
+        await goodsReceivingService.saveDraft(command, true);
+      } else {
+        await goodsReceivingService.saveDraft(command);
+      }
       if (activeOrgRef.current !== orgId) return;
       setSavedState('DRAFT'); setDirty(false); setConfirmPosting(false);
       setSuccess('Draft saved. Inventory has not changed.');
@@ -335,7 +343,9 @@ export const GoodsReceivingPage: React.FC = () => {
   const post = async () => {
     if (!confirmPosting || dirty || savedState !== 'DRAFT' || !ready) return;
     await runOnce(async () => {
-      const result = await goodsReceivingService.post(orgId, receiptId);
+      const result = isMockAuth
+        ? await goodsReceivingService.post(orgId, receiptId, true)
+        : await goodsReceivingService.post(orgId, receiptId);
       if (activeOrgRef.current !== orgId) return;
       setSavedState('POSTED'); setConfirmPosting(false); setDirty(false);
       setSuccess(result.idempotent_replay
@@ -351,9 +361,10 @@ export const GoodsReceivingPage: React.FC = () => {
     await runOnce(async () => {
       const prepared: ReceiptWorksheetLine[] = [];
       for (const row of receipt.lines) {
-        const result = await productsService.getProductsPaginated(
-          orgId, { search: row.sku, page: 1, pageSize: 8, isActive: true }, false,
-        );
+        const queryParams = { search: row.sku, page: 1, pageSize: 8, isActive: true };
+        const result = isMockAuth
+          ? await productsService.getProductsPaginated(orgId, queryParams, true)
+          : await productsService.getProductsPaginated(orgId, queryParams);
         const product = result.data.find((p) => p.id === row.productId && p.organizationId === orgId);
         if (!product) throw new Error('A receipt product is inactive or unavailable: ' + row.sku);
         prepared.push({
@@ -441,8 +452,8 @@ export const GoodsReceivingPage: React.FC = () => {
           </Link>
         </div>
       </div>
-      {isMockAuth && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Cloud-only first release: explore the worksheet in Demo Mode, but saving and posting are disabled. No fictional stock increases will be shown.
+      {isMockAuth && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+        Demo Mode: Working with local storage. Receipts and inventory movements are saved in this browser.
       </p>}
       {!canReceive.allowed && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{canReceive.message || 'You cannot receive stock.'}</p>}
       {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
@@ -535,9 +546,11 @@ export const GoodsReceivingPage: React.FC = () => {
 
         <div className="w-full max-w-full overflow-x-auto" role="region" tabIndex={0} aria-label="Receiving line-item grid">
           <table className="w-full min-w-[1490px] text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+            <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
-                {['Sl.','Product / SKU','Cases','Units/case','Variable cartons','Loose units','Received units','Unit','Delivery check','Purchase rate','Line value','Remove'].map((h) =>
+                <th scope="col" className="sticky left-0 z-20 w-12 bg-slate-50 px-3 py-3 font-semibold">Sl.</th>
+                <th scope="col" className="sticky left-12 z-20 min-w-[170px] bg-slate-50 px-3 py-3 font-semibold shadow-[1px_0_0_0_#e2e8f0]">Product / SKU</th>
+                {['Cases','Units/case','Variable cartons','Loose units','Received units','Unit','Delivery check','Purchase rate','Line value','Remove'].map((h) =>
                   <th key={h} scope="col" className="px-3 py-3 font-semibold">{h}</th>)}
               </tr>
             </thead>
@@ -552,9 +565,9 @@ export const GoodsReceivingPage: React.FC = () => {
                   ? supplierRateChange(baseline.unitCost, enteredRate) : null;
                 const uniform = readUniformCartons(row.packageText);
                 const mixed = mixedRows.has(row.product.id) || !uniform.isUniform;
-                return <tr key={row.product.id} className="align-top">
-                  <td className="px-3 py-4 font-semibold">{i + 1}</td>
-                  <td className="min-w-[155px] px-3 py-3">
+                return <tr key={row.product.id} className="group align-top hover:bg-slate-50/60">
+                  <td className="sticky left-0 z-10 w-12 bg-white group-hover:bg-slate-50 px-3 py-4 font-semibold">{i + 1}</td>
+                  <td className="sticky left-12 z-10 min-w-[170px] bg-white group-hover:bg-slate-50 px-3 py-3 shadow-[1px_0_0_0_#e2e8f0]">
                     <strong>{row.product.name}</strong><p className="text-slate-500">{row.product.sku}</p>
                     <details className="mt-2">
                       <summary className="cursor-pointer font-medium text-violet-800">

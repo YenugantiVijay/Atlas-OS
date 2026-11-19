@@ -1,10 +1,75 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
-import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance } from '@/lib/money';
+import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance, roundMoney } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
+import { offlineQueue, isNetworkError } from '@/lib/offline-queue';
+
+function buildOptimisticInvoice(
+  orgId: string,
+  input: CreateInvoiceInput,
+  idempotencyKey: string | null
+): Invoice {
+  let subtotal = 0;
+  let taxAmount = 0;
+  let totalAmount = 0;
+
+  const items: InvoiceItem[] = input.items.map((it, idx) => {
+    const qty = it.quantity;
+    const rate = it.unitPrice;
+    const disc = it.discountPercent ?? 0;
+    const taxRate = isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : 18;
+    const gross = qty * rate;
+    const discountAmt = (gross * disc) / 100;
+    const taxable = gross - discountAmt;
+    const tax = (taxable * taxRate) / 100;
+    const lineTotal = taxable + tax;
+
+    subtotal += taxable;
+    taxAmount += tax;
+    totalAmount += lineTotal;
+
+    return {
+      id: `item-offline-${idempotencyKey || Date.now()}-${idx}`,
+      invoiceId: `inv-offline-${idempotencyKey || Date.now()}`,
+      productId: it.productId,
+      productName: it.productName,
+      productSku: it.productSku,
+      uom: it.uom,
+      quantity: qty,
+      unitPrice: rate,
+      discountPercent: disc,
+      taxRate,
+      lineSubtotal: roundMoney(taxable),
+      lineTax: roundMoney(tax),
+      lineTotal: roundMoney(lineTotal),
+      documentDiscountShare: 0,
+    };
+  });
+
+  return {
+    id: `inv-offline-${idempotencyKey || Date.now()}`,
+    organizationId: orgId,
+    invoiceNumber: `INV-OFFLINE-${Date.now().toString().slice(-4)}`,
+    customerId: input.customerId,
+    salesOrderId: input.salesOrderId,
+    status: input.status || 'ISSUED',
+    invoiceDate: input.invoiceDate,
+    dueDate: input.dueDate || input.invoiceDate,
+    subtotal: roundMoney(subtotal),
+    discountAmount: 0,
+    taxAmount: roundMoney(taxAmount),
+    totalAmount: roundMoney(totalAmount),
+    totalPaid: 0,
+    totalsVersion: 1,
+    notes: input.notes ? `${input.notes} (Offline Pending Sync)` : '(Offline Pending Sync)',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    items,
+  };
+}
 
 export function mapDbInvoiceItem(row: any): InvoiceItem {
   return {
@@ -107,9 +172,24 @@ export const invoicesService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').replace(/\s+/g, ' ').trim();
       if (s) {
-        query = query.or(`invoice_number.ilike.%${s}%`);
+        // Query matching customer IDs in tenant organization for cross-table search parity
+        const { data: matchedCustomers } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('organization_id', orgId)
+          .or(`name.ilike.%${s}%,company_name.ilike.%${s}%`);
+
+        const matchingCustomerIds = (matchedCustomers || [])
+          .map((c: any) => c.id)
+          .filter(Boolean);
+
+        if (matchingCustomerIds.length > 0) {
+          query = query.or(`invoice_number.ilike.%${s}%,customer_id.in.(${matchingCustomerIds.join(',')})`);
+        } else {
+          query = query.or(`invoice_number.ilike.%${s}%`);
+        }
       }
     }
 
@@ -320,40 +400,82 @@ export const invoicesService = {
       input.idempotencyKey ||
       (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null);
 
-    const { data: rpcRes, error: rpcErr } = await supabase.rpc(
-      'create_invoice_atomic',
-      {
-        p_org_id: orgId,
-        p_customer_id: input.customerId,
-        p_items: input.items.map((it) => ({
-          product_id: it.productId,
-          product_name: it.productName,
-          product_sku: it.productSku,
-          uom: it.uom,
-          quantity: it.quantity,
-          unit_price: it.unitPrice,
-          discount_percent: it.discountPercent ?? 0,
-          tax_rate: isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : null,
-        })),
-        p_invoice_date: input.invoiceDate,
-        p_due_date: input.dueDate || null,
-        p_status: finalStatus,
-        p_notes: input.notes?.trim() || null,
-        p_sales_order_id: input.salesOrderId || null,
-        p_idempotency_key: idempotencyKey,
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      offlineQueue.enqueue(
+        orgId,
+        'CREATE_INVOICE',
+        input,
+        {
+          idempotencyKey: idempotencyKey || undefined,
+          description: `Invoice for customer ${input.customerId} (${input.invoiceDate})`,
+        }
+      );
+      return buildOptimisticInvoice(orgId, input, idempotencyKey);
+    }
+
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc(
+        'create_invoice_atomic',
+        {
+          p_org_id: orgId,
+          p_customer_id: input.customerId,
+          p_items: input.items.map((it) => ({
+            product_id: it.productId,
+            product_name: it.productName,
+            product_sku: it.productSku,
+            uom: it.uom,
+            quantity: it.quantity,
+            unit_price: it.unitPrice,
+            discount_percent: it.discountPercent ?? 0,
+            tax_rate: isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : null,
+          })),
+          p_invoice_date: input.invoiceDate,
+          p_due_date: input.dueDate || null,
+          p_status: finalStatus,
+          p_notes: input.notes?.trim() || null,
+          p_sales_order_id: input.salesOrderId || null,
+          p_idempotency_key: idempotencyKey,
+        }
+      );
+
+      if (rpcErr) {
+        if (isNetworkError(rpcErr)) {
+          offlineQueue.enqueue(
+            orgId,
+            'CREATE_INVOICE',
+            input,
+            {
+              idempotencyKey: idempotencyKey || undefined,
+              description: `Invoice for customer ${input.customerId} (${input.invoiceDate})`,
+            }
+          );
+          return buildOptimisticInvoice(orgId, input, idempotencyKey);
+        }
+        throw new Error(`Failed to create invoice: ${rpcErr.message}`);
       }
-    );
 
-    if (rpcErr) {
-      throw new Error(`Failed to create invoice: ${rpcErr.message}`);
+      if (!rpcRes) {
+        throw new Error('Invoice creation succeeded but no invoice payload was returned from server.');
+      }
+
+      const items = (rpcRes.items || []).map(mapDbInvoiceItem);
+      return mapDbInvoice(rpcRes, items);
+    } catch (err: any) {
+      if (isNetworkError(err)) {
+        offlineQueue.enqueue(
+          orgId,
+          'CREATE_INVOICE',
+          input,
+          {
+            idempotencyKey: idempotencyKey || undefined,
+            description: `Invoice for customer ${input.customerId} (${input.invoiceDate})`,
+          }
+        );
+        return buildOptimisticInvoice(orgId, input, idempotencyKey);
+      }
+      throw err;
     }
-
-    if (!rpcRes) {
-      throw new Error('Invoice creation succeeded but no invoice payload was returned from server.');
-    }
-
-    const items = (rpcRes.items || []).map(mapDbInvoiceItem);
-    return mapDbInvoice(rpcRes, items);
   },
 
   async createInvoiceFromOrder(

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Header } from './Header';
 import { useOrg, OrgContextType } from '@/features/organizations/OrgContext';
 import { ToastProvider } from '@/components/ui/Toast';
+import { offlineQueue } from '@/lib/offline-queue';
 
 vi.mock('@/features/organizations/OrgContext', () => ({
   useOrg: vi.fn(),
@@ -265,4 +266,33 @@ describe('Header Premium UI Redesign & Live Cloud Indicator', () => {
     expect(profile).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('renders pending-sync badge when offlineQueue has pending actions', () => {
+    offlineQueue.enqueue(currentOrg.id, 'RECORD_PAYMENT', { amount: 500 });
+    vi.mocked(useOrg).mockReturnValue({
+      currentOrg,
+      organizations: [currentOrg],
+      currentRole: 'owner',
+      currentUser,
+      isAuthenticated: true,
+      isLoadingAuth: false,
+      signOut: vi.fn(),
+    } as unknown as OrgContextType);
+
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <Header
+            collapsed={false}
+            onOpenCommandPalette={() => {}}
+            onOpenQuickCreate={() => {}}
+            onOpenNewOrgModal={() => {}}
+          />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+
+    const syncBadge = screen.getByRole('button', { name: /1 pending actions, click to sync now/i });
+    expect(syncBadge).toBeInTheDocument();
+    expect(syncBadge).toHaveTextContent('1 pending');
+  });
 });

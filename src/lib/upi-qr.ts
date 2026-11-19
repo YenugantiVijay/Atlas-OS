@@ -48,28 +48,29 @@ export const upiQr = {
       throw new Error(vpaCheck.error);
     }
 
-    const searchParams = new URLSearchParams();
-    searchParams.set('pa', payeeVpa.trim());
-    searchParams.set('pn', payeeName.trim().substring(0, 50));
-    searchParams.set('cu', 'INR');
+    const queryParts: string[] = [
+      `pa=${encodeURIComponent(payeeVpa.trim())}`,
+      `pn=${encodeURIComponent(payeeName.trim().substring(0, 50))}`,
+      'cu=INR',
+    ];
 
     if (amount !== undefined && (!Number.isFinite(amount) || amount <= 0)) {
       throw new Error('Payment amount must be greater than zero.');
     }
 
     if (amount !== undefined) {
-      searchParams.set('am', amount.toFixed(2));
+      queryParts.push(`am=${encodeURIComponent(amount.toFixed(2))}`);
     }
 
     if (transactionRef) {
-      searchParams.set('tr', transactionRef.trim().substring(0, 35));
+      queryParts.push(`tr=${encodeURIComponent(transactionRef.trim().substring(0, 35))}`);
     }
 
     if (transactionNote) {
-      searchParams.set('tn', transactionNote.trim().substring(0, 80));
+      queryParts.push(`tn=${encodeURIComponent(transactionNote.trim().substring(0, 80))}`);
     }
 
-    return `upi://pay?${searchParams.toString()}`;
+    return `upi://pay?${queryParts.join('&')}`;
   },
 
   /**

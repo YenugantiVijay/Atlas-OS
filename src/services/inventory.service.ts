@@ -2,6 +2,26 @@ import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { StockMovement, MovementType } from '@/types';
 import { mapDbProduct } from './products.service';
+import { offlineQueue, isNetworkError } from '@/lib/offline-queue';
+
+function buildOptimisticStockMovement(
+  orgId: string,
+  productId: string,
+  quantityChange: number,
+  notes: string,
+  idempotencyKey: string
+): StockMovement {
+  return {
+    id: `mov-offline-${idempotencyKey}`,
+    organizationId: orgId,
+    productId,
+    quantityChange,
+    movementType: 'ADJUSTMENT',
+    referenceType: 'MANUAL_ADJUSTMENT',
+    notes: `${notes.trim()} (Offline Pending Sync)`,
+    createdAt: new Date().toISOString(),
+  };
+}
 
 export function mapDbStockMovement(row: any): StockMovement {
   return {
@@ -112,43 +132,85 @@ export const inventoryService = {
       throw new Error('Adjustment quantity cannot be 0.');
     }
 
-    // Authoritative atomic RPC invocation: executes serialized product row lock,
-    // resulting non-negative stock validation, audit logging, and mandatory idempotency tracking.
-    const { data, error } = await supabase.rpc('record_stock_adjustment', {
-      p_org_id: orgId,
-      p_product_id: productId,
-      p_quantity_change: quantityChange,
-      p_notes: notes.trim(),
-      p_idempotency_key: trimmedKey,
-    });
-
-    if (error) {
-      throw new Error(`Failed to adjust stock: ${error.message}`);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      offlineQueue.enqueue(
+        orgId,
+        'ADJUST_STOCK',
+        { productId, quantityChange, notes: notes.trim() },
+        {
+          idempotencyKey: trimmedKey,
+          description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
+        }
+      );
+      return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
     }
 
-    const movementId = data?.movement_id;
-    if (movementId) {
-      const { data: movementRow, error: fetchErr } = await supabase
-        .from('stock_movements')
-        .select(STOCK_MOVEMENT_WITH_PRODUCT_SELECT)
-        .eq('id', movementId)
-        .single();
+    try {
+      // Authoritative atomic RPC invocation: executes serialized product row lock,
+      // resulting non-negative stock validation, audit logging, and mandatory idempotency tracking.
+      const { data, error } = await supabase.rpc('record_stock_adjustment', {
+        p_org_id: orgId,
+        p_product_id: productId,
+        p_quantity_change: quantityChange,
+        p_notes: notes.trim(),
+        p_idempotency_key: trimmedKey,
+      });
 
-      if (!fetchErr && movementRow) {
-        return mapDbStockMovement(movementRow);
+      if (error) {
+        if (isNetworkError(error)) {
+          offlineQueue.enqueue(
+            orgId,
+            'ADJUST_STOCK',
+            { productId, quantityChange, notes: notes.trim() },
+            {
+              idempotencyKey: trimmedKey,
+              description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
+            }
+          );
+          return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
+        }
+        throw new Error(`Failed to adjust stock: ${error.message}`);
       }
-    }
 
-    return {
-      id: movementId || 'mov-' + Date.now(),
-      organizationId: orgId,
-      productId,
-      quantityChange,
-      movementType: 'ADJUSTMENT',
-      referenceType: 'MANUAL_ADJUSTMENT',
-      notes: notes.trim(),
-      createdAt: new Date().toISOString(),
-    };
+      const movementId = data?.movement_id;
+      if (movementId) {
+        const { data: movementRow, error: fetchErr } = await supabase
+          .from('stock_movements')
+          .select(STOCK_MOVEMENT_WITH_PRODUCT_SELECT)
+          .eq('id', movementId)
+          .single();
+
+        if (!fetchErr && movementRow) {
+          return mapDbStockMovement(movementRow);
+        }
+      }
+
+      return {
+        id: movementId || 'mov-' + Date.now(),
+        organizationId: orgId,
+        productId,
+        quantityChange,
+        movementType: 'ADJUSTMENT',
+        referenceType: 'MANUAL_ADJUSTMENT',
+        notes: notes.trim(),
+        createdAt: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      if (isNetworkError(err)) {
+        offlineQueue.enqueue(
+          orgId,
+          'ADJUST_STOCK',
+          { productId, quantityChange, notes: notes.trim() },
+          {
+            idempotencyKey: trimmedKey,
+            description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
+          }
+        );
+        return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
+      }
+      throw err;
+    }
   },
 
   async getProductStock(

@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadError } from '@/components/ui/LoadError';
 import { PrerequisiteModal, PrerequisiteInfo } from '@/components/ui/PrerequisiteModal';
+import { Pagination } from '@/components/ui/Pagination';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, calculateLineItem, calculateDocumentTotals, resolveDocumentPresentation } from '@/lib/money';
 import { getBusinessDateOffset } from '@/lib/dates';
@@ -48,6 +49,10 @@ export const QuotationsPage: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPreparingCreate, setIsPreparingCreate] = useState(false);
@@ -103,17 +108,33 @@ export const QuotationsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const loadData = useCallback(async (): Promise<{ customers: Customer[]; products: Product[] } | null> => {
+  const loadData = useCallback(async (
+    targetPage = page,
+    targetPageSize = pageSize,
+    search = searchQuery
+  ): Promise<{ customers: Customer[]; products: Product[] } | null> => {
     if (!currentOrg) return null;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [quotList, custList, prodList] = await Promise.all([
-        ordersService.getQuotations(currentOrg.id, isMockAuth),
+      const [quotResult, custList, prodList] = await Promise.all([
+        ordersService.getQuotationsPaginated(
+          currentOrg.id,
+          {
+            page: targetPage,
+            pageSize: targetPageSize,
+            search,
+          },
+          isMockAuth
+        ),
         customersService.getCustomers(currentOrg.id, isMockAuth),
         productsService.getProducts(currentOrg.id, isMockAuth),
       ]);
-      setQuotations(quotList);
+      setQuotations(quotResult.data);
+      setTotalCount(quotResult.totalCount);
+      setTotalPages(quotResult.totalPages);
+      setPage(quotResult.page);
+      setPageSize(quotResult.pageSize);
       setCustomers(custList);
       setProducts(prodList);
       return { customers: custList, products: prodList };
@@ -125,7 +146,7 @@ export const QuotationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, isMockAuth, showToast]);
+  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
 
   const initializeAndOpenCreate = useCallback((custList: Customer[], prodList: Product[]) => {
     const perm = check('quotations:create');
@@ -387,14 +408,7 @@ export const QuotationsPage: React.FC = () => {
 
   const totals = calculateTotals();
 
-  const filteredQuotations = quotations.filter((q) => {
-    const s = searchQuery.toLowerCase();
-    return (
-      q.quotationNumber.toLowerCase().includes(s) ||
-      q.customer?.companyName?.toLowerCase().includes(s) ||
-      q.customer?.name.toLowerCase().includes(s)
-    );
-  });
+  const filteredQuotations = quotations;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -406,7 +420,7 @@ export const QuotationsPage: React.FC = () => {
               Quotations & Estimates
             </h1>
             <Badge variant="teal" size="sm">
-              {quotations.length} Quotations
+              {totalCount} Quotation{totalCount === 1 ? '' : 's'}
             </Badge>
           </div>
           <p className="text-sm text-content-secondary mt-1">
@@ -451,7 +465,12 @@ export const QuotationsPage: React.FC = () => {
         <Input
           placeholder="Search quotations by number, customer, or contractor..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchQuery(val);
+            setPage(1);
+            loadData(1, pageSize, val);
+          }}
           leftIcon={<Search className="w-4 h-4" />}
           aria-label="Search quotations"
         />
@@ -560,6 +579,26 @@ export const QuotationsPage: React.FC = () => {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination Controls */}
+      {!isLoading && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          totalPages={totalPages}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+            loadData(newPage, pageSize, searchQuery);
+          }}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPage(1);
+            loadData(1, newPageSize, searchQuery);
+          }}
+          isLoading={isLoading}
+        />
       )}
 
       {/* Create Quotation Modal */}

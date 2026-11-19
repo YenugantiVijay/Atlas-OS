@@ -43,6 +43,34 @@ export interface SyncProcessResult {
 }
 
 const OFFLINE_QUEUE_STORAGE_KEY = 'atlas_offline_action_queue_v1';
+export const OFFLINE_QUEUE_EVENT = 'atlas:offline-queue-changed';
+
+export function isNetworkError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return true;
+  }
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Failed to fetch') ||
+    message.includes('NetworkError') ||
+    message.includes('fetch failed') ||
+    message.includes('network error') ||
+    message.includes('offline') ||
+    message.includes('ERR_CONNECTION_REFUSED') ||
+    message.includes('ERR_INTERNET_DISCONNECTED')
+  );
+}
+
+export function notifyOfflineQueueChanged(): void {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_EVENT));
+    } catch {
+      // Ignore if event dispatch fails in restricted environments
+    }
+  }
+}
 
 function loadQueue(): QueuedOfflineAction[] {
   try {
@@ -58,6 +86,7 @@ function loadQueue(): QueuedOfflineAction[] {
 function saveQueue(queue: QueuedOfflineAction[]): void {
   try {
     localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    notifyOfflineQueueChanged();
   } catch (err) {
     console.error('Failed to persist offline action queue:', err);
   }

@@ -8,16 +8,18 @@ import { formatDisplayDate } from '@/lib/dates';
 import { purchaseOrdersService, type PurchaseOrder } from '@/services/purchase-orders.service';
 import { PurchaseOrderEditor } from './PurchaseOrderEditor';
 
-function PurchaseOrderWorkspace({ organizationId, scope, canWrite, writeMessage }: {
-  organizationId: string; scope: string; canWrite: boolean; writeMessage?: string;
+function PurchaseOrderWorkspace({ organizationId, scope, canWrite, writeMessage, isMockAuth }: {
+  organizationId: string; scope: string; canWrite: boolean; writeMessage?: string; isMockAuth?: boolean;
 }) {
   const [page, setPage] = useState(1);
   const [editor, setEditor] = useState<{ order?: PurchaseOrder } | null>(null);
   const client = useQueryClient();
   const key = ['purchase-orders', scope] as const;
   const orders = useQuery({
-    queryKey: [...key, page],
-    queryFn: ({ signal }) => purchaseOrdersService.list(organizationId, page, signal),
+    queryKey: [...key, page, isMockAuth],
+    queryFn: ({ signal }) => isMockAuth
+      ? purchaseOrdersService.list(organizationId, page, signal, true)
+      : purchaseOrdersService.list(organizationId, page, signal),
     staleTime: 0,
   });
 
@@ -80,10 +82,15 @@ export function PurchaseOrdersPage() {
         </div>
         <Link to="/receiving" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Goods Receiving</Link>
       </div>
-      {isMockAuth ? (
-        <p role="status" className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">Sign in to a cloud workspace to use Purchase Orders.</p>
-      ) : read.allowed && currentOrg && currentUser ? (
-        <PurchaseOrderWorkspace key={scope} scope={scope} organizationId={currentOrg.id} canWrite={write.allowed} writeMessage={write.message} />
+      {read.allowed && currentOrg && currentUser ? (
+        <div className="space-y-3">
+          {isMockAuth && (
+            <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              Demo Mode: Purchase orders are saved in this browser.
+            </p>
+          )}
+          <PurchaseOrderWorkspace key={scope} scope={scope} organizationId={currentOrg.id} canWrite={write.allowed} writeMessage={write.message} isMockAuth={isMockAuth} />
+        </div>
       ) : (
         <p role="status" className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">{read.message ?? 'Select a workspace to view purchase orders.'}</p>
       )}

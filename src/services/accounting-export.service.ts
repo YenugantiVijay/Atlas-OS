@@ -48,10 +48,20 @@ export const accountingExportService = {
       if (customer.organizationId !== inv.organizationId || inv.organizationId !== org.id) {
         throw new Error(`Invoice ${inv.invoiceNumber} is not associated with the selected organization.`);
       }
-      if (!customer.gstin || !/^\d{2}[A-Z0-9]{13}$/.test(customer.gstin)) {
-        throw new Error(`Invoice ${inv.invoiceNumber} has no buyer GSTIN to determine the Tally tax ledgers.`);
+
+      let isInterstate = false;
+      let partyLedgerName = 'Consumer / Unregistered Dealer';
+
+      if (customer.gstin && customer.gstin.trim()) {
+        const trimmedGstin = customer.gstin.trim().toUpperCase();
+        if (!/^\d{2}[A-Z0-9]{13}$/.test(trimmedGstin)) {
+          throw new Error(`Invoice ${inv.invoiceNumber} has an invalid buyer GSTIN.`);
+        }
+        const buyerStateCode = trimmedGstin.substring(0, 2);
+        isInterstate = sellerStateCode !== buyerStateCode;
+        partyLedgerName = customer.name;
       }
-      const customerName = customer.name;
+
       if (![inv.totalAmount, inv.subtotal, inv.discountAmount, inv.taxAmount].every(Number.isFinite)) {
         throw new Error(`Invoice ${inv.invoiceNumber} contains a non-finite total.`);
       }
@@ -67,9 +77,6 @@ export const accountingExportService = {
       const totalAmount = Number(inv.totalAmount || 0).toFixed(2);
       const taxAmount = Number(inv.taxAmount || 0);
       const subtotal = netSubtotal.toFixed(2);
-
-      const buyerStateCode = customer.gstin.substring(0, 2);
-      const isInterstate = sellerStateCode !== buyerStateCode;
 
       let taxLedgersXml = '';
       if (isInterstate) {
@@ -103,11 +110,11 @@ export const accountingExportService = {
           <DATE>${dateFormatted}</DATE>
           <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
           <VOUCHERNUMBER>${escapeXml(inv.invoiceNumber)}</VOUCHERNUMBER>
-          <PARTYLEDGERNAME>${escapeXml(customerName)}</PARTYLEDGERNAME>
+          <PARTYLEDGERNAME>${escapeXml(partyLedgerName)}</PARTYLEDGERNAME>
           <NARRATION>Atlas OS Tax Invoice #${escapeXml(inv.invoiceNumber)}</NARRATION>
           <EFFECTIVEDATE>${dateFormatted}</EFFECTIVEDATE>
           <LEDGERENTRIES.LIST>
-            <LEDGERNAME>${escapeXml(customerName)}</LEDGERNAME>
+            <LEDGERNAME>${escapeXml(partyLedgerName)}</LEDGERNAME>
             <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
             <AMOUNT>${totalAmount}</AMOUNT>
           </LEDGERENTRIES.LIST>
