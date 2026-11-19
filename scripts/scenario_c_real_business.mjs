@@ -59,7 +59,16 @@ export async function runRealBusinessScenarioC(maintClient, baseRunId, context) 
     const allFiles = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
     for (const file of allFiles) {
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
-      await realBizClient.query(sql);
+      try {
+        await realBizClient.query(sql);
+      } catch (migErr) {
+        console.error(`\n❌ Migration failed at ${file}: ${migErr.message}`);
+        console.error(`   SQLSTATE: ${migErr.code}`);
+        if (migErr.detail) console.error(`   DETAIL: ${migErr.detail}`);
+        if (migErr.hint) console.error(`   HINT: ${migErr.hint}`);
+        if (migErr.position) console.error(`   POSITION: ${migErr.position}`);
+        throw migErr;
+      }
     }
     console.log(`  ✓ Applied ${allFiles.length} authoritative migrations up to 036.`);
 

@@ -1352,6 +1352,9 @@ async function runAcceptance() {
       } catch (migErr) {
         console.error(`\n❌ Migration failed at ${file}: ${migErr.message}`);
         console.error(`   SQLSTATE: ${migErr.code}`);
+        if (migErr.detail) console.error(`   DETAIL: ${migErr.detail}`);
+        if (migErr.hint) console.error(`   HINT: ${migErr.hint}`);
+        if (migErr.position) console.error(`   POSITION: ${migErr.position}`);
         throw migErr;
       }
     }

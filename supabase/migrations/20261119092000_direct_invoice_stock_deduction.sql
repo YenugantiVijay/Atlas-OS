@@ -19,8 +19,17 @@ BEGIN;
 ALTER TABLE public.invoice_items 
     ALTER COLUMN quantity TYPE NUMERIC(12, 3);
 
+-- Drop trigger depending on quantity_change before altering column type
+DROP TRIGGER IF EXISTS trg_protect_quarantined_stock ON public.stock_movements;
+
 ALTER TABLE public.stock_movements 
     ALTER COLUMN quantity_change TYPE NUMERIC(12, 3);
+
+-- Recreate trigger with updated column type
+CREATE TRIGGER trg_protect_quarantined_stock
+    BEFORE INSERT ON public.stock_movements
+    FOR EACH ROW WHEN (NEW.quantity_change < 0)
+    EXECUTE FUNCTION public.protect_quarantined_stock();
 
 ALTER TABLE public.sales_order_items 
     ALTER COLUMN quantity TYPE NUMERIC(12, 3);

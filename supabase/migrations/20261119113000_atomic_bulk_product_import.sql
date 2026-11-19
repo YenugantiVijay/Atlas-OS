@@ -235,9 +235,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_products_batch FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.create_products_batch TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_products_batch TO service_role;
+REVOKE ALL ON FUNCTION public.create_products_batch(UUID, UUID, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_products_batch(UUID, UUID, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_products_batch(UUID, UUID, JSONB) TO service_role;
 
 -- 3. Companion Batch Undo RPC
 CREATE OR REPLACE FUNCTION public.undo_product_import_batch(
@@ -377,8 +377,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.undo_product_import_batch FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.undo_product_import_batch TO authenticated;
-GRANT EXECUTE ON FUNCTION public.undo_product_import_batch TO service_role;
+REVOKE ALL ON FUNCTION public.undo_product_import_batch(UUID, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.undo_product_import_batch(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.undo_product_import_batch(UUID, UUID) TO service_role;
 
 COMMIT;
