@@ -286,8 +286,21 @@ export const productSchema = z.object({
   sellingPrice: z.number().min(0, 'Selling price must be non-negative'),
   taxRate: z.number().min(0).max(40, 'Tax rate must be between 0% and 40%'),
   hsnCode: z.string().regex(/^[0-9]{2,8}$/, 'HSN code must be 2 to 8 digits').optional().or(z.literal('')),
-  reorderThreshold: z.number().int().min(0, 'Threshold must be non-negative'),
-  openingStock: z.number().int().min(0).optional(),
+  reorderThreshold: z
+    .number()
+    .min(0, 'Threshold must be non-negative')
+    .refine(
+      (val) => Number.isFinite(val) && (val.toString().split('.')[1] || '').length <= 3,
+      'Threshold can have at most 3 decimal places'
+    ),
+  openingStock: z
+    .number()
+    .min(0, 'Opening stock must be non-negative')
+    .refine(
+      (val) => Number.isFinite(val) && (val.toString().split('.')[1] || '').length <= 3,
+      'Opening stock can have at most 3 decimal places'
+    )
+    .optional(),
 });
 
 export const customerSchema = z.object({
@@ -324,7 +337,13 @@ export const orderItemSchema = z.object({
   productName: z.string(),
   productSku: z.string(),
   uom: z.enum(['Nos', 'Coils', 'Meters', 'Boxes', 'Bundles', 'Sets', 'Rolls']),
-  quantity: z.number().int().positive('Quantity must be greater than 0'),
+  quantity: z
+    .number()
+    .positive('Quantity must be greater than 0')
+    .refine(
+      (val) => Number.isFinite(val) && (val.toString().split('.')[1] || '').length <= 3,
+      'Quantity can have at most 3 decimal places'
+    ),
   unitPrice: z.number().min(0, 'Unit price cannot be negative'),
   discountPercent: z.number().min(0).max(100),
   taxRate: z.number().min(0),
@@ -347,7 +366,13 @@ export const salesOrderFormSchema = z.object({
 
 export const stockAdjustmentSchema = z.object({
   productId: z.string().min(1, 'Please select a product'),
-  quantityChange: z.number().int().refine((val) => val !== 0, 'Adjustment quantity cannot be zero'),
+  quantityChange: z
+    .number()
+    .refine((val) => val !== 0, 'Adjustment quantity cannot be zero')
+    .refine(
+      (val) => Number.isFinite(val) && (val.toString().split('.')[1] || '').length <= 3,
+      'Adjustment quantity can have at most 3 decimal places'
+    ),
   notes: z.string().min(3, 'A reason for adjustment is required for audit trail'),
 });
 
@@ -476,12 +501,13 @@ export function validateTaxRateInput(
 export function validateQuantityInput(
   input: string | number | undefined | null,
   fieldName: string = 'Quantity',
-  options?: { min?: number; max?: number; allowZero?: boolean }
+  options?: { min?: number; max?: number; allowZero?: boolean; integer?: boolean; maxDecimals?: number }
 ): NumericValidationResult {
   return parseStrictNumber(input, {
     fieldName,
     required: true,
-    integer: true,
+    integer: options?.integer !== undefined ? options.integer : true,
+    maxDecimals: options?.maxDecimals ?? 3,
     allowZero: options?.allowZero === true,
     min: options?.min !== undefined ? options.min : 1,
     max: options?.max !== undefined ? options.max : 1_000_000,

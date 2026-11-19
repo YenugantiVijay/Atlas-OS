@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { storage } from '@/lib/storage';
 
 export type SupplierPriceSource = 'SUPPLIER_QUOTE' | 'GOODS_RECEIPT';
 
@@ -64,8 +65,21 @@ export const supplierPriceHistoryService = {
     productId?: string;
     asOf?: string;
     limit?: number;
-  }): Promise<SupplierPriceEntry[]> {
+  }, isMockAuth: boolean = false): Promise<SupplierPriceEntry[]> {
     const limit = Math.min(100, Math.max(1, filters?.limit ?? 60));
+    if (isMockAuth || !supabase) {
+      const all = storage.getItem<SupplierPriceEntry[]>('atlas_supplier_price_history_v1', []);
+      let filtered = all.filter((entry) => entry.organizationId === organizationId);
+      if (filters?.supplierId) filtered = filtered.filter((e) => e.supplierId === filters.supplierId);
+      if (filters?.productId) filtered = filtered.filter((e) => e.productId === filters.productId);
+      if (filters?.asOf) filtered = filtered.filter((e) => e.effectiveOn <= filters.asOf!);
+      filtered.sort((a, b) => {
+        const dateDiff = new Date(b.effectiveOn).getTime() - new Date(a.effectiveOn).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime();
+      });
+      return filtered.slice(0, limit);
+    }
     let query = requireCloud().from('supplier_price_history')
       .select('*')
       .eq('organization_id', organizationId);
@@ -81,12 +95,59 @@ export const supplierPriceHistoryService = {
     return (data || []).map(mapHistory);
   },
   /** Manual notices only. Actual receipt prices originate in a database trigger. */
-  async recordQuote(command: RecordSupplierQuote): Promise<{
+  async recordQuote(command: RecordSupplierQuote, isMockAuth: boolean = false): Promise<{
     entry_id: string;
     idempotent_replay: boolean;
     previous_rate: number | null;
     recorded_rate: number;
   }> {
+    if (isMockAuth || !supabase) {
+      const all = storage.getItem<SupplierPriceEntry[]>('atlas_supplier_price_history_v1', []);
+      const existing = all.find((e) => e.id === command.entryId && e.organizationId === command.organizationId);
+      if (existing) {
+        return {
+          entry_id: command.entryId,
+          idempotent_replay: true,
+          previous_rate: null,
+          recorded_rate: existing.unitCost,
+        };
+      }
+      const suppliers = storage.getSuppliers(command.organizationId);
+      const supplier = suppliers.find((s) => s.id === command.supplierId);
+      const products = storage.getProducts(command.organizationId);
+      const product = products.find((p) => p.id === command.productId);
+
+      const previousEntry = all
+        .filter((e) => e.organizationId === command.organizationId && e.supplierId === command.supplierId && e.productId === command.productId)
+        .sort((a, b) => new Date(b.effectiveOn).getTime() - new Date(a.effectiveOn).getTime())[0];
+      const previous_rate = previousEntry ? previousEntry.unitCost : null;
+
+      const newEntry: SupplierPriceEntry = {
+        id: command.entryId,
+        organizationId: command.organizationId,
+        supplierId: command.supplierId,
+        supplierName: supplier?.companyName?.trim() || supplier?.name || 'Demo Supplier',
+        productId: command.productId,
+        productName: product?.name || 'Demo Product',
+        productSku: product?.sku || 'DEMO-SKU',
+        productUom: product?.uom || 'Nos',
+        unitCost: command.unitCost,
+        effectiveOn: command.effectiveOn,
+        sourceType: 'SUPPLIER_QUOTE',
+        sourceReference: command.notes.trim() || 'Manual Demo Quote',
+        notes: command.notes.trim(),
+        actorId: 'demo-user',
+        recordedAt: new Date().toISOString(),
+      };
+      all.unshift(newEntry);
+      storage.setItem('atlas_supplier_price_history_v1', all);
+      return {
+        entry_id: command.entryId,
+        idempotent_replay: false,
+        previous_rate,
+        recorded_rate: command.unitCost,
+      };
+    }
     const { data, error } = await requireCloud().rpc('record_supplier_price_quote', {
       p_org_id: command.organizationId,
       p_entry_id: command.entryId,

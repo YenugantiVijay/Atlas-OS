@@ -6,9 +6,80 @@
  */
 
 import { Organization, Customer, Invoice } from '@/types';
+import { toPaise, fromPaise } from '@/lib/money';
+import { INDIAN_GST_STATES } from '@/lib/gst';
 
 export const E_WAY_BILL_STATUTORY_THRESHOLD = 50000; // ₹50,000 statutory consignment limit under CGST Rule 138
 export const E_INVOICE_TURNOVER_THRESHOLD = 50000000; // ₹5 Crore threshold (Notification 10/2023-CT)
+
+export function extractBuyerLocationAndPin(customer: Partial<Customer> & {
+  city?: string;
+  location?: string;
+  pincode?: string | number;
+  pin?: string | number;
+  address?: string;
+}): { location: string | null; pin: number | null } {
+  // 1. PIN code extraction
+  let pin: number | null = null;
+  const rawPin = customer.pincode ?? customer.pin;
+  if (rawPin && /^\d{6}$/.test(String(rawPin).trim())) {
+    pin = parseInt(String(rawPin).trim(), 10);
+  }
+
+  const rawAddress = [
+    customer.billingAddress,
+    customer.deliveryAddress,
+    customer.address,
+  ]
+    .filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+    .join(', ');
+
+  if (!pin && rawAddress) {
+    const pinMatch = rawAddress.match(/\b\d{6}\b/);
+    if (pinMatch) {
+      pin = parseInt(pinMatch[0], 10);
+    }
+  }
+
+  // 2. Location / City extraction
+  let location: string | null = null;
+  const rawCity = customer.city ?? customer.location;
+  if (typeof rawCity === 'string' && rawCity.trim().length >= 3) {
+    location = rawCity.trim().substring(0, 50);
+  }
+
+  if (!location && rawAddress) {
+    // Strip PIN code, country names, and cleanup delimiters
+    const cleaned = rawAddress
+      .replace(/\b\d{6}\b/g, '')
+      .replace(/\b(India|Bharat)\b/gi, '')
+      .trim();
+
+    // Split by commas, newlines, or semicolons
+    const segments = cleaned
+      .split(/[\n,;]+/)
+      .map((s) => s.replace(/^[-–—\s]+|[-–—\s]+$/g, '').trim())
+      .filter((s) => s.length >= 3);
+
+    if (segments.length > 0) {
+      // Check if the last segment is an Indian state name
+      const knownStates = Object.values(INDIAN_GST_STATES).map((st) => st.toLowerCase());
+      const lastSeg = segments[segments.length - 1];
+      const isLastSegState = knownStates.some(
+        (st) => st === lastSeg.toLowerCase() || lastSeg.toLowerCase().includes(st)
+      );
+
+      if (isLastSegState && segments.length > 1) {
+        // Take the segment immediately before the state
+        location = segments[segments.length - 2].substring(0, 50);
+      } else {
+        location = lastSeg.substring(0, 50);
+      }
+    }
+  }
+
+  return { location, pin };
+}
 
 export interface NicItemDetail {
   ItemNo: number;
@@ -151,8 +222,13 @@ export const indiaComplianceService = {
       missingFields.push('Line items (at least 1 line item required)');
     }
     if (!customer.billingAddress && !customer.deliveryAddress) missingFields.push('Buyer Address');
-    missingFields.push('Buyer Location (not available on the customer profile)');
-    missingFields.push('Buyer PIN Code (not available on the customer profile)');
+    const { location: buyerLoc, pin: buyerPin } = extractBuyerLocationAndPin(customer);
+    if (!buyerLoc) {
+      missingFields.push('Buyer Location (not available on the customer profile)');
+    }
+    if (!buyerPin) {
+      missingFields.push('Buyer PIN Code (not available on the customer profile)');
+    }
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
     const buyerStateCode = (customer.gstin || '36').substring(0, 2);
@@ -182,27 +258,31 @@ export const indiaComplianceService = {
       if (!Number.isFinite(discount) || discount < 0 || discount > 100) missingFields.push(`Item ${itemNo}: provide a valid discount percentage.`);
       if (!item.productName) missingFields.push(`Item ${itemNo}: product description is required.`);
 
-      const grossAmt = Number((qty * unitPrice).toFixed(2));
-      const discAmt = Number(((grossAmt * discount) / 100).toFixed(2));
-      const assAmt = Number((grossAmt - discAmt).toFixed(2));
+      const grossPaise = toPaise(qty * unitPrice);
+      const discPaise = Math.round(grossPaise * (discount / 100));
+      const assPaise = grossPaise - discPaise;
+      const grossAmt = fromPaise(grossPaise);
 
       let cgstAmt = 0;
       let sgstAmt = 0;
       let igstAmt = 0;
 
       if (isInterstate) {
-        igstAmt = Number(((assAmt * taxRate) / 100).toFixed(2));
+        const igstPaise = Math.round(assPaise * (taxRate / 100));
+        igstAmt = fromPaise(igstPaise);
+        totalIgst = fromPaise(toPaise(totalIgst) + igstPaise);
       } else {
-        cgstAmt = Number(((assAmt * (taxRate / 2)) / 100).toFixed(2));
-        sgstAmt = Number(((assAmt * (taxRate / 2)) / 100).toFixed(2));
+        const totalTaxPaise = Math.round(assPaise * (taxRate / 100));
+        const cgstPaise = Math.floor(totalTaxPaise / 2);
+        const sgstPaise = totalTaxPaise - cgstPaise;
+        cgstAmt = fromPaise(cgstPaise);
+        sgstAmt = fromPaise(sgstPaise);
+        totalCgst = fromPaise(toPaise(totalCgst) + cgstPaise);
+        totalSgst = fromPaise(toPaise(totalSgst) + sgstPaise);
       }
 
-      const totItemVal = Number((assAmt + cgstAmt + sgstAmt + igstAmt).toFixed(2));
-
-      totalAssVal += assAmt;
-      totalCgst += cgstAmt;
-      totalSgst += sgstAmt;
-      totalIgst += igstAmt;
+      const totItemVal = fromPaise(assPaise + toPaise(cgstAmt) + toPaise(sgstAmt) + toPaise(igstAmt));
+      totalAssVal = fromPaise(toPaise(totalAssVal) + assPaise);
 
       itemList.push({
         ItemNo: itemNo,
@@ -230,7 +310,11 @@ export const indiaComplianceService = {
       };
     }
 
-    const totInvVal = Number((totalAssVal + totalCgst + totalSgst + totalIgst).toFixed(2));
+    const docDiscount = Number(invoice.discountAmount || 0);
+    const docDiscountPaise = toPaise(docDiscount);
+    const totalTaxPaise = toPaise(totalCgst) + toPaise(totalSgst) + toPaise(totalIgst);
+    const totInvValPaise = Math.max(0, toPaise(totalAssVal) + totalTaxPaise - docDiscountPaise);
+    const totInvVal = fromPaise(totInvValPaise);
 
     const payload: NicEInvoicePayload = {
       Version: '1.1',
@@ -259,8 +343,8 @@ export const indiaComplianceService = {
         LglNm: customer.name,
         Pos: buyerStateCode,
         Addr1: customer.billingAddress || customer.deliveryAddress || '',
-        Loc: '',
-        Pin: 0,
+        Loc: buyerLoc || '',
+        Pin: buyerPin || 0,
         Stcd: buyerStateCode,
       },
       ItemList: itemList,
@@ -271,7 +355,7 @@ export const indiaComplianceService = {
         IgstVal: Number(totalIgst.toFixed(2)),
         CesVal: 0,
         StCesVal: 0,
-        Disc: 0,
+        Disc: Number(docDiscount.toFixed(2)),
         OthChrg: 0,
         RndOffAmt: 0,
         TotInvVal: totInvVal,
@@ -323,6 +407,9 @@ export const indiaComplianceService = {
     const isInterstate = sellerStateCode !== buyerStateCode;
 
     const taxAmount = Number(invoice.taxAmount || 0);
+    const totalTaxPaise = toPaise(taxAmount);
+    const cgstPaise = isInterstate ? 0 : Math.floor(totalTaxPaise / 2);
+    const sgstPaise = isInterstate ? 0 : totalTaxPaise - cgstPaise;
 
     const payload = {
       supplyType: 'O' as const,
@@ -333,8 +420,8 @@ export const indiaComplianceService = {
       fromGstin: org.gstin || '',
       toGstin: customer?.gstin || 'URP', // Unregistered person
       totalValue: totalAmount,
-      cgstValue: isInterstate ? 0 : Number((taxAmount / 2).toFixed(2)),
-      sgstValue: isInterstate ? 0 : Number((taxAmount / 2).toFixed(2)),
+      cgstValue: fromPaise(cgstPaise),
+      sgstValue: fromPaise(sgstPaise),
       igstValue: isInterstate ? taxAmount : 0,
       transporterId: transportDetails?.transporterId,
       vehicleNo: transportDetails?.vehicleNo,

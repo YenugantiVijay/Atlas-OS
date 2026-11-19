@@ -9,7 +9,20 @@
 import { storage } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { Product, UOM } from '@/types';
-import { mapDbProduct, productsService } from '@/services/products.service';
+import { mapDbProduct } from '@/services/products.service';
+
+function generateBatchId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ProductImportRow {
   sku: string;
@@ -164,7 +177,7 @@ export const guidedImportService = {
   ): Promise<ImportBatchSummary> {
     if (!orgId) throw new Error('Organization ID is required.');
 
-    const batchId = `batch_prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const batchId = generateBatchId();
     let existingProducts: Product[] = [];
 
     if (isMockAuth) {
@@ -210,37 +223,39 @@ export const guidedImportService = {
         recordIds,
       });
     } else {
-      for (const row of validRows) {
-        try {
-          const product = await productsService.createProduct(
-            orgId,
-            {
-              sku: row.sku,
-              name: row.name,
-              uom: row.uom || 'Nos',
-              brand: row.brand || '',
-              category: row.category || 'General',
-              purchaseCost: row.purchaseCost ?? 0,
-              sellingPrice: row.sellingPrice ?? 0,
-              taxRate: row.taxRate ?? 18,
-              hsnCode: row.hsnCode?.trim() || '',
-              reorderThreshold: row.reorderThreshold ?? 0,
-              isActive: true,
-            },
-            false,
-            row.openingStock ?? 0
-          );
-          recordIds.push(product.id);
-        } catch (error) {
-          const rowIndex = rows.findIndex((candidate) =>
-            (candidate.sku || '').trim().toUpperCase() === row.sku
-          ) + 1;
+      if (validRows.length > 0) {
+        if (!supabase) throw new Error('Cloud backend is not configured.');
+
+        const payload = validRows.map((row) => ({
+          sku: row.sku,
+          name: row.name,
+          brand: row.brand || '',
+          category: row.category || 'General',
+          uom: row.uom || 'Nos',
+          purchase_cost: row.purchaseCost ?? 0,
+          selling_price: row.sellingPrice ?? 0,
+          tax_rate: row.taxRate ?? 18,
+          hsn_code: row.hsnCode?.trim() || '',
+          reorder_threshold: row.reorderThreshold ?? 0,
+          opening_stock: row.openingStock ?? 0,
+          is_active: true,
+        }));
+
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('create_products_batch', {
+          p_org_id: orgId,
+          p_batch_id: batchId,
+          p_products: payload,
+        });
+
+        if (rpcErr) {
           issues.push({
-            rowIndex,
-            field: 'product',
-            message: error instanceof Error ? error.message : 'Cloud product creation failed.',
+            rowIndex: 0,
+            field: 'batch',
+            message: rpcErr.message || 'Cloud bulk product import failed.',
             severity: 'error',
           });
+        } else if (rpcRes && typeof rpcRes === 'object' && Array.isArray((rpcRes as Record<string, unknown>).record_ids)) {
+          recordIds.push(...((rpcRes as { record_ids: string[] }).record_ids));
         }
       }
     }
@@ -326,13 +341,73 @@ export const guidedImportService = {
         details,
       };
     } else {
+      if (!supabase) {
+        return {
+          batchId,
+          success: false,
+          undoneCount: 0,
+          failedCount: 1,
+          message: 'Cloud import batches are not persisted, so this batch cannot be safely rolled back.',
+          details: ['No records were changed. Remove imported records through the product or customer workflow after verifying references.'],
+        };
+      }
+
+      if (!UUID_REGEX.test(batchId)) {
+        return {
+          batchId,
+          success: false,
+          undoneCount: 0,
+          failedCount: 1,
+          message: `Import batch ${batchId} was not found or is not persisted on the cloud.`,
+          details: ['Batch ID is not a valid cloud batch identifier.'],
+        };
+      }
+
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('undo_product_import_batch', {
+        p_org_id: orgId,
+        p_batch_id: batchId,
+      });
+
+      if (rpcErr) {
+        return {
+          batchId,
+          success: false,
+          undoneCount: 0,
+          failedCount: 1,
+          message: `Failed to undo cloud import batch: ${rpcErr.message}`,
+          details: [rpcErr.message],
+        };
+      }
+
+      if (rpcRes && typeof rpcRes === 'object') {
+        const typedRes = rpcRes as {
+          batch_id?: string;
+          success?: boolean;
+          undone_count?: number;
+          failed_count?: number;
+          message?: string;
+          details?: string[];
+        };
+        const undoneCount = Number(typedRes.undone_count) || 0;
+        const failedCount = Number(typedRes.failed_count) || 0;
+        const success = Boolean(typedRes.success);
+        return {
+          batchId: typedRes.batch_id || batchId,
+          success,
+          undoneCount,
+          failedCount,
+          message: typedRes.message || `Rollback processed for batch ${batchId}.`,
+          details: Array.isArray(typedRes.details) ? typedRes.details : [],
+        };
+      }
+
       return {
         batchId,
         success: false,
         undoneCount: 0,
         failedCount: 1,
-        message: 'Cloud import batches are not persisted, so this batch cannot be safely rolled back.',
-        details: ['No records were changed. Remove imported records through the product or customer workflow after verifying references.'],
+        message: `Import batch ${batchId} was not found or is not persisted on the cloud.`,
+        details: ['No response received from cloud rollback RPC.'],
       };
     }
   },

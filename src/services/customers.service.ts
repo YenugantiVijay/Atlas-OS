@@ -39,6 +39,10 @@ export const customersService = {
 
     if (isMockAuth) {
       const allCustomers = await storage.getCustomers(orgId);
+      const defaultSort = (a: Customer, b: Customer) => a.name.localeCompare(b.name);
+      const sortFn = params.sortBy === 'currentReceivable'
+        ? (a: Customer, b: Customer) => (a.currentReceivable ?? 0) - (b.currentReceivable ?? 0)
+        : defaultSort;
       return paginateArray(
         allCustomers,
         params,
@@ -48,7 +52,7 @@ export const customersService = {
           Boolean(c.phone && c.phone.toLowerCase().includes(s)) ||
           Boolean(c.email && c.email.toLowerCase().includes(s)) ||
           Boolean(c.gstin && c.gstin.toLowerCase().includes(s)),
-        (a, b) => a.name.localeCompare(b.name)
+        sortFn
       );
     }
 

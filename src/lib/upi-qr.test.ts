@@ -23,9 +23,11 @@ describe('Area 6: India Ecosystem — Bharat UPI QR & Instant Links', () => {
 
     expect(uri.startsWith('upi://pay?')).toBe(true);
     expect(uri).toContain('pa=srilakshmi%40icici');
-    expect(uri).toContain('pn=Sri+Lakshmi+Electricals');
+    expect(uri).toContain('pn=Sri%20Lakshmi%20Electricals');
     expect(uri).toContain('am=1450.50');
     expect(uri).toContain('cu=INR');
+    expect(uri).toContain('tn=Bill%20Payment');
+    expect(uri).not.toContain('+');
   });
 
   it('does not invent a payee VPA for an organization', () => {

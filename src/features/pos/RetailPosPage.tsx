@@ -43,6 +43,8 @@ export const RetailPosPage: React.FC = () => {
   const [activeProductIndex, setActiveProductIndex] = useState(0);
   const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
   const productInputRef = useRef<HTMLInputElement>(null);
+  const activeProductButtonRef = useRef<HTMLButtonElement>(null);
+  const activeCustomerButtonRef = useRef<HTMLButtonElement>(null);
   const [customerResponse, setCustomerResponse] = useState<{ key: string; rows: DirectoryEntry[] }>({ key: '', rows: [] });
   const [customerError, setCustomerError] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<{ identity: string; customer: DirectoryEntry } | null>(null);
@@ -67,19 +69,13 @@ export const RetailPosPage: React.FC = () => {
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
-  // F2 is an operator shortcut even when focus is on the page body rather than
-  // inside the worksheet; never intercept Ctrl/Alt/Meta combinations.
   useEffect(() => {
-    const onShortcut = (event: KeyboardEvent) => {
-      if (event.key === 'F2' && !event.defaultPrevented &&
-          !event.ctrlKey && !event.altKey && !event.metaKey) {
-        event.preventDefault();
-        productInputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onShortcut);
-    return () => window.removeEventListener('keydown', onShortcut);
-  }, []);
+    activeProductButtonRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeProductIndex]);
+
+  useEffect(() => {
+    activeCustomerButtonRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeCustomerIndex]);
 
   const productKey = `${identity}:${productTerm.trim()}`;
   const customerKey = `${identity}:${customerTerm.trim()}`;
@@ -228,6 +224,7 @@ export const RetailPosPage: React.FC = () => {
     }
     setProductTerm('');
     setActiveProductIndex(0);
+    setProductResponse({ key: '', rows: [] });
     productInputRef.current?.focus();
   };
 
@@ -506,14 +503,72 @@ export const RetailPosPage: React.FC = () => {
     : canCheckout && (isMockAuth || loadedCheckout !== null) && counterShift?.status === 'OPEN' &&
       Boolean(customer) && lines.length > 0 && !totals.error && !shiftError);
 
+  const saveOrderRef = useRef(saveOrder);
+  saveOrderRef.current = saveOrder;
+  const completeDemoSaleRef = useRef(completeDemoSale);
+  completeDemoSaleRef.current = completeDemoSale;
+  const completeCloudSaleRef = useRef(completeCloudSale);
+  completeCloudSaleRef.current = completeCloudSale;
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      // F2: Focus the product search / barcode input from anywhere
+      if (event.key === 'F2' && !event.defaultPrevented &&
+          !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        productInputRef.current?.focus();
+        return;
+      }
+
+      // Ctrl+Enter or Cmd+Enter: Save draft sales order or trigger checkout when cart items exist
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        if (!busyRef.current) {
+          if (readyToSave) {
+            event.preventDefault();
+            void saveOrderRef.current();
+          } else if (readyToCheckout) {
+            event.preventDefault();
+            void (isMockAuth ? completeDemoSaleRef.current() : completeCloudSaleRef.current());
+          }
+        }
+        return;
+      }
+
+      // Esc: Close open search dropdowns or dismiss active input/overlays
+      if (event.key === 'Escape') {
+        if (productTerm || customerTerm) {
+          event.preventDefault();
+          setProductTerm('');
+          setActiveProductIndex(0);
+          setProductResponse({ key: '', rows: [] });
+          if (!selectedCustomer) {
+            setCustomerTerm('');
+            setActiveCustomerIndex(0);
+            setCustomerResponse({ key: '', rows: [] });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, [lines.length, readyToCheckout, readyToSave, isMockAuth, productTerm, customerTerm, selectedCustomer]);
+
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 pb-6" onKeyDown={(event) => {
       if (event.key === 'F2') {
         event.preventDefault();
         productInputRef.current?.focus();
-      } else if (event.ctrlKey && event.key === 'Enter' && readyToSave) {
-        event.preventDefault();
-        void saveOrder();
+      } else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        if (!busyRef.current) {
+          if (readyToSave) {
+            event.preventDefault();
+            void saveOrder();
+          } else if (readyToCheckout) {
+            event.preventDefault();
+            void (isMockAuth ? completeDemoSale() : completeCloudSale());
+          }
+        }
       }
     }}>
       {/* Compact operating header, not a second marketing-style hero. */}
@@ -589,8 +644,11 @@ export const RetailPosPage: React.FC = () => {
             <label htmlFor="pos-product-search" className="text-sm font-semibold text-[#142B4D]">
               <span className="mr-2 text-teal-700">01</span>Find an item
             </label>
-            <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
-              <Keyboard size={13}/> F2 to focus · ↑ ↓ Enter to add
+            <span className="items-center gap-1.5 text-[11px] font-medium text-slate-500 inline-flex">
+              <Keyboard size={13}/>
+              <kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-700 shadow-2xs">F2</kbd> focus ·
+              <kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-700 shadow-2xs">↑</kbd><kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-700 shadow-2xs">↓</kbd> navigate ·
+              <kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-700 shadow-2xs">Enter</kbd> add
             </span>
           </div>
           <Input ref={productInputRef} id="pos-product-search" aria-label="Search POS products"
@@ -608,11 +666,15 @@ export const RetailPosPage: React.FC = () => {
               } else if (e.key === 'ArrowUp' && products.length) {
                 e.preventDefault();
                 setActiveProductIndex((index) => Math.max(index - 1, 0));
-              } else if (e.key === 'Enter' && !e.ctrlKey && products.length) {
+              } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && products.length) {
                 e.preventDefault();
-                addProduct(products[Math.min(activeProductIndex, products.length - 1)]);
+                const target = products[Math.min(activeProductIndex, products.length - 1)];
+                if (target) addProduct(target);
               } else if (e.key === 'Escape') {
+                e.preventDefault();
                 setProductTerm('');
+                setActiveProductIndex(0);
+                setProductResponse({ key: '', rows: [] });
               }
             }}
             placeholder="Product name, nickname, SKU, brand or HSN"/>
@@ -627,11 +689,14 @@ export const RetailPosPage: React.FC = () => {
             <div className="mt-2 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200" aria-label="Product search results">
               {products.map((product, index) => (
                 <div key={product.id}>
-                  <button type="button" disabled={saving || checkoutLocked || !permission.allowed}
+                  <button
+                    ref={index === activeProductIndex ? activeProductButtonRef : undefined}
+                    type="button"
+                    disabled={saving || checkoutLocked || !permission.allowed}
                     onClick={() => addProduct(product)}
                     aria-label={'Add ' + product.name}
                     className={'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors hover:bg-teal-50 ' +
-                      (index === activeProductIndex ? 'bg-teal-50/80' : '')}>
+                      (index === activeProductIndex ? 'bg-teal-100/90 font-medium text-teal-950 ring-1 ring-inset ring-teal-500/40' : '')}>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-[#142B4D]">{product.name}</span>
                       <span className="block truncate text-[11px] text-slate-500">{product.sku} · {product.uom} · Stock {product.currentStock ?? '—'}</span>
@@ -710,10 +775,14 @@ export const RetailPosPage: React.FC = () => {
           {!customer && customers.length > 0 && (
             <div className="mt-2 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
               {customers.map((entry, index) => (
-                <button key={entry.id} type="button" disabled={saving || checkoutLocked || !permission.allowed}
+                <button
+                  ref={index === activeCustomerIndex ? activeCustomerButtonRef : undefined}
+                  key={entry.id}
+                  type="button"
+                  disabled={saving || checkoutLocked || !permission.allowed}
                   onClick={() => chooseCustomer(entry)}
                   className={'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-teal-50 ' +
-                    (index === activeCustomerIndex ? 'bg-teal-50/80' : '')}>
+                    (index === activeCustomerIndex ? 'bg-teal-100/90 font-medium text-teal-950 ring-1 ring-inset ring-teal-500/40' : '')}>
                   <span className="min-w-0 truncate font-semibold text-[#142B4D]">{entry.companyName || entry.name}</span>
                   <span className="shrink-0 text-slate-500">{entry.phone || '—'}</span>
                 </button>
@@ -787,15 +856,18 @@ export const RetailPosPage: React.FC = () => {
             </div>
           )}
           <Button className="mt-4 w-full" isLoading={saving}
+            aria-label="Save draft sales order"
             disabled={!permission.allowed || checkoutLocked || !customer || lines.length === 0 || Boolean(totals.error)}
             onClick={() => void saveOrder()}>
-            Save draft sales order
+            <span>Save draft sales order</span>
+            <kbd aria-hidden="true" className="ml-2 rounded border border-white/20 bg-black/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold">Ctrl+↵</kbd>
           </Button>
           {(canCheckout || pendingCheckout) && (
             <Button className="mt-2 w-full" variant="outline" isLoading={saving}
+              aria-label={checkoutLocked ? 'Retry paid sale' : 'Complete paid sale'}
               disabled={!readyToCheckout}
               onClick={() => void (isMockAuth ? completeDemoSale() : completeCloudSale())}>
-              {checkoutLocked ? 'Retry paid sale' : 'Complete paid sale'}
+              <span>{checkoutLocked ? 'Retry paid sale' : 'Complete paid sale'}</span>
             </Button>
           )}
           {!canCheckout && <p className="mt-2 text-center text-[11px] text-slate-600">

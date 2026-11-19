@@ -8,6 +8,7 @@ import { purchaseOrdersService, type PurchaseOrder, type PurchaseOrderLineInput,
 import { supplierPriceHistoryService } from '@/services/supplier-price-history.service';
 import type { Product } from '@/types';
 import { parseSupplierRate } from '@/features/pricing/supplier-rate-utils';
+import { useOrg } from '@/features/organizations/OrgContext';
 
 const MAX_LINES = 50;
 const inputClass = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600 disabled:bg-slate-50';
@@ -54,10 +55,13 @@ function subtotal(lines: PurchaseOrderLineInput[]) {
 function LastSupplierRate({ organizationId, scope, supplierId, line, onUse }: {
   organizationId: string; scope: string; supplierId: string; line: WorksheetLine; onUse: (rate: string) => void;
 }) {
+  const { isMockAuth } = useOrg();
   const asOf = getBusinessDate();
   const history = useQuery({
-    queryKey: ['purchase-order-rate', scope, supplierId, line.productId, asOf],
-    queryFn: () => supplierPriceHistoryService.list(organizationId, { supplierId, productId: line.productId, asOf, limit: 1 }),
+    queryKey: ['purchase-order-rate', scope, supplierId, line.productId, asOf, isMockAuth],
+    queryFn: () => isMockAuth
+      ? supplierPriceHistoryService.list(organizationId, { supplierId, productId: line.productId, asOf, limit: 1 }, true)
+      : supplierPriceHistoryService.list(organizationId, { supplierId, productId: line.productId, asOf, limit: 1 }),
     staleTime: 0,
   });
   const rate = history.data?.[0];
@@ -80,6 +84,7 @@ export function PurchaseOrderEditor({ organizationId, scope, initial, canWrite, 
   onBack: () => void;
   onChange: () => Promise<void>;
 }) {
+  const { isMockAuth } = useOrg();
   const [id] = useState(() => initial?.id ?? crypto.randomUUID());
   const [record, setRecord] = useState(initial);
   const [supplier, setSupplier] = useState<PurchaseOrderSupplier | undefined>(() => initial ? { id: initial.supplier_id, name: initial.supplier_name } : undefined);
@@ -97,13 +102,15 @@ export function PurchaseOrderEditor({ organizationId, scope, initial, canWrite, 
   const parsed = readLines(rows);
 
   const suppliers = useQuery({
-    queryKey: ['purchase-order-suppliers', scope, supplierTerm],
-    queryFn: ({ signal }) => purchaseOrdersService.searchSuppliers(organizationId, supplierTerm, signal),
+    queryKey: ['purchase-order-suppliers', scope, supplierTerm, isMockAuth],
+    queryFn: ({ signal }) => isMockAuth
+      ? purchaseOrdersService.searchSuppliers(organizationId, supplierTerm, signal, true)
+      : purchaseOrdersService.searchSuppliers(organizationId, supplierTerm, signal),
     enabled: editable && supplierTerm.length >= 2,
   });
   const products = useQuery({
-    queryKey: ['purchase-order-products', scope, productTerm],
-    queryFn: () => productsService.getProductsPaginated(organizationId, { search: productTerm, pageSize: 8, isActive: true }),
+    queryKey: ['purchase-order-products', scope, productTerm, isMockAuth],
+    queryFn: () => productsService.getProductsPaginated(organizationId, { search: productTerm, pageSize: 8, isActive: true }, isMockAuth),
     enabled: editable && productTerm.length >= 2,
   });
 
@@ -112,12 +119,17 @@ export function PurchaseOrderEditor({ organizationId, scope, initial, canWrite, 
       if (!editable) throw new Error('Purchase order editing is unavailable.');
       if (action === 'order') {
         if (!record || dirty) throw new Error('Save the current draft before marking it ordered.');
-        return purchaseOrdersService.markOrdered(organizationId, id, record.revision);
+        return isMockAuth
+          ? purchaseOrdersService.markOrdered(organizationId, id, record.revision, true)
+          : purchaseOrdersService.markOrdered(organizationId, id, record.revision);
       }
       if (!supplier || !parsed?.length) throw new Error('Choose a supplier and enter a whole quantity and purchase rate for each product.');
-      return purchaseOrdersService.saveDraft(organizationId, {
+      const draftPayload = {
         id, revision: record?.revision ?? null, supplierId: supplier.id, expectedOn: expectedOn || null, notes, lines: parsed,
-      });
+      };
+      return isMockAuth
+        ? purchaseOrdersService.saveDraft(organizationId, draftPayload, true)
+        : purchaseOrdersService.saveDraft(organizationId, draftPayload);
     },
     onSuccess: async (saved) => {
       setRecord(saved);

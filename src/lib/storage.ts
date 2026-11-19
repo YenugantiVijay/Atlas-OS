@@ -10,6 +10,7 @@ import {
   Quotation,
   SalesOrder,
   Invoice,
+  InvoiceStatus,
   Payment,
   PaymentAllocation,
   AuditEvent,
@@ -56,7 +57,7 @@ export function getIndianFinancialYear(dateOrYear?: Date | string | number): str
 }
 
 // Storage keys
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   ORGS: 'atlas_organizations_v1',
   MEMBERSHIPS: 'atlas_memberships_v1',
   PRODUCTS: 'atlas_products_v1',
@@ -110,7 +111,7 @@ function belongsToLegacyOrg(row: LegacyRow, key: string, orgId: string) {
 class StorageEngine {
   private initialized = false;
 
-  private getItem<T>(key: string, defaultValue: T): T {
+  public getItem<T>(key: string, defaultValue: T): T {
     try {
       const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : defaultValue;
@@ -119,7 +120,7 @@ class StorageEngine {
     }
   }
 
-  private setItem<T>(key: string, value: T): void {
+  public setItem<T>(key: string, value: T): void {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
@@ -1318,6 +1319,7 @@ class StorageEngine {
     data: {
       customerId: string;
       salesOrderId?: string;
+      status?: InvoiceStatus;
       invoiceDate: string;
       dueDate: string;
       notes?: string;
@@ -1388,6 +1390,22 @@ class StorageEngine {
 
     invoices.push(newInvoice);
     this.setItem(STORAGE_KEYS.INVOICES, invoices);
+
+    // Direct invoice stock deduction (only when no prior sales order already deducted stock)
+    if (!data.salesOrderId && newInvoice.status === 'ISSUED') {
+      for (const item of data.items || []) {
+        this.recordStockMovement({
+          organizationId: orgId,
+          productId: item.productId,
+          quantityChange: -item.quantity,
+          movementType: 'SALES_DISPATCH',
+          referenceType: 'INVOICE',
+          referenceId: newInvoice.id,
+          notes: `Direct invoice dispatch for ${item.productSku || invNum}`,
+        });
+      }
+    }
+
     this.logAuditEvent(orgId, 'ISSUE_INVOICE', 'INVOICE', newInvoice.id, {
       invoiceNumber: invNum,
       totalAmount: newInvoice.totalAmount,

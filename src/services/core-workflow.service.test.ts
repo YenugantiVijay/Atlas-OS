@@ -368,4 +368,91 @@ describe('Area 1: Seamless Core Workflows & Financial Lifecycle', () => {
     expect(repostResult.status).toBe('POSTED');
     expect(storage.getProductById(testOrgId, product.id)?.currentStock).toBe(60);
   });
+
+  it('deducts inventory atomically on direct invoices while preventing double-deduction on order-linked invoices', async () => {
+    const customer = storage.createCustomer(testOrgId, {
+      name: 'Direct Counter Buyer',
+      companyName: 'Instant Electric',
+      billingAddress: 'Main Bazaar',
+      deliveryAddress: 'Main Bazaar',
+      isActive: true,
+      creditLimit: 50000,
+      creditDays: 30,
+    });
+
+    const product = storage.createProduct(
+      testOrgId,
+      {
+        sku: 'CBL-DIRECT-01',
+        name: 'Direct Wire 2.5mm',
+        category: 'Cables',
+        uom: 'Meters',
+        purchaseCost: 30,
+        sellingPrice: 50,
+        taxRate: 18,
+        reorderThreshold: 10,
+        isActive: true,
+      },
+      100
+    );
+
+    expect(storage.getProductById(testOrgId, product.id)?.currentStock).toBe(100);
+
+    // 1. Direct Invoice (no prior sales order)
+    const directInvoice = storage.createInvoice(testOrgId, {
+      customerId: customer.id,
+      invoiceDate: '2026-11-19',
+      dueDate: '2026-12-19',
+      notes: 'Counter sale',
+      items: [
+        {
+          productId: product.id,
+          productName: product.name,
+          productSku: product.sku,
+          uom: 'Meters',
+          quantity: 25.5, // fractional continuous UOM
+          unitPrice: 50,
+          discountPercent: 0,
+          taxRate: 18,
+        },
+      ],
+    });
+
+    expect(directInvoice.status).toBe('ISSUED');
+    // Product stock must be decremented: 100 - 25.5 = 74.5
+    expect(storage.getProductById(testOrgId, product.id)?.currentStock).toBe(74.5);
+
+    // Verify stock movement was recorded
+    const movements = storage.getStockMovements(testOrgId);
+    const invoiceDispatch = movements.find(
+      (m) => m.productId === product.id && m.referenceType === 'INVOICE' && m.referenceId === directInvoice.id
+    );
+    expect(invoiceDispatch).toBeDefined();
+    expect(invoiceDispatch?.quantityChange).toBe(-25.5);
+    expect(invoiceDispatch?.movementType).toBe('SALES_DISPATCH');
+
+    // 2. Draft direct invoice should NOT deduct stock
+    storage.createInvoice(testOrgId, {
+      customerId: customer.id,
+      invoiceDate: '2026-11-19',
+      dueDate: '2026-12-19',
+      notes: 'Draft estimate invoice',
+      status: 'DRAFT',
+      items: [
+        {
+          productId: product.id,
+          productName: product.name,
+          productSku: product.sku,
+          uom: 'Meters',
+          quantity: 10,
+          unitPrice: 50,
+          discountPercent: 0,
+          taxRate: 18,
+        },
+      ],
+    });
+
+    // Stock remains 74.5 because status is DRAFT
+    expect(storage.getProductById(testOrgId, product.id)?.currentStock).toBe(74.5);
+  });
 });

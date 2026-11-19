@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users,
@@ -9,6 +9,9 @@ import {
   MapPin,
   Edit2,
   Loader2,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useOrg } from '@/features/organizations/OrgContext';
 import { useActionPermission } from '@/hooks/useActionPermission';
@@ -52,6 +55,15 @@ export const CustomersPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [receivableSort, setReceivableSort] = useState<'desc' | 'asc' | null>(null);
+
+  const toggleReceivableSort = useCallback(() => {
+    setReceivableSort((current) => {
+      if (current === 'desc') return 'asc';
+      if (current === 'asc') return null;
+      return 'desc';
+    });
+  }, []);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -98,25 +110,33 @@ export const CustomersPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const receivableSortRef = useRef(receivableSort);
+  receivableSortRef.current = receivableSort;
+
+  const currentOrgId = currentOrg?.id;
   const loadCustomers = useCallback(async (targetPage = page, targetPageSize = pageSize): Promise<Customer[] | null> => {
-    if (!currentOrg) return null;
-    const orgIdAtCall = currentOrg.id;
+    if (!currentOrgId) return null;
+    const orgIdAtCall = currentOrgId;
     setIsLoading(true);
     setLoadError(null);
     try {
       let res;
       if (typeof customersService.getCustomersPaginated === 'function') {
         res = await customersService.getCustomersPaginated(
-          currentOrg.id,
+          currentOrgId,
           {
             page: targetPage,
             pageSize: targetPageSize,
             search: searchQuery,
+            sortBy: receivableSortRef.current ? 'currentReceivable' : undefined,
+            sortOrder: receivableSortRef.current || undefined,
           },
           isMockAuth
         );
       } else {
-        const data = await customersService.getCustomers(currentOrg.id, isMockAuth);
+        const data = await customersService.getCustomers(currentOrgId, isMockAuth);
         res = paginateArray(
           data,
           {
@@ -145,14 +165,14 @@ export const CustomersPage: React.FC = () => {
       if (activeOrgIdRef.current !== orgIdAtCall) return null;
       const msg = err instanceof Error ? err.message : 'Unable to load customers. Check your connection and try again.';
       setLoadError(msg);
-      showToast('error', 'Failed to load customers', msg);
+      showToastRef.current('error', 'Failed to load customers', msg);
       return null;
     } finally {
       if (activeOrgIdRef.current === orgIdAtCall) {
         setIsLoading(false);
       }
     }
-  }, [currentOrg, isMockAuth, page, pageSize, searchQuery, showToast]);
+  }, [currentOrgId, isMockAuth, page, pageSize, searchQuery]);
 
   const handleOpenCreate = useCallback(() => {
     const perm = check('customers:manage');
@@ -176,8 +196,6 @@ export const CustomersPage: React.FC = () => {
 
   const checkRef = useRef(check);
   checkRef.current = check;
-  const showToastRef = useRef(showToast);
-  showToastRef.current = showToast;
   const clearActionParamRef = useRef(clearActionParam);
   clearActionParamRef.current = clearActionParam;
   const handleOpenCreateRef = useRef(handleOpenCreate);
@@ -317,15 +335,25 @@ export const CustomersPage: React.FC = () => {
     }
   };
 
-  const filteredCustomers = customers.filter((c) => {
+  const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.companyName?.toLowerCase().includes(q) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.gstin?.toLowerCase().includes(q)
-    );
-  });
+    let result = customers.filter((c) => {
+      return (
+        c.name.toLowerCase().includes(q) ||
+        Boolean(c.companyName?.toLowerCase().includes(q)) ||
+        Boolean(c.phone?.toLowerCase().includes(q)) ||
+        Boolean(c.gstin?.toLowerCase().includes(q))
+      );
+    });
+
+    if (receivableSort === 'desc') {
+      result = [...result].sort((a, b) => (b.currentReceivable ?? 0) - (a.currentReceivable ?? 0));
+    } else if (receivableSort === 'asc') {
+      result = [...result].sort((a, b) => (a.currentReceivable ?? 0) - (b.currentReceivable ?? 0));
+    }
+
+    return result;
+  }, [customers, searchQuery, receivableSort]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -414,11 +442,34 @@ export const CustomersPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Firm & Contact</TableHead>
+              <TableHead className="sticky left-0 z-20 bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">Firm & Contact</TableHead>
               <TableHead>Contact Info</TableHead>
               <TableHead>GSTIN / Tax</TableHead>
               <TableHead className="text-right">Credit Limit & Days</TableHead>
-              <TableHead className="text-right">Current Receivable</TableHead>
+              <TableHead className="text-right">
+                <button
+                  type="button"
+                  onClick={toggleReceivableSort}
+                  className="inline-flex items-center gap-1.5 ml-auto font-medium text-xs text-slate-500 hover:text-[#142B4D] focus:outline-none focus:ring-1 focus:ring-teal-500 rounded px-1 -mr-1"
+                  title="Sort by receivable balance"
+                  aria-label={
+                    receivableSort === 'desc'
+                      ? 'Current Receivable, sorted highest debtors first'
+                      : receivableSort === 'asc'
+                      ? 'Current Receivable, sorted lowest debtors first'
+                      : 'Sort by Current Receivable'
+                  }
+                >
+                  <span>Current Receivable</span>
+                  {receivableSort === 'desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
+                  ) : receivableSort === 'asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
+                  ) : (
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60" aria-hidden="true" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -428,8 +479,8 @@ export const CustomersPage: React.FC = () => {
               const hasReceivableValue = receivable !== undefined;
               const hasBalance = hasReceivableValue && receivable > 0;
               return (
-                <TableRow key={c.id}>
-                  <TableCell>
+                <TableRow key={c.id} className="group">
+                  <TableCell className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/90 shadow-[1px_0_0_0_#e2e8f0]">
                     <div className="flex items-center gap-3">
                       {c.avatarUrl ? (
                         <img

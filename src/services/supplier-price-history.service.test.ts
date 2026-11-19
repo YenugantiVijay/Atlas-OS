@@ -90,4 +90,23 @@ describe('PR57 supplier price history service',()=>{
     const replay=await supplierPriceHistoryService.recordQuote(cmd);
     expect(replay.idempotent_replay).toBe(true);
   });
+
+  it('supports demo mode without cloud backend without throwing', async () => {
+    const cmd = {
+      organizationId: org,
+      entryId: 'demo-entry-1',
+      supplierId: supplier,
+      productId: product,
+      unitCost: 1250,
+      effectiveOn: '2026-11-15',
+      notes: 'Demo quote',
+    };
+    const recorded = await supplierPriceHistoryService.recordQuote(cmd, true);
+    expect(recorded.entry_id).toBe('demo-entry-1');
+    expect(recorded.recorded_rate).toBe(1250);
+
+    const history = await supplierPriceHistoryService.list(org, { limit: 10 }, true);
+    expect(history.length).toBeGreaterThan(0);
+    expect(history[0].unitCost).toBe(1250);
+  });
 });

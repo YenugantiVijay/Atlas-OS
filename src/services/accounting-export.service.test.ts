@@ -112,4 +112,48 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
     expect(() => accountingExportService.exportSalesToBusyCsv([invoiceWithoutItems], customers))
       .toThrow(/no line items/i);
   });
+
+  it('supports unregistered B2C walk-in sales without GSTIN in Tally XML', () => {
+    const b2cCustomer: Customer = {
+      id: 'cust-b2c',
+      organizationId: testOrg.id,
+      name: 'Walk-in Retail Buyer',
+      // no gstin
+      creditLimit: 0,
+      creditDays: 0,
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    const b2cInvoice: Invoice = {
+      ...invoices[0],
+      id: 'inv-tally-b2c',
+      invoiceNumber: 'SLE-26-B2C',
+      customerId: 'cust-b2c',
+    };
+
+    const xml = accountingExportService.exportSalesToTallyXml(testOrg, [b2cInvoice], [b2cCustomer]);
+
+    expect(xml).toContain('<PARTYLEDGERNAME>Consumer / Unregistered Dealer</PARTYLEDGERNAME>');
+    expect(xml).toContain('<LEDGERNAME>Consumer / Unregistered Dealer</LEDGERNAME>');
+    expect(xml).toContain('<LEDGERNAME>Sales Account</LEDGERNAME>');
+    expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
+    expect(xml).toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
+  });
+
+  it('rejects invoices with invalid non-empty GSTIN in Tally XML', () => {
+    const invalidCustomer: Customer = {
+      ...customers[0],
+      id: 'cust-invalid-gst',
+      gstin: 'INVALID_GSTIN_123',
+    };
+    const invalidInvoice: Invoice = {
+      ...invoices[0],
+      id: 'inv-tally-invalid',
+      customerId: 'cust-invalid-gst',
+    };
+
+    expect(() => accountingExportService.exportSalesToTallyXml(testOrg, [invalidInvoice], [invalidCustomer]))
+      .toThrow(/invalid buyer GSTIN/i);
+  });
 });

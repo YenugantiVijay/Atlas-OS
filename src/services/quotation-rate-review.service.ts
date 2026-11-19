@@ -25,7 +25,10 @@ const requireCloud = () => {
 export const RATE_REVIEW_PAGE_SIZE = 20;
 
 export const quotationRateReviewService = {
-  async list(organizationId: string, scope: RateReviewScope, page: number) {
+  async list(organizationId: string, scope: RateReviewScope, page: number, isMockAuth: boolean = false) {
+    if (isMockAuth || !supabase) {
+      return { rows: [], hasNext: false };
+    }
     const { data, error } = await requireCloud().rpc('list_quotation_rate_impacts', {
       p_org_id: organizationId,
       p_quotation_id: scope.quotationId ?? null,
@@ -42,7 +45,10 @@ export const quotationRateReviewService = {
     };
   },
 
-  async save(organizationId: string, impact: QuotationRateImpact, status: Exclude<RateReviewStatus, 'OPEN'>) {
+  async save(organizationId: string, impact: QuotationRateImpact, status: Exclude<RateReviewStatus, 'OPEN'>, isMockAuth: boolean = false) {
+    if (isMockAuth || !supabase) {
+      return status;
+    }
     const { data, error } = await requireCloud().rpc('save_quotation_rate_review', {
       p_org_id: organizationId,
       p_quotation_id: impact.quotation_id,

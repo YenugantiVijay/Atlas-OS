@@ -14,8 +14,8 @@ const lowStockRow = z.object({
   sku: z.string(),
   name: z.string(),
   uom: z.string(),
-  reorderThreshold: count,
-  quantity: z.number().int(),
+  reorderThreshold: z.number().finite().nonnegative(),
+  quantity: z.number().finite(),
 });
 
 const stockSummary = z.object({
@@ -197,7 +197,7 @@ export const reconciliationService = {
     const activeProducts = products.filter((p) => p.isActive);
     const lowStock = activeProducts
       .map((product) => {
-        if (typeof product.currentStock !== 'number' || !Number.isInteger(product.currentStock)) {
+        if (typeof product.currentStock !== 'number' || !Number.isFinite(product.currentStock)) {
           throw new Error(`Authoritative stock balance is unavailable for product ${product.sku}.`);
         }
         return lowStockRow.parse({
@@ -214,7 +214,7 @@ export const reconciliationService = {
     return {
       asOf: new Date().toISOString(), productCount: products.length, activeProductCount: activeProducts.length,
       lowStockCount: lowStock.length,
-      catalogCostValue: fromPaise(products.reduce((sum, p) => sum + Math.max(z.number().int().parse(p.currentStock), 0) * toPaise(p.purchaseCost), 0)),
+      catalogCostValue: fromPaise(products.reduce((sum, p) => sum + Math.round(Math.max(z.number().finite().parse(p.currentStock), 0) * toPaise(p.purchaseCost)), 0)),
       lowStock: lowStock.slice(0, previewLimit),
     };
   },

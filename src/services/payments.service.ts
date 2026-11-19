@@ -4,7 +4,47 @@ import { Payment, PaymentAllocation, PaymentMethod, Role, PaginationParams, Pagi
 import { roundMoney } from '@/lib/money';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
+import { offlineQueue, isNetworkError } from '@/lib/offline-queue';
 import type { ReceiptData } from '../../atlas-os-website/src/components/receipts/ReceiptSheet';
+
+function buildOptimisticPayment(
+  orgId: string,
+  input: {
+    customerId: string;
+    invoiceId?: string;
+    amount: number;
+    paymentMethod: PaymentMethod;
+    referenceNumber?: string;
+    paymentDate: string;
+    notes?: string;
+    idempotencyKey?: string;
+  },
+  idempotencyKey: string
+): Payment {
+  return {
+    id: `pay-offline-${idempotencyKey}`,
+    organizationId: orgId,
+    paymentNumber: `RCP-OFFLINE-${Date.now().toString().slice(-4)}`,
+    customerId: input.customerId,
+    amount: input.amount,
+    paymentMethod: input.paymentMethod,
+    referenceNumber: input.referenceNumber?.trim() || undefined,
+    paymentDate: input.paymentDate,
+    notes: input.notes ? `${input.notes} (Offline Pending Sync)` : '(Offline Pending Sync)',
+    createdAt: new Date().toISOString(),
+    allocations: input.invoiceId
+      ? [
+          {
+            id: `alloc-offline-${idempotencyKey}`,
+            paymentId: `pay-offline-${idempotencyKey}`,
+            invoiceId: input.invoiceId,
+            amountAllocated: input.amount,
+            createdAt: new Date().toISOString(),
+          },
+        ]
+      : [],
+  };
+}
 
 export interface PaymentReceiptPrintData extends ReceiptData {
   organizationId: string;
@@ -97,9 +137,26 @@ export const paymentsService = {
       .eq('organization_id', orgId);
 
     if (params.search && params.search.trim()) {
-      const s = params.search.trim().replace(/[,()":\\]/g, ' ').trim();
+      const s = params.search.trim().replace(/[,()":\\]/g, ' ').replace(/\s+/g, ' ').trim();
       if (s) {
-        query = query.or(`payment_number.ilike.%${s}%,reference_number.ilike.%${s}%`);
+        // Query matching customer IDs in tenant organization for cross-table search parity
+        const { data: matchedCustomers } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('organization_id', orgId)
+          .or(`name.ilike.%${s}%,company_name.ilike.%${s}%`);
+
+        const matchingCustomerIds = (matchedCustomers || [])
+          .map((c: any) => c.id)
+          .filter(Boolean);
+
+        if (matchingCustomerIds.length > 0) {
+          query = query.or(
+            `payment_number.ilike.%${s}%,reference_number.ilike.%${s}%,customer_id.in.(${matchingCustomerIds.join(',')})`
+          );
+        } else {
+          query = query.or(`payment_number.ilike.%${s}%,reference_number.ilike.%${s}%`);
+        }
       }
     }
 
@@ -298,47 +355,89 @@ export const paymentsService = {
 
     const idempotencyKey = input.idempotencyKey || crypto.randomUUID();
 
-    // Call remote transactional RPC with stable request-level idempotency key
-    const { data: rpcRes, error: rpcErr } = await supabase.rpc(
-      'record_payment_and_allocate',
-      {
-        p_org_id: orgId,
-        p_customer_id: input.customerId,
-        p_amount: input.amount,
-        p_payment_method: input.paymentMethod,
-        p_reference_no: input.referenceNumber?.trim() || null,
-        p_payment_date: input.paymentDate,
-        p_notes: input.notes?.trim() || null,
-        p_invoice_id: input.invoiceId || null,
-        p_allocated_amount: input.invoiceId ? input.amount : null,
-        p_idempotency_key: idempotencyKey,
-      }
-    );
-
-    if (rpcErr) {
-      throw new Error(`Payment failed: ${rpcErr.message}`);
-    }
-
-    const paymentId = rpcRes?.payment_id;
-    if (!paymentId) {
-      throw new Error('Payment was recorded but no payment ID returned from database.');
-    }
-
-    // Fetch full recorded payment
-    const { data: payRow, error: fetchErr } = await supabase
-      .from('payments')
-      .select('*, allocations:payment_allocations(*)')
-      .eq('id', paymentId)
-      .single();
-
-    if (fetchErr || !payRow) {
-      const receiptRef = rpcRes?.payment_number ? `Receipt ${rpcRes.payment_number}` : `ID ${paymentId}`;
-      throw new Error(
-        `Payment was committed to the ledger (${receiptRef}), but loading confirmation details failed: ${fetchErr?.message || 'Record not returned'}. Do NOT resubmit this payment; please refresh the payments ledger to verify.`
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      offlineQueue.enqueue(
+        orgId,
+        'RECORD_PAYMENT',
+        input,
+        {
+          idempotencyKey,
+          description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
+        }
       );
+      return buildOptimisticPayment(orgId, input, idempotencyKey);
     }
 
-    const allocations = (payRow.allocations || []).map(mapDbPaymentAllocation);
-    return mapDbPayment(payRow, allocations);
+    try {
+      // Call remote transactional RPC with stable request-level idempotency key
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc(
+        'record_payment_and_allocate',
+        {
+          p_org_id: orgId,
+          p_customer_id: input.customerId,
+          p_amount: input.amount,
+          p_payment_method: input.paymentMethod,
+          p_reference_no: input.referenceNumber?.trim() || null,
+          p_payment_date: input.paymentDate,
+          p_notes: input.notes?.trim() || null,
+          p_invoice_id: input.invoiceId || null,
+          p_allocated_amount: input.invoiceId ? input.amount : null,
+          p_idempotency_key: idempotencyKey,
+        }
+      );
+
+      if (rpcErr) {
+        if (isNetworkError(rpcErr)) {
+          offlineQueue.enqueue(
+            orgId,
+            'RECORD_PAYMENT',
+            input,
+            {
+              idempotencyKey,
+              description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
+            }
+          );
+          return buildOptimisticPayment(orgId, input, idempotencyKey);
+        }
+        throw new Error(`Payment failed: ${rpcErr.message}`);
+      }
+
+      const paymentId = rpcRes?.payment_id;
+      if (!paymentId) {
+        throw new Error('Payment was recorded but no payment ID returned from database.');
+      }
+
+      // Fetch full recorded payment
+      const { data: payRow, error: fetchErr } = await supabase
+        .from('payments')
+        .select('*, allocations:payment_allocations(*)')
+        .eq('id', paymentId)
+        .single();
+
+      if (fetchErr || !payRow) {
+        const receiptRef = rpcRes?.payment_number ? `Receipt ${rpcRes.payment_number}` : `ID ${paymentId}`;
+        throw new Error(
+          `Payment was committed to the ledger (${receiptRef}), but loading confirmation details failed: ${fetchErr?.message || 'Record not returned'}. Do NOT resubmit this payment; please refresh the payments ledger to verify.`
+        );
+      }
+
+      const allocations = (payRow.allocations || []).map(mapDbPaymentAllocation);
+      return mapDbPayment(payRow, allocations);
+    } catch (err: any) {
+      if (isNetworkError(err)) {
+        offlineQueue.enqueue(
+          orgId,
+          'RECORD_PAYMENT',
+          input,
+          {
+            idempotencyKey,
+            description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
+          }
+        );
+        return buildOptimisticPayment(orgId, input, idempotencyKey);
+      }
+      throw err;
+    }
   },
 };

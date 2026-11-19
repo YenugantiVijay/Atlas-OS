@@ -79,12 +79,44 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
   };
 
   it('does not present a payload as complete when buyer location data is unavailable', () => {
+    const customerWithoutAddress: Customer = {
+      ...b2bCustomer,
+      billingAddress: undefined,
+      deliveryAddress: undefined,
+    };
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, customerWithoutAddress, sampleInvoice);
+    expect(res.eligible).toBe(null);
+    expect(res.fieldsComplete).toBe(false);
+    expect(res.payload).toBeUndefined();
+    expect(res.missingFields).toContain('Buyer Address');
+    expect(res.missingFields).toContain('Buyer Location (not available on the customer profile)');
+    expect(res.missingFields).toContain('Buyer PIN Code (not available on the customer profile)');
+  });
+
+  it('detects missing PIN code when only city/location is present in buyer address', () => {
     const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2bCustomer, sampleInvoice);
     expect(res.eligible).toBe(null);
     expect(res.fieldsComplete).toBe(false);
     expect(res.payload).toBeUndefined();
-    expect(res.missingFields).toContain('Buyer Location (not available on the customer profile)');
+    expect(res.missingFields).not.toContain('Buyer Location (not available on the customer profile)');
     expect(res.missingFields).toContain('Buyer PIN Code (not available on the customer profile)');
+  });
+
+  it('extracts buyer location and 6-digit PIN code to generate complete B2B NIC e-invoice payload', () => {
+    const completeCustomer: Customer = {
+      ...b2bCustomer,
+      billingAddress: 'Plot 12, Banjara Hills, Hyderabad - 500034',
+    };
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, sampleInvoice);
+    expect(res.eligible).toBe(null);
+    expect(res.fieldsComplete).toBe(true);
+    expect(res.missingFields).toHaveLength(0);
+    expect(res.payload).toBeDefined();
+    expect(res.payload?.BuyerDtls.Loc).toBe('Hyderabad');
+    expect(res.payload?.BuyerDtls.Pin).toBe(500034);
+    expect(res.payload?.ValDtls.TotInvVal).toBe(118000);
+    expect(res.payload?.ValDtls.CgstVal).toBe(9000);
+    expect(res.payload?.ValDtls.SgstVal).toBe(9000);
   });
 
   it('correctly marks B2C / unregistered sales as exempt from e-Invoicing under GST Rule 48(4)', () => {
@@ -121,6 +153,28 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     expect(highRes.fieldsComplete).toBe(true);
     expect(highRes.payload?.vehicleNo).toBe('TS09UB1234');
     expect(highRes.payload?.totalValue).toBe(118000);
+    // Intra-state ₹18,000 tax split equally into ₹9,000 CGST and ₹9,000 SGST
+    expect(highRes.payload?.cgstValue).toBe(9000);
+    expect(highRes.payload?.sgstValue).toBe(9000);
+    expect(highRes.payload?.igstValue).toBe(0);
+  });
+
+  it('splits odd-paise intra-state GST without 1-paisa drift', () => {
+    // ₹105.00 taxable @ 5% GST = ₹5.25 total tax (odd paise).
+    // Statutory rule: CGST = ₹2.62, SGST = ₹2.63, CGST + SGST = ₹5.25 exactly.
+    const oddTaxInvoice: Invoice = {
+      ...sampleInvoice,
+      totalAmount: 55000,
+      taxAmount: 5.25,
+    };
+
+    const res = indiaComplianceService.validateEWayBillReadiness(testOrg, b2bCustomer, oddTaxInvoice, {
+      vehicleNo: 'TS09UB5678',
+      distanceKm: 20,
+    });
+    expect(res.payload?.cgstValue).toBe(2.62);
+    expect(res.payload?.sgstValue).toBe(2.63);
+    expect(Number((res.payload!.cgstValue + res.payload!.sgstValue).toFixed(2))).toBe(5.25);
   });
 
   it('returns clean sandbox simulation status without calling live external servers', () => {
