@@ -22,7 +22,7 @@ ALTER TABLE public.invoice_items
 ALTER TABLE public.stock_movements 
     ALTER COLUMN quantity_change TYPE NUMERIC(12, 3);
 
-ALTER TABLE public.order_items 
+ALTER TABLE public.sales_order_items 
     ALTER COLUMN quantity TYPE NUMERIC(12, 3);
 
 ALTER TABLE public.quotation_items 
