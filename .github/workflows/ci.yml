@@ -108,4 +108,10 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run End-to-End Operational Tests (Playwright)
-        run: npm run test:e2e
+        run: |
+          npx playwright test --reporter=list 2>&1 | tee playwright.log || {
+            tail -n 60 playwright.log | while IFS= read -r line; do
+              echo "::error title=Playwright Test Failure::$line"
+            done
+            exit 1
+          }
