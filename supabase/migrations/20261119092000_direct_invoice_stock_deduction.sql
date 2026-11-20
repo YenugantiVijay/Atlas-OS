@@ -301,14 +301,17 @@ BEGIN
         END IF;
     END IF;
 
-    SELECT array_agg(DISTINCT (
-        COALESCE(
+    -- Deduplicate before aggregation: ORDER BY belongs inside array_agg,
+    -- and the FROM clause belongs to the SELECT, not the aggregate call.
+    SELECT array_agg(product_id ORDER BY product_id)
+      INTO v_product_ids
+    FROM (
+        SELECT DISTINCT COALESCE(
             NULLIF(TRIM(item->>'productId'), ''),
             NULLIF(TRIM(item->>'product_id'), '')
-        ))::UUID
+        )::UUID AS product_id
         FROM jsonb_array_elements(p_items) AS item
-        ORDER BY 1 ASC
-    ) INTO v_product_ids;
+    ) normalized_product_ids;
 
     IF v_product_ids IS NOT NULL AND array_length(v_product_ids, 1) > 0 THEN
         PERFORM p.id
