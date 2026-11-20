@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
-import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance, calculateDocumentTotals, roundMoney } from '@/lib/money';
+import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance, calculateDocumentTotals } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
