@@ -54,6 +54,9 @@ jobs:
       - name: Test migration history comparison
         run: node --test scripts/check-migration-parity.test.mjs
 
+      - name: Verify staging integrity gate safety and fail-closed behavior
+        run: node --test scripts/staging-financial-integrity.test.mjs
+
       - name: ESLint & React Hooks Check
         run: npm run lint
 
