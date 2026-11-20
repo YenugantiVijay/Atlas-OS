@@ -87,7 +87,7 @@ function saveQueue(queue: QueuedOfflineAction[]): void {
     localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(queue));
     notifyOfflineQueueChanged();
   } catch (err) {
-    throw new Error('Cannot safely save offline transactions on this device.', { cause: err });
+    throw new Error(`Cannot safely save offline transactions on this device: ${String(err)}`);
   }
 }
 
