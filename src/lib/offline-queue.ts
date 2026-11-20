@@ -139,8 +139,11 @@ export const offlineQueue = {
   /**
    * Retrieves all queued actions for an organization.
    */
-  getAll(organizationId: string): QueuedOfflineAction[] {
-    return loadQueue().filter((item) => item.organizationId === organizationId);
+  getAll(organizationId?: string): QueuedOfflineAction[] {
+    const queue = loadQueue();
+    return organizationId === undefined
+      ? queue
+      : queue.filter((item) => item.organizationId === organizationId);
   },
 
   /**
@@ -212,7 +215,7 @@ export const offlineQueue = {
   ): Promise<SyncProcessResult> {
     const queue = loadQueue();
     const orgItems = queue.filter(
-      (i) => i.organizationId === organizationId && (i.status === 'pending' || i.status === 'failed')
+      (i) => i.organizationId === organizationId && i.status === 'pending'
     );
 
     let succeeded = 0;
