@@ -827,6 +827,7 @@ class StorageEngine {
     this.initialize();
     const quotations = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []);
     const num = this.allocateDocumentNumber(orgId, 'QUOTATION');
+    const newQuotationId = 'qt-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -841,7 +842,7 @@ class StorageEngine {
       const calc = docTotals.items[idx];
       return {
         id: 'qt-item-' + crypto.randomUUID(),
-        quotationId: '',
+        quotationId: newQuotationId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -857,7 +858,7 @@ class StorageEngine {
     });
 
     const newQuotation: Quotation = {
-      id: 'qt-' + crypto.randomUUID(),
+      id: newQuotationId,
       organizationId: orgId,
       quotationNumber: num,
       customerId: data.customerId,
@@ -989,6 +990,7 @@ class StorageEngine {
       throw new Error('An order with this sales channel and reference already exists.');
     }
     const num = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
+    const newOrderId = 'ord-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -1003,7 +1005,7 @@ class StorageEngine {
       const calc = docTotals.items[idx];
       return {
         id: 'so-item-' + crypto.randomUUID(),
-        salesOrderId: '',
+        salesOrderId: newOrderId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1019,7 +1021,7 @@ class StorageEngine {
     });
 
     const newOrder: SalesOrder = {
-      id: 'ord-' + crypto.randomUUID(),
+      id: newOrderId,
       organizationId: orgId,
       orderNumber: num,
       customerId: data.customerId,
@@ -1245,13 +1247,14 @@ class StorageEngine {
     }
 
     const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
+    const newInvoiceId = 'inv-' + crypto.randomUUID();
 
     // Due date = today + 30 days default
     const due = new Date();
     due.setDate(due.getDate() + 30);
 
     const newInvoice: Invoice = {
-      id: 'inv-' + crypto.randomUUID(),
+      id: newInvoiceId,
       organizationId: orgId,
       invoiceNumber: invNum,
       customerId: order.customerId,
@@ -1270,7 +1273,7 @@ class StorageEngine {
       updatedAt: new Date().toISOString(),
       items: order.items?.map((it) => ({
         id: 'inv-item-' + crypto.randomUUID(),
-        invoiceId: '',
+        invoiceId: newInvoiceId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1363,6 +1366,7 @@ class StorageEngine {
     }
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const invNum = this.allocateDocumentNumber(orgId, 'INVOICE', data.invoiceDate);
+    const newInvoiceId = 'inv-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -1377,7 +1381,7 @@ class StorageEngine {
       const calc = docTotals.items[idx];
       return {
         id: 'inv-item-' + crypto.randomUUID(),
-        invoiceId: '',
+        invoiceId: newInvoiceId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1393,7 +1397,7 @@ class StorageEngine {
     });
 
     const newInvoice: Invoice = {
-      id: 'inv-' + crypto.randomUUID(),
+      id: newInvoiceId,
       organizationId: orgId,
       invoiceNumber: invNum,
       customerId: data.customerId,
