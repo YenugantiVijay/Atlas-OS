@@ -7,6 +7,14 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
   const orgA = 'org-recon-a';
   const orgB = 'org-recon-b';
 
+  function seededStock(orgId: string, sku: string) {
+    return storage.createProduct(orgId, {
+      sku, name: `Reconciliation fixture ${sku}`, category: 'Electrical',
+      uom: 'Nos', purchaseCost: 100, sellingPrice: 1000, taxRate: 18,
+      reorderThreshold: 0, isActive: true,
+    }, 100);
+  }
+
   beforeEach(() => {
     localStorage.clear();
     seedTestStorage();
@@ -30,13 +38,14 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       isActive: true,
     });
 
+    const testProduct = seededStock(orgA, 'W-01');
     const invoice1 = storage.createInvoice(orgA, {
       customerId: customer.id,
       invoiceDate: '2026-11-01',
       dueDate: '2026-11-30',
       items: [
         {
-          productId: 'prod-1',
+          productId: testProduct.id,
           productName: 'Wire',
           productSku: 'W-01',
           uom: 'Coils',
@@ -82,12 +91,13 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       creditDays: 30,
       isActive: true,
     });
+    const testProduct = seededStock(orgA, 'S-01');
     const invoice = storage.createInvoice(orgA, {
       customerId: customer.id,
       invoiceDate: '2026-11-01',
       dueDate: '2026-11-30',
       items: [{
-        productId: 'prod-2',
+        productId: testProduct.id,
         productName: 'Switch',
         productSku: 'S-01',
         uom: 'Nos',
@@ -139,13 +149,15 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       isActive: true,
     });
 
+    const prodA = seededStock(orgA, 'SKU-A');
+    const prodB = seededStock(orgB, 'SKU-B');
     storage.createInvoice(orgA, {
       customerId: custA.id,
       invoiceDate: '2026-11-01',
       dueDate: '2026-11-30',
       items: [
         {
-          productId: 'p-a',
+          productId: prodA.id,
           productName: 'Product A',
           productSku: 'SKU-A',
           uom: 'Nos',
@@ -163,7 +175,7 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       dueDate: '2026-11-30',
       items: [
         {
-          productId: 'p-b',
+          productId: prodB.id,
           productName: 'Product B',
           productSku: 'SKU-B',
           uom: 'Nos',

@@ -233,7 +233,7 @@ class StorageEngine {
     const orgs = this.getOrganizations();
     const newOrg: Organization = {
       ...data,
-      id: 'org-' + Date.now(),
+      id: 'org-' + crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -243,7 +243,7 @@ class StorageEngine {
     // Create owner membership
     const memberships = this.getItem<Membership[]>(STORAGE_KEYS.MEMBERSHIPS, []);
     memberships.push({
-      id: 'mem-' + Date.now(),
+      id: 'mem-' + crypto.randomUUID(),
       organizationId: newOrg.id,
       userId: this.getCurrentUser().id,
       role: 'owner',
@@ -370,7 +370,7 @@ class StorageEngine {
 
     const newProduct: Product = {
       ...data,
-      id: 'prod-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+      id: 'prod-' + crypto.randomUUID(),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -466,7 +466,11 @@ class StorageEngine {
     const customers = this.getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
     const newCust: Customer = {
       ...data,
-      id: 'cust-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8),
+      // Mirror the create-customer form's defaults for legacy demo fixtures.
+      isActive: data.isActive ?? true,
+      creditLimit: data.creditLimit ?? 0,
+      creditDays: data.creditDays ?? 0,
+      id: 'cust-' + crypto.randomUUID(),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -577,7 +581,7 @@ class StorageEngine {
     const suppliers = this.getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
     const newSup: Supplier = {
       ...data,
-      id: 'sup-' + Date.now(),
+      id: 'sup-' + crypto.randomUUID(),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -827,6 +831,7 @@ class StorageEngine {
     this.initialize();
     const quotations = this.getItem<Quotation[]>(STORAGE_KEYS.QUOTATIONS, []);
     const num = this.allocateDocumentNumber(orgId, 'QUOTATION');
+    const newQuotationId = 'qt-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -840,8 +845,8 @@ class StorageEngine {
     const items = data.items.map((it, idx) => {
       const calc = docTotals.items[idx];
       return {
-        id: 'qt-item-' + Date.now() + '-' + idx,
-        quotationId: '',
+        id: 'qt-item-' + crypto.randomUUID(),
+        quotationId: newQuotationId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -857,7 +862,7 @@ class StorageEngine {
     });
 
     const newQuotation: Quotation = {
-      id: 'qt-' + Date.now(),
+      id: newQuotationId,
       organizationId: orgId,
       quotationNumber: num,
       customerId: data.customerId,
@@ -894,7 +899,7 @@ class StorageEngine {
     const orderNum = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
 
     const newOrder: SalesOrder = {
-      id: 'ord-' + Date.now(),
+      id: 'ord-' + crypto.randomUUID(),
       organizationId: orgId,
       orderNumber: orderNum,
       customerId: quotation.customerId,
@@ -911,7 +916,7 @@ class StorageEngine {
       updatedAt: new Date().toISOString(),
       items: quotation.items?.map((it) => ({
         ...it,
-        id: 'so-item-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        id: 'so-item-' + crypto.randomUUID(),
         salesOrderId: '',
       })),
     };
@@ -989,6 +994,7 @@ class StorageEngine {
       throw new Error('An order with this sales channel and reference already exists.');
     }
     const num = this.allocateDocumentNumber(orgId, 'SALES_ORDER');
+    const newOrderId = 'ord-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -1002,8 +1008,8 @@ class StorageEngine {
     const items = data.items.map((it, idx) => {
       const calc = docTotals.items[idx];
       return {
-        id: 'so-item-' + Date.now() + '-' + idx,
-        salesOrderId: '',
+        id: 'so-item-' + crypto.randomUUID(),
+        salesOrderId: newOrderId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1019,7 +1025,7 @@ class StorageEngine {
     });
 
     const newOrder: SalesOrder = {
-      id: 'ord-' + crypto.randomUUID(),
+      id: newOrderId,
       organizationId: orgId,
       orderNumber: num,
       customerId: data.customerId,
@@ -1245,13 +1251,14 @@ class StorageEngine {
     }
 
     const invNum = this.allocateDocumentNumber(orgId, 'INVOICE');
+    const newInvoiceId = 'inv-' + crypto.randomUUID();
 
     // Due date = today + 30 days default
     const due = new Date();
     due.setDate(due.getDate() + 30);
 
     const newInvoice: Invoice = {
-      id: 'inv-' + Date.now(),
+      id: newInvoiceId,
       organizationId: orgId,
       invoiceNumber: invNum,
       customerId: order.customerId,
@@ -1269,8 +1276,8 @@ class StorageEngine {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       items: order.items?.map((it) => ({
-        id: 'inv-item-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-        invoiceId: '',
+        id: 'inv-item-' + crypto.randomUUID(),
+        invoiceId: newInvoiceId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1336,8 +1343,34 @@ class StorageEngine {
     }
   ): Invoice {
     this.initialize();
+    if (!data.items?.length) throw new Error('An invoice requires at least one item.');
+    const customer = this.getCustomerById(orgId, data.customerId);
+    if (!customer?.isActive) throw new Error('Invoice customer must be active in this organization.');
+
+    // Preflight *all* direct dispatch lines before any invoice, numbering or
+    // movement is written. The same SKU can occur on multiple invoice lines.
+    if (!data.salesOrderId && (data.status ?? 'ISSUED') === 'ISSUED') {
+      const products = new Map(this.getProducts(orgId).map((p) => [p.id, p]));
+      const requested = new Map<string, number>();
+      for (const item of data.items) {
+        const product = products.get(item.productId);
+        if (!product?.isActive) throw new Error('Invoice product not found or inactive in this organization.');
+        if (!Number.isFinite(item.quantity) || item.quantity <= 0 ||
+            Math.abs(Math.round(item.quantity * 1000) - item.quantity * 1000) > 1e-7) {
+          throw new Error('Quantity cannot be negative or invalid. Use a positive amount with at most three decimal places.');
+        }
+        requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
+      }
+      for (const [productId, quantity] of requested) {
+        const product = products.get(productId)!;
+        if (quantity > (product.currentStock ?? 0) + 1e-9) {
+          throw new Error(`Insufficient stock for product "${product.sku}". Invoice was not created.`);
+        }
+      }
+    }
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const invNum = this.allocateDocumentNumber(orgId, 'INVOICE', data.invoiceDate);
+    const newInvoiceId = 'inv-' + crypto.randomUUID();
 
     const docTotals = calculateDocumentTotals(
       data.items.map((it) => ({
@@ -1351,8 +1384,8 @@ class StorageEngine {
     const items = data.items.map((it, idx) => {
       const calc = docTotals.items[idx];
       return {
-        id: 'inv-item-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-        invoiceId: '',
+        id: 'inv-item-' + crypto.randomUUID(),
+        invoiceId: newInvoiceId,
         productId: it.productId,
         productName: it.productName,
         productSku: it.productSku,
@@ -1368,7 +1401,7 @@ class StorageEngine {
     });
 
     const newInvoice: Invoice = {
-      id: 'inv-' + Date.now(),
+      id: newInvoiceId,
       organizationId: orgId,
       invoiceNumber: invNum,
       customerId: data.customerId,
@@ -1508,16 +1541,25 @@ class StorageEngine {
     const invoices = this.getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
     const allocations = this.getItem<PaymentAllocation[]>(STORAGE_KEYS.PAYMENT_ALLOCATIONS, []);
 
-    // Idempotent replay check in mock storage
+    // One key identifies one immutable payment request. A reused key with
+    // changed amount, customer, allocation target or transfer details is a conflict.
     if (data.idempotencyKey) {
       const existing = payments.find(
-        (p) =>
-          p.organizationId === orgId &&
-          p.idempotencyKey === data.idempotencyKey &&
-          p.customerId === data.customerId &&
-          p.amount === data.amount
+        (p) => p.organizationId === orgId && p.idempotencyKey === data.idempotencyKey
       );
       if (existing) {
+        const allocatedInvoiceId = allocations.find((a) => a.paymentId === existing.id)?.invoiceId;
+        if (
+          existing.customerId !== data.customerId ||
+          existing.amount !== data.amount ||
+          existing.paymentMethod !== data.paymentMethod ||
+          existing.referenceNumber !== data.referenceNumber ||
+          existing.paymentDate !== data.paymentDate ||
+          existing.notes !== data.notes ||
+          (allocatedInvoiceId || undefined) !== (data.invoiceId || undefined)
+        ) {
+          throw new Error('Idempotency conflict: payment key was reused with different transaction details.');
+        }
         return existing;
       }
     }
@@ -1525,7 +1567,7 @@ class StorageEngine {
     const payNum = this.allocateDocumentNumber(orgId, 'RECEIPT');
 
     const newPayment: Payment = {
-      id: 'pay-' + Date.now(),
+      id: 'pay-' + crypto.randomUUID(),
       organizationId: orgId,
       paymentNumber: payNum,
       customerId: data.customerId,
@@ -1585,7 +1627,7 @@ class StorageEngine {
 
       // Record allocation
       const newAlloc: PaymentAllocation = {
-        id: 'alloc-' + Date.now(),
+        id: 'alloc-' + crypto.randomUUID(),
         paymentId: newPayment.id,
         invoiceId: inv.id,
         amountAllocated: data.amount,
@@ -1657,7 +1699,7 @@ class StorageEngine {
     this.initialize();
     const events = this.getItem<AuditEvent[]>(STORAGE_KEYS.AUDIT_EVENTS, []);
     events.push({
-      id: 'aud-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      id: 'aud-' + crypto.randomUUID(),
       organizationId: orgId,
       actorId: 'u0000000-0000-0000-0000-000000000001',
       actorEmail: 'admin@atlas-os.local',
