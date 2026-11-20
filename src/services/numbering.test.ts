@@ -395,13 +395,18 @@ describe('Robust Document Numbering & Allocation Strategy', () => {
         isActive: true,
       });
 
+      const testProduct = storage.createProduct(orgA, {
+        name: 'Wire', sku: 'SKU-WIRE-1', category: 'Electrical',
+        uom: 'Coils', purchaseCost: 500, sellingPrice: 1000,
+        taxRate: 18, reorderThreshold: 1, isActive: true,
+      }, 10);
       const inv = storage.createInvoice(orgA, {
         customerId: cust.id,
         invoiceDate: '2026-03-01',
         dueDate: '2026-03-31',
         items: [
           {
-            productId: 'p-wire-1',
+            productId: testProduct.id,
             productSku: 'SKU-WIRE-1',
             productName: 'Wire',
             uom: 'Coils',
