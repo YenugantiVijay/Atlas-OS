@@ -466,6 +466,10 @@ class StorageEngine {
     const customers = this.getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
     const newCust: Customer = {
       ...data,
+      // Mirror the create-customer form's defaults for legacy demo fixtures.
+      isActive: data.isActive ?? true,
+      creditLimit: data.creditLimit ?? 0,
+      creditDays: data.creditDays ?? 0,
       id: 'cust-' + crypto.randomUUID(),
       organizationId: orgId,
       createdAt: new Date().toISOString(),
@@ -1353,7 +1357,7 @@ class StorageEngine {
         if (!product?.isActive) throw new Error('Invoice product not found or inactive in this organization.');
         if (!Number.isFinite(item.quantity) || item.quantity <= 0 ||
             Math.abs(Math.round(item.quantity * 1000) - item.quantity * 1000) > 1e-7) {
-          throw new Error('Invoice quantities must be positive with at most three decimals.');
+          throw new Error('Quantity cannot be negative or invalid. Use a positive amount with at most three decimal places.');
         }
         requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
       }
