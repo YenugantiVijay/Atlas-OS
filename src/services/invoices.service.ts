@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { Invoice, InvoiceItem, InvoiceStatus, UOM, PaginationParams, PaginatedResult } from '@/types';
-import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance, roundMoney } from '@/lib/money';
+import { parseTaxRate, isExplicitTaxRate, calculateInvoiceBalance, calculateDocumentTotals, roundMoney } from '@/lib/money';
 import { getBusinessDate } from '@/lib/dates';
 import { buildPaginatedResult, paginateArray } from '@/lib/pagination';
 import { mapDbCustomer } from './customers.service';
@@ -12,25 +12,19 @@ function buildOptimisticInvoice(
   input: CreateInvoiceInput,
   idempotencyKey: string | null
 ): Invoice {
-  let subtotal = 0;
-  let taxAmount = 0;
-  let totalAmount = 0;
+  // A queued invoice is NOT an issued tax invoice. The server has not confirmed it.
+  // Drafts may omit a tax classification; show a clearly provisional 0% estimate,
+  // never silently invent a statutory 18% rate.
+  const missingTax = input.items.some((it) => !isExplicitTaxRate(it.taxRate));
+  const calculated = calculateDocumentTotals(input.items.map((it) => ({
+    quantity: it.quantity,
+    unitPrice: it.unitPrice,
+    discountPercent: it.discountPercent ?? 0,
+    taxRate: isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : 0,
+  })));
 
   const items: InvoiceItem[] = input.items.map((it, idx) => {
-    const qty = it.quantity;
-    const rate = it.unitPrice;
-    const disc = it.discountPercent ?? 0;
-    const taxRate = isExplicitTaxRate(it.taxRate) ? Number(it.taxRate) : 18;
-    const gross = qty * rate;
-    const discountAmt = (gross * disc) / 100;
-    const taxable = gross - discountAmt;
-    const tax = (taxable * taxRate) / 100;
-    const lineTotal = taxable + tax;
-
-    subtotal += taxable;
-    taxAmount += tax;
-    totalAmount += lineTotal;
-
+    const line = calculated.items[idx];
     return {
       id: `item-offline-${idempotencyKey || Date.now()}-${idx}`,
       invoiceId: `inv-offline-${idempotencyKey || Date.now()}`,
@@ -38,13 +32,13 @@ function buildOptimisticInvoice(
       productName: it.productName,
       productSku: it.productSku,
       uom: it.uom,
-      quantity: qty,
-      unitPrice: rate,
-      discountPercent: disc,
-      taxRate,
-      lineSubtotal: roundMoney(taxable),
-      lineTax: roundMoney(tax),
-      lineTotal: roundMoney(lineTotal),
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      discountPercent: it.discountPercent ?? 0,
+      taxRate: line.taxRate,
+      lineSubtotal: line.taxableAmount,
+      lineTax: line.taxAmount,
+      lineTotal: line.totalAmount,
       documentDiscountShare: 0,
     };
   });
@@ -55,16 +49,16 @@ function buildOptimisticInvoice(
     invoiceNumber: `INV-OFFLINE-${Date.now().toString().slice(-4)}`,
     customerId: input.customerId,
     salesOrderId: input.salesOrderId,
-    status: input.status || 'ISSUED',
+    status: 'DRAFT', // Queued: not an issued or authorized invoice.
     invoiceDate: input.invoiceDate,
     dueDate: input.dueDate || input.invoiceDate,
-    subtotal: roundMoney(subtotal),
-    discountAmount: 0,
-    taxAmount: roundMoney(taxAmount),
-    totalAmount: roundMoney(totalAmount),
+    subtotal: calculated.grossSubtotal,
+    discountAmount: calculated.discountTotal,
+    taxAmount: calculated.taxAmount,
+    totalAmount: calculated.totalAmount,
     totalPaid: 0,
-    totalsVersion: 1,
-    notes: input.notes ? `${input.notes} (Offline Pending Sync)` : '(Offline Pending Sync)',
+    totalsVersion: 2,
+    notes: `${input.notes ? input.notes + ' ' : ''}(Offline Pending Sync${missingTax ? '; GST estimate unverified' : ''})`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     items,
