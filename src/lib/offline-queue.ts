@@ -1,8 +1,7 @@
 /**
  * ATLAS OS — Safe Offline Action Queue & Sync Recovery
  *
- * Stores pending actions for manual recovery. The UI does not currently dispatch
- * queued actions to demo storage or cloud services.
+ * Stores pending actions for recovery and server-confirmed replay.
  * Actions are persisted to localStorage with request-level idempotency keys, FIFO sequencing,
  * retry counters, and explicit conflict resolution strategies.
  */
@@ -88,7 +87,7 @@ function saveQueue(queue: QueuedOfflineAction[]): void {
     localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(queue));
     notifyOfflineQueueChanged();
   } catch (err) {
-    console.error('Failed to persist offline action queue:', err);
+    throw new Error(`Cannot safely save offline transactions on this device: ${String(err)}`);
   }
 }
 
@@ -137,10 +136,13 @@ export const offlineQueue = {
   },
 
   /**
-   * Retrieves all queued actions for an organization.
+   * Retrieves queued actions for one organization, or all when omitted.
    */
-  getAll(organizationId: string): QueuedOfflineAction[] {
-    return loadQueue().filter((item) => item.organizationId === organizationId);
+  getAll(organizationId?: string): QueuedOfflineAction[] {
+    const queue = loadQueue();
+    return organizationId === undefined
+      ? queue
+      : queue.filter((item) => item.organizationId === organizationId);
   },
 
   /**
@@ -212,7 +214,7 @@ export const offlineQueue = {
   ): Promise<SyncProcessResult> {
     const queue = loadQueue();
     const orgItems = queue.filter(
-      (i) => i.organizationId === organizationId && (i.status === 'pending' || i.status === 'failed')
+      (i) => i.organizationId === organizationId && i.status === 'pending'
     );
 
     let succeeded = 0;

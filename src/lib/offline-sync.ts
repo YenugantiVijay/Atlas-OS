@@ -11,15 +11,27 @@ import { ordersService } from '@/services/orders.service';
 export async function executeOfflineAction(action: QueuedOfflineAction): Promise<void> {
   switch (action.actionType) {
     case 'CREATE_INVOICE': {
-      await invoicesService.createInvoice(action.organizationId, action.payload, false);
+      const invoice = await invoicesService.createInvoice(action.organizationId, {
+        ...action.payload,
+        idempotencyKey: action.idempotencyKey,
+      }, false);
+      if (invoice.id.startsWith('inv-offline-')) {
+        throw new Error('Invoice remains pending: server confirmation was not received.');
+      }
       break;
     }
     case 'RECORD_PAYMENT': {
-      await paymentsService.recordPayment(action.organizationId, action.payload, false);
+      const payment = await paymentsService.recordPayment(action.organizationId, {
+        ...action.payload,
+        idempotencyKey: action.idempotencyKey,
+      }, false);
+      if (payment.id.startsWith('pay-offline-')) {
+        throw new Error('Payment remains pending: server confirmation was not received.');
+      }
       break;
     }
     case 'ADJUST_STOCK': {
-      await inventoryService.adjustStock(
+      const movement = await inventoryService.adjustStock(
         action.organizationId,
         action.payload.productId,
         action.payload.quantityChange,
@@ -27,14 +39,20 @@ export async function executeOfflineAction(action: QueuedOfflineAction): Promise
         action.idempotencyKey,
         false
       );
+      if (movement.id.startsWith('mov-offline-')) {
+        throw new Error('Stock adjustment remains pending: server confirmation was not received.');
+      }
       break;
     }
     case 'CREATE_ORDER': {
-      await ordersService.createSalesOrder(action.organizationId, action.payload, false);
+      await ordersService.createSalesOrder(action.organizationId, {
+        ...action.payload,
+        idempotencyKey: action.idempotencyKey,
+      }, false);
       break;
     }
     default: {
-      console.warn(`[offline-sync] Unhandled offline action type: ${action.actionType}`);
+      throw new Error(`Unsupported offline action type: ${action.actionType}`);
     }
   }
 }
@@ -48,7 +66,7 @@ export async function flushOfflineSync(organizationId?: string): Promise<SyncPro
   }
 
   // If no org specified, find all orgs with items in queue
-  const allItems = offlineQueue.getAll('');
+  const allItems = offlineQueue.getAll();
   const orgIds = Array.from(new Set(allItems.map((i) => i.organizationId).filter(Boolean)));
 
   const combined: SyncProcessResult = {
