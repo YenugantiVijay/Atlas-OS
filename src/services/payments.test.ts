@@ -629,6 +629,12 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
 
     it('rejects payment allocation to DRAFT invoice in storage layer', () => {
       const testOrg = 'test-org-draft-chk';
+      // A direct issued invoice must have real, available inventory.
+      const testProduct = storage.createProduct(testOrg, {
+        name: 'Switch', sku: 'SW-1', category: 'Electrical',
+        uom: 'Nos', purchaseCost: 50, sellingPrice: 1000,
+        taxRate: 18, reorderThreshold: 1, isActive: true,
+      }, 100);
       const cust = storage.createCustomer(testOrg, {
         name: 'Test Customer',
         phone: '9845012345',
@@ -641,7 +647,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         dueDate: '2026-12-05',
         items: [
           {
-            productId: 'prod-001',
+            productId: testProduct.id,
             productName: 'Switch',
             productSku: 'SW-1',
             uom: 'Nos',
@@ -669,6 +675,12 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
 
     it('rejects payment allocation to invoice with customer mismatch', () => {
       const testOrg = 'test-org-mismatch-chk';
+      // A direct issued invoice must have real, available inventory.
+      const testProduct = storage.createProduct(testOrg, {
+        name: 'Switch', sku: 'SW-1', category: 'Electrical',
+        uom: 'Nos', purchaseCost: 50, sellingPrice: 1000,
+        taxRate: 18, reorderThreshold: 1, isActive: true,
+      }, 100);
       const custA = storage.createCustomer(testOrg, {
         name: 'Cust A',
         phone: '9845012345',
@@ -685,7 +697,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         dueDate: '2026-12-05',
         items: [
           {
-            productId: 'prod-001',
+            productId: testProduct.id,
             productName: 'Switch',
             productSku: 'SW-1',
             uom: 'Nos',
@@ -713,6 +725,12 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
 
     it('rejects payment allocation exceeding invoice balance', () => {
       const testOrg = 'test-org-overpay-chk';
+      // A direct issued invoice must have real, available inventory.
+      const testProduct = storage.createProduct(testOrg, {
+        name: 'Switch', sku: 'SW-1', category: 'Electrical',
+        uom: 'Nos', purchaseCost: 50, sellingPrice: 1000,
+        taxRate: 18, reorderThreshold: 1, isActive: true,
+      }, 100);
       const cust = storage.createCustomer(testOrg, {
         name: 'Cust Overpay',
         phone: '9845012347',
@@ -725,7 +743,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         dueDate: '2026-12-05',
         items: [
           {
-            productId: 'prod-001',
+            productId: testProduct.id,
             productName: 'Switch',
             productSku: 'SW-1',
             uom: 'Nos',
@@ -753,6 +771,12 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
 
     it('idempotently replays duplicate payment requests without double-allocation', () => {
       const testOrg = 'test-org-idem-chk';
+      // A direct issued invoice must have real, available inventory.
+      const testProduct = storage.createProduct(testOrg, {
+        name: 'Switch', sku: 'SW-1', category: 'Electrical',
+        uom: 'Nos', purchaseCost: 50, sellingPrice: 1000,
+        taxRate: 18, reorderThreshold: 1, isActive: true,
+      }, 100);
       const cust = storage.createCustomer(testOrg, {
         name: 'Cust Idem',
         phone: '9845012348',
@@ -766,7 +790,7 @@ describe('Payments Service & DEF-009 Security Invariants', () => {
         dueDate: '2026-12-05',
         items: [
           {
-            productId: 'prod-001',
+            productId: testProduct.id,
             productName: 'Switch',
             productSku: 'SW-1',
             uom: 'Nos',
