@@ -7,7 +7,7 @@
  *    strict test isolation and protect statutory ledger immutability without fallback.
  * 3. Bootstraps standard Supabase roles (anon, authenticated, service_role, authenticator),
  *    schemas (auth, extensions, public), privileges, and auth helper functions (auth.uid, auth.role, auth.jwt).
- * 4. Applies forward-only migrations 001 through 026 in strict lexical order with ON_ERROR_STOP=1.
+ * 4. Applies all repository migrations in strict lexical order with ON_ERROR_STOP=1.
  * 5. Seeds isolated multi-tenant test fixtures with genuine auth identities and valid schema attributes.
  * 6. Executes P0/P1 security and lifecycle contracts under REAL RESTRICTED DATABASE ROLES (SET ROLE authenticated / anon).
  * 7. Tests lifecycle trust flags against spoofing attempts by authenticated database roles (Migration 026 invoker triggers).
@@ -49,6 +49,7 @@ import { runEcommercePlatformAdminAcceptance } from './ecommerce_platform_admin_
 import { runDisposableRestoreAcceptance } from './disposable_restore_acceptance.mjs';
 import { runOwnerConsoleAcceptance } from './owner_console_acceptance.mjs';
 import { runIndustryReceiptsAcceptance } from './industry_receipts_acceptance.mjs';
+import { runAal2SecurityAcceptance } from './aal2_security_acceptance.mjs';
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -191,10 +192,12 @@ async function bootstrapDisposableDatabase(client) {
     CREATE SCHEMA IF NOT EXISTS auth;
     CREATE SCHEMA IF NOT EXISTS extensions;
     CREATE SCHEMA IF NOT EXISTS public;
+    CREATE SCHEMA IF NOT EXISTS storage;
 
     -- 4. Schema usage and standard permissions
     GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+    GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
     GRANT ALL ON SCHEMA public TO CURRENT_USER, service_role;
     GRANT ALL ON SCHEMA auth TO CURRENT_USER, service_role;
 
@@ -242,6 +245,19 @@ async function bootstrapDisposableDatabase(client) {
     GRANT EXECUTE ON FUNCTION auth.uid() TO PUBLIC, anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC, anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.jwt() TO PUBLIC, anon, authenticated, service_role;
+
+    -- Minimal Storage API fixture so the AAL2 migration's storage policy is tested.
+    CREATE TABLE storage.objects (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      bucket_id text NOT NULL,
+      name text NOT NULL
+    );
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY test_authenticated_storage_access ON storage.objects
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
+    GRANT ALL ON storage.objects TO CURRENT_USER, service_role;
+    INSERT INTO storage.objects (bucket_id, name) VALUES ('mfa-test', 'mfa-test.txt');
   `);
 }
 
@@ -278,7 +294,7 @@ function assertDisposableDatabase(urlStr) {
  * Executes a callback within a genuine restricted database role and auth context.
  * Strictly asserts identity and active database role before running the callback.
  */
-async function withRoleContext(client, { role = 'authenticated', userId = null }, fn) {
+async function withRoleContext(client, { role = 'authenticated', userId = null, aal = 'aal2' }, fn) {
   // 1. Switch to restricted database role and set transaction/session JWT claims
   await client.query(`SET ROLE ${role};`);
   if (userId) {
@@ -287,6 +303,10 @@ async function withRoleContext(client, { role = 'authenticated', userId = null }
     await client.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
   }
   await client.query(`SELECT set_config('request.jwt.claim.role', '${role}', false);`);
+  const claims = { role };
+  if (userId) claims.sub = userId;
+  if (role === 'authenticated') claims.aal = aal;
+  await client.query("SELECT set_config('request.jwt.claims', $1, false)", [JSON.stringify(claims)]);
 
   // 2. Identity Assertion: verify active database role and auth.uid()
   const { rows: verifyRows } = await client.query(`
@@ -317,6 +337,7 @@ async function withRoleContext(client, { role = 'authenticated', userId = null }
       RESET ROLE;
       SELECT set_config('request.jwt.claim.sub', '', false);
       SELECT set_config('request.jwt.claim.role', '', false);
+      SELECT set_config('request.jwt.claims', '', false);
       SELECT set_config('app.authoritative_order_transition', '', false);
       SELECT set_config('app.authoritative_invoice_transition', '', false);
       SELECT set_config('app.authoritative_payment_allocation', '', false);
@@ -1487,6 +1508,14 @@ async function runAcceptance() {
       orgBId,
       ownerAId: userAId,
       ownerBId: userBId,
+      withRoleContext,
+      recordTest,
+    });
+
+    await runAal2SecurityAcceptance({
+      client: testClient,
+      orgAId,
+      ownerAId: userAId,
       withRoleContext,
       recordTest,
     });
