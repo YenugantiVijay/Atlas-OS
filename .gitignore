@@ -40,3 +40,8 @@ playwright-report
 
 # Supabase CLI local metadata
 supabase/.temp/
+
+# Database dumps & backups
+*.dump
+*.backup
+staging_backup_pre_aal2.sql
