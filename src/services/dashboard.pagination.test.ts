@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapDashboardLowStockProduct, parseMetricNumber } from './dashboard.service';
+import { mapDashboardLowStockProduct, parseMetricNumber, dashboardService } from './dashboard.service';
+import { getBusinessDate } from '@/lib/dates';
 import { paginateArray } from '@/lib/pagination';
 import { Invoice } from '@/types';
 import { calculateInvoiceBalance } from '@/lib/money';
@@ -400,6 +401,14 @@ describe('Phase A2.2 Final Hardening — Financial Metrics, Pagination & Reconci
 
       expect(() => authorizeTenant(orgA)).not.toThrow();
       expect(() => authorizeTenant(orgB)).toThrow('ERR_UNAUTHORIZED: Access to organization data denied');
+    });
+
+    it('generates sales trend dates strictly using business dates rather than UTC slice', async () => {
+      const trend = await dashboardService.getSalesTrend('org-test-trend', 7, true);
+      expect(trend).toHaveLength(7);
+      // The last day in the trend must match today's business date
+      const today = getBusinessDate();
+      expect(trend[trend.length - 1].date).toBe(today);
     });
   });
 });

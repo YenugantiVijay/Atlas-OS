@@ -23,6 +23,7 @@ describe('Staff payday review', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Wage basis for deduction limit (INR)' }), { target: { value: '15000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview payday' }));
     expect(await screen.findByRole('button', { name: 'Record ₹12,500.00 as paid' })).toBeEnabled();
+    expect(screen.getByText('Wage basis')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Skip all advance deductions' }));
     expect(screen.getByRole('button', { name: 'Record ₹15,000.00 as paid' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Include missed' }));
@@ -37,6 +38,41 @@ describe('Staff payday review', () => {
       'bank', 'balances-checked', [{ id: 'advance', amount_paise: 500000 }],
     ));
     expect(saved).toHaveBeenCalled();
+  });
+
+  it('accurately respects capacity across multiple advance lines when using Include missed', async () => {
+    const scope = { orgId: 'studio', userId: 'owner', staffId: 'employee' };
+    vi.spyOn(staffAdvanceService, 'previewPayday').mockResolvedValue({
+      snapshot: 'multiline-checked', latest_period: null,
+      rate: { basis: 'monthly', amount_paise: 2000000, effective_on: '2026-01-01' },
+      lines: [
+        { id: 'adv-1', note: 'Advance 1', balance_paise: 1000000, scheduled_paise: 200000, catchup_paise: 400000 },
+        { id: 'adv-2', note: 'Advance 2', balance_paise: 1000000, scheduled_paise: 200000, catchup_paise: 400000 },
+      ],
+    });
+    render(<QueryClientProvider client={new QueryClient()}>
+      <StaffPaydayReview scope={scope} joiningOn="2026-01-01" currency="INR" onSaved={vi.fn()} />
+    </QueryClientProvider>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Use rate for gross pay' }));
+    // Wage basis = 10,000 -> capacity = 5,000
+    fireEvent.change(screen.getByRole('textbox', { name: 'Wage basis for deduction limit (INR)' }), { target: { value: '10000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview payday' }));
+
+    const inputs = await screen.findAllByRole('textbox', { name: 'Deduct (INR)' });
+    expect(inputs).toHaveLength(2);
+    // Initially each scheduled is 2,000 -> total 4,000 <= 5,000 capacity.
+    const includeButtons = screen.getAllByRole('button', { name: 'Include missed' });
+    expect(includeButtons).toHaveLength(2);
+
+    // Line 1 include missed -> with Line 2 scheduled at 2,000 and total capacity 5,000,
+    // Line 1 can claim at most 5,000 - 2,000 = 3,000.00
+    fireEvent.click(includeButtons[0]);
+    expect(inputs[0]).toHaveValue('3000.00');
+
+    // Click include missed on Line 2 -> with Line 1 at 3,000, Line 2 gets remaining 5,000 - 3,000 = 2,000.00
+    fireEvent.click(includeButtons[1]);
+    expect(inputs[1]).toHaveValue('2000.00');
   });
 
   it('shows the amount that returns to advances and requires a reason before reversing', async () => {

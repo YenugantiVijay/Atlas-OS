@@ -75,7 +75,7 @@ export const InventoryValuationBarChart: React.FC<InventoryValuationBarChartProp
           </h4>
           <div className="text-lg font-bold text-navy-700 tracking-tight mt-0.5 tabular-nums">
             {formatCurrency(totalCatalogValue)}
-            <span className="text-xs font-medium text-content-secondary ml-1.5">total warehouse inventory</span>
+            <span className="text-xs font-medium text-content-secondary ml-1.5">total catalog valuation</span>
           </div>
         </div>
         <span className="text-2xs font-semibold text-content-secondary px-2.5 py-1 bg-slate-100 rounded-lg">

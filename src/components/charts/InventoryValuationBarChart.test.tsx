@@ -14,6 +14,7 @@ describe('InventoryValuationBarChart', () => {
     );
 
     expect(screen.getByText('5 SKUs across displayed brands')).toBeInTheDocument();
+    expect(screen.getByText('total catalog valuation')).toBeInTheDocument();
     expect(screen.queryByText(/Active SKUs/)).not.toBeInTheDocument();
   });
 });

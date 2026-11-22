@@ -93,15 +93,6 @@ export const InvoicesPage: React.FC = () => {
     loadInvoices();
   }, [loadInvoices]);
 
-  const filteredInvoices = invoices.filter((i) => {
-    const s = searchQuery.toLowerCase();
-    return (
-      i.invoiceNumber.toLowerCase().includes(s) ||
-      i.customer?.companyName?.toLowerCase().includes(s) ||
-      i.customer?.name.toLowerCase().includes(s)
-    );
-  });
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PAID':
@@ -157,7 +148,7 @@ export const InvoicesPage: React.FC = () => {
           <Skeleton className="h-16 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />
         </div>
-      ) : filteredInvoices.length === 0 ? (
+      ) : invoices.length === 0 ? (
         <EmptyState
           icon={<Receipt className="w-7 h-7" />}
           title="No invoices issued yet"
@@ -177,7 +168,7 @@ export const InvoicesPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredInvoices.map((inv) => {
+            {invoices.map((inv) => {
               const balance = calculateInvoiceBalance(inv.totalAmount, inv.totalPaid);
               return (
                 <TableRow key={inv.id} className="group">
@@ -242,7 +233,7 @@ export const InvoicesPage: React.FC = () => {
       )}
 
       {/* Pagination Controls */}
-      {filteredInvoices.length > 0 && (
+      {totalCount > 0 && (
         <Pagination
           page={page}
           pageSize={pageSize}
@@ -394,7 +385,8 @@ export const InvoicesPage: React.FC = () => {
                       {formatCurrency(it.lineSubtotal)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
-                      {it.taxRate}%
+                      <div>{formatCurrency(it.lineTax)}</div>
+                      <div className="text-2xs text-content-muted">({it.taxRate}%)</div>
                     </TableCell>
                     <TableCell className="text-right font-mono font-bold">
                       {formatCurrency(it.lineTotal)}

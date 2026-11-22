@@ -20,8 +20,9 @@ export function supplierRateChange(previous: number | null | undefined, next: nu
       !Number.isFinite(next) || next < 0) {
     return { difference: null, percent: null, direction: 'unknown', significant: false };
   }
-  const difference = Math.round((next - previous) * 100) / 100;
-  const percent = previous > 0 ? (difference / previous) * 100 : null;
+  const rawDiff = next - previous;
+  const difference = Math.round(rawDiff * 100) / 100;
+  const percent = previous > 0 ? (rawDiff / previous) * 100 : null;
   const direction = difference > 0 ? 'increase' : difference < 0 ? 'decrease' : 'unchanged';
   // Advisory visual highlight only; no prediction, notification or auto-approval.
   return { difference, percent, direction, significant: percent !== null && Math.abs(percent) >= 5 };

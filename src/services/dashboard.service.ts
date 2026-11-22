@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { storage } from '@/lib/storage';
 import { DashboardMetrics, Product, SalesTrendPoint, ReceivablesSummary, BrandValuation } from '@/types';
-import { getBusinessDate } from '@/lib/dates';
+import { getBusinessDate, getBusinessDateOffset } from '@/lib/dates';
 import { mapDbSalesOrder, mapDbSalesOrderItem } from './orders.service';
 import { mapDbPayment, mapDbPaymentAllocation } from './payments.service';
 
@@ -178,12 +178,10 @@ export const dashboardService = {
   async getSalesTrend(orgId: string, days: number = 30, isMockAuth: boolean = false): Promise<SalesTrendPoint[]> {
     if (isMockAuth) {
       const orders = storage.getSalesOrders(orgId);
-      const now = new Date();
       const dateMap: Record<string, number> = {};
       for (let i = days - 1; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        dateMap[d.toISOString().split('T')[0]] = 0;
+        const dateStr = getBusinessDateOffset(-i);
+        dateMap[dateStr] = 0;
       }
       orders.forEach((o) => {
         if ((o.status === 'CONFIRMED' || o.status === 'FULFILLED') && dateMap[o.orderDate] !== undefined) {

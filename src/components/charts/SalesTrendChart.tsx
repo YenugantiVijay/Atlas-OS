@@ -181,7 +181,11 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({
                   className="text-2xs fill-slate-400 font-mono"
                   fontSize="9.5"
                 >
-                  {val >= 1000 ? `₹${(val / 1000).toFixed(0)}k` : `₹${val.toFixed(0)}`}
+                  {val >= 10000
+                    ? `₹${(val / 1000).toFixed(0)}k`
+                    : val >= 1000
+                    ? `₹${(val / 1000).toFixed(1).replace(/\.0$/, '')}k`
+                    : `₹${val.toFixed(0)}`}
                 </text>
               </g>
             );

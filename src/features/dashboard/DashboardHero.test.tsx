@@ -116,4 +116,34 @@ describe('Dashboard Operations Center Hero', () => {
     const newOrderBtn = await screen.findByRole('button', { name: /New Sales Order/i });
     expect(newOrderBtn).toBeDisabled();
   });
+
+  it('renders generic catalog SKU alerts instead of hardcoded electrical SKUs', async () => {
+    vi.mocked(useOrg).mockReturnValue({
+      currentOrg: mockOrg,
+      currentRole: 'owner',
+      isMockAuth: true,
+      currentUser: { id: 'u1', fullName: 'Tester' },
+    } as any);
+
+    vi.mocked(dashboardService.getDashboardMetrics).mockResolvedValueOnce({
+      todaySales: 25000,
+      ordersCount: 15,
+      totalReceivables: 65000,
+      overdueInvoicesCount: 0,
+      lowStockItemsCount: 3,
+      totalStockValue: 450000,
+      recentOrders: [],
+      recentPayments: [],
+      lowStockProducts: [],
+    });
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/3 catalog SKUs below reorder threshold/i)).toBeInTheDocument();
+    expect(screen.queryByText(/electrical SKU/i)).not.toBeInTheDocument();
+  });
 });
