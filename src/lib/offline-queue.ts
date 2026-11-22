@@ -43,6 +43,7 @@ export interface SyncProcessResult {
 
 const OFFLINE_QUEUE_STORAGE_KEY = 'atlas_offline_action_queue_v1';
 export const OFFLINE_QUEUE_EVENT = 'atlas:offline-queue-changed';
+export const SYNCED_PRUNE_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export function isNetworkError(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -71,6 +72,22 @@ export function notifyOfflineQueueChanged(): void {
   }
 }
 
+export function pruneOldSynced(
+  queue: QueuedOfflineAction[],
+  maxAgeMs: number = SYNCED_PRUNE_RETENTION_MS
+): QueuedOfflineAction[] {
+  const now = Date.now();
+  return queue.filter((item) => {
+    if (item.status !== 'synced') return true;
+    const syncedTime = item.syncedAt
+      ? new Date(item.syncedAt).getTime()
+      : item.createdAt
+      ? new Date(item.createdAt).getTime()
+      : 0;
+    return now - syncedTime < maxAgeMs;
+  });
+}
+
 function loadQueue(): QueuedOfflineAction[] {
   try {
     const raw = localStorage.getItem(OFFLINE_QUEUE_STORAGE_KEY);
@@ -83,10 +100,38 @@ function loadQueue(): QueuedOfflineAction[] {
 }
 
 function saveQueue(queue: QueuedOfflineAction[]): void {
+  // 1. Proactively prune synced actions older than retention period
+  const prunedQueue = pruneOldSynced(queue);
+
   try {
-    localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(prunedQueue));
     notifyOfflineQueueChanged();
-  } catch (err) {
+  } catch (err: any) {
+    const isQuotaError =
+      err &&
+      (err.name === 'QuotaExceededError' ||
+        err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        err.code === 22 ||
+        err.code === 1014 ||
+        String(err).toLowerCase().includes('quota'));
+
+    if (isQuotaError) {
+      // Emergency recovery: immediately prune all synced items regardless of age to free immediate space
+      const emergencyQueue = prunedQueue.filter((item) => item.status !== 'synced');
+      try {
+        localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(emergencyQueue));
+        notifyOfflineQueueChanged();
+        console.warn(
+          'Atlas OS offline storage quota reached: purged completed transactions to preserve pending offline data.'
+        );
+        return;
+      } catch (retryErr) {
+        throw new Error(
+          `Device storage quota exceeded: Unable to safely store offline transactions even after purging completed records. Please clear browser storage or connect to the internet to sync pending transactions.`
+        );
+      }
+    }
+
     throw new Error(`Cannot safely save offline transactions on this device: ${String(err)}`);
   }
 }
@@ -105,7 +150,7 @@ export const offlineQueue = {
       conflictStrategy?: ConflictStrategy;
     } = {}
   ): QueuedOfflineAction<T> {
-    const queue = loadQueue();
+    const queue = pruneOldSynced(loadQueue());
     const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
     const idempotencyKey = options.idempotencyKey || id;
 
@@ -208,42 +253,72 @@ export const offlineQueue = {
   /**
    * Processes all pending items sequentially with a provided execution handler.
    */
+  /**
+   * Processes all pending items sequentially with a provided execution handler.
+   * Concurrency-safe: each status transition reloads the latest persistent state
+   * from storage, ensuring actions enqueued in other tabs or async intervals are never lost.
+   */
   async processQueue(
     organizationId: string,
     handler: (action: QueuedOfflineAction) => Promise<void>
   ): Promise<SyncProcessResult> {
-    const queue = loadQueue();
-    const orgItems = queue.filter(
-      (i) => i.organizationId === organizationId && i.status === 'pending'
-    );
+    const initialQueue = loadQueue();
+    const pendingIds = initialQueue
+      .filter((i) => i.organizationId === organizationId && i.status === 'pending')
+      .map((i) => i.id);
 
     let succeeded = 0;
     let failed = 0;
 
-    for (const action of orgItems) {
-      action.status = 'syncing';
-      action.attemptCount += 1;
-      saveQueue(queue);
+    for (const actionId of pendingIds) {
+      // 1. Reload freshest state and transition target action to 'syncing'
+      const syncingQueue = loadQueue();
+      const currentAction = syncingQueue.find(
+        (i) => i.organizationId === organizationId && i.id === actionId && i.status === 'pending'
+      );
+      if (!currentAction) continue;
+
+      currentAction.status = 'syncing';
+      currentAction.attemptCount += 1;
+      saveQueue(syncingQueue);
 
       try {
-        await handler(action);
-        action.status = 'synced';
-        action.syncedAt = new Date().toISOString();
-        action.lastError = null;
+        await handler({ ...currentAction });
+
+        // 2. Reload freshest state and transition target action to 'synced'
+        const syncedQueue = loadQueue();
+        const target = syncedQueue.find(
+          (i) => i.organizationId === organizationId && i.id === actionId
+        );
+        if (target) {
+          target.status = 'synced';
+          target.syncedAt = new Date().toISOString();
+          target.lastError = null;
+          saveQueue(syncedQueue);
+        }
         succeeded += 1;
       } catch (err: any) {
-        action.status = 'failed';
-        action.lastError = err?.message || 'Unknown synchronization error';
+        // 3. Reload freshest state and transition target action to 'failed'
+        const failedQueue = loadQueue();
+        const target = failedQueue.find(
+          (i) => i.organizationId === organizationId && i.id === actionId
+        );
+        if (target) {
+          target.status = 'failed';
+          target.lastError = err?.message || 'Unknown synchronization error';
+          saveQueue(failedQueue);
+        }
         failed += 1;
       }
-      saveQueue(queue);
     }
 
     const finalQueue = loadQueue().filter((i) => i.organizationId === organizationId);
-    const pendingRemaining = finalQueue.filter((i) => i.status === 'pending' || i.status === 'syncing').length;
+    const pendingRemaining = finalQueue.filter(
+      (i) => i.status === 'pending' || i.status === 'syncing'
+    ).length;
 
     return {
-      processed: orgItems.length,
+      processed: pendingIds.length,
       succeeded,
       failed,
       pendingRemaining,

@@ -238,6 +238,7 @@ export const indiaComplianceService = {
     let totalCgst = 0;
     let totalSgst = 0;
     let totalIgst = 0;
+    let totalLineDiscountPaise = 0;
 
     const itemList: NicItemDetail[] = [];
 
@@ -260,6 +261,7 @@ export const indiaComplianceService = {
 
       const grossPaise = toPaise(qty * unitPrice);
       const discPaise = Math.round(grossPaise * (discount / 100));
+      totalLineDiscountPaise += discPaise;
       const assPaise = grossPaise - discPaise;
       const grossAmt = fromPaise(grossPaise);
 
@@ -310,10 +312,15 @@ export const indiaComplianceService = {
       };
     }
 
-    const docDiscount = Number(invoice.discountAmount || 0);
-    const docDiscountPaise = toPaise(docDiscount);
+    const totalDiscountPaise = toPaise(Number(invoice.discountAmount || 0));
+    // In Atlas OS, line items already reflect item-level discounts in assPaise (totalAssVal).
+    // Under NIC GST E-Invoice Schema 1.1, ValDtls.Disc is strictly for additional
+    // unallocated document-level discounts NOT already subtracted from item taxable bases.
+    const unallocatedDocDiscountPaise = Math.max(0, totalDiscountPaise - totalLineDiscountPaise);
+    const unallocatedDocDiscount = fromPaise(unallocatedDocDiscountPaise);
+
     const totalTaxPaise = toPaise(totalCgst) + toPaise(totalSgst) + toPaise(totalIgst);
-    const totInvValPaise = Math.max(0, toPaise(totalAssVal) + totalTaxPaise - docDiscountPaise);
+    const totInvValPaise = Math.max(0, toPaise(totalAssVal) + totalTaxPaise - unallocatedDocDiscountPaise);
     const totInvVal = fromPaise(totInvValPaise);
 
     const payload: NicEInvoicePayload = {
@@ -355,7 +362,7 @@ export const indiaComplianceService = {
         IgstVal: Number(totalIgst.toFixed(2)),
         CesVal: 0,
         StCesVal: 0,
-        Disc: Number(docDiscount.toFixed(2)),
+        Disc: Number(unallocatedDocDiscount.toFixed(2)),
         OthChrg: 0,
         RndOffAmt: 0,
         TotInvVal: totInvVal,

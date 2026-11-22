@@ -182,4 +182,172 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     expect(status.mode).toBe('SANDBOX_SIMULATION');
     expect(status.isReadyForTesting).toBe(true);
   });
+
+  describe('P0-01 & P2-02: Discount reconciliation and statutory tax calculations', () => {
+    const completeCustomer: Customer = {
+      ...b2bCustomer,
+      billingAddress: 'Plot 12, Banjara Hills, Hyderabad - 500034',
+    };
+
+    it('single-item invoice with line discount does not double-deduct discount in e-invoice TotInvVal', () => {
+      // Item: ₹10,000 gross, 10% discount (₹1,000), Assessable = ₹9,000, 18% GST = ₹1,620 (₹810 CGST + ₹810 SGST).
+      // Invoice total: 10,000 - 1,000 + 1,620 = ₹10,620.
+      const discountedInvoice: Invoice = {
+        ...sampleInvoice,
+        id: 'inv-disc-01',
+        invoiceNumber: 'INV/26-27/002',
+        subtotal: 10000,
+        discountAmount: 1000,
+        taxAmount: 1620,
+        totalAmount: 10620,
+        items: [
+          {
+            id: 'item-d1',
+            invoiceId: 'inv-disc-01',
+            productId: 'prod-d1',
+            productName: 'Commercial Cable 4 sq mm',
+            productSku: 'CAB-4.0',
+            hsnCode: '8544',
+            quantity: 5,
+            unitPrice: 2000,
+            taxRate: 18,
+            discountPercent: 10,
+            lineSubtotal: 9000,
+            lineTax: 1620,
+            lineTotal: 10620,
+            uom: 'Coils',
+          },
+        ],
+      };
+
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, discountedInvoice);
+      expect(res.fieldsComplete).toBe(true);
+      expect(res.payload).toBeDefined();
+
+      const val = res.payload!.ValDtls;
+      // Assessable value is net of line discount (₹9,000)
+      expect(val.AssVal).toBe(9000);
+      expect(val.CgstVal).toBe(810);
+      expect(val.SgstVal).toBe(810);
+      expect(val.IgstVal).toBe(0);
+      // ValDtls.Disc must be 0 because line discounts are already subtracted in AssVal
+      expect(val.Disc).toBe(0);
+      // Crucial: TotInvVal must strictly match invoice.totalAmount (₹10,620), NOT under-report as ₹9,620
+      expect(val.TotInvVal).toBe(discountedInvoice.totalAmount);
+      expect(val.TotInvVal).toBe(10620);
+    });
+
+    it('multi-item invoice with varying discounts reconciles exactly with invoice.totalAmount', () => {
+      // Customer in Bangalore (Karnataka - 29) -> Inter-state IGST
+      const interstateCustomer: Customer = {
+        ...completeCustomer,
+        gstin: '29AAAAA0000A1Z5',
+        billingAddress: 'MG Road, Bangalore, Karnataka - 560001',
+      };
+
+      // Item 1: 5 x ₹2,000 = ₹10,000, 10% disc = ₹1,000, Taxable = ₹9,000, 18% IGST = ₹1,620, Total = ₹10,620
+      // Item 2: 2 x ₹5,000 = ₹10,000, 5% disc = ₹500, Taxable = ₹9,500, 12% IGST = ₹1,140, Total = ₹10,640
+      // Combined Subtotal = ₹20,000, Total Discount = ₹1,500, Total Tax = ₹2,760, Total Amount = ₹21,260
+      const multiItemInvoice: Invoice = {
+        ...sampleInvoice,
+        id: 'inv-disc-02',
+        invoiceNumber: 'INV/26-27/003',
+        subtotal: 20000,
+        discountAmount: 1500,
+        taxAmount: 2760,
+        totalAmount: 21260,
+        items: [
+          {
+            id: 'item-m1',
+            invoiceId: 'inv-disc-02',
+            productId: 'prod-m1',
+            productName: 'Heavy Cable 10 sq mm',
+            productSku: 'CAB-10.0',
+            hsnCode: '8544',
+            quantity: 5,
+            unitPrice: 2000,
+            taxRate: 18,
+            discountPercent: 10,
+            lineSubtotal: 9000,
+            lineTax: 1620,
+            lineTotal: 10620,
+            uom: 'Coils',
+          },
+          {
+            id: 'item-m2',
+            invoiceId: 'inv-disc-02',
+            productId: 'prod-m2',
+            productName: 'Distribution Box 8 Way',
+            productSku: 'DB-08',
+            hsnCode: '8537',
+            quantity: 2,
+            unitPrice: 5000,
+            taxRate: 12,
+            discountPercent: 5,
+            lineSubtotal: 9500,
+            lineTax: 1140,
+            lineTotal: 10640,
+            uom: 'Nos',
+          },
+        ],
+      };
+
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, interstateCustomer, multiItemInvoice);
+      expect(res.fieldsComplete).toBe(true);
+      expect(res.payload).toBeDefined();
+
+      const val = res.payload!.ValDtls;
+      expect(val.AssVal).toBe(18500);
+      expect(val.IgstVal).toBe(2760);
+      expect(val.CgstVal).toBe(0);
+      expect(val.SgstVal).toBe(0);
+      expect(val.Disc).toBe(0);
+      expect(val.TotInvVal).toBe(multiItemInvoice.totalAmount);
+      expect(val.TotInvVal).toBe(21260);
+    });
+
+    it('handles zero-discount and 0% GST (exempt) items with exact reconciliation', () => {
+      // 10 units @ ₹500 = ₹5,000, 0% discount, 0% GST (exempt supply)
+      const exemptInvoice: Invoice = {
+        ...sampleInvoice,
+        id: 'inv-exempt-01',
+        invoiceNumber: 'INV/26-27/004',
+        subtotal: 5000,
+        discountAmount: 0,
+        taxAmount: 0,
+        totalAmount: 5000,
+        items: [
+          {
+            id: 'item-ex1',
+            invoiceId: 'inv-exempt-01',
+            productId: 'prod-ex1',
+            productName: 'Agricultural Solar Wire (Exempt)',
+            productSku: 'AGRI-01',
+            hsnCode: '8544',
+            quantity: 10,
+            unitPrice: 500,
+            taxRate: 0,
+            discountPercent: 0,
+            lineSubtotal: 5000,
+            lineTax: 0,
+            lineTotal: 5000,
+            uom: 'Meters',
+          },
+        ],
+      };
+
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, exemptInvoice);
+      expect(res.fieldsComplete).toBe(true);
+      expect(res.payload).toBeDefined();
+
+      const val = res.payload!.ValDtls;
+      expect(val.AssVal).toBe(5000);
+      expect(val.CgstVal).toBe(0);
+      expect(val.SgstVal).toBe(0);
+      expect(val.IgstVal).toBe(0);
+      expect(val.Disc).toBe(0);
+      expect(val.TotInvVal).toBe(5000);
+      expect(val.TotInvVal).toBe(exemptInvoice.totalAmount);
+    });
+  });
 });
