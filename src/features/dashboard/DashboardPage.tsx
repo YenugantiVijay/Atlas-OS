@@ -187,10 +187,10 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div>
               <div className="text-sm font-semibold">
-                {metrics.lowStockItemsCount} electrical SKU{metrics.lowStockItemsCount > 1 ? 's' : ''} below reorder threshold
+                {metrics.lowStockItemsCount} catalog SKU{metrics.lowStockItemsCount > 1 ? 's' : ''} below reorder threshold
               </div>
               <div className="text-xs text-amber-800 mt-0.5">
-                Replenishment recommended to avoid dispatch delays on pending and incoming contractor orders.
+                Replenishment recommended to avoid dispatch delays on pending and incoming orders.
               </div>
             </div>
           </div>
@@ -432,7 +432,7 @@ export const DashboardPage: React.FC = () => {
         {metrics.lowStockProducts.length === 0 ? (
           <div className="text-center py-10 text-sm text-content-secondary flex flex-col items-center gap-2">
             <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-            <span>All electrical catalog SKUs are above reorder thresholds.</span>
+            <span>All catalog SKUs are above reorder thresholds.</span>
           </div>
         ) : (
           <div className="divide-y divide-border">

@@ -149,6 +149,9 @@ describe('InvoicesPage — Statutory Tax Invoice Presentation and Compliance', (
     // Verify Place of Supply is resolved accurately as Maharashtra from 27AAAAA0000A1Z5
     expect(screen.getByText('27 - Maharashtra')).toBeInTheDocument();
     expect(screen.getAllByText(/27AAAAA0000A1Z5/).length).toBeGreaterThanOrEqual(1);
+
+    // Verify GST line item displays both tax rate percentage and calculated line tax
+    expect(screen.getByText('(18%)')).toBeInTheDocument();
   });
 
   it('displays actionable warning when organization GSTIN is missing, and does NOT fallback to dummy GSTIN', async () => {

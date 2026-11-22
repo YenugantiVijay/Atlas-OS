@@ -38,9 +38,6 @@ export function paginateArray<T>(
 
   if (sortFn) {
     filtered.sort(sortFn);
-    if (params?.sortOrder === 'desc') {
-      filtered.reverse();
-    }
   }
 
   const page = Math.max(1, params?.page || 1);

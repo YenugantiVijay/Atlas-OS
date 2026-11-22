@@ -33,5 +33,13 @@ describe('PR57 supplier quote validation and comparison', () => {
     });
     expect(supplierRateChange(200, 210).significant).toBe(true);
     expect(supplierRateChange(200, 209.99).significant).toBe(false);
+
+    // Regression test for Issue #6: small rate changes with raw difference precision
+    // 0.08 to 0.085 is +6.25% change. Pre-rounding difference to 2 dp would give 0.01 or 0.00,
+    // whereas raw difference accurately yields 6.25% (significant >= 5%).
+    const smallRateChange = supplierRateChange(0.08, 0.085);
+    expect(smallRateChange.percent).toBeCloseTo(6.25, 2);
+    expect(smallRateChange.significant).toBe(true);
+    expect(smallRateChange.direction).toBe('increase');
   });
 });

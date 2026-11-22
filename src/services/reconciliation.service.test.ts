@@ -253,4 +253,36 @@ describe('Area 3: Trustworthy Numbers & Financial/Inventory Reconciliation', () 
       getProducts.mockRestore();
     }
   });
+
+  it('safely computes catalogCostValue with zero purchase costs, negative stock, and decimal quantities', async () => {
+    storage.createProduct(orgA, {
+      name: 'Free Sample',
+      sku: 'FREE-01',
+      category: 'Samples',
+      uom: 'Nos',
+      purchaseCost: 0,
+      sellingPrice: 0,
+      taxRate: 0,
+      reorderThreshold: 5,
+      isActive: true,
+    }, 50);
+
+    storage.createProduct(orgA, {
+      name: 'Decimal Cable',
+      sku: 'DEC-01',
+      category: 'Cables',
+      uom: 'Meters',
+      purchaseCost: 15.5,
+      sellingPrice: 25,
+      taxRate: 18,
+      reorderThreshold: 10,
+      isActive: true,
+    }, 10.5);
+
+    const summary = await reconciliationService.getStockLedgerSummary(orgA, true);
+    // p1: 50 * 0 = 0
+    // p2: 10.5 * 15.5 = 162.75
+    // catalogCostValue must be 162.75 without NaN or precision distortion
+    expect(summary.catalogCostValue).toBeCloseTo(162.75, 2);
+  });
 });

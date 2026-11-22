@@ -214,7 +214,15 @@ export const reconciliationService = {
     return {
       asOf: new Date().toISOString(), productCount: products.length, activeProductCount: activeProducts.length,
       lowStockCount: lowStock.length,
-      catalogCostValue: fromPaise(products.reduce((sum, p) => sum + Math.round(Math.max(z.number().finite().parse(p.currentStock), 0) * toPaise(p.purchaseCost)), 0)),
+      catalogCostValue: fromPaise(
+        products.reduce((sum, p) => {
+          const qty = Math.max(z.number().finite().parse(p.currentStock), 0);
+          const cost = typeof p.purchaseCost === 'number' && Number.isFinite(p.purchaseCost) && p.purchaseCost > 0
+            ? toPaise(p.purchaseCost)
+            : 0;
+          return sum + Math.round(qty * cost);
+        }, 0)
+      ),
       lowStock: lowStock.slice(0, previewLimit),
     };
   },

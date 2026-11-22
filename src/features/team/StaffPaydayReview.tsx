@@ -126,8 +126,9 @@ export function StaffPaydayReview({ scope, joiningOn, currency, initialPeriod, o
       <p className="text-sm text-content-secondary">Enter actual gross pay for the month. Half the wage basis, minus other wage deductions, caps advance recovery.</p>
       <Button type="submit" isLoading={busy} disabled={busy}>Preview payday</Button>
     </form> : <div className="space-y-4">
-      <div className="grid gap-2 text-sm sm:grid-cols-3">
+      <div className="grid gap-2 text-sm sm:grid-cols-4">
         <p>Gross pay <strong className="block">{money(review.amounts.gross)}</strong></p>
+        <p>Wage basis <strong className="block">{money(review.amounts.wageBasis)}</strong></p>
         <p>Advance deduction limit <strong className="block">{money(available)}</strong></p>
         <p>Net pay <strong className="block">{valid ? money(net) : '—'}</strong></p>
       </div>
@@ -150,10 +151,24 @@ export function StaffPaydayReview({ scope, joiningOn, currency, initialPeriod, o
             <Input label={`Deduct (${currency})`} value={selected[line.id] ?? ''} inputMode="decimal" disabled={busy}
               onChange={event => setSelected(previous => ({ ...previous, [line.id]: event.target.value }))} />
             {line.catchup_paise > line.scheduled_paise && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => {
-              const otherSelected = choices?.filter(choice => choice.id !== line.id).reduce((sum, choice) => sum + choice.amount_paise, 0) ?? 0;
-              setSelected(previous => ({
-                ...previous, [line.id]: fromPaise(Math.min(line.catchup_paise, Math.max(available - otherSelected, 0))).toFixed(2),
-              }));
+              setSelected(previous => {
+                let otherSelected = 0;
+                for (const otherLine of review.data.lines) {
+                  if (otherLine.id !== line.id) {
+                    try {
+                      const parsed = parseStaffDeduction(previous[otherLine.id] ?? '0');
+                      otherSelected += Math.max(0, parsed);
+                    } catch {
+                      // ignore unparseable input on other lines
+                    }
+                  }
+                }
+                const allowed = Math.min(line.catchup_paise, Math.max(available - otherSelected, 0));
+                return {
+                  ...previous,
+                  [line.id]: fromPaise(allowed).toFixed(2),
+                };
+              });
             }}>Include missed</Button>}
           </li>)}
         </ul>
