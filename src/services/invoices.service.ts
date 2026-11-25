@@ -233,7 +233,7 @@ export const invoicesService = {
     let page = 1;
     let expectedTotal: number;
     do {
-      const result = await this.getInvoicesPaginated(orgId, { page, pageSize: 100 });
+      const result = await invoicesService.getInvoicesPaginated(orgId, { page, pageSize: 100 });
       expectedTotal = result.total;
       for (const invoice of result.data) {
         if (seen.has(invoice.id)) throw new Error('Invoices changed while loading. Please try again.');
