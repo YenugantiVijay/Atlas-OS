@@ -74,12 +74,15 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
 
     expect(xml).toContain('<TALLYREQUEST>Import Data</TALLYREQUEST>');
     expect(xml).toContain('<VOUCHER VCHTYPE="Sales" ACTION="Create">');
+    expect(xml).toContain('<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>');
+    expect(xml).toContain('<ISINVOICE>No</ISINVOICE>');
+    expect(xml).toContain('<ISPARTYLEDGER>Yes</ISPARTYLEDGER>');
     expect(xml).toContain('<PARTYLEDGERNAME>Balaji Electrical Works</PARTYLEDGERNAME>');
     expect(xml).toContain('<VOUCHERNUMBER>SLE-26-001</VOUCHERNUMBER>');
     expect(xml).toContain('<LEDGERNAME>Sales Account</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
-    const ledgerAmounts = [...xml.matchAll(/<ISDEEMEDPOSITIVE>(Yes|No)<\/ISDEEMEDPOSITIVE>\s*<AMOUNT>([^<]+)<\/AMOUNT>/g)]
+    const ledgerAmounts = [...xml.matchAll(/<ISDEEMEDPOSITIVE>(Yes|No)<\/ISDEEMEDPOSITIVE>\s*(?:<ISPARTYLEDGER>Yes<\/ISPARTYLEDGER>\s*<ISLASTDEEMEDPOSITIVE>Yes<\/ISLASTDEEMEDPOSITIVE>\s*)?<AMOUNT>([^<]+)<\/AMOUNT>/g)]
       .map(([, side, amount]) => [side, amount]);
     expect(ledgerAmounts).toEqual([
       ['Yes', '-5900.00'], ['No', '5000.00'], ['No', '450.00'], ['No', '450.00'],
