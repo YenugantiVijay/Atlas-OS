@@ -2914,6 +2914,11 @@ async function runAcceptance() {
     });
 
     // TEST 29: Explicit 0% tax remains valid (exempt supplies)
+    await testClient.query(
+      `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+       VALUES ($1, $2, 2, 'OPENING_STOCK', 'Stock for exempt invoice acceptance')`,
+      [orgBId, prodB1Id]
+    );
     await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       let zeroTaxPassed = false;
       let zeroTaxErr = null;
@@ -3527,8 +3532,8 @@ async function runAcceptance() {
             p_items := jsonb_build_array(
               jsonb_build_object(
                 'productId', $3::uuid,
-                'quantity', 100,
-                'unitPrice', 60.00,
+                'quantity', 60,
+                'unitPrice', 100.00,
                 'taxRate', 0.00,
                 'discountPercent', 0
               )
