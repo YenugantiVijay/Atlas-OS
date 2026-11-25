@@ -1,3 +1,4 @@
+import { INDIAN_GST_STATES } from '@/lib/gst';
 import React, { useState, useEffect } from 'react';
 import {
   FileCode,
@@ -31,6 +32,7 @@ export const IntegrationsPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
+  const [placeOfSupplyCode, setPlaceOfSupplyCode] = useState('');
   const [upiVpa, setUpiVpa] = useState<string>('');
   const [vehicleNo, setVehicleNo] = useState('');
   const [transporterId, setTransporterId] = useState('');
@@ -53,6 +55,7 @@ export const IntegrationsPage: React.FC = () => {
         }
         setCustomers(Array.from(customersById.values()));
         setSelectedInvoiceId(invs[0]?.id ?? '');
+        setPlaceOfSupplyCode('');
       } catch (error) {
         if (cancelled) return;
         showToast('error', 'Integration data unavailable', error instanceof Error ? error.message : 'Unable to load invoices and customers.');
@@ -69,7 +72,7 @@ export const IntegrationsPage: React.FC = () => {
 
   // E-Invoice & EWB calculation
   const eInvoiceResult = selectedInvoice
-    ? indiaComplianceService.validateEInvoiceReadiness(currentOrg, selectedCustomer, selectedInvoice)
+    ? indiaComplianceService.validateEInvoiceReadiness(currentOrg, selectedCustomer, selectedInvoice, placeOfSupplyCode)
     : null;
 
   const eWayBillResult = selectedInvoice
@@ -231,7 +234,7 @@ export const IntegrationsPage: React.FC = () => {
                   <span className="text-xs text-slate-500">Test with Invoice:</span>
                   <select
                     value={selectedInvoiceId}
-                    onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                    onChange={(e) => { setSelectedInvoiceId(e.target.value); setPlaceOfSupplyCode(''); }}
                     className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1"
                   >
                     {invoices.map((inv) => (
@@ -256,6 +259,20 @@ export const IntegrationsPage: React.FC = () => {
                   </div>
 
                   <p className="text-xs text-slate-600">{eInvoiceResult?.reason || 'Fields are complete; the payload has not been validated by NIC or filed.'}</p>
+
+                  <label className="block space-y-1 text-xs text-slate-600">
+                    <span>Place of supply on this invoice</span>
+                    <select
+                      value={placeOfSupplyCode}
+                      onChange={(event) => setPlaceOfSupplyCode(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                    >
+                      <option value="">Select the invoice’s state or territory</option>
+                      {Object.entries(INDIAN_GST_STATES).map(([code, name]) => (
+                        <option key={code} value={code}>{code} · {name}</option>
+                      ))}
+                    </select>
+                  </label>
 
                   {eInvoiceResult?.missingFields && eInvoiceResult.missingFields.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs space-y-1 text-amber-900">

@@ -193,7 +193,8 @@ export const indiaComplianceService = {
   validateEInvoiceReadiness(
     org: Organization,
     customer: Customer | undefined,
-    invoice: Invoice
+    invoice: Invoice,
+    placeOfSupplyCode?: string
   ): EInvoiceValidationResult {
     const missingFields: string[] = [];
 
@@ -234,7 +235,10 @@ export const indiaComplianceService = {
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
     const buyerStateCode = (customer.gstin || '36').substring(0, 2);
-    const isInterstate = sellerStateCode !== buyerStateCode;
+    if (!placeOfSupplyCode || !Object.prototype.hasOwnProperty.call(INDIAN_GST_STATES, placeOfSupplyCode)) {
+      missingFields.push('Choose the place of supply recorded for this invoice.');
+    }
+    const isInterstate = sellerStateCode !== placeOfSupplyCode;
 
     let totalAssVal = 0;
     let totalCgst = 0;
@@ -353,7 +357,7 @@ export const indiaComplianceService = {
       BuyerDtls: {
         Gstin: customer.gstin,
         LglNm: customer.name,
-        Pos: buyerStateCode,
+        Pos: placeOfSupplyCode!,
         Addr1: customer.billingAddress || customer.deliveryAddress || '',
         Loc: buyerLoc || '',
         Pin: buyerPin || 0,
