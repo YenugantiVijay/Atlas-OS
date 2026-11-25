@@ -11,10 +11,10 @@ const { from, rpc } = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { from, rpc } }));
 
 function queryResult(data: unknown, error: { message: string } | null = null) {
-  const result = { data, error };
+  const result = { data, error, count: Array.isArray(data) ? data.length : 0 };
   return {
     select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
-    not: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), range: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValue(result),
     then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
   };
@@ -65,7 +65,7 @@ describe('Review: truthful cloud reads', () => {
     from.mockReturnValue(query);
     const records = await getRecords('org-1', false);
     expect(records[0].customer?.name).toBe('Cloud Customer');
-    expect(query.select).toHaveBeenCalledWith(expect.stringContaining(`customer:customers!${relationship}(*)`));
+    expect(query.select.mock.calls[0][0]).toContain(`customer:customers!${relationship}(*)`);
     expect(query.eq).toHaveBeenCalledWith('organization_id', 'org-1');
   });
 });
@@ -83,4 +83,19 @@ it('does not recognize draft orders as sales before confirmation', () => {
       uom: product.uom, quantity: 1, unitPrice: 100, taxRate: 0, discountPercent: 0 }],
   });
   expect(storage.getDashboardMetrics(orgId).todaySales).toBe(before);
+});
+
+it('loads every accounting invoice page and keeps the stored HSN code', async () => {
+  const row = (id: number) => ({ id: String(id), items: [{ hsn_code: '8544', tax_rate: 18 }] });
+  const first = queryResult([]);
+  const last = queryResult([]);
+  first.range.mockResolvedValue({ data: Array.from({ length: 100 }, (_, i) => row(i)), count: 101 });
+  last.range.mockResolvedValue({ data: [row(100)], count: 101 });
+  from.mockReturnValueOnce(first).mockReturnValueOnce(last);
+
+  const invoices = await invoicesService.getInvoices('org-1');
+  expect(first.range).toHaveBeenCalledWith(0, 99);
+  expect(last.range).toHaveBeenCalledWith(100, 199);
+  expect(invoices).toHaveLength(101);
+  expect(invoices[100].items?.[0].hsnCode).toBe('8544');
 });

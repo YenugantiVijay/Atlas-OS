@@ -75,7 +75,7 @@ export async function runDisposableRestoreAcceptance({ client, maintenance, sour
     const { rows: [{ user_id: owner }] } = await restored.query('SELECT user_id FROM atlas_private.owner_console_accounts WHERE slot=1');
     const overview = () => restored.query("SELECT public.owner_console_request('overview','{}') AS overview");
     await assert.rejects(withRoleContext(restored, { role: 'anon' }, overview), { code: '42501' });
-    await withRoleContext(restored, { userId: owner }, async () => {
+    await withRoleContext(restored, { userId: owner, aal: 'aal1' }, async () => {
       await assert.rejects(overview(), { code: '42501' });
       await restored.query("SELECT set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: owner, aal: 'aal2' })]);
       try {

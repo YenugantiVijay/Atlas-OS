@@ -326,7 +326,7 @@ export async function runGoodsReceivingAcceptance({
     WHERE organization_id=$1 AND reference_id=$2) AS movements FROM public.goods_receipts r WHERE r.id=$2`,[orgAId,expiredId])).rows[0];
   recordTest('GRN-BATCH-01','A posted receipt attributes usable stock exactly once and rejects expired stock atomically',
     !firstBatchPost.idempotent_replay && replayBatchPost.idempotent_replay && batchMoves.length===1 &&
-    batchMoves[0].quantity_change===38 && batchMoves[0].received_batch?.number===batch.number &&
+    Number(batchMoves[0].quantity_change)===38 && batchMoves[0].received_batch?.number===batch.number &&
     batchMoves[0].received_batch?.godown===batch.godown && invalidBatchCode==='22023' && expiredCode==='23514' &&
     failedPost?.status==='DRAFT' && failedPost?.movements===0,
     JSON.stringify({batchMoves,invalidBatchCode,expiredCode,failedPost}));

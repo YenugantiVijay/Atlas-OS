@@ -13,17 +13,19 @@ test.describe('PR #56 receiving workstation — safe demo presentation',()=>{
     for(const name of headings){
       await expect(page.getByRole('columnheader',{name,exact:true})).toBeVisible();
     }
-    await expect(page.getByRole('status').filter({hasText:'Cloud-only first release'})).toBeVisible();
+    await expect(page.getByRole('status').filter({hasText:'Receipts and inventory movements are saved in this browser.'})).toBeVisible();
     await expect(page.getByRole('button',{name:'Save receiving draft'})).toBeDisabled();
-    await expect(page.getByRole('button',{name:'New product'})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'New product'})).toBeEnabled();
     await expect(page.getByText(/Suggestions show live stock and current catalog selling price/)).toBeVisible();
     await expect(page.getByRole('button',{name:'Confirm posting'})).toHaveCount(0);
     await expect(page.getByText(/Saving a draft never increases stock/)).toBeVisible();
   });
 
-  test('notebook import explains variable carton counts while unauthorized posting stays blocked',async({page})=>{
+  test('notebook import explains variable carton counts without allowing an incomplete draft to be posted',async({page})=>{
     const opener=page.getByRole('button',{name:'Paste notebook rows'});
-    await expect(opener).toBeDisabled();
+    await expect(opener).toBeEnabled();
+    await opener.click();
+    await expect(page.getByRole('button',{name:'Confirm posting'})).toHaveCount(0);
     await expect(page.getByText(/No assumed pack size/)).toBeVisible();
     await expect(page.getByText(/No receipts have been recorded yet/)).toBeVisible();
   });
