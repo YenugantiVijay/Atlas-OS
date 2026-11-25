@@ -3,8 +3,26 @@
  * Avoids binary floating-point representation bugs by operating on rounded minor units (paise).
  */
 
+function decimalParts(value: number): { coefficient: bigint; scale: number } {
+  const [mantissa, exponent = '0'] = String(value).split('e');
+  const [integer, fraction = ''] = mantissa.split('.');
+  return { coefficient: BigInt(integer + fraction), scale: fraction.length - Number(exponent) };
+}
+
+function roundDecimalProduct(left: number, right: number, decimalPlaces: number): number {
+  const a = decimalParts(left);
+  const b = decimalParts(right);
+  const coefficient = a.coefficient * b.coefficient;
+  const scale = a.scale + b.scale - decimalPlaces;
+  if (scale <= 0) return Number(coefficient * 10n ** BigInt(-scale));
+  const divisor = 10n ** BigInt(scale);
+  const magnitude = coefficient < 0n ? -coefficient : coefficient;
+  const rounded = (magnitude + divisor / 2n) / divisor;
+  return Number(coefficient < 0n ? -rounded : rounded);
+}
+
 export function toPaise(rupees: number): number {
-  return Math.round(rupees * 100);
+  return Number.isFinite(rupees) ? roundDecimalProduct(rupees, 1, 2) : rupees;
 }
 
 export function fromPaise(paise: number): number {
@@ -94,10 +112,10 @@ export function calculateLineItem(
     throw new Error('Tax rate cannot be negative or invalid');
   }
 
-  const grossPaise = toPaise(quantity * unitPrice);
-  const discountPaise = Math.round(grossPaise * (discountPercent / 100));
+  const grossPaise = roundDecimalProduct(quantity, unitPrice, 2);
+  const discountPaise = roundDecimalProduct(grossPaise, discountPercent, -2);
   const taxablePaise = grossPaise - discountPaise;
-  const taxPaise = Math.round(taxablePaise * (taxRate / 100));
+  const taxPaise = roundDecimalProduct(taxablePaise, taxRate, -2);
   const totalPaise = taxablePaise + taxPaise;
 
   return {
@@ -218,7 +236,7 @@ export function calculateDocumentTotals(
       prevCumSharePaise = cumSharePaise;
 
       const adjTaxablePaise = lineTaxable - lineShare;
-      const adjTaxPaise = Math.round(adjTaxablePaise * (line.taxRate / 100));
+      const adjTaxPaise = roundDecimalProduct(adjTaxablePaise, line.taxRate, -2);
       const adjTotalPaise = adjTaxablePaise + adjTaxPaise;
       taxPaise += adjTaxPaise;
 
