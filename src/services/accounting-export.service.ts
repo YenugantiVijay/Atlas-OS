@@ -112,6 +112,8 @@ export const accountingExportService = {
         <VOUCHER VCHTYPE="Sales" ACTION="Create">
           <DATE>${dateFormatted}</DATE>
           <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+          <PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>
+          <ISINVOICE>No</ISINVOICE>
           <VOUCHERNUMBER>${escapeXml(inv.invoiceNumber)}</VOUCHERNUMBER>
           <PARTYLEDGERNAME>${escapeXml(partyLedgerName)}</PARTYLEDGERNAME>
           <NARRATION>Atlas OS Tax Invoice #${escapeXml(inv.invoiceNumber)}</NARRATION>
@@ -119,6 +121,8 @@ export const accountingExportService = {
           <LEDGERENTRIES.LIST>
             <LEDGERNAME>${escapeXml(partyLedgerName)}</LEDGERNAME>
             <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <ISPARTYLEDGER>Yes</ISPARTYLEDGER>
+            <ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE>
             <AMOUNT>${partyDebit}</AMOUNT>
           </LEDGERENTRIES.LIST>
           <LEDGERENTRIES.LIST>
