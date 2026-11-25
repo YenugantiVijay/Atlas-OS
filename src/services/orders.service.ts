@@ -337,20 +337,33 @@ export const ordersService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const { data: dbOrders, error: ordersErr } = await supabase
-      .from('sales_orders')
-      .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false });
+    const allOrders: SalesOrder[] = [];
+    const pageSize = 200;
+    for (let offset = 0; ; offset += pageSize) {
+      const query = supabase
+        .from('sales_orders')
+        .select('*, items:sales_order_items(*), customer:customers!fk_sales_orders_customer_org(*)')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      // The real Supabase builder always exposes range(); retaining the
+      // fallback keeps lightweight test doubles and older adapters usable.
+      const pageQuery = typeof (query as { range?: unknown }).range === 'function'
+        ? (query as typeof query & { range: (from: number, to: number) => typeof query }).range(offset, offset + pageSize - 1)
+        : query;
+      const { data: dbOrders, error: ordersErr } = await pageQuery;
 
-    if (ordersErr) {
-      throw new Error(`Failed to fetch sales orders: ${ordersErr.message}`);
+      if (ordersErr) {
+        throw new Error(`Failed to fetch sales orders: ${ordersErr.message}`);
+      }
+      if (!Array.isArray(dbOrders)) throw new Error('Failed to fetch sales orders: invalid response.');
+      allOrders.push(...dbOrders.map((row) => {
+        const items = (row.items || []).map(mapDbSalesOrderItem);
+        return mapDbSalesOrder(row, items);
+      }));
+      if (dbOrders.length < pageSize) break;
     }
-
-    return (dbOrders || []).map((row) => {
-      const items = (row.items || []).map(mapDbSalesOrderItem);
-      return mapDbSalesOrder(row, items);
-    });
+    return allOrders;
   },
 
   async createSalesOrder(

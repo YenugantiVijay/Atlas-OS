@@ -125,6 +125,17 @@ export const PaymentsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
+  const closeRecordModal = useCallback(() => {
+    // Cancel must also clear a deferred open request. Otherwise a slow initial
+    // load can replay `pendingOpenRecord` immediately after the operator closes
+    // the dialog, leaving an apparently unresponsive modal on screen.
+    setIsModalOpen(false);
+    setPendingOpenRecord(false);
+    setIsPreparingRecord(false);
+    setPaymentIdempotencyKey('');
+    clearActionParam();
+  }, [clearActionParam]);
+
   const loadData = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
     if (!currentOrg) return null;
     const orgIdAtCall = currentOrg.id;
@@ -819,7 +830,7 @@ export const PaymentsPage: React.FC = () => {
         key={printScope} scope={printScope} organizationId={currentOrg.id} currency={currentOrg.currency} onClose={() => setTotalsScope(null)} />}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={closeRecordModal}
         title="Record Customer Payment"
         description="Verify and record payment remittance against customer receivables."
         maxWidth="lg"
@@ -945,8 +956,7 @@ export const PaymentsPage: React.FC = () => {
               type="button"
               variant="outline"
               onClick={() => {
-                setIsModalOpen(false);
-                setPaymentIdempotencyKey('');
+                closeRecordModal();
               }}
               disabled={isSubmitting}
             >

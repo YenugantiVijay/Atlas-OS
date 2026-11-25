@@ -178,12 +178,21 @@ export const aiAssistantService = {
         orders = storage.getSalesOrders(orgId);
       } else {
         if (!supabase) throw new Error('Cloud backend is not configured.');
-        const res = await supabase.from('sales_orders').select('*', { count: 'exact' }).eq('organization_id', orgId);
-        if (res.error) throw new Error(`Failed to load sales orders: ${res.error.message}`);
-        if (!Array.isArray(res.data) || res.count !== res.data.length) {
-          throw new Error('A complete sales order summary is unavailable.');
+        // PostgREST applies the project max_rows limit to every response. Fetch
+        // bounded, deterministic pages so the assistant never silently
+        // under-counts an organization with more than 1,000 orders.
+        const pageSize = 200;
+        for (let offset = 0; ; offset += pageSize) {
+          const res = await supabase.from('sales_orders').select('*')
+            .eq('organization_id', orgId)
+            .order('order_date', { ascending: false })
+            .order('id', { ascending: false })
+            .range(offset, offset + pageSize - 1);
+          if (res.error) throw new Error(`Failed to load sales orders: ${res.error.message}`);
+          if (!Array.isArray(res.data)) throw new Error('A complete sales order summary is unavailable.');
+          orders.push(...res.data.map((row) => mapDbSalesOrder(row)));
+          if (res.data.length < pageSize) break;
         }
-        orders = res.data.map((row) => mapDbSalesOrder(row));
       }
 
       const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
