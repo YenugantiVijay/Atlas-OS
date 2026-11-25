@@ -84,7 +84,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
       billingAddress: undefined,
       deliveryAddress: undefined,
     };
-    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, customerWithoutAddress, sampleInvoice);
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, customerWithoutAddress, sampleInvoice, '36');
     expect(res.eligible).toBe(null);
     expect(res.fieldsComplete).toBe(false);
     expect(res.payload).toBeUndefined();
@@ -94,7 +94,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
   });
 
   it('detects missing PIN code when only city/location is present in buyer address', () => {
-    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2bCustomer, sampleInvoice);
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2bCustomer, sampleInvoice, '36');
     expect(res.eligible).toBe(null);
     expect(res.fieldsComplete).toBe(false);
     expect(res.payload).toBeUndefined();
@@ -107,7 +107,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
       ...b2bCustomer,
       billingAddress: 'Plot 12, Banjara Hills, Hyderabad - 500034',
     };
-    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, sampleInvoice);
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, sampleInvoice, '36');
     expect(res.eligible).toBe(null);
     expect(res.fieldsComplete).toBe(true);
     expect(res.missingFields).toHaveLength(0);
@@ -119,8 +119,19 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     expect(res.payload?.ValDtls.SgstVal).toBe(9000);
   });
 
+  it('requires an invoice-specific place of supply and distinguishes it from buyer registration', () => {
+    const buyer = { ...b2bCustomer, billingAddress: 'Plot 12, Banjara Hills, Hyderabad - 500034' };
+    const incomplete = indiaComplianceService.validateEInvoiceReadiness(testOrg, buyer, sampleInvoice);
+    expect(incomplete.fieldsComplete).toBe(false);
+    expect(incomplete.payload).toBeUndefined();
+
+    const interstate = indiaComplianceService.validateEInvoiceReadiness(testOrg, buyer, sampleInvoice, '37');
+    expect(interstate.payload?.BuyerDtls).toMatchObject({ Pos: '37', Stcd: '36' });
+    expect(interstate.payload?.ValDtls).toMatchObject({ IgstVal: 18000, CgstVal: 0, SgstVal: 0 });
+  });
+
   it('correctly marks B2C / unregistered sales as exempt from e-Invoicing under GST Rule 48(4)', () => {
-    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2cCustomer, sampleInvoice);
+    const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2cCustomer, sampleInvoice, '36');
     expect(res.eligible).toBe(false);
     expect(res.fieldsComplete).toBe(false);
     expect(res.reason).toMatch(/buyer GSTIN is required/i);
@@ -220,7 +231,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
         ],
       };
 
-      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, discountedInvoice);
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, discountedInvoice, '36');
       expect(res.fieldsComplete).toBe(true);
       expect(res.payload).toBeDefined();
 
@@ -293,7 +304,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
         ],
       };
 
-      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, interstateCustomer, multiItemInvoice);
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, interstateCustomer, multiItemInvoice, '27');
       expect(res.fieldsComplete).toBe(true);
       expect(res.payload).toBeDefined();
 
@@ -337,7 +348,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
         ],
       };
 
-      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, exemptInvoice);
+      const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, completeCustomer, exemptInvoice, '36');
       expect(res.fieldsComplete).toBe(true);
       expect(res.payload).toBeDefined();
 
