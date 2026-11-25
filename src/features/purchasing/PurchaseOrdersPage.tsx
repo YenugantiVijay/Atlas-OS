@@ -82,12 +82,15 @@ export function PurchaseOrdersPage() {
         </div>
         <Link to="/receiving" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Goods Receiving</Link>
       </div>
-      {read.allowed && currentOrg && currentUser && !isMockAuth ? (
+      {read.allowed && currentOrg && currentUser ? (
         <div className="space-y-3">
+          {isMockAuth && (
+            <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              Demo Mode: Purchase orders are saved in this browser.
+            </p>
+          )}
           <PurchaseOrderWorkspace key={scope} scope={scope} organizationId={currentOrg.id} canWrite={write.allowed} writeMessage={write.message} isMockAuth={isMockAuth} />
         </div>
-      ) : read.allowed && isMockAuth ? (
-        <p role="status" className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Sign in to a cloud workspace to use Purchase Orders.</p>
       ) : (
         <p role="status" className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">{read.message ?? 'Select a workspace to view purchase orders.'}</p>
       )}
