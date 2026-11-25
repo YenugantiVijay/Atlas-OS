@@ -6,7 +6,7 @@
  */
 
 import { Organization, Customer, Invoice } from '@/types';
-import { toPaise, fromPaise } from '@/lib/money';
+import { calculateLineItem, toPaise, fromPaise } from '@/lib/money';
 import { INDIAN_GST_STATES } from '@/lib/gst';
 
 export const E_WAY_BILL_STATUTORY_THRESHOLD = 50000; // ₹50,000 statutory consignment limit under CGST Rule 138
@@ -90,6 +90,8 @@ export interface NicItemDetail {
   Unit: string;
   UnitPrice: number;
   TotAmt: number;
+  Discount: number;
+  AssAmt: number;
   GstRt: number;
   CgstAmt: number;
   SgstAmt: number;
@@ -249,6 +251,7 @@ export const indiaComplianceService = {
         missingFields.push(`Item ${itemNo} (${item.productName || 'Line'}): provide a 4-to-8 digit HSN code.`);
       }
 
+      const priorIssues = missingFields.length;
       const qty = Number(item.quantity);
       const unitPrice = Number(item.unitPrice);
       const taxRate = Number(item.taxRate);
@@ -259,22 +262,22 @@ export const indiaComplianceService = {
       if (!Number.isFinite(discount) || discount < 0 || discount > 100) missingFields.push(`Item ${itemNo}: provide a valid discount percentage.`);
       if (!item.productName) missingFields.push(`Item ${itemNo}: product description is required.`);
 
-      const grossPaise = toPaise(qty * unitPrice);
-      const discPaise = Math.round(grossPaise * (discount / 100));
-      totalLineDiscountPaise += discPaise;
-      const assPaise = grossPaise - discPaise;
-      const grossAmt = fromPaise(grossPaise);
+      if (missingFields.length !== priorIssues) return;
+      const line = calculateLineItem(qty, unitPrice, discount, taxRate);
+      totalLineDiscountPaise += toPaise(line.discountAmount);
+      const assPaise = toPaise(line.taxableAmount);
+      const lineTaxPaise = toPaise(line.taxAmount);
 
       let cgstAmt = 0;
       let sgstAmt = 0;
       let igstAmt = 0;
 
       if (isInterstate) {
-        const igstPaise = Math.round(assPaise * (taxRate / 100));
+        const igstPaise = lineTaxPaise;
         igstAmt = fromPaise(igstPaise);
         totalIgst = fromPaise(toPaise(totalIgst) + igstPaise);
       } else {
-        const totalTaxPaise = Math.round(assPaise * (taxRate / 100));
+        const totalTaxPaise = lineTaxPaise;
         const cgstPaise = Math.floor(totalTaxPaise / 2);
         const sgstPaise = totalTaxPaise - cgstPaise;
         cgstAmt = fromPaise(cgstPaise);
@@ -294,7 +297,9 @@ export const indiaComplianceService = {
         Qty: qty,
         Unit: item.uom.substring(0, 3).toUpperCase(),
         UnitPrice: unitPrice,
-        TotAmt: grossAmt,
+        TotAmt: line.grossAmount,
+        Discount: line.discountAmount,
+        AssAmt: line.taxableAmount,
         GstRt: taxRate,
         CgstAmt: cgstAmt,
         SgstAmt: sgstAmt,
