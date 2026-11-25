@@ -267,9 +267,9 @@ test('pricing plans and industry links lead to the right workflows', async ({ pa
   await page.goto('/pricing');
   await expect(page.getByText('₹999', { exact: true })).toBeVisible();
   await expect(page.getByText('₹2,499', { exact: true })).toBeVisible();
-  await expect(page.getByText('Custom quote', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Discuss Professional' }).click();
-  await expect(page.getByRole('form', { name: 'Request a demo' })).toContainText('Discuss Atlas Professional');
+  await expect(page.getByText('Planned', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Discuss Trade' }).click();
+  await expect(page.getByRole('form', { name: 'Request a demo' })).toContainText('Discuss Atlas Trade');
   await page.locator('footer').getByRole('link', { name: 'Fertilizers & Agri Inputs' }).click();
   await expect(page).toHaveURL(/\/solutions\/agricultural-inputs\/?$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('fertilizer and agri-input dealers');

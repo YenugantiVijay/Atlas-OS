@@ -58,7 +58,7 @@ export const FAQS: FaqItem[] = [
   {
     id: 'pricing-structure',
     question: 'How will Atlas OS be priced?',
-    answer: 'Starter covers everyday shop workflows. Professional adds purchasing and supplier controls, and Enterprise Network is scoped by quote. The pricing page shows proposed launch prices. Request a demo to confirm terms.',
+    answer: 'Atlas Counter covers shop billing and drawer closing. Atlas Trade adds goods receiving, purchasing and supplier price history. Atlas Network is planned for multi-branch businesses. Request a demo to confirm the proposed terms.',
     category: 'Pricing & Trials',
   },
 ];
