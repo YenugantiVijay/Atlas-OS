@@ -2969,6 +2969,11 @@ async function runAcceptance() {
     });
 
     // TEST 29: Explicit 0% tax remains valid (exempt supplies)
+    await testClient.query(
+      `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
+       VALUES ($1, $2, 2, 'OPENING_STOCK', 'Stock for exempt invoice acceptance')`,
+      [orgBId, prodB1Id]
+    );
     await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       let zeroTaxPassed = false;
       let zeroTaxErr = null;
@@ -2980,7 +2985,7 @@ async function runAcceptance() {
             p_items := jsonb_build_array(
               jsonb_build_object(
                 'productId', $3::uuid,
-                'quantity', 1,
+                'quantity', 2,
                 'unitPrice', 100.00,
                 'discountPercent', 0,
                 'taxRate', 0.00
@@ -2989,14 +2994,14 @@ async function runAcceptance() {
             p_status := 'ISSUED',
             p_idempotency_key := $4::uuid
           ) AS inv;`,
-          [orgAId, custAId, prodA1Id, crypto.randomUUID()]
+          [orgBId, custBId, prodB1Id, crypto.randomUUID()]
         );
         const inv = invRows[0]?.inv;
         const zeroTaxAmount = inv && Number(inv.tax_amount) === 0;
-        const correctTotal = inv && Number(inv.total_amount) === 100.00;
-        const correctSubtotal = inv && Number(inv.subtotal) === 100.00;
+        const correctTotal = inv && Number(inv.total_amount) === 200.00;
+        const correctSubtotal = inv && Number(inv.subtotal) === 200.00;
         const item = inv?.items?.[0];
-        const itemZeroRate = item && Number(item.tax_rate) === 0 && Number(item.line_tax) === 0 && Number(item.line_total) === 100.00;
+        const itemZeroRate = item && Number(item.tax_rate) === 0 && Number(item.line_tax) === 0 && Number(item.line_total) === 200.00;
 
         // Verify database persistence of the item tax rate
         const { rows: dbItemRows } = await testClient.query(
@@ -3013,7 +3018,7 @@ async function runAcceptance() {
         'P1-A1-15',
         'Explicit 0% tax rate on invoice line item is preserved and calculates exactly zero tax (exempt supply)',
         zeroTaxPassed,
-        `Invoice created with 0% tax: tax_amount=0.00, total=100.00, item.tax_rate=0, dbPersisted=${zeroTaxPassed}`,
+        `Invoice created with 0% tax: tax_amount=0.00, total=200.00, item.tax_rate=0, dbPersisted=${zeroTaxPassed}`,
         zeroTaxPassed ? null : zeroTaxErr
       );
     });
@@ -3582,8 +3587,8 @@ async function runAcceptance() {
             p_items := jsonb_build_array(
               jsonb_build_object(
                 'productId', $3::uuid,
-                'quantity', 100,
-                'unitPrice', 60.00,
+                'quantity', 60,
+                'unitPrice', 100.00,
                 'taxRate', 0.00,
                 'discountPercent', 0
               )
@@ -3596,25 +3601,25 @@ async function runAcceptance() {
         const invPay = invRows[0]?.inv;
         const invPayId = invPay?.id;
 
-        // Initial receivable = 3000.00
+        // Initial receivable = 6000.00
         const { rows: initRecv } = await testClient.query(
           `SELECT public.get_customer_receivable($1::uuid, $2::uuid) AS receivable;`,
           [custPayId, orgAId]
         );
-        const initOk = Number(initRecv[0]?.receivable) === 3000.00;
+        const initOk = Number(initRecv[0]?.receivable) === 6000.00;
 
-        // Allocate partial payment: 1,250.00
+        // Allocate partial payment: 2,500.00
         await testClient.query(
           `SELECT record_payment_and_allocate(
             p_org_id := $1::uuid,
             p_customer_id := $2::uuid,
-            p_amount := 1250.00,
+            p_amount := 2500.00,
             p_payment_method := 'UPI',
             p_reference_no := 'UPI-12345',
             p_payment_date := CURRENT_DATE,
             p_notes := 'Partial payment 1',
             p_invoice_id := $3::uuid,
-            p_allocated_amount := 1250.00,
+            p_allocated_amount := 2500.00,
             p_idempotency_key := $4::uuid
           );`,
           [orgAId, custPayId, invPayId, crypto.randomUUID()]
@@ -3630,21 +3635,21 @@ async function runAcceptance() {
           [custPayId, orgAId]
         );
 
-        const p1StatusOk = invAfterP1[0]?.status === 'PARTIALLY_PAID' && Number(invAfterP1[0]?.total_paid) === 1250.00;
-        const p1RecvOk = Number(recvAfterP1[0]?.receivable) === 1750.00;
+        const p1StatusOk = invAfterP1[0]?.status === 'PARTIALLY_PAID' && Number(invAfterP1[0]?.total_paid) === 2500.00;
+        const p1RecvOk = Number(recvAfterP1[0]?.receivable) === 3500.00;
 
-        // Allocate remaining payment: 1,750.00
+        // Allocate remaining payment: 3,500.00
         await testClient.query(
           `SELECT record_payment_and_allocate(
             p_org_id := $1::uuid,
             p_customer_id := $2::uuid,
-            p_amount := 1750.00,
+            p_amount := 3500.00,
             p_payment_method := 'NEFT',
             p_reference_no := 'NEFT-998877',
             p_payment_date := CURRENT_DATE,
             p_notes := 'Final settlement',
             p_invoice_id := $3::uuid,
-            p_allocated_amount := 1750.00,
+            p_allocated_amount := 3500.00,
             p_idempotency_key := $4::uuid
           );`,
           [orgAId, custPayId, invPayId, crypto.randomUUID()]
@@ -3660,7 +3665,7 @@ async function runAcceptance() {
           [custPayId, orgAId]
         );
 
-        const p2StatusOk = invAfterP2[0]?.status === 'PAID' && Number(invAfterP2[0]?.total_paid) === 3000.00;
+        const p2StatusOk = invAfterP2[0]?.status === 'PAID' && Number(invAfterP2[0]?.total_paid) === 6000.00;
         const p2RecvOk = Number(recvAfterP2[0]?.receivable) === 0.00;
 
         paymentRecvPassed = Boolean(initOk && p1StatusOk && p1RecvOk && p2StatusOk && p2RecvOk);
