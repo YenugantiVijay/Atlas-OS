@@ -228,20 +228,24 @@ export const invoicesService = {
       throw new Error('Cloud backend is not configured: Supabase client is uninitialized.');
     }
 
-    const { data: dbInvoices, error } = await supabase
-      .from('invoices')
-      .select('*, items:invoice_items(*), customer:customers!fk_invoices_customer_org(*)')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch invoices: ${error.message}`);
-    }
-
-    return (dbInvoices || []).map((row) => {
-      const items = (row.items || []).map(mapDbInvoiceItem);
-      return mapDbInvoice(row, items);
-    });
+    const invoices: Invoice[] = [];
+    const seen = new Set<string>();
+    let page = 1;
+    let expectedTotal: number;
+    do {
+      const result = await this.getInvoicesPaginated(orgId, { page, pageSize: 100 });
+      expectedTotal = result.total;
+      for (const invoice of result.data) {
+        if (seen.has(invoice.id)) throw new Error('Invoices changed while loading. Please try again.');
+        seen.add(invoice.id);
+        invoices.push(invoice);
+      }
+      if (!result.hasNextPage) break;
+      if (result.data.length === 0) throw new Error('Could not load every invoice.');
+      page += 1;
+    } while (true);
+    if (invoices.length !== expectedTotal) throw new Error('Could not load every invoice. Please try again.');
+    return invoices;
   },
 
   async getInvoiceById(orgId: string, invoiceId: string, isMockAuth: boolean = false): Promise<Invoice | null> {
