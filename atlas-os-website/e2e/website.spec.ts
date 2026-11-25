@@ -175,13 +175,14 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await expect(page.getByText('Your notification request was accepted for email delivery.')).toBeVisible();
   });
 
-  test('4. Pricing shows the three proposed editions and their receipt options', async ({ page }) => {
+  test('4. Pricing shows Counter and Trade receipt options and labels Network as planned', async ({ page }) => {
     await page.goto('/pricing');
     const plans = page.locator('#tiers article');
     await expect(plans).toHaveCount(3);
     await expect(plans.nth(0)).toContainText('Branded customer receipt and daily totals');
     await expect(plans.nth(1)).toContainText('Customer and counter receipts on one sheet');
-    await expect(plans.nth(2)).toContainText('Customer and counter receipts on one sheet');
+    await expect(plans.nth(2).getByRole('heading', { name: 'Atlas Network' })).toBeVisible();
+    await expect(plans.nth(2).getByText('Planned', { exact: true })).toBeVisible();
     await expect(page.getByText(/proposed launch pricing/i)).toBeVisible();
     await expect(page.getByText(/ask about trial availability/i)).toBeVisible();
   });

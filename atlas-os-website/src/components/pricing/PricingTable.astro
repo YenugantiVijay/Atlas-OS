@@ -17,7 +17,7 @@ import Button from '../common/Button.astro';
           {tier.features.map((feature) => <li class="flex items-start gap-2"><span aria-hidden="true" class="font-semibold text-brand-700">✓</span><span>{feature}</span></li>)}
         </ul>
         <Button href={'/request-demo?tier=' + tier.id} variant={tier.isFeatured ? 'primary' : 'outline'} class="mt-auto w-full">
-          {tier.id === 'enterprise-network' ? 'Request a quote' : 'Discuss ' + tier.name.replace('Atlas ', '')}
+          {tier.id === 'enterprise-network' ? 'Discuss branch requirements' : 'Discuss ' + tier.name.replace('Atlas ', '')}
         </Button>
       </article>
     ))}

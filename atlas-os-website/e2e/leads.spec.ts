@@ -114,7 +114,7 @@ test('Demo Request only confirms genuine server acknowledgement', async ({ page 
   expect(requests).toHaveLength(1);
   expect(requests[0].kind).toBe('demo');
   expect(requests[0].data.industry).toBe('agricultural_inputs');
-  expect(requests[0].data.additionalMessage).toContain('Atlas Professional');
+  expect(requests[0].data.additionalMessage).toContain('Atlas Trade');
   expect(requests[0].data.additionalMessage).toContain('Walk through receiving stock.');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
   expect(await page.evaluate(() => localStorage.getItem('atlas_saved_enquiries'))).toBeNull();
