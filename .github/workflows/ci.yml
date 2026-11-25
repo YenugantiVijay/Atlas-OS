@@ -79,6 +79,7 @@ jobs:
           echo "$RUNNER_TEMP/atlas-pg-tools" >> "$GITHUB_PATH"
 
       - name: Run Master Database Lifecycle & Security Acceptance
+        shell: bash
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/postgres
           ATLAS_TEST_RESTORE: '1'
@@ -111,6 +112,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run End-to-End Operational Tests (Playwright)
+        shell: bash
         run: |
           npx playwright test --reporter=list 2>&1 | tee playwright.log || {
             tail -n 60 playwright.log | while IFS= read -r line; do
