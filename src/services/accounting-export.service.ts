@@ -34,7 +34,6 @@ export const accountingExportService = {
     if (!org.gstin || !/^\d{2}[A-Z0-9]{13}$/.test(org.gstin)) {
       throw new Error('A valid seller GSTIN is required to determine the Tally tax ledgers.');
     }
-    const sellerStateCode = org.gstin.substring(0, 2);
 
     let voucherXml = '';
 
@@ -49,7 +48,12 @@ export const accountingExportService = {
         throw new Error(`Invoice ${inv.invoiceNumber} is not associated with the selected organization.`);
       }
 
-      let isInterstate = false;
+      if (inv.taxAmount > 0 && !inv.gstJurisdiction) {
+        throw new Error(`Invoice ${inv.invoiceNumber} needs a confirmed place of supply before Tally export.`);
+      }
+      const isInterstate = inv.gstJurisdiction
+        ? inv.gstJurisdiction.sellerStateCode !== inv.gstJurisdiction.placeOfSupplyCode
+        : false;
       let partyLedgerName = 'Consumer / Unregistered Dealer';
 
       if (customer.gstin && customer.gstin.trim()) {
@@ -57,8 +61,6 @@ export const accountingExportService = {
         if (!/^\d{2}[A-Z0-9]{13}$/.test(trimmedGstin)) {
           throw new Error(`Invoice ${inv.invoiceNumber} has an invalid buyer GSTIN.`);
         }
-        const buyerStateCode = trimmedGstin.substring(0, 2);
-        isInterstate = sellerStateCode !== buyerStateCode;
         partyLedgerName = customer.name;
       }
 
