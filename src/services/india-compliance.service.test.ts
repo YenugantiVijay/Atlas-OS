@@ -130,6 +130,26 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     expect(interstate.payload?.ValDtls).toMatchObject({ IgstVal: 18000, CgstVal: 0, SgstVal: 0 });
   });
 
+  it('includes the recorded document discount allocation and rejects a mismatched total', () => {
+    const buyer = { ...b2bCustomer, billingAddress: 'Plot 12, Banjara Hills, Hyderabad - 500034' };
+    const allocatedInvoice: Invoice = {
+      ...sampleInvoice,
+      discountAmount: 1000,
+      taxAmount: 17820,
+      totalAmount: 116820,
+      items: [{ ...sampleInvoice.items![0], documentDiscountShare: 1000,
+        lineSubtotal: 99000, lineTax: 17820, lineTotal: 116820 }],
+    };
+    const valid = indiaComplianceService.validateEInvoiceReadiness(testOrg, buyer, allocatedInvoice, '36');
+    expect(valid.payload?.ItemList[0]).toMatchObject({ Discount: 1000, AssAmt: 99000 });
+    expect(valid.payload?.ValDtls).toMatchObject({ Disc: 0, TotInvVal: 116820 });
+    const mismatched = indiaComplianceService.validateEInvoiceReadiness(
+      testOrg, buyer, { ...allocatedInvoice, totalAmount: 116820.01 }, '36'
+    );
+    expect(mismatched.fieldsComplete).toBe(false);
+    expect(mismatched.payload).toBeUndefined();
+  });
+
   it('correctly marks B2C / unregistered sales as exempt from e-Invoicing under GST Rule 48(4)', () => {
     const res = indiaComplianceService.validateEInvoiceReadiness(testOrg, b2cCustomer, sampleInvoice, '36');
     expect(res.eligible).toBe(false);
