@@ -72,6 +72,7 @@ export function mapDbInvoiceItem(row: any): InvoiceItem {
     productId: row.product_id,
     productName: row.product_name,
     productSku: row.product_sku,
+    hsnCode: row.hsn_code || undefined,
     uom: (row.uom as UOM) || 'Nos',
     quantity: Number(row.quantity),
     unitPrice: Number(row.unit_price),
