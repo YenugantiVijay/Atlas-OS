@@ -43,6 +43,7 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
       subtotal: 5000,
       discountAmount: 0,
       taxAmount: 900,
+      gstJurisdiction: { placeOfSupplyCode: '36', sellerStateCode: '36' },
       totalAmount: 5900,
       totalPaid: 0,
       items: [
@@ -73,11 +74,38 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
 
     expect(xml).toContain('<TALLYREQUEST>Import Data</TALLYREQUEST>');
     expect(xml).toContain('<VOUCHER VCHTYPE="Sales" ACTION="Create">');
+    expect(xml).toContain('<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>');
+    expect(xml).toContain('<ISINVOICE>No</ISINVOICE>');
+    expect(xml).toContain('<ISPARTYLEDGER>Yes</ISPARTYLEDGER>');
     expect(xml).toContain('<PARTYLEDGERNAME>Balaji Electrical Works</PARTYLEDGERNAME>');
     expect(xml).toContain('<VOUCHERNUMBER>SLE-26-001</VOUCHERNUMBER>');
     expect(xml).toContain('<LEDGERNAME>Sales Account</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
+    const ledgerAmounts = [...xml.matchAll(/<ISDEEMEDPOSITIVE>(Yes|No)<\/ISDEEMEDPOSITIVE>\s*(?:<ISPARTYLEDGER>Yes<\/ISPARTYLEDGER>\s*<ISLASTDEEMEDPOSITIVE>Yes<\/ISLASTDEEMEDPOSITIVE>\s*)?<AMOUNT>([^<]+)<\/AMOUNT>/g)]
+      .map(([, side, amount]) => [side, amount]);
+    expect(ledgerAmounts).toEqual([
+      ['Yes', '-5900.00'], ['No', '5000.00'], ['No', '450.00'], ['No', '450.00'],
+    ]);
+
+  });
+
+  it('rejects a one-paise unbalanced Tally voucher', () => {
+    expect(() => accountingExportService.exportSalesToTallyXml(
+      testOrg, [{ ...invoices[0], totalAmount: 5900.01 }], customers
+    )).toThrow('totals do not reconcile');
+  });
+
+  it('uses the confirmed jurisdiction even when the buyer GSTIN is in the seller state', () => {
+    const interstate = { ...invoices[0], gstJurisdiction: { placeOfSupplyCode: '37', sellerStateCode: '36' } };
+    const xml = accountingExportService.exportSalesToTallyXml(testOrg, [interstate], customers);
+    expect(xml).toContain('<LEDGERNAME>Output IGST</LEDGERNAME>');
+  });
+
+  it('requires confirmation instead of assuming a tax ledger for a historical invoice', () => {
+    expect(() => accountingExportService.exportSalesToTallyXml(
+      testOrg, [{ ...invoices[0], gstJurisdiction: undefined }], customers
+    )).toThrow('needs a confirmed place of supply');
   });
 
   it('generates compliant BUSY Accounting CSV with line item breakdowns', () => {

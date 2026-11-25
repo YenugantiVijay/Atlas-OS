@@ -4,6 +4,7 @@
  * Generates review-required Tally-oriented XML and BUSY-oriented CSV drafts.
  */
 
+import { fromPaise, toPaise } from '@/lib/money';
 import { Organization, Customer, Invoice } from '@/types';
 
 function escapeXml(value: string): string {
@@ -34,7 +35,6 @@ export const accountingExportService = {
     if (!org.gstin || !/^\d{2}[A-Z0-9]{13}$/.test(org.gstin)) {
       throw new Error('A valid seller GSTIN is required to determine the Tally tax ledgers.');
     }
-    const sellerStateCode = org.gstin.substring(0, 2);
 
     let voucherXml = '';
 
@@ -49,7 +49,12 @@ export const accountingExportService = {
         throw new Error(`Invoice ${inv.invoiceNumber} is not associated with the selected organization.`);
       }
 
-      let isInterstate = false;
+      if (inv.taxAmount > 0 && !inv.gstJurisdiction) {
+        throw new Error(`Invoice ${inv.invoiceNumber} needs a confirmed place of supply before Tally export.`);
+      }
+      const isInterstate = inv.gstJurisdiction
+        ? inv.gstJurisdiction.sellerStateCode !== inv.gstJurisdiction.placeOfSupplyCode
+        : false;
       let partyLedgerName = 'Consumer / Unregistered Dealer';
 
       if (customer.gstin && customer.gstin.trim()) {
@@ -57,26 +62,24 @@ export const accountingExportService = {
         if (!/^\d{2}[A-Z0-9]{13}$/.test(trimmedGstin)) {
           throw new Error(`Invoice ${inv.invoiceNumber} has an invalid buyer GSTIN.`);
         }
-        const buyerStateCode = trimmedGstin.substring(0, 2);
-        isInterstate = sellerStateCode !== buyerStateCode;
         partyLedgerName = customer.name;
       }
 
       if (![inv.totalAmount, inv.subtotal, inv.discountAmount, inv.taxAmount].every(Number.isFinite)) {
         throw new Error(`Invoice ${inv.invoiceNumber} contains a non-finite total.`);
       }
-      const netSubtotal = Number((inv.subtotal - inv.discountAmount).toFixed(2));
-      const expectedTotal = Number((netSubtotal + inv.taxAmount).toFixed(2));
-      if (Math.abs(expectedTotal - inv.totalAmount) > 0.01) {
+      const netSubtotalPaise = toPaise(inv.subtotal) - toPaise(inv.discountAmount);
+      const taxPaise = toPaise(inv.taxAmount);
+      const totalPaise = toPaise(inv.totalAmount);
+      if (netSubtotalPaise < 0 || taxPaise < 0 || totalPaise !== netSubtotalPaise + taxPaise) {
         throw new Error(`Invoice ${inv.invoiceNumber} totals do not reconcile; export was stopped.`);
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(inv.invoiceDate) || Number.isNaN(Date.parse(inv.invoiceDate))) {
         throw new Error(`Invoice ${inv.invoiceNumber} has an invalid invoice date.`);
       }
       const dateFormatted = inv.invoiceDate.replace(/-/g, ''); // YYYYMMDD for Tally
-      const totalAmount = Number(inv.totalAmount || 0).toFixed(2);
-      const taxAmount = Number(inv.taxAmount || 0);
-      const subtotal = netSubtotal.toFixed(2);
+      const partyDebit = fromPaise(-totalPaise).toFixed(2);
+      const salesCredit = fromPaise(netSubtotalPaise).toFixed(2);
 
       let taxLedgersXml = '';
       if (isInterstate) {
@@ -84,23 +87,23 @@ export const accountingExportService = {
         <LEDGERENTRIES.LIST>
           <LEDGERNAME>Output IGST</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-          <AMOUNT>-${taxAmount.toFixed(2)}</AMOUNT>
+          <AMOUNT>${fromPaise(taxPaise).toFixed(2)}</AMOUNT>
         </LEDGERENTRIES.LIST>`;
       } else {
-        const cgstCents = Math.floor(Math.round(taxAmount * 100) / 2);
-        const sgstCents = Math.round(taxAmount * 100) - cgstCents;
+        const cgstCents = Math.floor(taxPaise / 2);
+        const sgstCents = taxPaise - cgstCents;
         const cgstAmount = (cgstCents / 100).toFixed(2);
         const sgstAmount = (sgstCents / 100).toFixed(2);
         taxLedgersXml += `
         <LEDGERENTRIES.LIST>
           <LEDGERNAME>Output CGST</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-          <AMOUNT>-${cgstAmount}</AMOUNT>
+          <AMOUNT>${cgstAmount}</AMOUNT>
         </LEDGERENTRIES.LIST>
         <LEDGERENTRIES.LIST>
           <LEDGERNAME>Output SGST</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-          <AMOUNT>-${sgstAmount}</AMOUNT>
+          <AMOUNT>${sgstAmount}</AMOUNT>
         </LEDGERENTRIES.LIST>`;
       }
 
@@ -109,6 +112,8 @@ export const accountingExportService = {
         <VOUCHER VCHTYPE="Sales" ACTION="Create">
           <DATE>${dateFormatted}</DATE>
           <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+          <PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>
+          <ISINVOICE>No</ISINVOICE>
           <VOUCHERNUMBER>${escapeXml(inv.invoiceNumber)}</VOUCHERNUMBER>
           <PARTYLEDGERNAME>${escapeXml(partyLedgerName)}</PARTYLEDGERNAME>
           <NARRATION>Atlas OS Tax Invoice #${escapeXml(inv.invoiceNumber)}</NARRATION>
@@ -116,12 +121,14 @@ export const accountingExportService = {
           <LEDGERENTRIES.LIST>
             <LEDGERNAME>${escapeXml(partyLedgerName)}</LEDGERNAME>
             <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-            <AMOUNT>${totalAmount}</AMOUNT>
+            <ISPARTYLEDGER>Yes</ISPARTYLEDGER>
+            <ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE>
+            <AMOUNT>${partyDebit}</AMOUNT>
           </LEDGERENTRIES.LIST>
           <LEDGERENTRIES.LIST>
             <LEDGERNAME>Sales Account</LEDGERNAME>
             <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-            <AMOUNT>-${subtotal}</AMOUNT>
+            <AMOUNT>${salesCredit}</AMOUNT>
           </LEDGERENTRIES.LIST>${taxLedgersXml}
         </VOUCHER>
       </TALLYMESSAGE>`;

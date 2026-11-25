@@ -193,7 +193,8 @@ export const indiaComplianceService = {
   validateEInvoiceReadiness(
     org: Organization,
     customer: Customer | undefined,
-    invoice: Invoice
+    invoice: Invoice,
+    placeOfSupplyCode?: string
   ): EInvoiceValidationResult {
     const missingFields: string[] = [];
 
@@ -234,7 +235,14 @@ export const indiaComplianceService = {
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
     const buyerStateCode = (customer.gstin || '36').substring(0, 2);
-    const isInterstate = sellerStateCode !== buyerStateCode;
+    placeOfSupplyCode = invoice.gstJurisdiction?.placeOfSupplyCode ?? placeOfSupplyCode;
+    if (!placeOfSupplyCode || !Object.prototype.hasOwnProperty.call(INDIAN_GST_STATES, placeOfSupplyCode)) {
+      missingFields.push('Choose the place of supply recorded for this invoice.');
+    }
+    if (invoice.gstJurisdiction && invoice.gstJurisdiction.sellerStateCode !== sellerStateCode) {
+      missingFields.push('Seller GSTIN does not match the recorded jurisdiction for this invoice.');
+    }
+    const isInterstate = sellerStateCode !== placeOfSupplyCode;
 
     let totalAssVal = 0;
     let totalCgst = 0;
@@ -264,9 +272,21 @@ export const indiaComplianceService = {
 
       if (missingFields.length !== priorIssues) return;
       const line = calculateLineItem(qty, unitPrice, discount, taxRate);
-      totalLineDiscountPaise += toPaise(line.discountAmount);
-      const assPaise = toPaise(line.taxableAmount);
-      const lineTaxPaise = toPaise(line.taxAmount);
+      const allocatedShare = item.documentDiscountShare ?? 0;
+      const allocatedPaise = toPaise(allocatedShare);
+      if (!Number.isFinite(allocatedShare) || allocatedPaise < 0 || allocatedPaise > toPaise(line.taxableAmount)) {
+        missingFields.push(`Item ${itemNo}: the recorded invoice discount allocation is invalid.`);
+        return;
+      }
+      const lineDiscountPaise = toPaise(line.discountAmount) + allocatedPaise;
+      const assPaise = toPaise(line.grossAmount) - lineDiscountPaise;
+      const lineTaxPaise = toPaise(calculateLineItem(1, fromPaise(assPaise), 0, taxRate).taxAmount);
+      if (toPaise(item.lineSubtotal) !== assPaise || toPaise(item.lineTax) !== lineTaxPaise ||
+          toPaise(item.lineTotal) !== assPaise + lineTaxPaise) {
+        missingFields.push(`Item ${itemNo}: the GST draft does not reconcile with the recorded invoice line.`);
+        return;
+      }
+      totalLineDiscountPaise += lineDiscountPaise;
 
       let cgstAmt = 0;
       let sgstAmt = 0;
@@ -298,8 +318,8 @@ export const indiaComplianceService = {
         Unit: item.uom.substring(0, 3).toUpperCase(),
         UnitPrice: unitPrice,
         TotAmt: line.grossAmount,
-        Discount: line.discountAmount,
-        AssAmt: line.taxableAmount,
+        Discount: fromPaise(lineDiscountPaise),
+        AssAmt: fromPaise(assPaise),
         GstRt: taxRate,
         CgstAmt: cgstAmt,
         SgstAmt: sgstAmt,
@@ -325,7 +345,16 @@ export const indiaComplianceService = {
     const unallocatedDocDiscount = fromPaise(unallocatedDocDiscountPaise);
 
     const totalTaxPaise = toPaise(totalCgst) + toPaise(totalSgst) + toPaise(totalIgst);
-    const totInvValPaise = Math.max(0, toPaise(totalAssVal) + totalTaxPaise - unallocatedDocDiscountPaise);
+    const totInvValPaise = toPaise(totalAssVal) + totalTaxPaise - unallocatedDocDiscountPaise;
+    if (totalDiscountPaise < totalLineDiscountPaise || totInvValPaise < 0 ||
+        totalTaxPaise !== toPaise(invoice.taxAmount) || totInvValPaise !== toPaise(invoice.totalAmount)) {
+      return {
+        eligible: null,
+        fieldsComplete: false,
+        missingFields: ['The draft does not reconcile with the recorded invoice tax, discount, or total.'],
+        reason: 'Review the posted invoice before creating a GST draft.',
+      };
+    }
     const totInvVal = fromPaise(totInvValPaise);
 
     const payload: NicEInvoicePayload = {
@@ -353,7 +382,7 @@ export const indiaComplianceService = {
       BuyerDtls: {
         Gstin: customer.gstin,
         LglNm: customer.name,
-        Pos: buyerStateCode,
+        Pos: placeOfSupplyCode!,
         Addr1: customer.billingAddress || customer.deliveryAddress || '',
         Loc: buyerLoc || '',
         Pin: buyerPin || 0,

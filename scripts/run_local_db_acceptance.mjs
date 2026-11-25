@@ -2913,6 +2913,61 @@ async function runAcceptance() {
       );
     });
 
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      await testClient.query('BEGIN');
+      try {
+        const { rows } = await testClient.query(
+          `SELECT public.create_invoice_atomic(
+            p_org_id := $1::uuid, p_customer_id := $2::uuid,
+            p_items := jsonb_build_array(jsonb_build_object(
+              'product_id', $3::uuid, 'quantity', 1, 'unit_price', 100,
+              'tax_rate', $4::numeric
+            ))
+          ) AS invoice`,
+          [orgAId, custAId, prodA1Id, 40]
+        );
+        const invoice = rows[0].invoice;
+        recordTest('GST-RATE-40', 'Issued invoice preserves 40% GST and reconciles to 140.00',
+          Number(invoice.items[0].tax_rate) === 40 &&
+          Number(invoice.tax_amount) === 40 && Number(invoice.total_amount) === 140);
+      } catch (error) {
+        recordTest('GST-RATE-40', 'Issued invoice accepts and reconciles 40% GST', false, null, error);
+      } finally {
+        await testClient.query('ROLLBACK');
+      }
+    });
+
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      await testClient.query('BEGIN');
+      try {
+        const created = await testClient.query(
+          `SELECT public.create_invoice_atomic($1::uuid, $2::uuid, jsonb_build_array(
+            jsonb_build_object('product_id', $3::uuid, 'quantity', 1, 'unit_price', 100, 'tax_rate', 18)
+          )) AS invoice`,
+          [orgAId, custAId, prodA1Id]
+        );
+        const invoiceId = created.rows[0].invoice.id;
+        const confirm = () => testClient.query(
+          'SELECT public.confirm_invoice_gst_jurisdiction($1, $2, $3) AS jurisdiction',
+          [orgAId, invoiceId, '36']
+        );
+        const first = (await confirm()).rows[0].jurisdiction;
+        const replay = (await confirm()).rows[0].jurisdiction;
+        const saved = (await testClient.query(
+          'SELECT gst_place_of_supply_code, gst_seller_state_code FROM public.invoices WHERE id = $1',
+          [invoiceId]
+        )).rows[0];
+        recordTest('GST-JUR-01', 'Confirmed jurisdiction is stored and replay returns the same values',
+          first.place_of_supply_code === '36' && first.seller_state_code === '29' &&
+          replay.place_of_supply_code === '36' && replay.seller_state_code === '29' &&
+          saved.gst_place_of_supply_code === '36' && saved.gst_seller_state_code === '29');
+      } catch (error) {
+        recordTest('GST-JUR-01', 'Confirm and reload invoice GST jurisdiction', false, null, error);
+      } finally {
+        await testClient.query('ROLLBACK');
+      }
+    });
+
     // TEST 29: Explicit 0% tax remains valid (exempt supplies)
     await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       let zeroTaxPassed = false;

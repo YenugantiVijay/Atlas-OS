@@ -1,3 +1,4 @@
+import { getStateFromGstin, INDIAN_GST_STATES } from '@/lib/gst';
 import React, { useState, useEffect } from 'react';
 import {
   FileCode,
@@ -24,13 +25,15 @@ import { invoicesService } from '@/services/invoices.service';
 import { customersService } from '@/services/customers.service';
 
 export const IntegrationsPage: React.FC = () => {
-  const { currentOrg, isMockAuth } = useOrg();
+  const { currentOrg, currentRole, isMockAuth } = useOrg();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'gst' | 'upi' | 'tally' | 'whatsapp'>('gst');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
+  const [placeOfSupplyCode, setPlaceOfSupplyCode] = useState('');
+  const [savingJurisdiction, setSavingJurisdiction] = useState(false);
   const [upiVpa, setUpiVpa] = useState<string>('');
   const [vehicleNo, setVehicleNo] = useState('');
   const [transporterId, setTransporterId] = useState('');
@@ -53,6 +56,7 @@ export const IntegrationsPage: React.FC = () => {
         }
         setCustomers(Array.from(customersById.values()));
         setSelectedInvoiceId(invs[0]?.id ?? '');
+        setPlaceOfSupplyCode('');
       } catch (error) {
         if (cancelled) return;
         showToast('error', 'Integration data unavailable', error instanceof Error ? error.message : 'Unable to load invoices and customers.');
@@ -67,9 +71,28 @@ export const IntegrationsPage: React.FC = () => {
   const selectedInvoice = invoices.find((i) => i.id === selectedInvoiceId) || invoices[0];
   const selectedCustomer = customers.find((c) => c.id === selectedInvoice?.customerId);
 
+  const canConfirmJurisdiction = isMockAuth || ['owner', 'admin', 'accounts'].some(role => role === currentRole);
+  const confirmJurisdiction = async () => {
+    if (!canConfirmJurisdiction || !selectedInvoice || selectedInvoice.organizationId !== currentOrg.id || !placeOfSupplyCode || savingJurisdiction) return;
+    setSavingJurisdiction(true);
+    try {
+      const seller = getStateFromGstin(currentOrg.gstin);
+      if (isMockAuth && !seller) throw new Error('A valid seller GSTIN is required.');
+      const gstJurisdiction = isMockAuth && seller
+        ? { sellerStateCode: seller.code, placeOfSupplyCode }
+        : await invoicesService.confirmGstJurisdiction(currentOrg.id, selectedInvoice.id, placeOfSupplyCode);
+      setInvoices(previous => previous.map(invoice => invoice.id === selectedInvoice.id ? { ...invoice, gstJurisdiction } : invoice));
+      showToast('success', 'GST jurisdiction confirmed', 'Tally export will use the confirmed place of supply.');
+    } catch (error) {
+      showToast('error', 'GST jurisdiction could not be confirmed', error instanceof Error ? error.message : 'Try again.');
+    } finally {
+      setSavingJurisdiction(false);
+    }
+  };
+
   // E-Invoice & EWB calculation
   const eInvoiceResult = selectedInvoice
-    ? indiaComplianceService.validateEInvoiceReadiness(currentOrg, selectedCustomer, selectedInvoice)
+    ? indiaComplianceService.validateEInvoiceReadiness(currentOrg, selectedCustomer, selectedInvoice, placeOfSupplyCode)
     : null;
 
   const eWayBillResult = selectedInvoice
@@ -231,7 +254,7 @@ export const IntegrationsPage: React.FC = () => {
                   <span className="text-xs text-slate-500">Test with Invoice:</span>
                   <select
                     value={selectedInvoiceId}
-                    onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                    onChange={(e) => { setSelectedInvoiceId(e.target.value); setPlaceOfSupplyCode(''); }}
                     className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1"
                   >
                     {invoices.map((inv) => (
@@ -256,6 +279,31 @@ export const IntegrationsPage: React.FC = () => {
                   </div>
 
                   <p className="text-xs text-slate-600">{eInvoiceResult?.reason || 'Fields are complete; the payload has not been validated by NIC or filed.'}</p>
+
+                  <label className="block space-y-1 text-xs text-slate-600">
+                    <span>Place of supply on this invoice</span>
+                    <select
+                      value={selectedInvoice.gstJurisdiction?.placeOfSupplyCode ?? placeOfSupplyCode}
+                      disabled={Boolean(selectedInvoice.gstJurisdiction) || savingJurisdiction}
+                      onChange={(event) => setPlaceOfSupplyCode(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                    >
+                      <option value="">Select the invoice’s state or territory</option>
+                      {Object.entries(INDIAN_GST_STATES).map(([code, name]) => (
+                        <option key={code} value={code}>{code} · {name}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {canConfirmJurisdiction && !selectedInvoice.gstJurisdiction && ['ISSUED', 'PARTIALLY_PAID', 'PAID'].includes(selectedInvoice.status) && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-600">{isMockAuth ? 'This selection is used in Tally export for the current demo session.' : 'Confirm against the issued invoice. This selection is permanent and is used in Tally export.'}</p>
+                      <Button variant="outline" size="sm" disabled={!placeOfSupplyCode || savingJurisdiction}
+                        onClick={() => void confirmJurisdiction()}>
+                        {savingJurisdiction ? 'Confirming…' : 'Confirm place of supply'}
+                      </Button>
+                    </div>
+                  )}
 
                   {eInvoiceResult?.missingFields && eInvoiceResult.missingFields.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs space-y-1 text-amber-900">
