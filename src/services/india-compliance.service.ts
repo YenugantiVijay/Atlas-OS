@@ -235,8 +235,12 @@ export const indiaComplianceService = {
 
     const sellerStateCode = (org.gstin || '36').substring(0, 2);
     const buyerStateCode = (customer.gstin || '36').substring(0, 2);
+    placeOfSupplyCode = invoice.gstJurisdiction?.placeOfSupplyCode ?? placeOfSupplyCode;
     if (!placeOfSupplyCode || !Object.prototype.hasOwnProperty.call(INDIAN_GST_STATES, placeOfSupplyCode)) {
       missingFields.push('Choose the place of supply recorded for this invoice.');
+    }
+    if (invoice.gstJurisdiction && invoice.gstJurisdiction.sellerStateCode !== sellerStateCode) {
+      missingFields.push('Seller GSTIN does not match the recorded jurisdiction for this invoice.');
     }
     const isInterstate = sellerStateCode !== placeOfSupplyCode;
 

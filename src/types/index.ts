@@ -247,6 +247,7 @@ export interface Invoice {
   totalAmount: number;
   totalPaid: number;
   totalsVersion?: number;
+  gstJurisdiction?: { placeOfSupplyCode: string; sellerStateCode: string };
   notes?: string;
   createdBy?: string;
   createdAt: string;

@@ -43,6 +43,7 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
       subtotal: 5000,
       discountAmount: 0,
       taxAmount: 900,
+      gstJurisdiction: { placeOfSupplyCode: '36', sellerStateCode: '36' },
       totalAmount: 5900,
       totalPaid: 0,
       items: [
@@ -78,6 +79,18 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
     expect(xml).toContain('<LEDGERNAME>Sales Account</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
+  });
+
+  it('uses the confirmed jurisdiction even when the buyer GSTIN is in the seller state', () => {
+    const interstate = { ...invoices[0], gstJurisdiction: { placeOfSupplyCode: '37', sellerStateCode: '36' } };
+    const xml = accountingExportService.exportSalesToTallyXml(testOrg, [interstate], customers);
+    expect(xml).toContain('<LEDGERNAME>Output IGST</LEDGERNAME>');
+  });
+
+  it('requires confirmation instead of assuming a tax ledger for a historical invoice', () => {
+    expect(() => accountingExportService.exportSalesToTallyXml(
+      testOrg, [{ ...invoices[0], gstJurisdiction: undefined }], customers
+    )).toThrow('needs a confirmed place of supply');
   });
 
   it('generates compliant BUSY Accounting CSV with line item breakdowns', () => {

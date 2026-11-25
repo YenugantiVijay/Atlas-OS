@@ -101,6 +101,9 @@ export function mapDbInvoice(row: any, items: InvoiceItem[] = []): Invoice {
     taxAmount: Number(row.tax_amount),
     totalAmount: Number(row.total_amount),
     totalPaid: Number(row.total_paid) || 0,
+    gstJurisdiction: row.gst_place_of_supply_code && row.gst_seller_state_code
+      ? { placeOfSupplyCode: row.gst_place_of_supply_code, sellerStateCode: row.gst_seller_state_code }
+      : undefined,
     totalsVersion: row.totals_version ? Number(row.totals_version) : 1,
     notes: row.notes || undefined,
     createdBy: row.created_by || undefined,
@@ -133,6 +136,19 @@ export interface CreateInvoiceInput {
 }
 
 export const invoicesService = {
+  async confirmGstJurisdiction(orgId: string, invoiceId: string, placeOfSupplyCode: string): Promise<NonNullable<Invoice['gstJurisdiction']>> {
+    if (!supabase) throw new Error('Cloud backend is not configured.');
+    const { data, error } = await supabase.rpc('confirm_invoice_gst_jurisdiction', {
+      p_org_id: orgId,
+      p_invoice_id: invoiceId,
+      p_place_of_supply_code: placeOfSupplyCode,
+    });
+    if (error || !data?.place_of_supply_code || !data?.seller_state_code) {
+      throw new Error(error?.message ?? 'No GST jurisdiction confirmation returned.');
+    }
+    return { placeOfSupplyCode: data.place_of_supply_code, sellerStateCode: data.seller_state_code };
+  },
+
   async getInvoicesPaginated(
     orgId: string,
     params: PaginationParams = {},
