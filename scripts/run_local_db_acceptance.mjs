@@ -2913,6 +2913,30 @@ async function runAcceptance() {
       );
     });
 
+    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+      await testClient.query('BEGIN');
+      try {
+        const { rows } = await testClient.query(
+          `SELECT public.create_invoice_atomic(
+            p_org_id := $1::uuid, p_customer_id := $2::uuid,
+            p_items := jsonb_build_array(jsonb_build_object(
+              'product_id', $3::uuid, 'quantity', 1, 'unit_price', 100,
+              'tax_rate', $4::numeric
+            ))
+          ) AS invoice`,
+          [orgAId, custAId, prodA1Id, 40]
+        );
+        const invoice = rows[0].invoice;
+        recordTest('GST-RATE-40', 'Issued invoice preserves 40% GST and reconciles to 140.00',
+          Number(invoice.items[0].tax_rate) === 40 &&
+          Number(invoice.tax_amount) === 40 && Number(invoice.total_amount) === 140);
+      } catch (error) {
+        recordTest('GST-RATE-40', 'Issued invoice accepts and reconciles 40% GST', false, null, error);
+      } finally {
+        await testClient.query('ROLLBACK');
+      }
+    });
+
     // TEST 29: Explicit 0% tax remains valid (exempt supplies)
     await testClient.query(
       `INSERT INTO public.stock_movements (organization_id, product_id, quantity_change, movement_type, notes)
