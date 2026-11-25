@@ -156,3 +156,15 @@ describe('Area 2: Mobile & Offline Action Queue & Sync Recovery', () => {
     });
   });
 });
+
+it('replays an interrupted sync using the original idempotency key', async () => {
+  const orgId = 'org-interrupted';
+  const action = offlineQueue.enqueue(orgId, 'CREATE_INVOICE', {}, { idempotencyKey: 'original-key' });
+  localStorage.setItem('atlas_offline_action_queue_v1', JSON.stringify([{ ...action, status: 'syncing' }]));
+  const synced: string[] = [];
+  const result = await offlineQueue.processQueue(orgId, async (item) => {
+    synced.push(item.idempotencyKey);
+  });
+  expect(synced).toEqual(['original-key']);
+  expect(result).toMatchObject({ succeeded: 1, pendingRemaining: 0 });
+});
