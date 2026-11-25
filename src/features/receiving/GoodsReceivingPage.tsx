@@ -234,10 +234,7 @@ export const GoodsReceivingPage: React.FC = () => {
 
   const visiblePriorRates = priorRates.key === rateLookupKey ? priorRates.entries : {};
   const priorRatesUnavailable = priorRates.key === rateLookupKey && priorRates.error;
-  // Receiving writes inventory and is intentionally cloud-only. Demo mode can
-  // still show the worksheet, but must never create a local stock ledger that
-  // operators could mistake for authoritative inventory.
-  const editable = !isMockAuth && !busy && canReceive.allowed && savedState !== 'POSTED';
+  const editable = !busy && canReceive.allowed && savedState !== 'POSTED';
   const canQuickCreate = editable && canCreateProduct.allowed && rows.length < 50;
   const markDirty = () => {
     setDirty(true); setConfirmPosting(false); setError(''); setSuccess('');
@@ -455,8 +452,8 @@ export const GoodsReceivingPage: React.FC = () => {
           </Link>
         </div>
       </div>
-      {isMockAuth && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Cloud-only first release: sign in to a cloud workspace to record goods receipts. Demo mode is read-only.
+      {isMockAuth && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+        Demo Mode: Working with local storage. Receipts and inventory movements are saved in this browser.
       </p>}
       {!canReceive.allowed && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{canReceive.message || 'You cannot receive stock.'}</p>}
       {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
