@@ -7,7 +7,7 @@ export const PRICING_TIERS: PricingTier[] = [
     description: 'For shops that bill customers at a counter and reconcile collections at shift close.',
     priceDisplay: '₹999',
     billingPeriod: '/ month',
-    features: ['Counter billing with stock and selling price lookup', 'Cash and UPI collections', 'Drawer closing and daily reconciliation'],
+    features: ['Counter billing with stock and selling price lookup', 'Cash and UPI collections', 'Drawer closing and daily reconciliation', 'Branded customer receipt and daily totals'],
   },
   {
     id: 'professional',
@@ -16,7 +16,7 @@ export const PRICING_TIERS: PricingTier[] = [
     priceDisplay: '₹2,499',
     billingPeriod: '/ month',
     isFeatured: true,
-    features: ['Counter billing and collections', 'Notebook-style bulk goods receiving', 'Purchase orders and supplier price history', 'Quotations, outstanding invoices and payments'],
+    features: ['Counter billing and collections', 'Notebook-style bulk goods receiving', 'Purchase orders and supplier price history', 'Quotations, outstanding invoices and payments', 'Customer and counter receipts on one sheet'],
   },
   {
     id: 'enterprise-network',
