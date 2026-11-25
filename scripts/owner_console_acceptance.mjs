@@ -27,7 +27,7 @@ export async function runOwnerConsoleAcceptance({ client, withRoleContext, recor
   await client.query('INSERT INTO atlas_private.owner_console_accounts(slot,user_id) VALUES(1,$1)', [owner]);
 
   await check('OWNER-01', 'Owner Console requires a private seat and AAL2 and has exactly three assignable slots', async () => {
-    await assert.rejects(asUser(owner, () => request('overview')), { code: '42501' });
+    await assert.rejects(asUser(owner, () => request('overview'), { aal: 'aal1' }), { code: '42501' });
     await assert.rejects(asUser(staff, async () => {
       await client.query("SELECT set_config('request.jwt.claims','{\"aal\":\"aal2\"}',false)");
       try { return await request('overview'); }
@@ -43,7 +43,7 @@ export async function runOwnerConsoleAcceptance({ client, withRoleContext, recor
   await check('OWNER-05', 'A separate emergency owner seat works with MFA and loses access when revoked', async () => {
     await client.query('INSERT INTO atlas_private.owner_console_accounts(slot,user_id) VALUES(2,$1)', [spare]);
     try {
-      await assert.rejects(asUser(spare, () => request('overview')), { code: '42501' });
+      await assert.rejects(asUser(spare, () => request('overview'), { aal: 'aal1' }), { code: '42501' });
       assert.equal((await withMfa(spare, () => request('overview'))).months.length, 6);
     } finally {
       await client.query('DELETE FROM atlas_private.owner_console_accounts WHERE slot=2 AND user_id=$1', [spare]);

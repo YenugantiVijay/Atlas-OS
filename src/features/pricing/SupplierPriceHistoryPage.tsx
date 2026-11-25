@@ -24,7 +24,10 @@ export const SupplierPriceHistoryPage: React.FC = () => {
   const orgId = currentOrg?.id || '';
   const readAllowed = check('supplier-prices:read').allowed;
   const recordPermission = check('supplier-prices:record');
-  const canRecord = recordPermission.allowed;
+  // Supplier rate history is an audit trail used by receiving and quotation
+  // review. Keep demo mode read-only so local data cannot be mistaken for a
+  // cloud source-of-truth price record.
+  const canRecord = recordPermission.allowed && !isMockAuth;
   const requestIdentity = `${orgId}:${currentRole || 'none'}:${isMockAuth}`;
   const activeIdentity = useRef(requestIdentity);
   activeIdentity.current = requestIdentity;
@@ -180,7 +183,7 @@ export const SupplierPriceHistoryPage: React.FC = () => {
       </div>
       {isMockAuth && (
         <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-          Demo Mode: Supplier quotes and price history are saved in this browser.
+          Demo Mode is cloud-only for supplier price recording; sign in to a cloud workspace to add quotes. Existing demo history is read-only.
         </p>
       )}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
