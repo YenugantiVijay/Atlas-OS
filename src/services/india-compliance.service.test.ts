@@ -235,6 +235,7 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
       // Crucial: TotInvVal must strictly match invoice.totalAmount (₹10,620), NOT under-report as ₹9,620
       expect(val.TotInvVal).toBe(discountedInvoice.totalAmount);
       expect(val.TotInvVal).toBe(10620);
+      expect(res.payload?.ItemList[0]).toMatchObject({ Discount: 1000, AssAmt: 9000 });
     });
 
     it('multi-item invoice with varying discounts reconciles exactly with invoice.totalAmount', () => {

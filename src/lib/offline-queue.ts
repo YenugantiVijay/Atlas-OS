@@ -29,6 +29,7 @@ export interface QueuedOfflineAction<T = any> {
   status: QueueActionStatus;
   createdAt: string;
   syncedAt?: string;
+  syncStartedAt?: number;
   attemptCount: number;
   lastError?: string | null;
   conflictStrategy: ConflictStrategy;
@@ -250,78 +251,98 @@ export const offlineQueue = {
     return count;
   },
 
-  /**
-   * Processes all pending items sequentially with a provided execution handler.
-   */
-  /**
-   * Processes all pending items sequentially with a provided execution handler.
-   * Concurrency-safe: each status transition reloads the latest persistent state
-   * from storage, ensuring actions enqueued in other tabs or async intervals are never lost.
-   */
+  /** Process a workspace queue exclusively while recovering interrupted requests. */
   async processQueue(
     organizationId: string,
     handler: (action: QueuedOfflineAction) => Promise<void>
   ): Promise<SyncProcessResult> {
-    const initialQueue = loadQueue();
-    const pendingIds = initialQueue
-      .filter((i) => i.organizationId === organizationId && i.status === 'pending')
-      .map((i) => i.id);
-
-    let succeeded = 0;
-    let failed = 0;
-
-    for (const actionId of pendingIds) {
-      // 1. Reload freshest state and transition target action to 'syncing'
-      const syncingQueue = loadQueue();
-      const currentAction = syncingQueue.find(
-        (i) => i.organizationId === organizationId && i.id === actionId && i.status === 'pending'
-      );
-      if (!currentAction) continue;
-
-      currentAction.status = 'syncing';
-      currentAction.attemptCount += 1;
-      saveQueue(syncingQueue);
-
-      try {
-        await handler({ ...currentAction });
-
-        // 2. Reload freshest state and transition target action to 'synced'
-        const syncedQueue = loadQueue();
-        const target = syncedQueue.find(
-          (i) => i.organizationId === organizationId && i.id === actionId
-        );
-        if (target) {
-          target.status = 'synced';
-          target.syncedAt = new Date().toISOString();
-          target.lastError = null;
-          saveQueue(syncedQueue);
-        }
-        succeeded += 1;
-      } catch (err: any) {
-        // 3. Reload freshest state and transition target action to 'failed'
-        const failedQueue = loadQueue();
-        const target = failedQueue.find(
-          (i) => i.organizationId === organizationId && i.id === actionId
-        );
-        if (target) {
-          target.status = 'failed';
-          target.lastError = err?.message || 'Unknown synchronization error';
-          saveQueue(failedQueue);
-        }
-        failed += 1;
-      }
+    const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+    if (locks) {
+      return locks.request(OFFLINE_QUEUE_STORAGE_KEY, () => processActions(organizationId, handler, true));
     }
-
-    const finalQueue = loadQueue().filter((i) => i.organizationId === organizationId);
-    const pendingRemaining = finalQueue.filter(
-      (i) => i.status === 'pending' || i.status === 'syncing'
-    ).length;
-
-    return {
-      processed: pendingIds.length,
-      succeeded,
-      failed,
-      pendingRemaining,
-    };
+    if (syncInProgress) {
+      return { processed: 0, succeeded: 0, failed: 0, pendingRemaining: this.getSummary(organizationId).pending };
+    }
+    syncInProgress = true;
+    try {
+      return await processActions(organizationId, handler, false);
+    } finally {
+      syncInProgress = false;
+    }
   },
 };
+
+let syncInProgress = false;
+const INTERRUPTED_SYNC_TIMEOUT_MS = 5 * 60 * 1000;
+
+async function processActions(
+  organizationId: string,
+  handler: (action: QueuedOfflineAction) => Promise<void>,
+  holdsBrowserLock: boolean
+): Promise<SyncProcessResult> {
+  const canProcess = (item: QueuedOfflineAction) => item.status === 'pending' ||
+    (item.status === 'syncing' &&
+      (holdsBrowserLock || Date.now() - (item.syncStartedAt ?? 0) >= INTERRUPTED_SYNC_TIMEOUT_MS));
+  const initialQueue = loadQueue();
+  const pendingIds = initialQueue
+    .filter((i) => i.organizationId === organizationId && canProcess(i))
+    .map((i) => i.id);
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const actionId of pendingIds) {
+    // 1. Reload freshest state and transition target action to 'syncing'
+    const syncingQueue = loadQueue();
+    const currentAction = syncingQueue.find(
+      (i) => i.organizationId === organizationId && i.id === actionId && canProcess(i)
+    );
+    if (!currentAction) continue;
+
+    currentAction.status = 'syncing';
+    currentAction.syncStartedAt = Date.now();
+    currentAction.attemptCount += 1;
+    saveQueue(syncingQueue);
+
+    try {
+      await handler({ ...currentAction });
+
+      // 2. Reload freshest state and transition target action to 'synced'
+      const syncedQueue = loadQueue();
+      const target = syncedQueue.find(
+        (i) => i.organizationId === organizationId && i.id === actionId
+      );
+      if (target) {
+        target.status = 'synced';
+        target.syncedAt = new Date().toISOString();
+        target.lastError = null;
+        saveQueue(syncedQueue);
+      }
+      succeeded += 1;
+    } catch (err: any) {
+      // 3. Reload freshest state and transition target action to 'failed'
+      const failedQueue = loadQueue();
+      const target = failedQueue.find(
+        (i) => i.organizationId === organizationId && i.id === actionId
+      );
+      if (target) {
+        target.status = 'failed';
+        target.lastError = err?.message || 'Unknown synchronization error';
+        saveQueue(failedQueue);
+      }
+      failed += 1;
+    }
+  }
+
+  const finalQueue = loadQueue().filter((i) => i.organizationId === organizationId);
+  const pendingRemaining = finalQueue.filter(
+    (i) => i.status === 'pending' || i.status === 'syncing'
+  ).length;
+
+  return {
+    processed: pendingIds.length,
+    succeeded,
+    failed,
+    pendingRemaining,
+  };
+}

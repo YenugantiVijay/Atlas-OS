@@ -2914,7 +2914,7 @@ async function runAcceptance() {
     });
 
     // TEST 29: Explicit 0% tax remains valid (exempt supplies)
-    await withRoleContext(testClient, { role: 'authenticated', userId: userAId }, async () => {
+    await withRoleContext(testClient, { role: 'authenticated', userId: userBId }, async () => {
       let zeroTaxPassed = false;
       let zeroTaxErr = null;
       try {
@@ -3527,7 +3527,7 @@ async function runAcceptance() {
             p_items := jsonb_build_array(
               jsonb_build_object(
                 'productId', $3::uuid,
-                'quantity', 50,
+                'quantity', 100,
                 'unitPrice', 60.00,
                 'taxRate', 0.00,
                 'discountPercent', 0

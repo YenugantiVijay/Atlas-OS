@@ -8,7 +8,7 @@ test.describe('PR57 supplier price history — safe demo rendering',()=>{
 
   test('shows separate price history and quote entry without fake backend writes',async({page})=>{
     await expect(page.getByRole('heading',{name:'Supplier Price History'})).toBeVisible();
-    await expect(page.getByRole('status').filter({hasText:'cloud-only'})).toBeVisible();
+    await expect(page.getByRole('status').filter({hasText:'Supplier quotes and price history are saved in this browser.'})).toBeVisible();
     await expect(page.getByRole('region',{name:'Supplier price table'})).toBeVisible();
     await expect(page.getByRole('columnheader',{name:'Effective',exact:true})).toBeVisible();
     await expect(page.getByRole('columnheader',{name:'Unit rate',exact:true})).toBeVisible();
@@ -16,9 +16,9 @@ test.describe('PR57 supplier price history — safe demo rendering',()=>{
     await expect(page.getByText(/does not change stock, master purchase cost, sale price or valuation/)).toBeVisible();
   });
 
-  test('keeps private history actions disabled, and supports a scrolling mobile table',async({page})=>{
+  test('allows local supplier selection and supports a scrolling mobile table',async({page})=>{
     await page.setViewportSize({width:375,height:812});
-    await expect(page.getByLabel('Supplier',{exact:true})).toBeDisabled();
+    await expect(page.getByLabel('Supplier',{exact:true})).toBeEnabled();
     const table=page.getByRole('region',{name:'Supplier price table'});
     const widths=await table.evaluate((element)=>({
       outer:element.clientWidth,inner:element.scrollWidth,

@@ -746,3 +746,7 @@ describe('Financial and Money Calculation Engine', () => {
   });
 });
 
+
+it('matches decimal half-paise rounding for fractional quantities', () => {
+  expect(calculateLineItem(1.005, 1, 0, 0).grossAmount).toBe(1.01);
+});

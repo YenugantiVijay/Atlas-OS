@@ -142,6 +142,8 @@ export const Header: React.FC<HeaderProps> = ({
         showToast('success', 'Sync Complete', `Synchronized ${res.succeeded} queued action(s) to cloud.`);
       } else if (res.failed > 0) {
         showToast('warning', 'Sync Issues', `${res.failed} action(s) failed to sync. Review offline queue.`);
+      } else if (res.pendingRemaining > 0) {
+        showToast('info', 'Sync Pending', 'Some offline actions are still awaiting server confirmation.');
       } else {
         showToast('info', 'Up to Date', 'All offline actions are synchronized.');
       }

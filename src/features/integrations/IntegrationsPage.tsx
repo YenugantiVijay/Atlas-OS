@@ -43,11 +43,15 @@ export const IntegrationsPage: React.FC = () => {
       try {
         const [invs, custs] = await Promise.all([
           invoicesService.getInvoices(currentOrg.id, isMockAuth),
-          customersService.getCustomers(currentOrg.id, isMockAuth),
+          isMockAuth ? customersService.getCustomers(currentOrg.id, true) : Promise.resolve([]),
         ]);
         if (cancelled) return;
         setInvoices(invs);
-        setCustomers(custs);
+        const customersById = new Map(custs.map(customer => [customer.id, customer]));
+        for (const invoice of invs) {
+          if (invoice.customer) customersById.set(invoice.customer.id, invoice.customer);
+        }
+        setCustomers(Array.from(customersById.values()));
         setSelectedInvoiceId(invs[0]?.id ?? '');
       } catch (error) {
         if (cancelled) return;
