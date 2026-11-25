@@ -79,6 +79,18 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
     expect(xml).toContain('<LEDGERNAME>Sales Account</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
     expect(xml).toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
+    const ledgerAmounts = [...xml.matchAll(/<ISDEEMEDPOSITIVE>(Yes|No)<\/ISDEEMEDPOSITIVE>\s*<AMOUNT>([^<]+)<\/AMOUNT>/g)]
+      .map(([, side, amount]) => [side, amount]);
+    expect(ledgerAmounts).toEqual([
+      ['Yes', '-5900.00'], ['No', '5000.00'], ['No', '450.00'], ['No', '450.00'],
+    ]);
+
+  });
+
+  it('rejects a one-paise unbalanced Tally voucher', () => {
+    expect(() => accountingExportService.exportSalesToTallyXml(
+      testOrg, [{ ...invoices[0], totalAmount: 5900.01 }], customers
+    )).toThrow('totals do not reconcile');
   });
 
   it('uses the confirmed jurisdiction even when the buyer GSTIN is in the seller state', () => {
