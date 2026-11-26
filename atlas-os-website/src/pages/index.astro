@@ -239,12 +239,6 @@ const faqs = [
   .industry-photo { width: 100%; aspect-ratio: 1.65; height: auto; object-fit: cover; border-radius: 1.4rem; background: #e5efec; }
   .control-card { border: 1px solid #dae6e9; border-radius: 1rem; background: #f8fbfc; padding: 1.35rem; }
   .demo-banner { background: radial-gradient(ellipse at 94% 0%, #22645e, transparent 55%), #152a49; }
-  @media (min-width: 490px) {
-    #industries :global(.industry-links) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-  @media (min-width: 900px) {
-    #industries :global(.industry-links) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
   @media (max-width: 390px) {
     .hero-actions > :global(a) { width: 100%; }
   }
