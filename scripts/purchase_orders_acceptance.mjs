@@ -50,6 +50,26 @@ export async function runPurchaseOrdersAcceptance({
     draftEffects.counters === 0 && draftEffects.events === 0,
     JSON.stringify({ status: draft?.status, revision: draft?.revision, draftEffects }));
 
+  const { rows: [originalSubscription] } = await client.query(
+    'SELECT plan_tier FROM public.organization_subscriptions WHERE organization_id=$1', [orgAId],
+  );
+  try {
+    await client.query("UPDATE public.organization_subscriptions SET plan_tier='starter' WHERE organization_id=$1", [orgAId]);
+    const visible = await as(inventoryUserId, () => client.query('SELECT id FROM public.purchase_orders WHERE id=$1', [id]));
+    const createDenied = await codeOf(() => save(inventoryUserId, randomUUID()));
+    const editDenied = await codeOf(() => save(inventoryUserId, id, { revision: 1, notes: 'Counter edit' }));
+    const placeDenied = await codeOf(() => order(inventoryUserId, id, 1));
+    const counters = await client.query('SELECT 1 FROM atlas_private.purchase_order_counters WHERE organization_id=$1', [orgAId]);
+    recordTest('PURCHASE-EDITION', 'Counter can read a prior order but cannot create, edit or number an order',
+      visible.rowCount === 1 && createDenied === '42501' && editDenied === '42501' &&
+      placeDenied === '42501' && counters.rowCount === 0,
+      JSON.stringify({ createDenied, editDenied, placeDenied, visible: visible.rowCount, counters: counters.rowCount }));
+  } finally {
+    await client.query('UPDATE public.organization_subscriptions SET plan_tier=$2 WHERE organization_id=$1', [
+      orgAId, originalSubscription.plan_tier,
+    ]);
+  }
+
   const invalid = [];
   for (const changes of [
     { lines: { productId } }, { lines: [] }, { lines: [line, line] },
