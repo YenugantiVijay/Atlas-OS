@@ -16,8 +16,11 @@ export function OwnerAccess() {
   const [session, setSession] = useState<Session | null>(null);
   const [access, setAccess] = useState<Access>('loading');
 
+  const [retry, setRetry] = useState(0);
+
   useEffect(() => {
     if (!supabase) return;
+    const client = supabase;
     let active = true;
     let sequence = 0;
     let currentAccount: string | undefined;
@@ -31,24 +34,43 @@ export function OwnerAccess() {
       currentAccount = next?.user.id;
       setSession(next);
       if (!next) { setAccess('signed-out'); return; }
-      const [allowed, assurance] = await Promise.all([
-        supabase!.rpc('owner_console_gate'),
-        supabase!.auth.mfa.getAuthenticatorAssuranceLevel(),
-      ]);
-      if (!active || pending !== sequence) return;
-      if (allowed.error || assurance.error) setAccess('error');
-      else if (allowed.data !== true) setAccess('blocked');
-      else setAccess(assurance.data.currentLevel === 'aal2' ? 'ready' : 'mfa');
+      try {
+        const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (!active || pending !== sequence) return;
+        if (assurance.error) { setAccess('error'); return; }
+        if (assurance.data.currentLevel !== 'aal2') { setAccess('mfa'); return; }
+
+        const allowed = await client.rpc('owner_console_gate');
+        if (!active || pending !== sequence) return;
+        setAccess(allowed.error ? 'error' : allowed.data === true ? 'ready' : 'blocked');
+      } catch {
+        if (active && pending === sequence) setAccess('error');
+      }
     };
     // Supabase auth callbacks must return before issuing any auth requests.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
-      window.setTimeout(() => { void check(next); }, 0);
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, next) => {
+      // Invalidate checks for the previous session before the deferred work starts.
+      const pending = ++sequence;
+      window.setTimeout(() => {
+        if (pending === sequence) void check(next);
+      }, 0);
     });
-    const recheck = () => { void supabase!.auth.getSession().then(({ data }) => check(data.session)); };
+    const recheck = async () => {
+      const pending = ++sequence;
+      try {
+        const { data, error } = await client.auth.getSession();
+        if (!active || pending !== sequence) return;
+        if (error) { setAccess('error'); return; }
+        await check(data.session);
+      } catch {
+        if (active && pending === sequence) setAccess('error');
+      }
+    };
+    if (retry > 0) void recheck();
     window.addEventListener('focus', recheck);
     const timer = window.setInterval(recheck, 30_000);
     return () => { active = false; subscription.unsubscribe(); window.removeEventListener('focus', recheck); window.clearInterval(timer); };
-  }, [cache]);
+  }, [cache, retry]);
 
   if (!supabase) return <PrivateScreen title="Private Console"><p>Connect this ERP build to Supabase to continue.</p></PrivateScreen>;
   if (access === 'ready' && session) {
@@ -61,7 +83,11 @@ export function OwnerAccess() {
   </PrivateScreen>;
   return <PrivateScreen title="Private Console">
     {access === 'loading' ? <p role="status">Checking access…</p> : <>
-      <p role="alert">{access === 'blocked' ? 'This account is not authorized for the owner console.' : 'Access could not be verified. Reload to try again.'}</p>
+      <p role="alert">{access === 'blocked' ? 'This account is not authorized for the owner console.' : 'Access could not be verified. Try again.'}</p>
+      {access === 'error' && <Button onClick={() => {
+        setAccess('loading');
+        setRetry(count => count + 1);
+      }}>Try again</Button>}
       <Button variant="outline" onClick={() => void supabase!.auth.signOut({ scope: 'local' })}>Sign out</Button>
     </>}
   </PrivateScreen>;

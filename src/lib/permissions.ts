@@ -186,6 +186,7 @@ export interface ActionPermissionContext {
   } | null;
   subscription?: {
     status: string;
+    planTier?: string | null;
     trialEndsAt?: string | null;
     currentPeriodEndsAt?: string | null;
     gracePeriodEndsAt?: string | null;
@@ -385,6 +386,18 @@ export function evaluateActionPermission(
       reason: 'subscription_inactive',
       title: 'Subscription Inactive',
       message: 'Write operations are disabled for your account',
+      actionRoute: '/settings',
+      actionLabel: 'View Business Status',
+    };
+  }
+
+  if (ctx.subscription?.planTier === 'starter'
+      && (action === 'inventory:receive' || action === 'supplier-prices:record')) {
+    return {
+      allowed: false,
+      reason: 'subscription_restricted',
+      title: 'Atlas Trade required',
+      message: 'Your Atlas Counter edition can view existing procurement records. Recording or updating them requires Atlas Trade.',
       actionRoute: '/settings',
       actionLabel: 'View Business Status',
     };

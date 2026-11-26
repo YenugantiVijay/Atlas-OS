@@ -198,7 +198,8 @@ function ClientDialog({ selection, close, saved }: {
   selection: { kind: ClientAction; client: OwnerClient }; close: () => void; saved: (message: string) => Promise<void>;
 }) {
   const { kind, client } = selection;
-  const [edition, setEdition] = useState(EDITIONS.find(item => item.value === client.plan_tier)?.value ?? 'starter');
+  const editions = EDITIONS.filter(item => item.value !== 'enterprise_network' || client.plan_tier === item.value);
+  const [edition, setEdition] = useState(editions.find(item => item.value === client.plan_tier)?.value ?? 'starter');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(kind === 'purchase' ? getBusinessDate() : '');
   const [reference, setReference] = useState('');
@@ -231,7 +232,7 @@ function ClientDialog({ selection, close, saved }: {
       {kind === 'subscription' && <Select label="Access decision" value={status} onChange={event => setStatus(event.target.value)}
         options={[{value:'active',label:'Activate or renew'}, {value:'canceled',label:'Cancel access now'}]} />}
       {(kind === 'purchase' || (kind === 'subscription' && status === 'active')) &&
-        <Select label="Edition" value={edition} options={[...EDITIONS]} onChange={event => setEdition(event.target.value as typeof edition)} />}
+        <Select label="Edition" value={edition} options={editions} onChange={event => setEdition(event.target.value as typeof edition)} />}
       {kind === 'purchase' && <>
         <Input label="Amount received (₹)" required type="number" min=".01" max="9999999999.99" step=".01" value={amount} onChange={event => setAmount(event.target.value)} />
         <Input label="Paid on" required type="date" value={date} max={getBusinessDate()} onChange={event => setDate(event.target.value)} />

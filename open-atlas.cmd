@@ -35,7 +35,7 @@ call "%~dp0preview-owner.cmd"
 goto menu
 
 :open_all
-call "%~dp0preview-website.cmd"
-if errorlevel 1 echo [ERROR] Website preview failed. Press W from the menu to retry it separately.
+start "Atlas OS Website Preview" /D "%~dp0atlas-os-website" "%ComSpec%" /d /c preview-website.cmd
+if errorlevel 1 echo [ERROR] Could not launch the website window. Press W to retry it separately.
 call "%~dp0preview-tool.cmd" both
 goto menu

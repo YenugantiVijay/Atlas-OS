@@ -6,7 +6,7 @@ const live = {
   currentOrg: { id: '11111111-2222-4333-8444-555555555555', name: 'Test' },
   canWriteOperations: true,
   eligibility: { status: 'approved' },
-  subscription: { status: 'active' },
+  subscription: { status: 'active', currentPeriodEndsAt: '2099-01-01T00:00:00Z' },
 };
 
 describe('PR57 supplier price confidentiality',()=>{
@@ -44,3 +44,14 @@ describe('PR57 supplier price confidentiality',()=>{
     }).allowed).toBe(false);
   });
 });
+
+it.each(['starter', 'professional', 'enterprise_network', 'trial', 'pro'])(
+  'applies procurement write entitlements for %s without restricting history or invoicing',
+  planTier => {
+    const context = { ...live, role: 'owner' as const, subscription: { ...live.subscription, planTier } };
+    expect(evaluateActionPermission('inventory:receive', context).allowed).toBe(planTier !== 'starter');
+    expect(evaluateActionPermission('supplier-prices:record', context).allowed).toBe(planTier !== 'starter');
+    expect(evaluateActionPermission('supplier-prices:read', context).allowed).toBe(true);
+    expect(evaluateActionPermission('invoices:issue', context).allowed).toBe(true);
+  },
+);
