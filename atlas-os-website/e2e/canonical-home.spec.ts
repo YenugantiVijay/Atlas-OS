@@ -48,13 +48,13 @@ test('homepage explains the daily workflow and retains the interactive preview',
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle(/Atlas OS/);
   await expect(page.getByRole('heading', {
-    level: 1, name: /Simplify stock, GST billing, and payments/i,
+    level: 1, name: /Manage stock, GST billing, and payments/i,
   })).toBeVisible();
   await expect(page.getByRole('heading', {
     level: 2, name: /supplier rate change/i,
   })).toBeVisible();
   await expect(page.getByText('Your team chooses what to update before sending the quote.', { exact: false })).toBeVisible();
-  await expect(page.getByText('Built for the shop counter and the stockroom', { exact: true })).toBeVisible();
+  await expect(page.locator('#home-overview img')).toHaveCount(0);
   await expect(page.getByText('Connected Business Workflow', { exact: true })).toBeVisible();
   await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
   await expect(page.locator('astro-island')).not.toHaveCount(0);
@@ -99,7 +99,10 @@ test('Industries spans the desktop header and supports keyboard dismissal', asyn
   await toggle.focus();
   await page.keyboard.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ })).toBeVisible();
+  await expect(panel.locator('.industry-links a')).toHaveCount(6);
+  await expect(panel.getByRole('link', { name: /Retail & Wholesale Counters/ })).toBeVisible();
+  await expect(panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ })).toHaveCount(0);
+  await expect(panel.getByRole('link', { name: 'View all industries' })).toBeVisible();
   const bounds = await panel.boundingBox();
   const header = await page.locator('#site-header').boundingBox();
   expect(bounds?.x).toBe(header?.x);
@@ -110,8 +113,8 @@ test('Industries spans the desktop header and supports keyboard dismissal', asyn
   await expect(panel).toBeHidden();
   await expect(toggle).toBeFocused();
   await toggle.click();
-  await panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ }).click();
-  await expect(page).toHaveURL(/\/download\/agricultural-inputs\/?$/);
+  await panel.getByRole('link', { name: /Retail & Wholesale Counters/ }).click();
+  await expect(page).toHaveURL(/\/download\/retail-wholesale\/?$/);
 });
 
 test('on mobile the industry cards expand inside the navigation drawer', async ({ page }) => {
@@ -576,18 +579,18 @@ test('homepage typing settles and respects reduced motion, and the mobile footer
   const topics = page.locator('[data-hero-topics]');
   const word = page.locator('[data-hero-word]');
   await expect(topics).toHaveClass(/is-typing/);
-  await page.clock.runFor(1100);
-  await expect(word).toHaveText('Stock control.');
-  await page.clock.runFor(1550);
-  await expect(word).toHaveText('Payment tracking.');
+  await page.clock.runFor(2200);
+  await expect(word).toHaveText('Create GST invoices');
+  await page.clock.runFor(1500);
+  await expect(word).toHaveText('Track customer payments');
   await page.clock.runFor(2200);
   await expect(topics).not.toHaveClass(/is-typing/);
-  await expect(word).toHaveText('GST billing.');
+  await expect(word).toHaveText('Check stock availability');
   await page.clock.resume();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 320, height: 700 });
   await page.reload();
-  await expect(word).toHaveText('GST billing.');
+  await expect(word).toHaveText('Check stock availability');
   await expect(page.locator('[data-hero-topics]')).not.toHaveClass(/is-typing/);
   await page.locator('footer').evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const social = page.getByRole('navigation', { name: 'Atlas OS social links' });

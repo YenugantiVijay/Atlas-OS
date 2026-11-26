@@ -12,37 +12,51 @@ export interface NavDropdown {
 
 export const industryHref = (id: string) => `/solutions/${id}/`;
 
-export const INDUSTRY_NAVIGATION = [
+export const FEATURED_INDUSTRIES = [
+  {
+    icon: 'retail',
+    label: 'Retail & Wholesale Counters',
+    href: industryHref('retail-wholesale'),
+    description: 'Bill customers and reconcile cash and UPI collections.',
+  },
+  {
+    icon: 'shop',
+    label: 'Small Shops & General Trade',
+    href: industryHref('small-business'),
+    description: 'Track stock, everyday sales, invoices, and receipts.',
+  },
   {
     icon: 'electrical',
     label: 'Electrical Distributors',
     href: industryHref('electrical'),
-    description: 'Wires, switchgear, conduits, and contractor credit ledgers.',
-  },
-  {
-    icon: 'electronics',
-    label: 'Electronics Wholesalers',
-    href: industryHref('electronics'),
-    description: 'High-precision SKU tracking and rapid order fulfillment.',
+    description: 'Track wires, switchgear, and conduits, and manage contractor balances.',
   },
   {
     icon: 'hardware',
     label: 'Hardware & Tools',
     href: industryHref('hardware'),
-    description: 'Industrial fasteners, building materials, and multi-UOM stocks.',
+    description: 'Manage fasteners, building supplies, and stock sold in different units.',
   },
   {
-    icon: 'retail',
-    label: 'Retail & Wholesale Counters',
-    href: industryHref('retail-wholesale'),
-    description: 'Draft orders at the counter and reconcile cash and UPI collections.',
+    icon: 'electronics',
+    label: 'Electronics Wholesalers',
+    href: industryHref('electronics'),
+    description: 'Find component SKUs, check stock, and fulfil wholesale orders.',
   },
+  {
+    icon: 'ecommerce',
+    label: 'E-commerce & Online Sellers',
+    href: industryHref('ecommerce'),
+    description: 'Record online orders and track stock, invoices, and collections.',
+  },
+] as const;
+
+export const INDUSTRY_NAVIGATION = [
+  ...FEATURED_INDUSTRIES,
   { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs'), description: 'Receive stock by bag and track supplier rates and credit customers.' },
-  { icon: 'ecommerce', label: 'E-commerce', href: industryHref('ecommerce'), description: 'Record online orders, check stock, and follow invoices and collections.' },
-  { icon: 'shop', label: 'Small Shops', href: industryHref('small-business'), description: 'Stock, sales, invoices and payment receipts for everyday trade.' },
-  { icon: "printer", label: "Banner & Print Studio", href: industryHref("banner-print-studio"), description: "Manage quotes, proof approvals and print deadlines." },
-  { icon: "icecreamcone", label: "Ice Cream Stalls", href: industryHref("ice-cream-stalls"), description: "Serve packaged items and scoops, then reconcile the stall." },
-  { icon: "snowflake", label: "Ice Cream Distribution", href: industryHref("ice-cream-distribution"), description: "Track bulk cases from factory receipt to return." },
+  { icon: 'printer', label: 'Banner & Print Studio', href: industryHref('banner-print-studio'), description: 'Manage quotes, proof approvals and print deadlines.' },
+  { icon: 'icecreamcone', label: 'Ice Cream Stalls', href: industryHref('ice-cream-stalls'), description: 'Serve packaged items and scoops, then reconcile the stall.' },
+  { icon: 'snowflake', label: 'Ice Cream Distribution', href: industryHref('ice-cream-distribution'), description: 'Track bulk cases from factory receipt to return.' },
 ] as const;
 
 export const MAIN_NAVIGATION = [

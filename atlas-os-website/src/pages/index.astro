@@ -1,7 +1,5 @@
 ---
 import { ArrowDown, ArrowRight, Banknote, Boxes, Calculator, ChartNoAxesColumnIncreasing, ChevronDown, FileText, ListChecks, Receipt, ShieldCheck, ShoppingCart, TrendingUp, Users } from 'lucide-react';
-import { Image } from 'astro:assets';
-import tradeShop from '../assets/general-trade-shop.webp';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/common/Button.astro';
 import Container from '../components/common/Container.astro';
@@ -16,7 +14,7 @@ const features = [
   { title: 'Track Customer Payments', text: 'Record a payment, print a receipt, and see which invoices still have a balance.', href: '/features#payments', Icon: Banknote, color: '#a16207', tint: '#fff7ed' },
   { title: 'Understand Your Business', text: 'Review sales and customer dues, then export the reports you need to share.', href: '/features#reports', Icon: ChartNoAxesColumnIncreasing, color: '#0369a1', tint: '#edf7fa' },
 ];
-const heroTopics = ['GST billing.', 'Stock control.', 'Payment tracking.'];
+const heroTopics = ['Check stock availability', 'Create GST invoices', 'Track customer payments'];
 const controls = [
   { Icon: Users, title: 'Access by role', text: 'Give sales, inventory, and accounts staff access to the work they handle.' },
   { Icon: ListChecks, title: 'A record of changes', text: 'Review audit events for supported business actions.' },
@@ -25,8 +23,8 @@ const controls = [
 const starter = PRICING_TIERS.find(plan => plan.id === 'starter')!;
 const faqs = [
   ['What is Atlas OS?', 'It’s a workspace for shops, wholesalers, and distributors. You can receive stock, prepare orders, create invoices, and record payments from the same workspace.'],
-  ['Can I start with one shop?', 'Yes. Atlas Starter covers the everyday stock, sales, and collections workflow, including a branded customer receipt.'],
-  ['What happens when a supplier changes a price?', 'Atlas Professional includes supplier price history and a review queue for affected quotes. Your team decides which quotes need updating.'],
+  ['Can I start with one shop?', 'Yes. Atlas Counter covers the everyday stock, sales, and collections workflow, including a branded customer receipt.'],
+  ['What happens when a supplier changes a price?', 'Atlas Trade includes supplier price history and a review queue for affected quotes. Your team decides which quotes need updating.'],
   ['How can I try it?', 'Use the interactive preview on this page, or request a guided demo and bring a sample sale or stock delivery to walk through.'],
 ];
 ---
@@ -35,27 +33,18 @@ const faqs = [
   description="Atlas OS connects stock, quotations, GST invoices, and customer payments for Indian retailers, wholesalers, and distributors.">
   <section id="home-overview" class="hero-shell border-b border-border" aria-labelledby="home-title">
     <Container size="default">
-      <div class="hero-grid">
-        <div class="hero-intro">
-          <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
-          <h1 id="home-title" class="hero-title font-heading" data-enter>
-            <span class="sr-only">Simplify stock, GST billing, and payments with Atlas OS</span>
-            <span aria-hidden="true">Run your business.<br />Simplify the work.</span>
-          </h1>
-          <div class="hero-topics" data-hero-topics={JSON.stringify(heroTopics)} aria-hidden="true">
-            {heroTopics.map(topic => <span class="hero-topic-size">{topic}</span>)}
-            <span class="hero-topic-active"><span data-hero-word>{heroTopics[0]}</span><span class="hero-caret"></span></span>
-          </div>
-          <p class="hero-description">Find stock while a customer waits, turn a quote into a GST invoice, and see what’s still owed. Give your shop, warehouse, and accounts team the same view.</p>
-          <div class="hero-actions">
-            <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
-            <Button href="#product-preview" variant="outline" size="lg">See Atlas OS in action <ArrowDown size={17} aria-hidden="true" /></Button>
-          </div>
+      <div class="hero-intro">
+        <p class="hero-audience" data-enter>ERP for Indian retailers, wholesalers, and distributors</p>
+        <h1 id="home-title" class="hero-title font-heading" data-enter>Manage stock, GST billing, and payments in one place.</h1>
+        <div class="hero-topics" data-hero-topics={JSON.stringify(heroTopics)} aria-hidden="true">
+          {heroTopics.map(topic => <span class="hero-topic-size">{topic}</span>)}
+          <span class="hero-topic-active"><span data-hero-word>{heroTopics[0]}</span><span class="hero-caret"></span></span>
         </div>
-        <figure class="hero-visual" data-enter data-delay="1">
-          <Image src={tradeShop} alt="A shopkeeper at the counter of a stocked hardware shop" widths={[480, 720, 960]} sizes="(min-width: 900px) 48vw, 95vw" loading="eager" fetchpriority="high" />
-          <figcaption><Boxes size={19} aria-hidden="true" /> Built for the shop counter and the stockroom</figcaption>
-        </figure>
+        <p class="hero-description">Check stock before confirming an order, turn quotations into GST invoices, and track outstanding payments. Give your sales, warehouse, and accounts teams the same view of each transaction.</p>
+        <div class="hero-actions">
+          <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
+          <Button href="#product-preview" variant="outline" size="lg">See Atlas OS in action <ArrowDown size={17} aria-hidden="true" /></Button>
+        </div>
       </div>
     </Container>
   </section>
@@ -142,7 +131,7 @@ const faqs = [
   <section class="pb-14 sm:pb-20">
     <Container size="default">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-6 sm:p-9" data-reveal>
-        <div><h2 class="home-heading">A plan for the way you work</h2><p class="home-description">Proposed Atlas Starter pricing is {starter.priceDisplay}{starter.billingPeriod.replace(' ', '')}. Compare plans for your shop, counter, or distribution team.</p></div>
+        <div><h2 class="home-heading">A plan for the way you work</h2><p class="home-description">Proposed Atlas Counter pricing is {starter.priceDisplay}{starter.billingPeriod.replace(' ', '')}. Compare plans for your shop, counter, or distribution team.</p></div>
         <Button href="/pricing" variant="primary" class="!bg-brand-700 hover:!bg-brand-800">Compare plans <ArrowRight size={17} aria-hidden="true" /></Button>
       </div>
     </Container>
@@ -193,8 +182,8 @@ const faqs = [
   if (topics?.dataset.heroTopics && output && !motion.matches) {
     const phrases: string[] = JSON.parse(topics.dataset.heroTopics);
     const start = performance.now();
-    const interval = 1550;
-    const eraseDuration = 310;
+    const interval = 1500;
+    const typingDuration = 560;
     topics.classList.add('is-typing');
     const type = (now: number) => {
       const elapsed = now - start;
@@ -203,12 +192,9 @@ const faqs = [
         topics.classList.remove('is-typing');
         return;
       }
-      const phrase = phrases[(Math.floor(elapsed / interval) + 1) % phrases.length];
-      const previous = phrases[Math.floor(elapsed / interval)];
-      const position = elapsed % interval;
-      const text = position < eraseDuration
-        ? previous.slice(0, Math.max(0, previous.length - Math.floor(position / 18)))
-        : phrase.slice(0, Math.floor((position - eraseDuration) / 34));
+      const phrase = phrases[Math.floor(elapsed / interval)];
+      const fraction = Math.min(1, (elapsed % interval) / typingDuration);
+      const text = phrase.slice(0, Math.floor(phrase.length * fraction));
       if (output.textContent !== text) output.textContent = text;
       requestAnimationFrame(type);
     };
@@ -217,15 +203,18 @@ const faqs = [
 </script>
 
 <style>
-  .hero-shell { padding-block: clamp(2.5rem, 6vw, 6.5rem); background: #f8fbfa; }
-  .hero-grid { display: grid; align-items: center; gap: clamp(2rem, 5vw, 5.5rem); }
-  .hero-intro { min-width: 0; }
+  .hero-shell {
+    padding-block: clamp(3.5rem, 7vw, 7.5rem);
+    background: radial-gradient(ellipse at 50% 0%, #e9f5f1, transparent 70%), #f8fbfa;
+  }
+  .hero-intro { max-width: 62rem; margin-inline: auto; text-align: center; }
   .hero-audience { margin-bottom: 1.15rem; color: #14665d; font-size: .875rem; font-weight: 700; }
   .hero-title {
     font-size: clamp(2.25rem, 4.2vw, 4.2rem);
     font-weight: 800;
     line-height: 1.06;
     letter-spacing: -.047em;
+    text-wrap: balance;
   }
   .hero-topics {
     display: grid;
@@ -240,15 +229,8 @@ const faqs = [
   .hero-topic-size { visibility: hidden; padding-inline-end: .45rem; }
   .hero-caret { display: none; width: .095em; height: .78em; margin-inline-start: .16em; background: currentColor; }
   .is-typing .hero-caret { display: inline-block; }
-  .hero-description { max-width: 47ch; margin-top: 1rem; color: #445673; font-size: clamp(1rem, 1.5vw, 1.15rem); line-height: 1.65; }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.65rem; }
-  .hero-visual { position: relative; margin: 0; overflow: hidden; border-radius: clamp(1rem, 2vw, 1.8rem); background: #dbe9e4; }
-  .hero-visual img { display: block; width: 100%; height: auto; aspect-ratio: 1.36; object-fit: cover; }
-  .hero-visual figcaption {
-    display: flex; align-items: center; gap: .6rem;
-    padding: .8rem 1rem; background: #e6f2ed; color: #174b46;
-    font-size: .875rem; font-weight: 650;
-  }
+  .hero-description { max-width: 58ch; margin: 1rem auto 0; color: #445673; font-size: clamp(1rem, 1.5vw, 1.15rem); line-height: 1.65; }
+  .hero-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: .75rem; margin-top: 1.65rem; }
   .home-section { padding-block: clamp(3.5rem, 6.2vw, 6.25rem); }
   .section-intro { margin: 0 auto 2rem; max-width: 48rem; text-align: center; }
   .home-heading { font-family: var(--font-heading, inherit); font-size: clamp(1.8rem, 3.25vw, 3.15rem); font-weight: 780; line-height: 1.12; letter-spacing: -.038em; text-wrap: balance; }
@@ -257,15 +239,6 @@ const faqs = [
   .industry-photo { width: 100%; aspect-ratio: 1.65; height: auto; object-fit: cover; border-radius: 1.4rem; background: #e5efec; }
   .control-card { border: 1px solid #dae6e9; border-radius: 1rem; background: #f8fbfc; padding: 1.35rem; }
   .demo-banner { background: radial-gradient(ellipse at 94% 0%, #22645e, transparent 55%), #152a49; }
-  @media (min-width: 490px) {
-    #industries :global(.industry-links) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-  @media (min-width: 900px) {
-    #industries :global(.industry-links) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
-  @media (min-width: 900px) {
-    .hero-grid { grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr); }
-  }
   @media (max-width: 390px) {
     .hero-actions > :global(a) { width: 100%; }
   }

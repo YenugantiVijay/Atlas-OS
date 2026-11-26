@@ -296,10 +296,10 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
       await page.setViewportSize(vp);
       await page.goto('/');
 
-      const heroColumns = await page.locator('#home-overview .hero-grid').evaluate((grid) =>
-        getComputedStyle(grid).gridTemplateColumns.split(' ').length,
-      );
-      expect(heroColumns).toBe(vp.width >= 900 ? 2 : 1);
+      const hero = page.locator('#home-overview');
+      await expect(hero.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(hero.getByRole('link', { name: 'Request a Demo' })).toBeVisible();
+      await expect(hero.locator('img')).toHaveCount(0);
 
       const isOverflowing = await page.evaluate(() => {
         return document.documentElement.scrollWidth > document.documentElement.clientWidth;

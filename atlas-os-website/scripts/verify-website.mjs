@@ -188,9 +188,9 @@ if (!fs.existsSync(canonicalSource) || !fs.existsSync(compiledHome)) {
   const checks = [
     [source.includes('home-overview'), 'Astro homepage source includes the overview'],
     [source.includes('InteractivePreview client:load'), 'Astro homepage hydrates the original React product preview'],
-    [generated.includes('Built for the shop counter and the stockroom'), 'Built homepage contains a trade-shop illustration and caption'],
+    [generated.includes('data-hero-topics=') && !generated.includes('hero-visual'), 'Built homepage has a text hero with animated workflow topics'],
     [generated.includes('Connected Business Workflow'), 'Built homepage contains original workflow storytelling'],
-    [generated.includes('Simplify stock, GST billing, and payments'), 'Built homepage explains daily operations'],
+    [generated.includes('Manage stock, GST billing, and payments'), 'Built homepage explains daily operations'],
     [generated.includes('supplier-rate-review'), 'Built homepage links to the supplier-rate review feature'],
     [generated.includes('astro-island'), 'Built homepage includes hydrated product preview island'],
     [generated.includes('href="/product"'), 'Built homepage links to product page'],
