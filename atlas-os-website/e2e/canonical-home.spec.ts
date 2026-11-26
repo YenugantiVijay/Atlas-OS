@@ -56,18 +56,18 @@ test('homepage explains the daily workflow and retains the interactive preview',
   await expect(page.getByText('Your team chooses what to update before sending the quote.', { exact: false })).toBeVisible();
   await expect(page.locator('#home-overview img')).toHaveCount(0);
   await expect(page.getByText('Connected Business Workflow', { exact: true })).toBeVisible();
-  await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
+  await expect(page.getByText('Atlas OS workflow preview', { exact: true })).toBeVisible();
   await expect(page.locator('astro-island')).not.toHaveCount(0);
   await expect(page.getByText('Website Preview', { exact: true })).toHaveCount(0);
 });
 
 test('interactive product preview really hydrates and changes content', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Recognized Sales (FY)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Sales and collections', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Commercial Invoicing' }).click();
-  await expect(page.getByText('Statutory Tax Invoice Details', { exact: true })).toBeVisible();
+  await expect(page.getByText('GST invoice', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Multi-UOM Inventory' }).click();
-  await expect(page.getByText('No products added yet.', { exact: true })).toBeVisible();
+  await expect(page.getByText('28 coils', { exact: true })).toBeVisible();
 });
 
 test('Industries opens on desktop hover and stays open while moving to its links', async ({ page }) => {

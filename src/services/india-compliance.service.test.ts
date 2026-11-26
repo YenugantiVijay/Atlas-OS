@@ -190,6 +190,34 @@ describe('Area 6: India Compliance — GST E-Invoice & E-Way Bill Readiness', ()
     expect(highRes.payload?.igstValue).toBe(0);
   });
 
+  it.each([
+    ['37', '37', '36', 9000, 9000, 0],
+    ['36', '36', '37', 9000, 9000, 0],
+    ['37', '36', '37', 0, 0, 18000],
+    ['36', '37', '36', 0, 0, 18000],
+  ])('uses seller %s and saved supply %s over current customer registration %s', (
+    sellerStateCode, placeOfSupplyCode, buyerStateCode, cgstValue, sgstValue, igstValue,
+  ) => {
+    const org = { ...testOrg, gstin: sellerStateCode + testOrg.gstin!.slice(2) };
+    const buyer = { ...b2bCustomer, gstin: buyerStateCode + b2bCustomer.gstin!.slice(2) };
+    const invoice = { ...sampleInvoice, gstJurisdiction: { sellerStateCode, placeOfSupplyCode } };
+    const result = indiaComplianceService.validateEWayBillReadiness(org, buyer, invoice, {
+      vehicleNo: 'TS09UB1234', distanceKm: 45,
+    });
+    expect(result.fieldsComplete).toBe(true);
+    expect(result.payload).toMatchObject({ cgstValue, sgstValue, igstValue });
+  });
+
+  it('withholds an e-way bill draft when the supplier state conflicts with the saved invoice', () => {
+    const invoice = { ...sampleInvoice, gstJurisdiction: { sellerStateCode: '37', placeOfSupplyCode: '37' } };
+    const result = indiaComplianceService.validateEWayBillReadiness(testOrg, b2bCustomer, invoice, {
+      vehicleNo: 'TS09UB1234', distanceKm: 45,
+    });
+    expect(result.fieldsComplete).toBe(false);
+    expect(result.payload).toBeUndefined();
+    expect(result.missingFields).toContain('Supplier GSTIN matching the invoice seller state');
+  });
+
   it('splits odd-paise intra-state GST without 1-paisa drift', () => {
     // ₹105.00 taxable @ 5% GST = ₹5.25 total tax (odd paise).
     // Statutory rule: CGST = ₹2.62, SGST = ₹2.63, CGST + SGST = ₹5.25 exactly.
