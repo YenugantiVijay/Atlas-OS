@@ -40,7 +40,7 @@ const faqs = [
           {heroTopics.map(topic => <span class="hero-topic-size">{topic}</span>)}
           <span class="hero-topic-active"><span data-hero-word>{heroTopics[0]}</span><span class="hero-caret"></span></span>
         </div>
-        <p class="hero-description">Check stock before confirming an order, turn quotations into GST invoices, and track outstanding payments. Give your sales, warehouse, and accounts teams the same view of each transaction.</p>
+        <p class="hero-description">Check availability, turn quotes into GST invoices, and follow outstanding balances from the same workspace.</p>
         <div class="hero-actions">
           <Button href="/request-demo" variant="primary" size="lg" class="!bg-brand-700 hover:!bg-brand-800">Request a Demo <ArrowRight size={18} aria-hidden="true" /></Button>
           <Button href="#product-preview" variant="outline" size="lg">See Atlas OS in action <ArrowDown size={17} aria-hidden="true" /></Button>
@@ -89,7 +89,7 @@ const faqs = [
     <Container size="default">
       <div class="section-intro" data-reveal>
         <h2 class="home-heading">Connected Business Workflow</h2>
-        <p class="home-description">Explore how a new workspace looks across stock, invoicing, payments, and reports.</p>
+        <p class="home-description">Select a workflow to see how a sample transaction moves through Atlas OS.</p>
       </div>
       <InteractivePreview client:load />
     </Container>
@@ -204,23 +204,28 @@ const faqs = [
 
 <style>
   .hero-shell {
-    padding-block: clamp(3.5rem, 7vw, 7.5rem);
-    background: radial-gradient(ellipse at 50% 0%, #e9f5f1, transparent 70%), #f8fbfa;
+    padding-block: clamp(3rem, 6vw, 6rem);
+    background: radial-gradient(ellipse at 50% 0%, #ebf6f2, transparent 65%), #fff;
   }
-  .hero-intro { max-width: 62rem; margin-inline: auto; text-align: center; }
+  .hero-intro { max-width: 52rem; margin-inline: auto; text-align: center; }
   .hero-audience { margin-bottom: 1.15rem; color: #14665d; font-size: .875rem; font-weight: 700; }
   .hero-title {
-    font-size: clamp(2.25rem, 4.2vw, 4.2rem);
-    font-weight: 800;
-    line-height: 1.06;
+    font-size: clamp(2.15rem, 4.1vw, 3.55rem);
+    font-weight: 760;
+    line-height: 1.11;
     letter-spacing: -.047em;
     text-wrap: balance;
   }
   .hero-topics {
     display: grid;
-    margin-top: .9rem;
+    margin: 1.25rem auto 0;
+    width: fit-content;
+    max-width: 100%;
+    padding: .4rem .8rem;
+    border-radius: .55rem;
+    background: #edf7f4;
     color: #0d7267;
-    font-size: clamp(1.35rem, 2.6vw, 2.2rem);
+    font-size: clamp(1rem, 2.1vw, 1.35rem);
     font-weight: 750;
     line-height: 1.25;
     letter-spacing: -.025em;

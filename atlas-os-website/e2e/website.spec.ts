@@ -121,17 +121,17 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     }
   });
 
-  test('2. Interactive workspace preview switches between empty views', async ({ page }) => {
+  test('2. Interactive workspace preview switches between sample workflows', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Atlas OS Desktop Edition Preview', { exact: true })).toBeVisible();
-    await expect(page.getByText('No sales recorded yet.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Atlas OS workflow preview', { exact: true })).toBeVisible();
+    await expect(page.getByText('₹11,800', { exact: true })).toBeVisible();
     await expect(page.getByText('Bharat Electricals & Hardware Ltd.', { exact: false })).toHaveCount(0);
 
     for (const [tab, state] of [
-      ['Commercial Invoicing', 'No invoices created yet.'],
-      ['Multi-UOM Inventory', 'No products added yet.'],
-      ['Customer Receivables', 'No customer balances yet.'],
-      ['1-Click Excel Exports', 'No records available to export.'],
+      ['Commercial Invoicing', 'GST at 18%'],
+      ['Multi-UOM Inventory', '28 coils'],
+      ['Customer Receivables', 'Payment applied'],
+      ['1-Click Excel Exports', 'Excel (.xlsx)'],
     ]) {
       await page.getByRole('button', { name: tab, exact: true }).click();
       await expect(page.getByText(state, { exact: true })).toBeVisible();

@@ -32,8 +32,12 @@ export default function ReceiptTemplates() {
   };
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-      <div className="min-w-0 space-y-3 rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-4 rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+        <div className="border-b border-border pb-4">
+          <h2 className="font-heading text-lg font-bold">Receipt settings</h2>
+          <p className="mt-1 text-sm text-content-secondary">Choose a layout and add your business details.</p>
+        </div>
         <label className="block text-sm font-semibold">Layout
           <select value={receipt.template} className={field} onChange={(event) => setReceipt({ ...receipt, template: event.target.value === 'compact' ? 'compact' : 'classic' })}>
             <option value="classic">Classic</option><option value="compact">Compact</option>
@@ -48,7 +52,7 @@ export default function ReceiptTemplates() {
         <label className="block text-sm font-semibold">Receipt message
           <input value={receipt.message ?? ''} maxLength={160} className={field} onChange={(event) => setReceipt({ ...receipt, message: event.target.value })} />
         </label>
-        <details className="text-sm">
+        <details className="rounded-lg border border-border p-3 text-sm">
           <summary className="cursor-pointer font-semibold text-brand-700">Contact and tax details</summary>
           <div className="mt-2 space-y-2">
             <label className="block font-semibold">Business contact
@@ -71,13 +75,19 @@ export default function ReceiptTemplates() {
         {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
         <label className="flex items-start gap-2 border-t border-border pt-3 text-sm">
           <input type="checkbox" checked={counterCopy} onChange={(event) => setCounterCopy(event.target.checked)} className="mt-1" />
-          <span>Preview customer and counter copies<span className="block text-xs text-content-secondary">Professional and Enterprise Network</span></span>
+          <span>Preview customer and counter copies<span className="block text-xs text-content-secondary">Available in Atlas Trade</span></span>
         </label>
         <p className="text-xs text-content-secondary">Preview changes stay in your browser.</p>
       </div>
-      <div className="min-w-0 rounded-2xl border border-border bg-surface-secondary p-3 sm:p-5" aria-label="Sample payment receipt">
-        <ReceiptSheet receipt={{ ...receipt, businessName: receipt.businessName.trim() || SAMPLE.businessName }} counterCopy={counterCopy} />
-      </div>
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-white shadow-sm" aria-labelledby="receipt-preview-title">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-4 sm:px-6">
+          <h2 id="receipt-preview-title" className="font-heading text-lg font-bold">Live receipt preview</h2>
+          <span className="text-sm font-medium text-content-secondary">Sample payment</span>
+        </header>
+        <div className="bg-surface-secondary p-3 sm:p-6" aria-label="Sample payment receipt">
+          <ReceiptSheet receipt={{ ...receipt, businessName: receipt.businessName.trim() || SAMPLE.businessName }} counterCopy={counterCopy} />
+        </div>
+      </section>
     </div>
   );
 }

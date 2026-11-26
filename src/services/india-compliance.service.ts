@@ -443,9 +443,17 @@ export const indiaComplianceService = {
       missingFields.push('Transport distance in kilometres');
     }
 
-    const sellerStateCode = (org.gstin || '36').substring(0, 2);
-    const buyerStateCode = (customer?.gstin || sellerStateCode).substring(0, 2);
-    const isInterstate = sellerStateCode !== buyerStateCode;
+    const sellerStateCode = org.gstin?.substring(0, 2) ?? '';
+    const jurisdiction = invoice.gstJurisdiction;
+    const placeOfSupplyCode = jurisdiction?.placeOfSupplyCode
+      ?? (customer?.gstin || org.gstin || '').substring(0, 2);
+    if (!Object.prototype.hasOwnProperty.call(INDIAN_GST_STATES, placeOfSupplyCode)) {
+      missingFields.push('Valid place of supply');
+    }
+    if (jurisdiction && jurisdiction.sellerStateCode !== sellerStateCode) {
+      missingFields.push('Supplier GSTIN matching the invoice seller state');
+    }
+    const isInterstate = sellerStateCode !== placeOfSupplyCode;
 
     const taxAmount = Number(invoice.taxAmount || 0);
     const totalTaxPaise = toPaise(taxAmount);
