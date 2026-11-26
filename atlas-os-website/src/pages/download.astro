@@ -3,9 +3,14 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import ReleaseCard from '../components/download/ReleaseCard';
-import { INDUSTRY_TOOLS, industryDownloadHref } from '../data/industry-downloads';
+import { INDUSTRY_TOOLS, industryDownloadHref, industryLaunch } from '../data/industry-downloads';
 import { OFFICIAL_RELEASES, APP_CONFIG } from '../data/releases';
 
+const appLaunch = industryLaunch('electrical');
+const onlineUrl = appLaunch ? new URL(appLaunch.url) : null;
+// The general installation centre must preserve the tenant's default workspace.
+onlineUrl?.searchParams.delete('tool');
+const installUrl = onlineUrl ? new URL('/install.html', onlineUrl).href : null;
 const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') || OFFICIAL_RELEASES[0];
 ---
 
@@ -13,6 +18,14 @@ const windowsRelease = OFFICIAL_RELEASES.find((r) => r.platform === 'Windows') |
   title="Download Atlas OS — Official Software Distribution Center"
   description="Check the Windows release status, view requirements, and request a walkthrough of Atlas OS."
 >
+  <section class="border-b border-border bg-white py-12" id="installation-centre">
+    <Container size="default">
+      <h2 class="font-heading text-3xl font-bold">Atlas OS — Your Business. One Platform.</h2>
+      <p class="my-4 text-content-secondary">Install Atlas OS as an online-first web application in Chrome or Microsoft Edge.</p>
+      {installUrl ? <div class="flex flex-wrap gap-3"><Button href={installUrl} variant="primary">Install Atlas OS</Button><Button href={onlineUrl?.href} variant="outline">Continue Online</Button></div> : <p>Online installation links will be available when the application hosting URL is configured.</p>}
+      <p class="mt-4 text-sm text-content-secondary">On Windows, open the application and use Edge Menu → Apps → Install this site as an app, or Chrome's address bar installation icon. A current browser, HTTPS, browser storage, and internet access are required for business operations. The Installation Centre shows the current application version, update instructions, and troubleshooting. Native desktop installers remain planned.</p>
+    </Container>
+  </section>
   {/* HERO */}
   <section class="py-16 md:py-24 bg-radial-glow border-b border-border/50">
     <Container size="default">
