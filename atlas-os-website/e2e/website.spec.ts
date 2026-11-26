@@ -386,3 +386,18 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     expect(linkStyles.fontSize).toBeGreaterThanOrEqual(14);
   });
 });
+
+test('installation centre opens the shared app without forcing an industry', async ({ page }) => {
+  await page.goto('/download/');
+  const centre = page.locator('#installation-centre');
+  const install = centre.getByRole('link', { name: 'Install Atlas OS', exact: true });
+  const online = centre.getByRole('link', { name: 'Continue Online', exact: true });
+  await expect(install).toBeVisible();
+  await expect(online).toBeVisible();
+  const installUrl = new URL((await install.getAttribute('href'))!);
+  const onlineUrl = new URL((await online.getAttribute('href'))!);
+  expect(installUrl.pathname).toBe('/install.html');
+  expect(onlineUrl.origin).toBe(installUrl.origin);
+  expect(onlineUrl.protocol).toBe('https:');
+  expect(onlineUrl.searchParams.has('tool')).toBe(false);
+});

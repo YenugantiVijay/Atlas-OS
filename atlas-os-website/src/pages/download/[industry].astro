@@ -15,6 +15,7 @@ export function getStaticPaths() {
 const id = Astro.params.industry as IndustryToolId;
 const tool = INDUSTRY_TOOLS[id];
 const launch = industryLaunch(id);
+const installUrl = launch ? new URL('/install.html', launch.url).href : null;
 const { color, tint } = INDUSTRY_COLORS[id];
 ---
 
@@ -28,9 +29,10 @@ const { color, tint } = INDUSTRY_COLORS[id];
           <div class="flex flex-wrap gap-3">
             {launch ? (
               <>
+                <Button href={installUrl!} variant="primary" size="md">Install Atlas OS <ArrowRight size={17} aria-hidden="true" /></Button>
                 <a href={launch.shortcut} download={launch.filename}
-                  class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--tool-color)] px-4 py-2 text-sm font-semibold text-white hover:brightness-90">
-                  <ArrowDownToLine size={18} aria-hidden="true" /> Download Windows shortcut
+                  class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-semibold text-content-primary hover:bg-surface-secondary">
+                  <ArrowDownToLine size={18} aria-hidden="true" /> Export browser shortcut
                 </a>
                 <Button href={launch.url} variant="outline" size="md">Open in browser <ArrowRight size={17} aria-hidden="true" /></Button>
               </>
@@ -40,8 +42,8 @@ const { color, tint } = INDUSTRY_COLORS[id];
           </div>
           <p class="max-w-xl text-sm leading-relaxed text-content-secondary">
             {launch
-              ? (launch.local ? 'Start the Atlas OS ERP preview first. ' : '') + 'Open the downloaded .url shortcut to launch this workspace in your browser. An internet connection and Atlas OS sign-in are required for cloud data.'
-              : 'Browser access and the Windows shortcut will be available once this workspace has a configured web address.'}
+              ? (launch.local ? 'Start the Atlas OS ERP preview first. ' : '') + 'Use Install Atlas OS for browser-supported installation, or Open in browser for this workspace. The optional .url export is a browser shortcut, not an installer. Chromium on Windows may rename it to .download; use the installation action instead. An internet connection and Atlas OS sign-in are required for cloud data.'
+              : 'Browser access, installation guidance and shortcut export will be available once this workspace has a configured web address.'}
           </p>
           <a href={industryHref(id)} class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--tool-color)] hover:underline">
             Explore the industry workflow <ArrowRight size={16} aria-hidden="true" />

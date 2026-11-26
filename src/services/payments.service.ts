@@ -7,45 +7,6 @@ import { mapDbCustomer } from './customers.service';
 import { offlineQueue, isNetworkError } from '@/lib/offline-queue';
 import type { ReceiptData } from '../../atlas-os-website/src/components/receipts/ReceiptSheet';
 
-function buildOptimisticPayment(
-  orgId: string,
-  input: {
-    customerId: string;
-    invoiceId?: string;
-    amount: number;
-    paymentMethod: PaymentMethod;
-    referenceNumber?: string;
-    paymentDate: string;
-    notes?: string;
-    idempotencyKey?: string;
-  },
-  idempotencyKey: string
-): Payment {
-  return {
-    id: `pay-offline-${idempotencyKey}`,
-    organizationId: orgId,
-    paymentNumber: `RCP-OFFLINE-${Date.now().toString().slice(-4)}`,
-    customerId: input.customerId,
-    amount: input.amount,
-    paymentMethod: input.paymentMethod,
-    referenceNumber: input.referenceNumber?.trim() || undefined,
-    paymentDate: input.paymentDate,
-    notes: input.notes ? `${input.notes} (Offline Pending Sync)` : '(Offline Pending Sync)',
-    createdAt: new Date().toISOString(),
-    allocations: input.invoiceId
-      ? [
-          {
-            id: `alloc-offline-${idempotencyKey}`,
-            paymentId: `pay-offline-${idempotencyKey}`,
-            invoiceId: input.invoiceId,
-            amountAllocated: input.amount,
-            createdAt: new Date().toISOString(),
-          },
-        ]
-      : [],
-  };
-}
-
 export interface PaymentReceiptPrintData extends ReceiptData {
   organizationId: string;
   counterCopyAllowed: boolean;
@@ -366,7 +327,7 @@ export const paymentsService = {
           description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
         }
       );
-      return buildOptimisticPayment(orgId, input, idempotencyKey);
+      throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
     }
 
     try {
@@ -398,7 +359,7 @@ export const paymentsService = {
               description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
             }
           );
-          return buildOptimisticPayment(orgId, input, idempotencyKey);
+          throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
         }
         throw new Error(`Payment failed: ${rpcErr.message}`);
       }
@@ -435,7 +396,7 @@ export const paymentsService = {
             description: `Payment of ₹${input.amount} via ${input.paymentMethod}`,
           }
         );
-        return buildOptimisticPayment(orgId, input, idempotencyKey);
+        throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
       }
       throw err;
     }

@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { isIndustryToolId } from './src/lib/industry-tools';
 import { getPreviewIdentity, previewIdentityHeader } from './scripts/dev-server-identity.mjs';
 
@@ -11,6 +13,17 @@ export default defineConfig(({ mode }) => {
   return {
     define: { __ATLAS_INDUSTRY_TOOL__: JSON.stringify(toolId) },
     plugins: [react(), {
+      name: 'atlas-public-pwa-version',
+      generateBundle() {
+        const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version }) });
+        // Change the worker on every release build so browsers detect code updates.
+        // Offline cache names are public-only; no application responses are stored.
+        const source = readFileSync(new URL('./public/sw.js', import.meta.url), 'utf8');
+        const fingerprint = createHash('sha256').update(String(Date.now())).digest('hex').slice(0, 12);
+        this.emitFile({ type: 'asset', fileName: 'sw.js', source: source.replace('atlas-public-pwa-v1', 'atlas-public-pwa-' + version + '-' + fingerprint) });
+      },
+    }, {
       name: 'atlas-erp-preview-identity',
       configureServer(server) {
         const identity = getPreviewIdentity(mode);

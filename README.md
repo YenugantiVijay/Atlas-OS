@@ -197,7 +197,7 @@ On macOS or Linux, run `npm run dev:staging` for a configured staging checkout o
 
 The industry download pages link to a selected workspace in the shared Atlas OS web app. For example, the Retail & Wholesale Counters preview opens at `http://127.0.0.1:5173/?tool=retail-wholesale#/`. The existing business category selects the default workspace for signed-in users when the link does not name a tool. Roles and tenancy still determine record access.
 
-Set `PUBLIC_APP_URL` in the website build to the public HTTPS URL of the ERP app. The industry pages then offer a browser link and a Windows `.url` shortcut to the matching workspace. For a separate web deployment tied to one tool, use the matching Vite mode and publish its output directory. The tool mode takes priority over the URL selector. For example:
+Set `PUBLIC_APP_URL` in the website build to the public HTTPS URL of the ERP app. The industry pages then offer browser installation guidance, a browser link to the matching workspace, and an optional `.url` shortcut export. Chromium on Windows may rename shortcut exports to `.download`; use **Install Atlas OS** for browser-supported installation instead. See [online-first PWA setup](docs/ONLINE_FIRST_PWA.md). For a separate web deployment tied to one tool, use the matching Vite mode and publish its output directory. The tool mode takes priority over the URL selector. For example:
 
 ```sh
 npm run build -- --mode tool-retail-wholesale --outDir dist-tools/retail-wholesale

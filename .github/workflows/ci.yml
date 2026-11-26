@@ -51,6 +51,9 @@ jobs:
       - name: Repository Hygiene & Secret Exposure Gate
         run: npm run audit:repository
 
+      - name: Verify public-only PWA cache policy
+        run: node --test scripts/pwa-security.test.mjs
+
       - name: Test migration history comparison
         run: node --test scripts/check-migration-parity.test.mjs
 
@@ -110,6 +113,9 @@ jobs:
       # outages at the Ubuntu mirror before any Playwright test starts.
       - name: Install Playwright Chromium
         run: npx playwright install chromium
+
+      - name: Verify production PWA installation and update lifecycle
+        run: node scripts/verify-pwa.mjs
 
       - name: Run End-to-End Operational Tests (Playwright)
         shell: bash

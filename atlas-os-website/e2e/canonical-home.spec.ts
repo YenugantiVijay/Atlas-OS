@@ -603,19 +603,28 @@ test('homepage typing settles and respects reduced motion, and the mobile footer
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('all industry cards open matching download pages and portable shortcuts', async ({ page }) => {
+test('all industry cards open matching workspaces, installation and shortcut exports', async ({ page }) => {
   for (const [id, tool] of Object.entries(INDUSTRY_TOOLS)) {
     await page.goto('/solutions/');
     await page.locator(`main a[href="/download/${id}/"]`).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText(tool.name);
     await expect(page.getByRole('region', { name: 'Workspace preview' })).toContainText(tool.tasks[0].label);
     const start = page.getByRole('link', { name: 'Open in browser' });
-    const download = page.getByRole('link', { name: 'Download Windows shortcut' });
+    const download = page.getByRole('link', { name: 'Export browser shortcut' });
+    const install = page.getByRole('link', { name: 'Install Atlas OS', exact: true });
+    await expect(install).toBeVisible();
+    const installUrl = new URL((await install.getAttribute('href'))!);
+    expect(installUrl.pathname).toBe('/install.html');
+    expect(installUrl.origin).toBe(new URL((await start.getAttribute('href'))!).origin);
+    await expect(page.getByText(/Chromium on Windows may rename it to \.download/)).toBeVisible();
+    await expect(download).toHaveAttribute('download', 'Atlas-OS-' + id + '.url');
     await expect(start).toHaveAttribute('href', new RegExp('[?&]tool=' + id + '#/$'));
     const opened = page.waitForEvent('download');
     await download.click();
     const file = await opened;
-    expect(file.suggestedFilename()).toBe('Atlas-OS-' + id + '.url');
+    // Chromium's Windows shell-integration safeguard replaces .url with .download.
+    // https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/base/filename_util_internal.cc
+    expect(file.suggestedFilename()).toBe('Atlas-OS-' + id + (process.platform === 'win32' ? '.download' : '.url'));
     const shortcut = await readFile(await file.path(), 'utf8');
     expect(shortcut).toBe('[InternetShortcut]\r\nURL=' + await start.getAttribute('href') + '\r\n');
   }

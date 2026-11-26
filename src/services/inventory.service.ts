@@ -4,25 +4,6 @@ import { StockMovement, MovementType } from '@/types';
 import { mapDbProduct } from './products.service';
 import { offlineQueue, isNetworkError } from '@/lib/offline-queue';
 
-function buildOptimisticStockMovement(
-  orgId: string,
-  productId: string,
-  quantityChange: number,
-  notes: string,
-  idempotencyKey: string
-): StockMovement {
-  return {
-    id: `mov-offline-${idempotencyKey}`,
-    organizationId: orgId,
-    productId,
-    quantityChange,
-    movementType: 'ADJUSTMENT',
-    referenceType: 'MANUAL_ADJUSTMENT',
-    notes: `${notes.trim()} (Offline Pending Sync)`,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 export function mapDbStockMovement(row: any): StockMovement {
   return {
     id: row.id,
@@ -143,7 +124,7 @@ export const inventoryService = {
           description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
         }
       );
-      return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
+      throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
     }
 
     try {
@@ -168,7 +149,7 @@ export const inventoryService = {
               description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
             }
           );
-          return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
+          throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
         }
         throw new Error(`Failed to adjust stock: ${error.message}`);
       }
@@ -207,7 +188,7 @@ export const inventoryService = {
             description: `Stock adjustment of ${quantityChange > 0 ? '+' : ''}${quantityChange} (${notes.trim()})`,
           }
         );
-        return buildOptimisticStockMovement(orgId, productId, quantityChange, notes, trimmedKey);
+        throw new Error('Pending server confirmation. The request is saved for recovery; check its status before retrying. No confirmed record was returned.');
       }
       throw err;
     }

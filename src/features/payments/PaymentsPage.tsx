@@ -125,7 +125,10 @@ export const PaymentsPage: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
+  const recordPreparationSequence = useRef(0);
+
   const closeRecordModal = useCallback(() => {
+    recordPreparationSequence.current += 1;
     // Cancel must also clear a deferred open request. Otherwise a slow initial
     // load can replay `pendingOpenRecord` immediately after the operator closes
     // the dialog, leaving an apparently unresponsive modal on screen.
@@ -289,6 +292,9 @@ export const PaymentsPage: React.FC = () => {
       }
       if (!currentOrg) return;
 
+      const sequence = ++recordPreparationSequence.current;
+      const organization = currentOrg.id;
+      const isCurrent = () => sequence === recordPreparationSequence.current && activeOrgIdRef.current === organization;
       setIsPreparingRecord(true);
       try {
         const custRes = await customersService.getCustomersPaginated(
@@ -297,6 +303,7 @@ export const PaymentsPage: React.FC = () => {
           isMockAuth
         );
 
+        if (!isCurrent()) return;
         let custList = custRes.data;
 
         if (custList.length === 0) {
@@ -324,6 +331,7 @@ export const PaymentsPage: React.FC = () => {
 
           if (!custList.some((c) => c.id === initialCustId)) {
             const singleCust = await customersService.getCustomerById(currentOrg.id, initialCustId, isMockAuth);
+            if (!isCurrent()) return;
             if (singleCust) {
               custList = [singleCust, ...custList];
             }
@@ -348,12 +356,14 @@ export const PaymentsPage: React.FC = () => {
           setEligibleInvoices([]);
         }
 
+        if (!isCurrent()) return;
         setIsModalOpen(true);
         clearActionParam();
       } catch (err: any) {
+        if (!isCurrent()) return;
         showToast('error', 'Unable to Prepare Payment', err.message || 'Failed to initialize payment form');
       } finally {
-        setIsPreparingRecord(false);
+        if (isCurrent()) setIsPreparingRecord(false);
       }
     },
     [check, clearActionParam, currentOrg, isMockAuth, loadEligibleInvoices, showToast]
@@ -390,7 +400,7 @@ export const PaymentsPage: React.FC = () => {
     loadData().then((result) => {
       if (!active) return;
       setIsPreparingRecord(false);
-      if (requestedAction === 'record') {
+      if (requestedAction === 'record' && searchParamsRef.current.get('action') === 'record') {
         if (!result) {
           showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
           return;

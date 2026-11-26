@@ -18,7 +18,7 @@ const mockSupabase = supabase as unknown as {
   from: ReturnType<typeof vi.fn>;
 };
 
-describe('Offline Action Queue & Optimistic Mutations', () => {
+describe('Pending Action Queue & Server Confirmation', () => {
   const orgId = 'org-offline-test';
 
   beforeEach(() => {
@@ -26,13 +26,13 @@ describe('Offline Action Queue & Optimistic Mutations', () => {
     vi.clearAllMocks();
   });
 
-  it('enqueues invoice creation on network failure and returns optimistic invoice', async () => {
+  it('preserves an invoice recovery request but rejects unconfirmed success', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: null,
       error: { message: 'Failed to fetch', code: 'FETCH_ERROR' },
     });
 
-    const invoice = await invoicesService.createInvoice(
+    await expect(invoicesService.createInvoice(
       orgId,
       {
         customerId: 'cust-1',
@@ -51,11 +51,7 @@ describe('Offline Action Queue & Optimistic Mutations', () => {
         ],
       },
       false
-    );
-
-    expect(invoice.id).toContain('inv-offline');
-    expect(invoice.invoiceNumber).toContain('INV-OFFLINE');
-    expect(invoice.totalAmount).toBe(1180);
+    )).rejects.toThrow('Pending server confirmation');
 
     const queued = offlineQueue.getAll(orgId);
     expect(queued).toHaveLength(1);
@@ -63,13 +59,13 @@ describe('Offline Action Queue & Optimistic Mutations', () => {
     expect(queued[0].status).toBe('pending');
   });
 
-  it('enqueues payment recording on network failure and returns optimistic payment', async () => {
+  it('preserves a payment recovery request but never fabricates a receipt', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: null,
       error: { message: 'TypeError: Failed to fetch', code: 'FETCH_ERROR' },
     });
 
-    const payment = await paymentsService.recordPayment(
+    await expect(paymentsService.recordPayment(
       orgId,
       {
         customerId: 'cust-1',
@@ -79,39 +75,49 @@ describe('Offline Action Queue & Optimistic Mutations', () => {
         referenceNumber: 'UPI-REF-1234',
       },
       false
-    );
-
-    expect(payment.id).toContain('pay-offline');
-    expect(payment.paymentNumber).toContain('RCP-OFFLINE');
-    expect(payment.amount).toBe(1180);
+    )).rejects.toThrow('Pending server confirmation');
 
     const queued = offlineQueue.getAll(orgId);
     expect(queued).toHaveLength(1);
     expect(queued[0].actionType).toBe('RECORD_PAYMENT');
   });
 
-  it('enqueues stock adjustment on network failure and returns optimistic stock movement', async () => {
+  it('preserves a stock recovery request but rejects unconfirmed movement', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: null,
       error: { message: 'NetworkError when attempting to fetch resource', code: 'NETWORK_ERROR' },
     });
 
     const uuid = '00000000-0000-0000-0000-000000000001';
-    const movement = await inventoryService.adjustStock(
+    await expect(inventoryService.adjustStock(
       orgId,
       'prod-1',
       5,
       'Physical verification',
       uuid,
       false
-    );
-
-    expect(movement.id).toContain('mov-offline');
-    expect(movement.quantityChange).toBe(5);
+    )).rejects.toThrow('Pending server confirmation');
 
     const queued = offlineQueue.getAll(orgId);
     expect(queued).toHaveLength(1);
     expect(queued[0].actionType).toBe('ADJUST_STOCK');
+  });
+
+  it.each(['invoice', 'payment', 'stock'] as const)('keeps %s pending while disconnected, without calling the backend or returning a posted record', async (kind) => {
+    const connectivity = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const key = '00000000-0000-0000-0000-000000000009';
+    try {
+      const submit = () => kind === 'invoice'
+        ? invoicesService.createInvoice(orgId, { customerId: 'cust-1', invoiceDate: '2026-11-26', dueDate: '2026-11-26', idempotencyKey: key, items: [{ productId: 'p1', productName: 'Product', productSku: 'P1', uom: 'Nos', quantity: 1, unitPrice: 100, taxRate: 18 }] }, false)
+        : kind === 'payment'
+          ? paymentsService.recordPayment(orgId, { customerId: 'cust-1', amount: 100, paymentMethod: 'CASH', paymentDate: '2026-11-26', idempotencyKey: key }, false)
+          : inventoryService.adjustStock(orgId, 'p1', 1, 'Physical count', key, false);
+      await expect(submit()).rejects.toThrow('Pending server confirmation');
+      await expect(submit()).rejects.toThrow('Pending server confirmation');
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
+      expect(offlineQueue.getAll(orgId)).toHaveLength(1);
+      expect(offlineQueue.getAll(orgId)[0]).toMatchObject({ organizationId: orgId, idempotencyKey: key, status: 'pending' });
+    } finally { connectivity.mockRestore(); }
   });
 
   it('flushes queued actions in FIFO order when flushOfflineSync is called', async () => {
