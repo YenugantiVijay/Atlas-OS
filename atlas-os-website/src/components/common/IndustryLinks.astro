@@ -1,15 +1,15 @@
 ---
-import { Printer, IceCreamCone, Snowflake, CircuitBoard, Leaf, ShoppingBag, ShoppingBasket, Store, Wrench, Zap } from 'lucide-react';
+import { CircuitBoard, ShoppingBag, ShoppingBasket, Store, Wrench, Zap } from 'lucide-react';
 import { INDUSTRY_COLORS } from '../../data/industry-colors';
 import { industryDownloadHref } from '../../data/industry-downloads';
-import { INDUSTRY_NAVIGATION } from '../../data/navigation';
+import { FEATURED_INDUSTRIES } from '../../data/navigation';
 
 const icons = { electrical: Zap, electronics: CircuitBoard, hardware: Wrench, retail: ShoppingBasket,
-  agriculture: Leaf, shop: Store, ecommerce: ShoppingBag, printer: Printer, icecreamcone: IceCreamCone, snowflake: Snowflake };
+  shop: Store, ecommerce: ShoppingBag };
 ---
 
 <ul class="industry-links">
-  {INDUSTRY_NAVIGATION.map(({ icon, label, href, description }) => {
+  {FEATURED_INDUSTRIES.map(({ icon, label, href, description }) => {
     const Icon = icons[icon];
     const key = href.split('/').filter(Boolean).at(-1) as keyof typeof INDUSTRY_COLORS;
     const { color, tint } = INDUSTRY_COLORS[key];
