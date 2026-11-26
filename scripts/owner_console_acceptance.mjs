@@ -80,6 +80,9 @@ export async function runOwnerConsoleAcceptance({ client, withRoleContext, recor
       ((now() AT TIME ZONE 'Asia/Kolkata')::date)::text AS today,
       ((now() AT TIME ZONE 'Asia/Kolkata')::date+30)::text AS end`);
     const purchase = { organization_id: org.id, product: 'professional', amount: 2499, paid_on: today, reference: 'TEST-' + randomUUID() };
+    await assert.rejects(asOwner(() => request('record_purchase', {
+      ...purchase, product: 'enterprise_network',
+    })), { code: '22023', message: /Atlas Network is unavailable/ });
     const before = await asOwner(() => request('overview'));
     const saved = await asOwner(() => request('record_purchase', purchase));
     assert.deepEqual(await asOwner(() => request('record_purchase', purchase)), saved);
@@ -90,6 +93,9 @@ export async function runOwnerConsoleAcceptance({ client, withRoleContext, recor
     assert(after.products.some(item => item.product === 'professional'));
     const { rows: [{ version }] } = await client.query('SELECT updated_at::text AS version FROM public.organization_subscriptions WHERE organization_id=$1', [org.id]);
     const change = { organization_id: org.id, version, product: 'professional', status: 'active', end_date: end, reason: 'Verified payment' };
+    await assert.rejects(asOwner(() => request('set_subscription', {
+      ...change, product: 'enterprise_network',
+    })), { code: '22023', message: /Atlas Network is unavailable/ });
     await asOwner(() => request('set_subscription', change));
     await assert.rejects(asOwner(() => request('set_subscription', change)), { code: '40001' });
     assert((await asOwner(() => request('clients', { search: 'Owner Console Test Workspace' }))).some(item =>
