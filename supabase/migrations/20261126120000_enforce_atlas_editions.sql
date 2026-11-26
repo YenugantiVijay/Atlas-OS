@@ -45,6 +45,8 @@ CREATE FUNCTION atlas_private.limit_new_network_sales()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   IF TG_TABLE_NAME = 'organization_subscriptions' THEN
+    -- Privileged maintenance and restores run without a signed-in end user.
+    IF auth.uid() IS NULL THEN RETURN NEW; END IF;
     IF TG_OP = 'UPDATE' THEN
       IF OLD.plan_tier = 'enterprise_network' THEN RETURN NEW; END IF;
     END IF;
