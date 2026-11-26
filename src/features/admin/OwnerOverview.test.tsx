@@ -35,7 +35,7 @@ describe('owner overview', () => {
     expect(chart.getByText('6', { exact: true })).toBeVisible();
     fireEvent.click(chart.getByRole('button', { name: 'Revenue' }));
     expect(chart.getByText('₹10,997.00', { exact: true })).toBeVisible();
-    expect(screen.getByText('Professional')).toBeVisible();
+    expect(screen.getByText('Atlas Trade')).toBeVisible();
     expect(screen.getByText(/urgent client report/)).toBeVisible();
     expect(screen.getByText(/Purchases fell/)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Open support inbox' }));
@@ -60,7 +60,7 @@ describe('owner assistant', () => {
     expect(panel.getByRole('button', { name: /urgent client report/ })).toBeVisible();
     fireEvent.click(panel.getByRole('button', { name: 'Review purchases' }));
     expect(panel.getByText(/2 recorded purchases, totalling/)).toHaveTextContent('₹4,998.00');
-    expect(panel.getByText(/Professional leads/)).toBeVisible();
+    expect(panel.getByText(/Atlas Trade leads/)).toBeVisible();
     fireEvent.click(panel.getByRole('button', { name: 'Check renewals' }));
     expect(panel.getByText(/1 subscription reaches/)).toBeVisible();
     fireEvent.click(panel.getByRole('button', { name: 'Review client reports' }));
