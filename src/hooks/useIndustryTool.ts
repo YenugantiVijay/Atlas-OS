@@ -46,7 +46,7 @@ export function allowsIndustryRoute(tool: IndustryToolId | undefined, path: stri
 
 const commonSpecialtyLinks = new Set([
   '/', '/support', '/invoices', '/payments', '/customers', '/reports/sales-receipts',
-  '/team', '/attendance', '/settings', '/audit', ...Object.values(SPECIALTY_TOOL_ROUTES),
+  '/team', '/attendance', '/attendance/my', '/settings', '/audit', ...Object.values(SPECIALTY_TOOL_ROUTES),
 ]);
 
 export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {

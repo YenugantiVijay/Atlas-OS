@@ -75,7 +75,7 @@ export default function ReceiptTemplates() {
         {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
         <label className="flex items-start gap-2 border-t border-border pt-3 text-sm">
           <input type="checkbox" checked={counterCopy} onChange={(event) => setCounterCopy(event.target.checked)} className="mt-1" />
-          <span>Preview customer and counter copies<span className="block text-xs text-content-secondary">Available in Atlas Trade</span></span>
+          <span>Preview customer and counter copies<span className="block text-xs text-content-secondary">Available in Atlas Stride</span></span>
         </label>
         <p className="text-xs text-content-secondary">Preview changes stay in your browser.</p>
       </div>

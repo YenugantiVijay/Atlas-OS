@@ -47,6 +47,9 @@ export const PaymentsPage: React.FC = () => {
   const { check } = useActionPermission();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const consumedRecordParams = useRef(new WeakSet<URLSearchParams>());
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [summary, setSummary] = useState<PaymentsSummary | null>(null);
@@ -115,6 +118,12 @@ export const PaymentsPage: React.FC = () => {
   }, [currentOrg?.id]);
 
   const clearActionParam = useCallback(() => {
+    // Invalidate URL intent synchronously: initial loading can finish before
+    // React commits the query-string update after a dialog cancellation.
+    consumedRecordParams.current.add(searchParamsRef.current);
+    const intent = new URLSearchParams(searchParamsRef.current);
+    intent.delete('action');
+    searchParamsRef.current = intent;
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
       if (nextParams.has('action')) {
@@ -377,8 +386,6 @@ export const PaymentsPage: React.FC = () => {
   clearActionParamRef.current = clearActionParam;
   const initializeAndOpenRecordRef = useRef(initializeAndOpenRecord);
   initializeAndOpenRecordRef.current = initializeAndOpenRecord;
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
 
   // Initial load effect
   useEffect(() => {
@@ -400,7 +407,7 @@ export const PaymentsPage: React.FC = () => {
     loadData().then((result) => {
       if (!active) return;
       setIsPreparingRecord(false);
-      if (requestedAction === 'record' && searchParamsRef.current.get('action') === 'record') {
+      if (requestedAction === 'record' && !consumedRecordParams.current.has(searchParamsRef.current) && searchParamsRef.current.get('action') === 'record') {
         if (!result) {
           showToastRef.current('error', 'Loading Error', 'Unable to load the required records. Check your connection and try again.');
           return;
@@ -417,7 +424,7 @@ export const PaymentsPage: React.FC = () => {
   // Listen for action=record if navigation happens while component is already mounted
   useEffect(() => {
     const action = searchParams.get('action');
-    if (action === 'record' && !isLoading && !isPreparingRecord) {
+    if (action === 'record' && !consumedRecordParams.current.has(searchParams) && searchParamsRef.current.get('action') === 'record' && !isLoading && !isPreparingRecord) {
       if (loadError) {
         showToast('error', 'Loading Error', 'Unable to load payments. Check your connection and try again.');
         return;

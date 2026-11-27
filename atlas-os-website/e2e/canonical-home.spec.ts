@@ -36,7 +36,7 @@ test.beforeAll(async () => {
     res.setHeader('Content-Type', types[path.extname(file)] || 'application/octet-stream');
     fs.createReadStream(file).pipe(res);
   });
-  await new Promise<void>((resolve) => server.listen(4321, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(Number(process.env.ATLAS_WEBSITE_TEST_PORT || '14321'), '127.0.0.1', resolve));
 });
 
 test.afterAll(async () => {
@@ -99,9 +99,9 @@ test('Industries spans the desktop header and supports keyboard dismissal', asyn
   await toggle.focus();
   await page.keyboard.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(panel.locator('.industry-links a')).toHaveCount(6);
+  await expect(panel.locator('.industry-links a')).toHaveCount(10);
   await expect(panel.getByRole('link', { name: /Retail & Wholesale Counters/ })).toBeVisible();
-  await expect(panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ })).toHaveCount(0);
+  await expect(panel.getByRole('link', { name: /Fertilizers & Agri Inputs/ })).toBeVisible();
   await expect(panel.getByRole('link', { name: 'View all industries' })).toBeVisible();
   const bounds = await panel.boundingBox();
   const header = await page.locator('#site-header').boundingBox();
@@ -122,7 +122,7 @@ test('on mobile the industry cards expand inside the navigation drawer', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'Open Navigation Menu' }).click();
   const drawer = page.locator('#mobile-nav-menu');
-  const shop = drawer.getByRole('link', { name: 'Small Shops' });
+  const shop = drawer.getByRole('link', { name: /Small Shops/ });
   await expect(shop).toBeHidden();
   await drawer.locator('summary').filter({ hasText: 'Industries' }).click();
   await expect(shop).toBeVisible();
@@ -136,7 +136,7 @@ test('Escape closes the mobile navigation and returns keyboard focus', async ({ 
   const toggle = page.getByRole('button', { name: 'Open Navigation Menu' });
   await toggle.click();
   const drawer = page.locator('#mobile-nav-menu');
-  await drawer.getByRole('link', { name: 'Product', exact: true }).focus();
+  await drawer.locator('summary').filter({ hasText: 'Products' }).focus();
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -269,10 +269,10 @@ test('receipt template preview updates branding, layout and copies on mobile', a
 test('pricing plans and industry links lead to the right workflows', async ({ page }) => {
   await page.goto('/pricing');
   await expect(page.getByText('₹999', { exact: true })).toBeVisible();
-  await expect(page.getByText('₹2,499', { exact: true })).toBeVisible();
+  await expect(page.getByText('₹499', { exact: true })).toBeVisible();
   await expect(page.getByText('Planned', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Discuss Trade' }).click();
-  await expect(page.getByRole('form', { name: 'Request a demo' })).toContainText('Discuss Atlas Trade');
+  await page.getByRole('link', { name: 'Discuss Stride' }).click();
+  await expect(page.getByRole('form', { name: 'Request a demo' })).toContainText('Discuss Atlas Stride');
   await page.locator('footer').getByRole('link', { name: 'Fertilizers & Agri Inputs' }).click();
   await expect(page).toHaveURL(/\/solutions\/agricultural-inputs\/?$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('fertilizer and agri-input dealers');

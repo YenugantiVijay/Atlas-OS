@@ -113,7 +113,7 @@ export default function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form id="contact-form" onSubmit={handleSubmit} noValidate className="space-y-5">
       {/* Honeypot field for anti-spam */}
       <div className="hidden" aria-hidden="true">
         <label htmlFor="website_url">Website URL</label>

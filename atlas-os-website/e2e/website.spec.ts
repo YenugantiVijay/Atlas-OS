@@ -50,7 +50,7 @@ test.beforeAll(async () => {
   });
 
   await new Promise<void>((resolve) => {
-    server.listen(4321, '127.0.0.1', () => resolve());
+    server.listen(Number(process.env.ATLAS_WEBSITE_TEST_PORT || '14321'), '127.0.0.1', () => resolve());
   });
 });
 
@@ -71,7 +71,7 @@ async function mockLeadAcknowledgement(page: Page, expectedKind: string) {
     expect(request.token).toBe('ci-verified-token');
     return route.fulfill({
       json: { ok: true, reference: 'atlas-ci-reference' },
-      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+      headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}` },
     });
   });
 }
@@ -115,7 +115,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
         await expect(image).toHaveAttribute('srcset', /400w|480w/);
         await image.evaluate(async (image: HTMLImageElement) => image.decode());
         const source = await image.evaluate((image: HTMLImageElement) => image.currentSrc);
-        expect(new URL(source).origin).toBe('http://127.0.0.1:4321');
+        expect(new URL(source).origin).toBe(`http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}`);
         expect((await image.boundingBox())!.width).toBeLessThanOrEqual(390);
       }
     }
@@ -153,11 +153,11 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
 
     // Verify packaging preview status badge
     await expect(page.locator('span:has-text("Packaging Preview")')).toBeVisible();
-    await expect(page.locator('text=Standalone Windows Desktop Package In Active Development')).toBeVisible();
+    await expect(page.locator('text=Native Windows package planned; no installer released')).toBeVisible();
 
     // Verify system requirements table
-    await expect(page.locator('text=Minimum System Requirements')).toBeVisible();
-    await expect(page.locator('text=Windows 10').first()).toBeVisible();
+    await expect(page.locator('text=Native Requirements Not Yet Defined')).toBeVisible();
+    await expect(page.getByText('Not established', { exact: true }).first()).toBeVisible();
 
     // Verify NO unverified direct .exe download link exists
     const fakeLinks = page.locator('a[href$=".exe"], a[href$=".msi"]');
@@ -175,15 +175,15 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await expect(page.getByText('Your notification request was accepted for email delivery.')).toBeVisible();
   });
 
-  test('4. Pricing shows Counter and Trade receipt options and labels Network as planned', async ({ page }) => {
+  test('4. Pricing shows Sprout and Stride quotations and labels Summit as planned', async ({ page }) => {
     await page.goto('/pricing');
     const plans = page.locator('#tiers article');
     await expect(plans).toHaveCount(3);
-    await expect(plans.nth(0)).toContainText('Branded customer receipt and daily totals');
+    await expect(plans.nth(0)).toContainText('Branded customer receipts and daily totals');
     await expect(plans.nth(1)).toContainText('Customer and counter receipts on one sheet');
-    await expect(plans.nth(2).getByRole('heading', { name: 'Atlas Network' })).toBeVisible();
+    await expect(plans.nth(2).getByRole('heading', { name: 'Atlas Summit' })).toBeVisible();
     await expect(plans.nth(2).getByText('Planned', { exact: true })).toBeVisible();
-    await expect(page.getByText(/proposed launch pricing/i)).toBeVisible();
+    await expect(page.getByText(/Proposed quotations in INR/i)).toBeVisible();
     await expect(page.getByText(/ask about trial availability/i)).toBeVisible();
   });
 
@@ -231,7 +231,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
     await page.goto('/non-existent-page-test-404');
     await expect(page.getByRole('heading', { name: 'Page Not Found', level: 1 })).toBeVisible();
     await page.click('a:has-text("Return to Homepage")');
-    await expect(page).toHaveURL('http://127.0.0.1:4321/');
+    await expect(page).toHaveURL(`http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}/`);
   });
 
   test('8. Brand workflow showcase animation continues on hover and respects container height', async ({ page }) => {
@@ -249,7 +249,7 @@ test.describe('Atlas OS Official Website E2E Tests', () => {
 
     // Verify all 6 chips
     await expect(orbit.locator('.orbit-chip')).toHaveCount(6);
-    for (const capability of ['Inventory', 'Sales Orders', 'Invoices', 'Payments', 'Reports', 'AI Insights']) {
+    for (const capability of ['Inventory', 'Sales Orders', 'Invoices', 'Payments', 'Reports', 'Business Assistant']) {
       await expect(orbit.getByText(capability, { exact: true })).toBeVisible();
     }
 
@@ -400,4 +400,18 @@ test('installation centre opens the shared app without forcing an industry', asy
   expect(onlineUrl.origin).toBe(installUrl.origin);
   expect(onlineUrl.protocol).toBe('https:');
   expect(onlineUrl.searchParams.has('tool')).toBe(false);
+});
+
+test('Industries shows ten cards in five desktop columns and Products exposes truthful plan cards', async ({page}) => {
+  await page.setViewportSize({width:1920,height:1080}); await page.goto('/');
+  await page.getByRole('button',{name:'Industries',exact:true}).click();
+  const panel=page.locator('#industries-panel'); const cards=panel.locator('.industry-links > li');
+  await expect(cards).toHaveCount(10);
+  const first=await cards.nth(0).boundingBox(); const fifth=await cards.nth(4).boundingBox(); const sixth=await cards.nth(5).boundingBox();
+  expect(Math.abs(first!.y-fifth!.y)).toBeLessThan(2); expect(sixth!.y).toBeGreaterThan(first!.y);
+  await page.keyboard.press('Escape'); await page.getByRole('button',{name:'Products',exact:true}).click();
+  const products=page.locator('#products-panel'); await expect(products.getByRole('link',{name:/Atlas Sprout/})).toBeVisible();
+  await expect(products.getByRole('link',{name:/Atlas Stride/})).toBeVisible(); await expect(products.getByRole('link',{name:/Atlas Summit/})).toContainText('Planned');
+  await expect(products.locator('[aria-label="Atlas product catalogue"] > a')).toHaveCount(8);
+  await page.keyboard.press('Escape'); await expect(products).toBeHidden();
 });

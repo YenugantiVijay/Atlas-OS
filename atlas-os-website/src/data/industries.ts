@@ -17,7 +17,7 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
       'Native physical Unit of Measure (UOM) support including Coils, Bundles, and Meters.',
       'Contractor credit-limit checks during sales order confirmation.',
       'Multi-invoice payment settlement allocation with exact cross-period tracking.',
-      'One-click statutory GST Excel reporting with immutable tax snapshots.',
+      'Export recorded invoice tax rates and totals; missing historical component splits remain marked as not stored.',
     ],
     workflowHighlights: [
       {
@@ -27,7 +27,7 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
         step: '2. Credit Pre-Flight', description: 'System checks contractor outstanding balance before confirming delivery.',
       },
       {
-        step: '3. Statutory Invoice', description: 'Commercial tax invoice with verified Place of Supply and GST breakdown.',
+        step: '3. Statutory Invoice', description: 'Invoice records with recorded tax totals; review place of supply and any component split before tax reporting.',
       },
       {
         step: '4. RTGS Allocation', description: 'Post customer bank receipt and settle against specific unpaid project invoices.',
@@ -83,20 +83,20 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
       'Multi-UOM packaging options with clear label distinctions across product masters.',
       'Comprehensive customer receivables ledger tracking outstanding dues per invoice.',
       'Mandatory stock adjustment reasoning preserving inventory integrity.',
-      '15-year historical financial year Excel exports with full reconciliation sheets.',
+      'Financial-year Excel exports for the records stored in your organization.',
     ],
     workflowHighlights: [
       {
         step: '1. Contractor Quotation', description: 'Issue formal price quotations before material dispatch.',
       },
       {
-        step: '2. Dispatch & Invoice', description: 'Generate numbered tax invoices with customer GSTIN validation.',
+        step: '2. Dispatch & Invoice', description: 'Generate numbered tax invoices with customer GSTIN format checks and manual review.',
       },
       {
         step: '3. Payment Tracking', description: 'Accept partial cheques or NEFT payments with exact ledger updates.',
       },
       {
-        step: '4. Year-End Audit', description: 'Export complete audit-ready Excel workbooks with one click.',
+        step: '4. Year-End Audit', description: 'Export complete review-ready Excel workbooks with one click.',
       },
     ],
   },
@@ -116,7 +116,7 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
       'Role-based access permissions restricting counter staff from altering master records.',
       'Fast lookup for existing customer accounts and stock at the counter.',
       'Daily collections grouped by payment method in Payments.',
-      'Customer and counter receipt copies on one sheet in Professional and Enterprise Network.',
+      'Customer and counter receipt copies on one sheet in Atlas Stride; future Summit scope requires confirmation.',
     ],
     workflowHighlights: [
       {
@@ -178,7 +178,7 @@ export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
     howAtlasSolves: [
       'Open your everyday tools directly from Shop essentials on the dashboard.',
       'Add products and search by name or SKU to check price and availability.',
-      'Print a customer receipt and see daily payment totals with Starter.',
+      'Print a customer receipt and see daily payment totals with Atlas Sprout.',
     ],
     workflowHighlights: [
       {

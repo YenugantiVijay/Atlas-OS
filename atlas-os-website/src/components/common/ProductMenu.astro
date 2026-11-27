@@ -1,0 +1,18 @@
+---
+import { Sprout, Route, Mountain, MonitorSmartphone, ShoppingBag, Printer, Snowflake, FileSpreadsheet } from 'lucide-react';
+import { PRICING_TIERS } from '../../data/pricing';
+const [sprout, stride, summit] = PRICING_TIERS;
+const cards = [
+ {name:sprout.name,text: 'Proposed ' + sprout.priceDisplay + '/month. Everyday shop sales, stock and collections.',href:'/pricing#starter',Icon:Sprout},
+ {name:stride.name,text:'Proposed ' + stride.priceDisplay + '/month. Purchasing, receiving and supplier-rate review.',href:'/pricing#professional',Icon:Route},
+ {name:summit.name,text:'Planned. Indicative ' + summit.priceDisplay + '/month budget for future branch coordination.',href:'/pricing#enterprise-network',Icon:Mountain},
+ {name:'Web & installable PWA',text:'Browser access and installation guidance. Online-first, not a native mobile app.',href:'/download#installation-centre',Icon:MonitorSmartphone},
+ {name:'E-commerce workspace',text:'Record channel references, orders and dispatch details. No automatic marketplace sync.',href:'/solutions/ecommerce/',Icon:ShoppingBag},
+ {name:'Banner & Print Studio',text:'Quotes, artwork references and production stages in the shared application.',href:'/solutions/banner-print-studio/',Icon:Printer},
+ {name:'Ice cream workspaces',text:'Stall cash records and distribution case/expiry workflows.',href:'/solutions/ice-cream-distribution/',Icon:Snowflake},
+ {name:'Import & export tools',text:'Review supported spreadsheet previews and exports. Proprietary migration is not guaranteed.',href:'/features#reports',Icon:FileSpreadsheet},
+];
+---
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Atlas product catalogue">
+ {cards.map(({name,text,href,Icon}) => <a href={href} class="flex min-w-0 gap-3 rounded-2xl border border-border bg-surface-secondary p-5 hover:border-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Icon size={22} aria-hidden="true" /></span><span><span class="block text-base font-semibold text-content-primary">{name}</span><span class="mt-1 block text-sm leading-relaxed text-content-secondary">{text}</span></span></a>)}
+</div>

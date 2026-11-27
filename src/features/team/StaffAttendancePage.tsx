@@ -32,6 +32,7 @@ export function StaffAttendancePage() {
       <header>
         <h1 className="text-2xl font-bold text-content-primary">Staff Attendance</h1>
         <p className="mt-1 text-sm text-content-secondary">Choose a date, assign work locations, and record attendance.</p>
+        <Link to="/attendance/my" className="mt-2 inline-flex text-sm font-semibold text-teal-800 hover:underline">Employee check-in, monthly logs &amp; daily reports</Link>
       </header>
       {!sessionReady ? <Card><p className="text-sm">Sign in to a cloud workspace to use attendance.</p></Card>
         : access.isPending ? <p role="status" className="text-sm">Checking attendance access…</p>

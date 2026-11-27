@@ -28,19 +28,19 @@ export const FAQS: FaqItem[] = [
   {
     id: 'gst-compliance',
     question: 'How does Atlas OS handle statutory Indian GST compliance?',
-    answer: 'Atlas OS generates commercial tax invoices with verified Interstate (IGST) vs. Intrastate (CGST + SGST) place-of-supply logic based on the customer’s verified GSTIN state code. Invoices capture immutable historical tax rate snapshots, and our one-click reporting engine generates audit-ready Microsoft Excel workbooks for any statutory financial year (April 1 to March 31).',
+    answer: 'Atlas OS calculates invoice tax totals using decimal-safe arithmetic. The GST calculator shows CGST plus SGST/UTGST for a selected local supply, or IGST for an inter-state supply. Correct classification depends on the actual transaction and place of supply; SEZ, import/export and other special cases need separate review. Historical records do not always contain separate component snapshots, and a GSTIN format match is not GST-portal verification. Atlas OS does not currently file GST returns or register live e-invoices/e-way bills.',
     category: 'Product & Features',
   },
   {
     id: 'download-desktop-app',
     question: 'How can I download the Atlas OS Windows application?',
-    answer: 'The official Atlas OS standalone Windows desktop installer is currently in active packaging development. We believe in 100% transparency: we do not publish fake installers or placeholder setup files. You can join the early release notification list on our Download page or request a live guided demonstration to access the web application.',
+    answer: 'Use the Installation Centre to install the web application through Chrome or Edge, or continue online. The PWA is online-first. Native Windows installers are planned and are not available for download.',
     category: 'Download & Deployment',
   },
   {
     id: 'system-requirements',
     question: 'What are the system requirements for Atlas OS?',
-    answer: 'The cloud-connected web application runs smoothly in any modern web browser (Google Chrome, Microsoft Edge, Mozilla Firefox) on Windows, macOS, and Linux. The upcoming native Windows desktop application will support 64-bit Windows 10 and Windows 11 with a minimum of 4 GB RAM and 500 MB of disk space.',
+    answer: 'Use a current Chrome or Microsoft Edge browser for installation, with JavaScript, browser storage and internet access for business operations. Other browsers can use the online site where compatible. Native desktop/mobile applications are planned; their hardware requirements have not been established.',
     category: 'Download & Deployment',
   },
   {
@@ -58,7 +58,7 @@ export const FAQS: FaqItem[] = [
   {
     id: 'pricing-structure',
     question: 'How will Atlas OS be priced?',
-    answer: 'Atlas Counter covers shop billing and drawer closing. Atlas Trade adds goods receiving, purchasing and supplier price history. Atlas Network is planned for multi-branch businesses. Request a demo to confirm the proposed terms.',
+    answer: 'Atlas Sprout covers shop billing and drawer closing. Atlas Stride adds goods receiving, purchasing and supplier price history. Atlas Summit is planned for multi-branch businesses. Request a demo to confirm the proposed terms.',
     category: 'Pricing & Trials',
   },
 ];

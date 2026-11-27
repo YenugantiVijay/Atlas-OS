@@ -108,10 +108,18 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
     ],
   },
   {
+    title: 'People',
+    showHeading: true,
+    items: [
+      { label: 'Employee Attendance', path: '/attendance/my', icon: <CalendarCheck className="w-[18px] h-[18px]" />, action: 'data:read' },
+    ],
+  },
+  {
     title: 'Administration',
     showHeading: true,
     items: [
       { label: 'Team & Access', path: '/team', icon: <Users className="w-[18px] h-[18px]" />, action: 'members:manage' },
+
       { label: 'Staff Attendance', path: '/attendance', icon: <CalendarCheck className="w-[18px] h-[18px]" />, attendance: true },
       { label: 'Audit Trail', path: '/audit', icon: <ShieldCheck className="w-[18px] h-[18px]" />, action: 'audit:read' },
       { label: 'India Ecosystem', path: '/integrations', icon: <FileCode className="w-[18px] h-[18px]" />, action: 'org:manage' },

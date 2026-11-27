@@ -3,20 +3,20 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Container from '../components/common/Container.astro';
 import Button from '../components/common/Button.astro';
 import FaqAccordion from '../components/support/FaqAccordion';
-import { 
-  Headphones, 
-  BookOpen, 
-  HelpCircle, 
-  MessageSquare, 
-  Phone, 
-  Mail, 
-  Download, 
+import {
+  Headphones,
+  BookOpen,
+  HelpCircle,
+  MessageSquare,
+  Phone,
+  Mail,
+  Download,
   ArrowRight,
   Video
 } from 'lucide-react';
 ---
 
-<BaseLayout 
+<BaseLayout
   title="Help Center, Documentation & Technical Support | Atlas OS"
   description="Access official documentation, frequently asked questions, staff training resources, and direct technical support for Atlas OS."
   canonicalUrl="https://atlasos.business/support"
@@ -33,7 +33,7 @@ import {
           We are here to help your <span class="text-gradient">business thrive</span>.
         </h1>
         <p class="text-base sm:text-lg text-content-secondary leading-relaxed">
-          From initial product setup and historic Excel data migration to everyday counter billing assistance, our dedicated support team has you covered.
+          Browse product FAQs or send an enquiry about setup, supported spreadsheet imports and everyday billing workflows.
         </p>
       </div>
     </Container>
@@ -51,7 +51,7 @@ import {
             </div>
             <h3 class="text-xl font-bold text-content-primary font-heading">Workflow Guides</h3>
             <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-              Step-by-step documentation covering rapid GST billing, multi-UOM inventory configurations, ledger allocation, and fiscal year exports.
+              Explore feature descriptions, GST guidance and answers to common workflow questions.
             </p>
           </div>
           <Button href="/features" variant="outline" size="sm" class="w-full justify-center font-semibold text-sky-700 border-sky-300 hover:bg-sky-50">
@@ -66,9 +66,9 @@ import {
             <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
               <MessageSquare className="w-6 h-6" />
             </div>
-            <h3 class="text-xl font-bold text-content-primary font-heading">Priority Support Desk</h3>
+            <h3 class="text-xl font-bold text-content-primary font-heading">Support Enquiries</h3>
             <p class="text-content-secondary text-xs sm:text-sm leading-relaxed">
-              Speak directly with product engineers via WhatsApp, phone, or email. Professional and Enterprise tiers include priority response SLA.
+              Send an enquiry describing the affected workflow. Support channels, hours and response commitments require separate agreement; no priority response SLA is currently published.
             </p>
           </div>
           <Button href="/contact/?department=support" variant="outline" size="sm" class="w-full justify-center font-semibold text-mint-700 border-mint-300 hover:bg-mint-50">
@@ -98,25 +98,25 @@ import {
       <!-- Quick Contact Strip -->
       <div class="bg-surface-dark rounded-3xl p-8 sm:p-10 text-white shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8 border border-brand-500/20">
         <div>
-          <h3 class="text-2xl font-bold font-heading mb-2">Need immediate assistance?</h3>
+          <h3 class="text-2xl font-bold font-heading mb-2">Need workflow assistance?</h3>
           <p class="text-content-muted text-sm max-w-xl">
-            Our technical support desk operates Monday through Saturday from 9:00 AM to 8:00 PM IST to align with trading counter hours.
+            Send your question through the contact form. Support hours and response commitments are confirmed separately.
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-4 shrink-0">
-          <a 
-            href="tel:+918000000000" 
+          <a
+            href="/contact#contact-form"
             class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-white font-semibold text-sm border border-white/10"
           >
             <Phone className="w-4 h-4 text-emerald-400" />
-            <span>+91 (800) 000-0000</span>
+            <span>Request a call-back</span>
           </a>
-          <a 
-            href="mailto:support@atlasos.business" 
+          <a
+            href="/contact#contact-form"
             class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 transition-colors text-white font-semibold text-sm shadow-md"
           >
             <Mail className="w-4 h-4" />
-            <span>support@atlasos.business</span>
+            <span>Send a support enquiry</span>
           </a>
         </div>
       </div>

@@ -2,9 +2,9 @@ import { getOwnerSupabase } from '@/lib/owner-supabase';
 import type { SupportArea, TicketStatus } from '@/lib/support-reports';
 
 export const EDITIONS = [
-  { value: 'starter', label: 'Atlas Counter' },
-  { value: 'professional', label: 'Atlas Trade' },
-  { value: 'enterprise_network', label: 'Atlas Network' },
+  { value: 'starter', label: 'Atlas Sprout' },
+  { value: 'professional', label: 'Atlas Stride' },
+  { value: 'enterprise_network', label: 'Atlas Summit' },
 ] as const;
 export type Edition = typeof EDITIONS[number]['value'];
 export const editionLabel = (name: string | null) => EDITIONS.find(item => item.value === name)?.label ?? name ?? 'Unassigned';

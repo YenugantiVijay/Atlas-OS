@@ -123,6 +123,13 @@ test.describe('ATLAS OS — Restart, Recovery & Multi-Tenant Isolation (Phase A3
       await expect(dialog).not.toBeVisible();
 
       await expect(page.getByRole('button', { name: 'Record Payment' })).toBeEnabled();
+      await expect(page).not.toHaveURL(/action=record/);
+      // Consuming a cancelled shortcut must not block a later explicit request.
+      await page.goto('/#/payments?action=record');
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(dialog).not.toBeVisible();
+      await expect(page).not.toHaveURL(/action=record/);
     });
   });
 
