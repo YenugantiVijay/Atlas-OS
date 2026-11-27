@@ -641,3 +641,15 @@ test('school solution describes student workflows and defaults to a school enqui
   await page.getByText('Are exams and parent portals included?', {exact: true}).click();
   await expect(page.getByText('Timetables, homework, examinations, report cards and parent/student portals are future phases.', {exact: false})).toBeVisible();
 });
+
+
+test('portal sign-in directory separates product and role entry links without mobile overflow', async ({page})=>{
+ await page.goto('/login/');
+ await expect(page.getByRole('heading',{level:1,name:'Choose your Atlas OS portal'})).toBeVisible();
+ const school=page.locator('main section').filter({has:page.getByRole('heading',{name:'School Management',exact:true})});
+ await expect(school.getByRole('link',{name:'Parent sign in',exact:true})).toHaveAttribute('href',/tool=school&portal=parent#\/school$/);
+ await expect(school.getByRole('link',{name:'Teacher sign in',exact:true})).toHaveAttribute('href',/tool=school&portal=teacher#\/school$/);
+ await expect(school.getByRole('link',{name:'Employee sign in',exact:true})).toHaveAttribute('href',/tool=school&portal=employee#\/attendance\/my$/);
+ await page.setViewportSize({width:390,height:844});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

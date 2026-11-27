@@ -1,3 +1,6 @@
+import { portalEntry } from '@/lib/portal-entry';
+import { PortalsPage } from '@/features/portals/PortalWorkspace';
+import { FamilyPortal } from '@/features/portals/FamilyPortal';
 import React from 'react';
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AppLayout, RouteLoadingFallback } from '@/components/layout/AppLayout';
@@ -115,6 +118,8 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
 
 function WorkspaceHome() {
   const tool = useIndustryTool();
+  if (portalEntry() === 'employee' || portalEntry() === 'manager') return <StaffClockPage />;
+  if (portalEntry() === 'parent' || portalEntry() === 'student') return <FamilyPortal />;
   return tool?.id === 'school' ? <SchoolPage /> : isSpecialtyToolId(tool?.id) ? <SpecialtyWorkspace /> : <DashboardPage />;
 }
 
@@ -160,7 +165,8 @@ export const router = createHashRouter([
         { index: true, element: <WorkspaceHome /> },
         { path: 'studio-jobs', element: <RequirePermission action="data:read"><IndustryRoute path="/studio-jobs"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
         { path: 'ice-cream-counter', element: <RequirePermission action="data:read"><IndustryRoute path="/ice-cream-counter"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
-        { path: 'school', element: <RequirePermission action="data:read"><IndustryRoute path="/school"><SchoolPage /></IndustryRoute></RequirePermission> },
+        { path: 'portals', element: <PortalsPage /> },
+        { path: 'school', element: <RequirePermission action="data:read"><IndustryRoute path="/school">{portalEntry() === 'parent' || portalEntry() === 'student' ? <FamilyPortal /> : <SchoolPage />}</IndustryRoute></RequirePermission> },
         { path: 'cold-chain', element: <RequirePermission action="data:read"><IndustryRoute path="/cold-chain"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
         { path: 'products', element: <ProductsPage /> },
         { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },

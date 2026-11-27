@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "atlas-os-8328y": {
+      "hosting": {
+        "erp": [
+          "atlas-os-8328y-erp"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

@@ -1,3 +1,4 @@
+import { portalStorageKey } from '@/lib/portal-entry';
 import { supabase } from '@/lib/supabase';
 import { Payment } from '@/types';
 import { fromPaise, toPaise } from '@/lib/money';
@@ -75,7 +76,7 @@ function mapCounterShift(row: any): CounterShift {
 }
 
 function demoKey(orgId: string) {
-  return `atlas_os_counter_shifts_v1:${orgId}`;
+  return portalStorageKey(`atlas_os_counter_shifts_v1:${orgId}`);
 }
 
 function readDemoState(orgId: string): DemoShiftState {

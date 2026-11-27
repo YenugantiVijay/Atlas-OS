@@ -79,7 +79,7 @@ export async function runEcommercePlatformAdminAcceptance({ client, withRoleCont
     assert.equal((await makeOrder(sales, 'storefront', 'WEB-1042', key)).id, order.id);
     await assert.rejects(makeOrder(sales, 'storefront', 'DIFFERENT', key), { code: '22023' });
     await assert.rejects(makeOrder(sales, 'storefront', 'web-1042', randomUUID()), { code: '23505' });
-    await assert.rejects(makeOrder(outsider, 'storefront', 'WEB-9999', randomUUID()), /Unauthorized/);
+    await assert.rejects(makeOrder(outsider, 'storefront', 'WEB-9999', randomUUID()), { code: '42501' });
     const marketplace = await makeOrder(sales, 'marketplace', 'WEB-1042', randomUUID());
     assert.notEqual(marketplace.id, order.id);
     const { rows: [result] } = await client.query(

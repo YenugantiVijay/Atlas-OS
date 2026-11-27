@@ -1,3 +1,4 @@
+import { sessionScope } from '@/lib/portal-entry';
 import type { Product, Supplier } from '@/types';
 import type { GoodsReceiptRecord } from '@/services/goods-receiving.service';
 import type { ReceiptWorksheetLine } from './receiving-worksheet';
@@ -27,7 +28,7 @@ const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ROWS = 50;
 
 export const receivingWorkspaceKey = (userId: string, orgId: string): string =>
-  userId && orgId ? PREFIX + encodeURIComponent(userId) + ':' + encodeURIComponent(orgId) : '';
+  userId && orgId ? PREFIX + (sessionScope() ? sessionScope() + ':' : '') + encodeURIComponent(userId) + ':' + encodeURIComponent(orgId) : '';
 
 const getStorage = (): Storage | null => {
   try { return typeof window === 'undefined' ? null : window.sessionStorage; }

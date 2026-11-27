@@ -1,7 +1,9 @@
+import { createProductFixture } from './product-test-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 export async function runSchoolAcceptance({ client, withRoleContext, recordTest, orgAId, orgBId, ownerAId, ownerBId, salesAId }) {
+  orgAId = await createProductFixture(client,orgAId,'school');
   const as = (userId, fn) => withRoleContext(client, { userId, role: userId ? 'authenticated' : 'anon' }, fn);
   const command = async (action, data, key = randomUUID(), org = orgAId) => (await client.query('SELECT public.school_command($1,$2,$3,$4) AS result', [org,action,data,key])).rows[0].result;
   const read = async (area, filter = {}, org = orgAId) => (await client.query('SELECT public.school_read($1,$2,$3) AS result', [org,area,filter])).rows[0].result;

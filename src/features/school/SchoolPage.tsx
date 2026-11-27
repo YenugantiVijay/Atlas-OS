@@ -1,3 +1,4 @@
+import { portalEntry } from '@/lib/portal-entry';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -14,6 +15,7 @@ import { SchoolStudents } from './SchoolStudents';
 import { SchoolAdmissions } from './SchoolAdmissions';
 import { SchoolAttendance } from './SchoolAttendance';
 import { SchoolFees } from './SchoolFees';
+import { SchoolStaffPanel } from './SchoolStaff';
 import { SchoolReports } from './SchoolReports';
 
 export function SchoolPage() {
@@ -41,13 +43,14 @@ function SchoolWorkspace({ scope }: { scope: SchoolScope }) {
   const sections = [
     { id: 'overview', label: 'School dashboard', Icon: GraduationCap, allowed: true },
     { id: 'setup', label: 'School setup', Icon: Settings, allowed: permission.setup },
+    { id: 'staff', label: 'Staff IDs & attendance', Icon: Users, allowed: true },
     { id: 'students', label: 'Students', Icon: Users, allowed: true },
     { id: 'admissions', label: 'Admissions', Icon: UserPlus, allowed: permission.admissions },
     { id: 'attendance', label: 'Student attendance', Icon: ClipboardCheck, allowed: permission.attendance },
     { id: 'fees', label: 'Fees & receipts', Icon: Receipt, allowed: permission.finance },
     { id: 'reports', label: 'School reports', Icon: FileSpreadsheet, allowed: permission.finance },
     { id: 'permissions', label: 'School permissions', Icon: ShieldCheck, allowed: permission.roles },
-  ].filter(section => section.allowed);
+  ].filter(section => section.allowed && (portalEntry() === 'admissions' ? ['overview','staff','students','admissions'].includes(section.id) : portalEntry() === 'teacher' ? ['overview','staff','students','attendance'].includes(section.id) : portalEntry() === 'school_accounts' ? ['overview','staff','students','fees','reports'].includes(section.id) : true));
   const selected = params.get('section') ?? 'overview';
   const section = sections.some(row => row.id === selected) ? selected : 'overview';
   const ready = !!scope.bootstrap.settings;
@@ -59,10 +62,11 @@ function SchoolWorkspace({ scope }: { scope: SchoolScope }) {
     {!scope.editable && <p role="status" className="text-sm text-amber-800">School records are read-only while workspace writes are unavailable.</p>}
     <nav aria-label="School modules" className="flex flex-wrap gap-2">{sections.map(({ id, label, Icon }) => <Button key={id} size="sm" variant={id === section ? 'primary' : 'outline'}
       aria-current={id === section ? 'page' : undefined} onClick={() => { const next = new URLSearchParams(params); next.set('section', id); setParams(next); }}><Icon size={16} />{label}</Button>)}</nav>
-    {!ready && section !== 'setup' && <SchoolPanel title="Start with school setup">
+    {!ready && !['setup','staff'].includes(section) && <SchoolPanel title="Start with school setup">
       <p className="text-sm">{permission.setup ? 'Save the school profile, add an academic year, then create classes and sections.' : 'Ask the school owner or principal to finish academic setup.'}</p>
       {permission.setup && <Button onClick={() => setParams({ section: 'setup' })}>Open school setup</Button>}
     </SchoolPanel>}
+    {section === 'staff' && <SchoolStaffPanel orgId={scope.orgId} userId={scope.userId} editable={scope.editable} owner={scope.bootstrap.role === 'owner'} />}
     {section === 'setup' && permission.setup && <SchoolSetup scope={scope} />}
     {ready && section === 'overview' && <SchoolDashboard scope={scope} />}
     {ready && section === 'students' && <SchoolStudents scope={scope} />}

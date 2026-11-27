@@ -1,3 +1,4 @@
+import { portalStorageKey } from '@/lib/portal-entry';
 import type { SpecialtyToolId } from '@/lib/industry-tools';
 import { getSupabaseClient } from '@/lib/supabase';
 
@@ -308,7 +309,7 @@ export function addLocalOperation(
 }
 
 function readLocal(key: string): LocalData {
-  const saved = localStorage.getItem(key);
+  const saved = localStorage.getItem(portalStorageKey(key));
   return saved ? (JSON.parse(saved) as LocalData) : { jobs: [], events: [], operations: {} };
 }
 
@@ -347,7 +348,7 @@ export async function saveOperation(
   const save = () => {
     const data = readLocal(key);
     addLocalOperation(tool, data, command, id, tradeDay());
-    localStorage.setItem(key, JSON.stringify(data));
+    localStorage.setItem(portalStorageKey(key), JSON.stringify(data));
   };
   if (navigator.locks) await navigator.locks.request(key, save);
   else save();

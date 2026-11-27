@@ -1,3 +1,5 @@
+import { portalEntry } from '@/lib/portal-entry';
+import { StudentPortalLinks } from '@/features/portals/StudentPortalLinks';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -22,7 +24,7 @@ export function SchoolStudents({ scope }: { scope: SchoolScope }) {
   const [year, setYear] = useState(scope.bootstrap.years[0]?.id ?? '');
   const [classId, setClassId] = useState(''); const [search, setSearch] = useState(''); const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState<'add' | 'import' | null>(null); const [student, setStudent] = useState<SchoolStudent>(); const [saved, setSaved] = useState('');
-  const canEdit = schoolPermissions(scope.bootstrap.role).admissions;
+  const canEdit = schoolPermissions(scope.bootstrap.role).admissions && !['teacher','school_accounts'].includes(portalEntry());
   const directory = useSchoolRead<SchoolPageData<SchoolStudent>>(scope, 'students', { year_id: year, class_id: classId, search, offset: (page - 1) * 25 }, !!year);
   return <div className="space-y-5">
     <SchoolPanel title="Student directory">
@@ -71,6 +73,7 @@ function StudentProfile({ scope, student, editable, onSaved }: { scope: SchoolSc
       <div><dt className="font-semibold">Guardian</dt><dd>{student.guardian_name} · {student.guardian_phone}</dd></div>
       <div><dt className="font-semibold">Guardian email</dt><dd className="break-words">{student.guardian_email || 'Not recorded'}</dd></div>
     </dl>
+    {scope.bootstrap.role === 'owner' && !['teacher','school_accounts'].includes(portalEntry()) && <StudentPortalLinks scope={scope} studentId={student.id} />}
     {editable && <>
       <CommandForm scope={scope} title="Update student contact details" action="student_update"
         initial={{ name: student.name, guardian_name: student.guardian_name, guardian_phone: student.guardian_phone, guardian_email: student.guardian_email, address: student.address ?? '', previous_school: student.previous_school ?? '' }}

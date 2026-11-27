@@ -45,3 +45,7 @@ supabase/.temp/
 *.dump
 *.backup
 staging_backup_pre_aal2.sql
+
+# Firebase generated upload caches
+.firebase/
+**/.firebase/

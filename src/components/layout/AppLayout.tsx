@@ -1,3 +1,5 @@
+import { PortalGate, PortalDirectory } from '@/features/portals/PortalWorkspace';
+import { portalEntry, PORTALS, PORTAL_DESCRIPTIONS } from '@/lib/portal-entry';
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { Sparkles, Lock, Loader2, AlertCircle, RotateCcw, LogOut } from 'lucide-react';
@@ -180,11 +182,12 @@ export const AppLayout: React.FC = () => {
     !authError &&
     (!currentOrg || organizations.length === 0)
   ) {
+    if (['parent','student','employee','manager','teacher','school_accounts','admissions'].includes(portalEntry())) return <div className="mx-auto max-w-4xl p-6 space-y-4"><h1 className="text-xl font-bold">No assigned workspace for this portal</h1><p>Ask the workspace owner to invite your account and assign the required portal. A sign-in does not create a subscription or a student link.</p><Button onClick={()=>void signOut()}>Sign out and use another account</Button><PortalDirectory /></div>;
     return <Navigate to="/onboarding" replace />;
   }
 
   return (
-    <div style={industryTheme(tool?.category ?? eligibility?.businessCategory)} className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
+    <PortalGate><div style={industryTheme(tool?.category ?? eligibility?.businessCategory)} className="min-h-screen bg-surface-canvas text-content-primary flex flex-col">
       {/* Sidebar (Desktop persistent + Mobile off-canvas drawer) */}
       <Sidebar
         collapsed={collapsed}
@@ -421,9 +424,9 @@ export const AppLayout: React.FC = () => {
               <div className="w-12 h-12 rounded-xl bg-atlas-100 text-atlas-600 mx-auto flex items-center justify-center">
                 <Lock className="w-6 h-6" />
               </div>
-              <h2 className="text-lg font-bold text-content-primary">{tool ? 'Sign in to ' + tool.name : 'Authentication Required'}</h2>
+              <h2 className="text-lg font-bold text-content-primary">{tool ? 'Sign in to ' + tool.name + (portalEntry() === 'workspace' ? '' : ' · ' + PORTALS[portalEntry()]) : 'Authentication Required'}</h2>
               <p className="text-xs text-content-secondary leading-relaxed">
-                {tool?.description ?? 'Atlas OS is configured in Live Cloud mode. Sign in to access your organization data.'}
+                {portalEntry() === 'workspace' ? tool?.description ?? 'Sign in to access your assigned organization.' : PORTAL_DESCRIPTIONS[portalEntry()]}
               </p>
               <div className="pt-2 flex flex-col gap-2.5">
                 <Button
@@ -431,7 +434,7 @@ export const AppLayout: React.FC = () => {
                   className="w-full"
                   onClick={() => setIsAuthModalOpen(true)}
                 >
-                  Sign In with Supabase
+                  Sign in to this portal
                 </Button>
                 <Button
                   variant="outline"
@@ -447,6 +450,7 @@ export const AppLayout: React.FC = () => {
               <Outlet />
             </React.Suspense>
           )}
+          {!isAuthenticated && !isDemoMode && <PortalDirectory />}
         </div>
       </main>
 
@@ -475,6 +479,6 @@ export const AppLayout: React.FC = () => {
         isOpen={isVerificationModalOpen}
         onClose={() => setIsVerificationModalOpen(false)}
       />
-    </div>
+    </div></PortalGate>
   );
 };

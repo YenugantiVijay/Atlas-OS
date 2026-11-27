@@ -65,6 +65,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
       { label: 'Stall Counter', path: '/ice-cream-counter', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Distribution Desk', path: '/cold-chain', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'School Management', path: '/school', icon: <GraduationCap className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'My Portals', path: '/portals', icon: <Users className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Support', path: '/support', icon: <LifeBuoy className="w-[18px] h-[18px]" /> },
     ],
   },
