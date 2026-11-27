@@ -39,6 +39,7 @@ import { runQuotationRateReviewsAcceptance } from './quotation_rate_reviews_acce
 import { runProductSearchAlternativesAcceptance } from './product_search_alternatives_acceptance.mjs';
 import { runPurchaseOrdersAcceptance } from './purchase_orders_acceptance.mjs';
 import { runStaffPaySetupAcceptance } from './staff_pay_setup_acceptance.mjs';
+import { runStaffClockAcceptance } from './staff_clock_acceptance.mjs';
 import { runStaffAttendanceAcceptance } from './staff_attendance_acceptance.mjs';
 import { runCounterDrawerAcceptance } from './counter_drawer_acceptance.mjs';
 import { runTeamPayAcceptance } from './team_pay_acceptance.mjs';
@@ -1449,6 +1450,8 @@ async function runAcceptance() {
       client: testClient, withRoleContext, recordTest,
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
     });
+    await runStaffClockAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId });
+
 
     await runCounterDrawerAcceptance({
       client: testClient, withRoleContext, recordTest, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,

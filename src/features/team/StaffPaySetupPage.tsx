@@ -27,6 +27,7 @@ export function StaffPaySetupPage() {
         <Link to="/team" className="text-sm font-semibold text-teal-800 hover:underline">Team &amp; Permissions</Link>
         <h1 className="mt-2 text-2xl font-bold text-content-primary">Staff &amp; Pay Setup</h1>
         <p className="mt-1 text-sm text-content-secondary">Set work locations, joining dates, and pay rates for each employee.</p>
+        <Link to="/attendance/my" className="mt-2 inline-flex text-sm font-semibold text-teal-800 hover:underline">Employee attendance &amp; sign-in links</Link>
         {!isDemoMode && isAuthenticated && <Link to="/team/advances"
           className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-border px-3 text-sm font-semibold text-teal-800 hover:bg-teal-50">
           Staff advances &amp; payday
