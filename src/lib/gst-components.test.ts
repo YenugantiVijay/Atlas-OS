@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {splitGstPaise,UTGST_STATE_CODES} from './gst-components';
-import {calculateGst} from '../../atlas-os-website/src/scripts/gst-calculator';
+import {calculateGst} from './gst-calculator';
 import {calculateLineItem,calculateDocumentTotals,toPaise} from './money';
 describe('GST component reconciliation',()=>{
  it.each([0,1,2,3,525,18000,40000,99999999999])('preserves every paise for total %s',tax=>{

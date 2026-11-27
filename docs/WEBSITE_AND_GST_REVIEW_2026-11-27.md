@@ -123,3 +123,5 @@ Official references reviewed:
 - PWA public-cache security: 5/5; real Chromium installability, cache exclusion, offline/reconnect and deferred update lifecycle passed.
 - Both menu preview screenshots were visually inspected.
 - No database migration was added. Live Firebase deployment and hosted-environment verification remain outside these local results.
+
+CI follow-up: The first cloud unit run exposed a test import across the separately installed Astro project. Calculator arithmetic and decimal parsing now live in dependency-free core modules; website entry points re-export them. Root tests no longer require Astro dependencies. The arithmetic and public module APIs are unchanged.
