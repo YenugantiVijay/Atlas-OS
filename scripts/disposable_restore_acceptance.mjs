@@ -7,6 +7,11 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 const measuredTables = [
+  'atlas_school.settings', 'atlas_school.years', 'atlas_school.classes',
+  'atlas_school.students', 'atlas_school.enrolments', 'atlas_school.attendance',
+  'atlas_school.charges', 'atlas_school.receipts', 'atlas_school.allocations',
+  'atlas_school.concessions', 'atlas_school.refunds', 'atlas_school.refund_allocations',
+  'atlas_school.operations', 'atlas_school.audit',
   'public.goods_receipts',
   'public.stock_movements',
   'public.sales_orders',

@@ -1,6 +1,13 @@
 import type { IndustrySolution } from '../types';
 
 export const INDUSTRY_SOLUTIONS: IndustrySolution[] = [
+  { id: 'school', title: 'School Management', badge: 'School workspace',
+    tagline: 'Students, attendance and school fees in one workspace.',
+    description: 'Set up academic years and classes, manage student admissions, record attendance and track school fee collections with separate school permissions.',
+    commonChallenges: ['Student details spread across registers.', 'Unmarked attendance mistaken for absence.', 'Partial payments and concessions difficult to reconcile.'],
+    howAtlasSolves: ['Set up the school profile, academic years, terms and class sections.', 'Preview CSV imports and assign students to academic-year classes.', 'Record explicit attendance statuses with correction reasons and history.', 'Issue class fee instalments, allocate partial payments and approve concessions or refunds.'],
+    workflowHighlights: [ { step: '1. School setup', description: 'Create the school profile, academic year, terms and class sections.' }, { step: '2. Student register', description: 'Review admissions or import existing students with duplicate checks.' }, { step: '3. Attendance', description: 'Teachers mark assigned classes and review monthly recorded statuses.' }, { step: '4. Fee receipts', description: 'Record collections, print receipt copies and export dues reports.' } ],
+  },
   {
     id: 'electrical',
     title: 'Electrical Distributors & Wholesalers',

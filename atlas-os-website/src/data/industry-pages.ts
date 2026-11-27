@@ -1,4 +1,9 @@
 export const INDUSTRY_PAGES = {
+  school: { audience: 'School administrators', accent: 'Keep student and fee records together.', demoIndustry: 'school',
+    benefits: ['Academic setup', 'Admissions and student CSV imports', 'Student attendance history', 'Fee receipts and dues'],
+    topics: ['School office teams', 'Admissions desks', 'Class teachers', 'School accounts teams'],
+    faq: ['Are exams and parent portals included?', 'This release covers school setup, admissions, student records, attendance and fees. Timetables, homework, examinations, report cards and parent/student portals are future phases. Payments and refunds are manually recorded; no bank transfer or UPI settlement is initiated.'],
+    comparison: ['Fee collections', 'Match paper receipts and concessions in separate registers.', 'Record partial payments and principal-approved adjustments against school fee charges, retaining receipt snapshots.'] },
   electrical: {
     audience: 'Electrical distributors', accent: 'Quote with current supplier costs.',
     demoIndustry: 'electrical_wholesale', benefits: ['Stock by selling unit', 'Contractor credit limits', 'Payment allocation', 'GST reports'],

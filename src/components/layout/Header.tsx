@@ -167,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
     { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
-  ].filter((act) => hasPermission(currentRole, act.action));
+  ].filter((act) => (tool?.id !== 'school' || act.type === 'order') && hasPermission(currentRole, act.action));
 
   // Global click-outside listener to close dropdowns when clicking anywhere on the site
   useEffect(() => {

@@ -41,7 +41,7 @@ const workflow = solution.workflowHighlights.map(item => ({ ...item, step: item.
 const benefitIcons = [Package, ClipboardList, ListChecks, BadgeCheck];
 const questions = [
   content.faq,
-  ['How do I get started?', 'Request a guided walkthrough with a sample catalog or a recent order. The team can show how to set up your products, sales, and payment workflows.'],
+  ['How do I get started?', industry === 'school' ? 'Start with the school profile, academic year and class sections. Assign school roles, then import existing students or review new admissions. Use synthetic student records for a walkthrough.' : 'Request a guided walkthrough with a sample catalog or a recent order. The team can show how to set up your products, sales, and payment workflows.'],
   ['Where can I compare editions?', 'The pricing page shows proposed Atlas Sprout and Atlas Stride scope, plus the planned Atlas Summit edition.'],
 ];
 ---
@@ -146,8 +146,8 @@ const questions = [
               <thead><tr class="bg-surface-secondary"><th scope="col" class="w-1/4">Task</th><th scope="col">Manual records</th><th scope="col" class="bg-brand-700 text-white">With Atlas OS</th></tr></thead>
               <tbody>
                 <tr><th scope="row">{content.comparison[0]}</th><td>{content.comparison[1]}</td><td>{content.comparison[2]}</td></tr>
-                <tr><th scope="row">Stock lookup</th><td>Check the latest sheet or ask the store team.</td><td>Search the catalog and review recorded on-hand balances.</td></tr>
-                <tr><th scope="row">Collections</th><td>Keep payment references and invoice records separately.</td><td>Review recorded payments alongside customer balances.</td></tr>
+                <tr><th scope="row">{industry === 'school' ? 'Student register' : 'Stock lookup'}</th><td>{industry === 'school' ? 'Find student and guardian details in separate class registers.' : 'Check the latest sheet or ask the store team.'}</td><td>{industry === 'school' ? 'Search the student directory and review academic-year enrolments.' : 'Search the catalog and review recorded on-hand balances.'}</td></tr>
+                <tr><th scope="row">Collections</th><td>{industry === 'school' ? 'Keep fee receipts and student dues in separate registers.' : 'Keep payment references and invoice records separately.'}</td><td>{industry === 'school' ? 'Review student fee balances, recorded collections and approved adjustments.' : 'Review recorded payments alongside customer balances.'}</td></tr>
               </tbody>
             </table>
           </div>
@@ -177,7 +177,7 @@ const questions = [
           <div data-reveal-group class="card-grid sm:grid-cols-3">
             {[
               { label: 'Feature directory', href: '/features', Icon: Layers3 },
-              { label: 'Receipt templates', href: '/receipt-templates', Icon: FileText },
+              { label: industry === 'school' ? 'School walkthrough' : 'Receipt templates', href: industry === 'school' ? '#walkthrough' : '/receipt-templates', Icon: FileText },
               { label: 'Help and support', href: '/support', Icon: BookOpen },
             ].map(({ label, href, Icon }) => <a class="info-card flex items-center gap-2 text-sm font-semibold hover:border-brand-500 hover:text-[var(--industry-accent)]" href={href}><Icon size={19} className="shrink-0 text-[var(--industry-accent)]" aria-hidden="true" />{label}</a>)}
           </div>
@@ -194,7 +194,7 @@ const questions = [
         </section>
 
         <div class="flex flex-wrap items-center justify-between gap-5 rounded-3xl bg-[#142b4d] p-6 text-white sm:p-9">
-          <div><h2 class="font-heading text-2xl font-bold">See Atlas OS with your workflow</h2><p class="mt-1 text-sm text-slate-200">Bring a sample sale, delivery, or payment to the walkthrough.</p></div>
+          <div><h2 class="font-heading text-2xl font-bold">See Atlas OS with your workflow</h2><p class="mt-1 text-sm text-slate-200">{industry === 'school' ? 'Use a synthetic admission, attendance entry or fee receipt in the walkthrough.' : 'Bring a sample sale, delivery, or payment to the walkthrough.'}</p></div>
           <Button href="#demo" variant="primary" size="md">Request a demo <ArrowRight size={17} aria-hidden="true" /></Button>
         </div>
         <nav aria-label="Explore more industries" class="related-mobile">

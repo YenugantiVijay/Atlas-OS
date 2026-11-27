@@ -76,6 +76,7 @@ export const AppLayout: React.FC = () => {
   }, []);
 
   const handleOpenQuickCreate = (type?: string) => {
+    if (tool?.id === 'school') { navigate('/school'); return; }
     const actionType = type || 'order';
     const actionMap: Record<string, Action> = {
       product: 'products:create',

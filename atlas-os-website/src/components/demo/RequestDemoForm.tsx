@@ -18,6 +18,7 @@ const CONTACT_FIELDS = [
   { id: 'city', label: 'City / region', autoComplete: 'address-level2', maxLength: 120 },
 ] as const;
 const INDUSTRIES = [
+  ['school', 'School management'],
   ["banner_print_studio", "Banner & Print Studio"],
   ["ice_cream_stalls", "Ice Cream Stalls"],
   ["ice_cream_distribution", "Ice Cream Distribution"],
@@ -27,6 +28,7 @@ const INDUSTRIES = [
 ];
 const TEAM_SIZES = [['1_to_5', '1–5 people'], ['6_to_20', '6–20 people'], ['21_to_50', '21–50 people'], ['51_plus', '51+ people']];
 const PRIORITIES = [
+  ['school_management', 'School setup, students, attendance & fees'],
   ['stock_billing_payments', 'Stock, billing & payments'],
   ['purchasing', 'Purchasing & supplier rates'],
   ['receipts_and_collections', 'Receipts and collections'],
@@ -36,7 +38,7 @@ const PRIORITIES = [
 const CONTROL = 'demo-request__control';
 
 export default function RequestDemoForm({ initialIndustry = EMPTY_FORM.industry }: { initialIndustry?: string }) {
-  const [formData, setFormData] = useState(() => ({ ...EMPTY_FORM, industry: initialIndustry }));
+  const [formData, setFormData] = useState(() => ({ ...EMPTY_FORM, industry: initialIndustry, primaryRequirement: initialIndustry === 'school' ? 'school_management' : EMPTY_FORM.primaryRequirement }));
   const [plan, setPlan] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -115,7 +117,7 @@ export default function RequestDemoForm({ initialIndustry = EMPTY_FORM.industry 
       <p className="text-sm text-content-secondary">We’ll be in touch to arrange your walkthrough.</p>
       <p className="break-all text-xs text-content-secondary">Reference <strong>{reference}</strong></p>
       <button type="button" className="text-sm font-semibold text-brand-700 underline" onClick={() => {
-        setFormData({ ...EMPTY_FORM, industry: initialIndustry }); setReference(''); setTurnstileToken(''); setResetCounter((value) => value + 1);
+        setFormData({ ...EMPTY_FORM, industry: initialIndustry, primaryRequirement: initialIndustry === 'school' ? 'school_management' : EMPTY_FORM.primaryRequirement }); setReference(''); setTurnstileToken(''); setResetCounter((value) => value + 1);
       }}>Submit another enquiry</button>
     </div>
   );
