@@ -14,6 +14,7 @@ const OnboardingPage = React.lazy(() =>
 const TeamInvitationPage = React.lazy(() =>
   import('@/features/team/TeamInvitationPage').then((m) => ({ default: m.TeamInvitationPage }))
 );
+const SchoolPage = React.lazy(() => import('@/features/school/SchoolPage').then(m => ({ default: m.SchoolPage })));
 const SpecialtyWorkspace = React.lazy(() => import('@/features/industry/SpecialtyWorkspace'));
 const DashboardPage = React.lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage }))
@@ -114,7 +115,7 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({ action, ch
 
 function WorkspaceHome() {
   const tool = useIndustryTool();
-  return isSpecialtyToolId(tool?.id) ? <SpecialtyWorkspace /> : <DashboardPage />;
+  return tool?.id === 'school' ? <SchoolPage /> : isSpecialtyToolId(tool?.id) ? <SpecialtyWorkspace /> : <DashboardPage />;
 }
 
 function IndustryRoute({ path, children }: { path: string; children: React.ReactElement }) {
@@ -159,6 +160,7 @@ export const router = createHashRouter([
         { index: true, element: <WorkspaceHome /> },
         { path: 'studio-jobs', element: <RequirePermission action="data:read"><IndustryRoute path="/studio-jobs"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
         { path: 'ice-cream-counter', element: <RequirePermission action="data:read"><IndustryRoute path="/ice-cream-counter"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
+        { path: 'school', element: <RequirePermission action="data:read"><IndustryRoute path="/school"><SchoolPage /></IndustryRoute></RequirePermission> },
         { path: 'cold-chain', element: <RequirePermission action="data:read"><IndustryRoute path="/cold-chain"><SpecialtyWorkspace /></IndustryRoute></RequirePermission> },
         { path: 'products', element: <ProductsPage /> },
         { path: 'import-preview', element: <RequirePermission action="data:read"><ImportPreviewPage /></RequirePermission> },

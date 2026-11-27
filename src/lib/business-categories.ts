@@ -3,6 +3,7 @@ import type { BusinessCategory } from '@/types';
 export const DEFAULT_BUSINESS_CATEGORY: BusinessCategory = 'general_retail';
 
 export const BUSINESS_CATEGORIES: Record<BusinessCategory, { label: string; electrical: boolean; products: string[]; unit: 'Nos' | 'Bags' }> = {
+  school: { label: 'School Management', electrical: false, products: ['School education'], unit: 'Nos' },
   general_retail: { label: 'Small Shop / General Retail', electrical: false, products: ['General Merchandise', 'Packaged Goods', 'Household Supplies', 'Stationery'], unit: 'Nos' },
   general_wholesale: { label: 'General Wholesale & Distribution', electrical: false, products: ['General Merchandise', 'Packaged Goods', 'Consumables'], unit: 'Nos' },
   agricultural_inputs: { label: 'Fertilizers & Agri Inputs', electrical: false, products: ['Fertilizers', 'Seeds', 'Soil Nutrients', 'Farm Supplies'], unit: 'Bags' },

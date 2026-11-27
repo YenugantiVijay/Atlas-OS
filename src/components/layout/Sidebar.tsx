@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
+  GraduationCap,
   LifeBuoy,
   ShoppingCart,
   ShoppingBag,
@@ -63,6 +64,7 @@ const NAV_GROUPS_CONFIG: NavGroup[] = [
       { label: 'Print Job Board', path: '/studio-jobs', icon: <ClipboardList className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Stall Counter', path: '/ice-cream-counter', icon: <ShoppingCart className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Distribution Desk', path: '/cold-chain', icon: <Truck className="w-[18px] h-[18px]" />, action: 'data:read' },
+      { label: 'School Management', path: '/school', icon: <GraduationCap className="w-[18px] h-[18px]" />, action: 'data:read' },
       { label: 'Support', path: '/support', icon: <LifeBuoy className="w-[18px] h-[18px]" /> },
     ],
   },

@@ -369,6 +369,7 @@ export interface ProposedAction {
 }
 
 export type BusinessCategory =
+  | 'school'
   | 'electrical_retail'
   | 'electrical_wholesale_distributor'
   | 'hardware_electrical'

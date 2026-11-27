@@ -1,4 +1,10 @@
 export const INDUSTRY_TOOLS = {
+  school: {
+    name: 'School Management', headline: 'Students, attendance and school fees',
+    description: 'Set up academic years and classes, manage admissions, mark attendance and record school fee receipts.',
+    category: 'school', primary: { label: 'Open School', path: '/school' },
+    tasks: [{ label: 'School workspace', detail: 'School setup, students, admissions, attendance and fee reports.', path: '/school' }],
+  },
   electrical: {
     name: 'Electrical Distribution',
     headline: 'Sales & Inventory',
@@ -124,6 +130,7 @@ export function isIndustryToolId(value: string | null): value is IndustryToolId 
 }
 
 export const SPECIALTY_TOOL_ROUTES = {
+  school: '/school',
   'banner-print-studio': '/studio-jobs',
   'ice-cream-stalls': '/ice-cream-counter',
   'ice-cream-distribution': '/cold-chain',

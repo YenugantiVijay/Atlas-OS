@@ -6,6 +6,7 @@ import type { BusinessCategory } from '@/types';
 declare const __ATLAS_INDUSTRY_TOOL__: string | null;
 
 const toolsByCategory: Partial<Record<BusinessCategory, IndustryToolId>> = {
+  school: 'school',
   electrical_retail: 'electrical',
   electrical_wholesale_distributor: 'electrical',
   hardware_electrical: 'hardware',
@@ -51,11 +52,13 @@ const commonSpecialtyLinks = new Set([
 
 export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {
   if (!allowsIndustryRoute(tool, path) || (tool === 'ice-cream-stalls' && path === '/customers')) return false;
+  if (tool === 'school') return ['/', '/school', '/support', '/team', '/attendance', '/attendance/my', '/team/staff', '/team/advances', '/settings', '/audit'].includes(path);
   if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path) || path === '/stock-count';
   return tool !== 'ecommerce' || path !== '/orders';
 }
 
 export const toolTaskPermissions = {
+  '/school': 'data:read',
   '/studio-jobs': 'data:read',
   '/ice-cream-counter': 'data:read',
   '/cold-chain': 'data:read',

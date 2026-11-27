@@ -1,0 +1,9 @@
+#school-receipt-print { display: none; }
+@media print {
+  body:has(#school-receipt-print) > :not(#school-receipt-print) { display: none !important; }
+  body:has(#school-receipt-print) { overflow: visible !important; background: white !important; }
+  #school-receipt-print { display: block !important; padding: 12mm; color: black; font-size: 11pt; }
+  #school-receipt-print header { display: block !important; }
+  #school-receipt-print table { width: 100%; border-collapse: collapse; }
+  #school-receipt-print tr { break-inside: avoid; }
+}

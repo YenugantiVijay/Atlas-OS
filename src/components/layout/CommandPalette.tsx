@@ -75,8 +75,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // may flash results while effects/timers for the new identity are settling.
   const cacheIdentity = JSON.stringify([orgId, currentUser?.id, isAuthenticated]);
   const searchKey = JSON.stringify([cacheIdentity, currentRole, isMockAuth, isOpen, query.trim()]);
-  const financeAllowed = !isMockAuth && hasPermission(currentRole, 'reports:financial');
-  const dataAllowed = hasPermission(currentRole, 'data:read');
+  const financeAllowed = tool?.id !== 'school' && !isMockAuth && hasPermission(currentRole, 'reports:financial');
+  const dataAllowed = tool?.id !== 'school' && hasPermission(currentRole, 'data:read');
   const financialResults = financeAllowed && financeResponse.key === searchKey ? financeResponse.rows : [];
   const operationalResults = dataAllowed && operationsResponse.key === searchKey ? operationsResponse.rows : [];
 
@@ -241,6 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Counter Shift', icon: <Clock3 className="w-4 h-4 text-atlas-600" />, path: '/counter-shift' },
     { label: 'Print Job Board', icon: <ClipboardList className="w-4 h-4 text-atlas-600" />, path: '/studio-jobs' },
     { label: 'Stall Counter', icon: <ShoppingCart className="w-4 h-4 text-atlas-600" />, path: '/ice-cream-counter' },
+    { label: 'School Management', icon: <Users className="w-4 h-4 text-atlas-600" />, path: '/school' },
     { label: 'Distribution Desk', icon: <Truck className="w-4 h-4 text-atlas-600" />, path: '/cold-chain' },
     { label: 'E-commerce Orders', icon: <ShoppingBag className="w-4 h-4 text-atlas-600" />, path: '/ecommerce' },
     { label: 'Invoices', icon: <FileText className="w-4 h-4 text-atlas-600" />, path: '/invoices' },
@@ -265,7 +266,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
     { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
-  ].filter((item) => checkActionPermission(item.action).allowed &&
+  ].filter((item) => (tool?.id !== 'school' || item.type === 'order') && checkActionPermission(item.action).allowed &&
     item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
   const filteredNav = navigationItems.filter((item) =>

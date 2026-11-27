@@ -1,4 +1,5 @@
 export const INDUSTRY_COLORS = {
+  school: { color: '#4338ca', tint: '#eef2ff' },
   electrical: { color: '#92400e', tint: '#fffbeb' },
   electronics: { color: '#1e40af', tint: '#eff6ff' },
   hardware: { color: '#9a3412', tint: '#fff7ed' },

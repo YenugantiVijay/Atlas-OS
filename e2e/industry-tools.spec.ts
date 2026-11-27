@@ -5,6 +5,13 @@ test('each industry link opens its own dashboard and keeps specialised modules i
   await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));
   for (const [id, tool] of Object.entries(INDUSTRY_TOOLS)) {
     await page.goto('/?tool=' + id + '#/');
+    if (id === 'school') {
+      await expect(page.getByRole('heading', { name: 'School Management', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'School workspace preview' })).toBeVisible();
+      await expect(page.getByRole('complementary').getByRole('link', { name: 'Sales Orders', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('complementary').getByRole('link', { name: 'School Management', exact: true })).toBeVisible();
+      continue;
+    }
     await expect(page.getByRole('heading', { name: tool.headline })).toBeVisible();
     if (isSpecialtyToolId(id)) {
       await expect(page.getByRole('region', {name: /open print jobs by due date|stock received and sold|committed and dispatched/i})).toBeVisible();

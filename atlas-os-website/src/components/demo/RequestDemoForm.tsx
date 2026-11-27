@@ -18,6 +18,7 @@ const CONTACT_FIELDS = [
   { id: 'city', label: 'City / region', autoComplete: 'address-level2', maxLength: 120 },
 ] as const;
 const INDUSTRIES = [
+  ['school', 'School management'],
   ["banner_print_studio", "Banner & Print Studio"],
   ["ice_cream_stalls", "Ice Cream Stalls"],
   ["ice_cream_distribution", "Ice Cream Distribution"],
