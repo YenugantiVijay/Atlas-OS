@@ -1,3 +1,4 @@
+import { portalStorageKey } from './portal-entry';
 /**
  * ATLAS OS — Safe Offline Action Queue & Sync Recovery
  *
@@ -42,7 +43,7 @@ export interface SyncProcessResult {
   pendingRemaining: number;
 }
 
-const OFFLINE_QUEUE_STORAGE_KEY = 'atlas_offline_action_queue_v1';
+const OFFLINE_QUEUE_STORAGE_KEY = portalStorageKey('atlas_offline_action_queue_v1');
 export const OFFLINE_QUEUE_EVENT = 'atlas:offline-queue-changed';
 export const SYNCED_PRUNE_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
 

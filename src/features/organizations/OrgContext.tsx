@@ -1,3 +1,4 @@
+import { sessionScope, productEntry, portalEntry, filterProductWorkspaces } from '@/lib/portal-entry';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { clearAllReceivingTabData } from '@/features/receiving/receiving-workspace';
 import type { Session } from '@supabase/supabase-js';
@@ -67,8 +68,8 @@ export interface OrgContextType {
 
 const OrgContext = createContext<OrgContextType | undefined>(undefined);
 
-const ACTIVE_ORG_STORAGE_KEY = 'atlas_active_org_id_v2';
-const AUTH_MODE_STORAGE_KEY = 'atlas_auth_mode_v2';
+const ACTIVE_ORG_STORAGE_KEY = sessionScope() ? sessionScope() + ':organization' : 'atlas_active_org_id_v2';
+const AUTH_MODE_STORAGE_KEY = sessionScope() ? sessionScope() + ':mode' : 'atlas_auth_mode_v2';
 
 export interface CreateOrganizationRpcParams {
   p_name: string;
@@ -410,7 +411,13 @@ export const OrgProvider: React.FC<{ children: React.ReactNode; requireAuthentic
           throw new Error('Failed to load organizations: ' + orgsErr.message);
         }
 
-        const orgList: Organization[] = (dbOrgs || []).map(mapDbOrg);
+        let orgList: Organization[] = (dbOrgs || []).map(mapDbOrg);
+        const requestedProduct = productEntry();
+        if (requestedProduct) {
+          const access = await supabase.rpc('atlas_product_workspaces', { p_product: requestedProduct, p_portal: portalEntry() });
+          if (access.error || !Array.isArray(access.data)) throw new Error('Product access could not be verified. Confirm the portal migration is installed and retry.');
+          orgList = filterProductWorkspaces(orgList,access.data);
+        }
 
         // 3. Query memberships for current user
         const { data: dbMems, error: memsErr } = await supabase
@@ -913,7 +920,7 @@ export const OrgProvider: React.FC<{ children: React.ReactNode; requireAuthentic
 
     if (supabase && session) {
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
       } catch (err) {
         console.warn('SignOut notice:', err);
       }

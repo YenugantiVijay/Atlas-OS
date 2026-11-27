@@ -1,3 +1,4 @@
+import { portalEntry, PORTALS } from '@/lib/portal-entry';
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -167,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
     { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
-  ].filter((act) => (tool?.id !== 'school' || act.type === 'order') && hasPermission(currentRole, act.action));
+  ].filter((act) => (['workspace','owner','school_admin'].includes(portalEntry())) && (tool?.id !== 'school' || act.type === 'order') && hasPermission(currentRole, act.action));
 
   // Global click-outside listener to close dropdowns when clicking anywhere on the site
   useEffect(() => {
@@ -393,7 +394,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-content-muted/50" aria-hidden="true">/</span>
               </>
             )}
-            <span className="font-semibold text-content-primary">{currentBreadcrumb.label}</span>
+            <span className="font-semibold text-content-primary">{portalEntry() === 'workspace' ? currentBreadcrumb.label : PORTALS[portalEntry()]}</span>
           </nav>
         </div>
 

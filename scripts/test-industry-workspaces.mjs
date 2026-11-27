@@ -1,3 +1,4 @@
+import { createProductFixture } from './product-test-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
@@ -10,18 +11,21 @@ export async function runIndustryWorkspaceAcceptance({
   ownerAId,
   ownerBId,
 }) {
+  const productOrgs = {};
+  for(const [product,category] of Object.entries({'banner-print-studio':'banner_print_studio','ice-cream-stalls':'ice_cream_stalls','ice-cream-distribution':'ice_cream_distribution'})) productOrgs[product]=await createProductFixture(client,orgAId,category);
+  orgBId=await createProductFixture(client,orgBId,'ice_cream_stalls');
   const as = (userId, action) => withRoleContext(client, { userId, role: 'authenticated' }, action);
   const save = (tool, command, request = randomUUID()) =>
     as(ownerAId, () =>
       client.query('select public.apply_industry_operation($1,$2,$3,$4)', [
-        orgAId,
+        productOrgs[tool],
         tool,
         request,
         command,
       ]),
     );
-  const read = async (tool, user = ownerAId, org = orgAId) =>
-    (await as(user, () => client.query('select public.industry_workspace($1,$2) as data', [org, tool])))
+  const read = async (tool, user = ownerAId, org) =>
+    (await as(user, () => client.query('select public.industry_workspace($1,$2) as data', [org ?? productOrgs[tool], tool])))
       .rows[0].data;
   const report = async (id, title, body) => {
     try {

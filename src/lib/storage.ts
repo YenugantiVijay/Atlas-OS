@@ -1,3 +1,4 @@
+import { sessionScope } from './portal-entry';
 import { validateOnlineReference, type OnlineOrderReference, type OrderDispatch } from '@/lib/online-orders';
 import {
   User,
@@ -113,7 +114,7 @@ class StorageEngine {
 
   public getItem<T>(key: string, defaultValue: T): T {
     try {
-      const data = localStorage.getItem(key);
+      const data = localStorage.getItem(sessionScope() ? sessionScope() + ':local:' + key : key);
       return data ? JSON.parse(data) : defaultValue;
     } catch {
       return defaultValue;
@@ -122,7 +123,7 @@ class StorageEngine {
 
   public setItem<T>(key: string, value: T): void {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(sessionScope() ? sessionScope() + ':local:' + key : key, JSON.stringify(value));
     } catch (e) {
       console.error(`StorageEngine error saving ${key}`, e);
     }
@@ -167,7 +168,7 @@ class StorageEngine {
       key,
       raw: localStorage.getItem(key) ?? '',
     }));
-    const rawActiveOrg = localStorage.getItem(STORAGE_KEYS.CURRENT_ORG_ID);
+    const rawActiveOrg = localStorage.getItem(sessionScope() ? sessionScope() + ':local:' + STORAGE_KEYS.CURRENT_ORG_ID : STORAGE_KEYS.CURRENT_ORG_ID);
     const activeOrg = this.getItem(STORAGE_KEYS.CURRENT_ORG_ID, rawActiveOrg);
     const removable = orgs.filter((org) => {
       if (!LEGACY_ORGS.has(org.id) || org.createdAt !== org.updatedAt) return false;
@@ -195,7 +196,7 @@ class StorageEngine {
         if (remaining.length !== rows.length) this.setItem(key, remaining);
       }
       this.setItem(STORAGE_KEYS.ORGS, orgs.filter(({ id }) => !removedIds.has(id)));
-      if (activeOrg && removedIds.has(activeOrg)) localStorage.removeItem(STORAGE_KEYS.CURRENT_ORG_ID);
+      if (activeOrg && removedIds.has(activeOrg)) localStorage.removeItem(sessionScope() ? sessionScope() + ':local:' + STORAGE_KEYS.CURRENT_ORG_ID : STORAGE_KEYS.CURRENT_ORG_ID);
       const user = this.getItem<User>(STORAGE_KEYS.CURRENT_USER, LOCAL_OWNER);
       if (user.id === LOCAL_OWNER.id && user.email === 'vijay@srilakshmielectricals.in' &&
         ['Vijay Kumar', 'Vijay Kumar (Distributor Admin)'].includes(user.fullName) && !user.avatarUrl) {
@@ -209,14 +210,14 @@ class StorageEngine {
   // --- Multi-tenant context ---
   public getCurrentOrgId(): string {
     this.initialize();
-    const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_ORG_ID);
+    const stored = localStorage.getItem(sessionScope() ? sessionScope() + ':local:' + STORAGE_KEYS.CURRENT_ORG_ID : STORAGE_KEYS.CURRENT_ORG_ID);
     if (stored) return stored;
     const orgs = this.getOrganizations();
     return orgs[0]?.id || '';
   }
 
   public setCurrentOrgId(orgId: string): void {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_ORG_ID, orgId);
+    localStorage.setItem(sessionScope() ? sessionScope() + ':local:' + STORAGE_KEYS.CURRENT_ORG_ID : STORAGE_KEYS.CURRENT_ORG_ID, orgId);
   }
 
   public getOrganizations(): Organization[] {

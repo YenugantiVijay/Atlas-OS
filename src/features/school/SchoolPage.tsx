@@ -1,3 +1,4 @@
+import { portalEntry } from '@/lib/portal-entry';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -47,7 +48,7 @@ function SchoolWorkspace({ scope }: { scope: SchoolScope }) {
     { id: 'fees', label: 'Fees & receipts', Icon: Receipt, allowed: permission.finance },
     { id: 'reports', label: 'School reports', Icon: FileSpreadsheet, allowed: permission.finance },
     { id: 'permissions', label: 'School permissions', Icon: ShieldCheck, allowed: permission.roles },
-  ].filter(section => section.allowed);
+  ].filter(section => section.allowed && (portalEntry() === 'admissions' ? ['overview','students','admissions'].includes(section.id) : portalEntry() === 'teacher' ? ['overview','students','attendance'].includes(section.id) : portalEntry() === 'school_accounts' ? ['overview','students','fees','reports'].includes(section.id) : true));
   const selected = params.get('section') ?? 'overview';
   const section = sections.some(row => row.id === selected) ? selected : 'overview';
   const ready = !!scope.bootstrap.settings;

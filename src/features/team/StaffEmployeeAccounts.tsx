@@ -28,7 +28,7 @@ export function EmployeeAccountLinks({ orgId, userId, editable }: { orgId: strin
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Employee sign-in links</h2>
       <Button variant="outline" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Hide employee links' : 'Link employee accounts'}</Button></div>
     {expanded && <>
-      <p className="text-sm text-content-secondary">Invite the employee through Team &amp; Access first, then link that active sign-in to a staff profile. This grants attendance self-service, not attendance management or payroll access.</p>
+      <p className="text-sm text-content-secondary">Invite the employee through Team &amp; Access first, then link that active sign-in to a staff profile. This grants attendance self-service, not attendance management or payroll access. Viewer accounts linked here stay attendance-only after the link is disabled; assign a business role separately when ERP access is required.</p>
       {(staff.isError || members.isError || accounts.isError) && <div role="alert" className="text-sm text-rose-800">Employee links could not be loaded.
         <Button size="sm" variant="ghost" onClick={() => void client.invalidateQueries({ queryKey: scope })}>Retry employee links</Button></div>}
       {(staff.isPending || members.isPending || accounts.isPending) && <p role="status">Loading employee links…</p>}

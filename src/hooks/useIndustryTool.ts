@@ -1,9 +1,9 @@
 import { useOrg } from '@/features/organizations/OrgContext';
-import { INDUSTRY_TOOLS, SPECIALTY_TOOL_ROUTES, isIndustryToolId, isSpecialtyToolId, type IndustryToolId } from '@/lib/industry-tools';
+import { INDUSTRY_TOOLS, SPECIALTY_TOOL_ROUTES, isSpecialtyToolId, type IndustryToolId } from '@/lib/industry-tools';
 import type { Action } from '@/lib/permissions';
 import type { BusinessCategory } from '@/types';
 
-declare const __ATLAS_INDUSTRY_TOOL__: string | null;
+import { productEntry, portalEntry, portalPathAllowed } from '@/lib/portal-entry';
 
 const toolsByCategory: Partial<Record<BusinessCategory, IndustryToolId>> = {
   school: 'school',
@@ -21,11 +21,7 @@ const toolsByCategory: Partial<Record<BusinessCategory, IndustryToolId>> = {
   general_retail: 'small-business',
 };
 
-export function selectedIndustryTool() {
-  if (typeof __ATLAS_INDUSTRY_TOOL__ === 'string' && isIndustryToolId(__ATLAS_INDUSTRY_TOOL__)) return __ATLAS_INDUSTRY_TOOL__;
-  const tool = new URLSearchParams(window.location.search).get('tool');
-  return isIndustryToolId(tool) ? tool : undefined;
-}
+export const selectedIndustryTool = productEntry;
 
 export function useIndustryTool() {
   const { eligibility, isDemoMode } = useOrg();
@@ -47,12 +43,13 @@ export function allowsIndustryRoute(tool: IndustryToolId | undefined, path: stri
 
 const commonSpecialtyLinks = new Set([
   '/', '/support', '/invoices', '/payments', '/customers', '/reports/sales-receipts',
-  '/team', '/attendance', '/attendance/my', '/settings', '/audit', ...Object.values(SPECIALTY_TOOL_ROUTES),
+  '/portals', '/team', '/attendance', '/attendance/my', '/settings', '/audit', ...Object.values(SPECIALTY_TOOL_ROUTES),
 ]);
 
 export function showsIndustryNavigation(tool: IndustryToolId | undefined, path: string) {
+  if (!portalPathAllowed(portalEntry(), path)) return false;
   if (!allowsIndustryRoute(tool, path) || (tool === 'ice-cream-stalls' && path === '/customers')) return false;
-  if (tool === 'school') return ['/', '/school', '/support', '/team', '/attendance', '/attendance/my', '/team/staff', '/team/advances', '/settings', '/audit'].includes(path);
+  if (tool === 'school') return ['/', '/portals', '/school', '/support', '/team', '/attendance', '/attendance/my', '/team/staff', '/team/advances', '/settings', '/audit'].includes(path);
   if (isSpecialtyToolId(tool)) return commonSpecialtyLinks.has(path) || path === '/stock-count';
   return tool !== 'ecommerce' || path !== '/orders';
 }

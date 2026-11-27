@@ -1,3 +1,4 @@
+import { productEntry, productName, portalEntry, PORTALS } from '@/lib/portal-entry';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -141,7 +142,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           showToast('success', signup ? 'Email Verified' : 'Signed In', signup ? 'Your Atlas OS account is ready.' : 'Welcome back to Atlas OS.');
           resetCode();
           onClose();
-          if (signup && !keepInvitationOpen) navigate('/onboarding');
+          if (signup && !keepInvitationOpen) navigate(['workspace','owner','school_admin'].includes(portalEntry()) ? '/onboarding' : '/');
         }
       } else if (mode === 'signin' && useCode) {
         const res = await sendEmailCode(address, 'signin');
@@ -164,7 +165,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         } else if (res.sessionPresent) {
           showToast('success', 'Account Created', `Welcome to Atlas OS, ${fullName.trim()}`);
           onClose();
-          if (!keepInvitationOpen) navigate('/onboarding');
+          if (!keepInvitationOpen) navigate(['workspace','owner','school_admin'].includes(portalEntry()) ? '/onboarding' : '/');
         } else {
           openCode(address, 'signup');
         }
@@ -187,12 +188,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={close}
-      title={pending ? 'Check your email' : mode === 'signin' ? 'Sign In to Atlas OS' : 'Create Atlas OS Account'}
+      title={pending ? 'Check your email' : mode === 'signin' ? (productEntry() ? 'Sign in to ' + productName(productEntry()) + ' · ' + PORTALS[portalEntry()] : 'Sign In to Atlas OS') : 'Create Atlas OS Account'}
       description={
         pending ? pending.purpose === 'signin'
           ? `If ${pending.email} has an Atlas OS account, a six-digit code will arrive in its inbox.`
           : `Enter the six-digit code for ${pending.email}. Request a new code if needed.`
-          : mode === 'signin' ? 'Sign in with your password or an email code.' : 'Verify your email to set up your workspace.'
+          : mode === 'signin' ? 'Sign in with your password or an email code.' : 'Verify your email. Workspace and student access must still be assigned; creating an account does not grant a subscription.'
       }
       maxWidth="md"
     >

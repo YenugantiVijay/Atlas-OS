@@ -265,7 +265,7 @@ export const BusinessVerificationModal: React.FC<BusinessVerificationModalProps>
                 required
                 value={legalName}
                 onChange={(e) => setLegalName(e.target.value)}
-                placeholder="e.g. Vijay Electronics Pvt Ltd"
+                placeholder="Registered organization name"
                 disabled={isSubmitting}
               />
               <Input

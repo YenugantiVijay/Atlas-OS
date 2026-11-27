@@ -1,3 +1,4 @@
+import { sessionScope, productEntry, portalEntry } from './portal-entry';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseConfigStatus {
@@ -196,8 +197,10 @@ let clientInstance: SupabaseClient | null = null;
 const initialConfig = validateSupabaseConfig();
 if (initialConfig.valid && initialConfig.url && initialConfig.key) {
   clientInstance = createClient(initialConfig.url, initialConfig.key, {
+    global: { headers: { 'x-atlas-product': productEntry() ?? '', 'x-atlas-portal': portalEntry() } },
     auth: {
       persistSession: true,
+      ...(sessionScope() ? { storageKey: sessionScope() } : {}),
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },

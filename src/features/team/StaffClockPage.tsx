@@ -1,3 +1,4 @@
+import { portalEntry } from '@/lib/portal-entry';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,7 +23,7 @@ export function StaffClockPage() {
   const { currentOrg, currentUser, currentRole, isAuthenticated, isDemoMode, canWriteOperations } = useOrg();
   const access = useAttendanceAccess();
   return <div className="space-y-5">
-    <header><h1 className="text-2xl font-bold">Employee Attendance</h1>
+    <header><h1 className="text-2xl font-bold">{portalEntry() === 'manager' ? 'Manager / HR Portal' : portalEntry() === 'employee' ? 'Employee Portal' : 'Employee Attendance'}</h1>
       <p className="mt-1 text-sm text-content-secondary">Check in, record breaks and submit your daily work summary. Times use IST.</p></header>
     {!isAuthenticated || isDemoMode || !currentOrg || !currentUser
       ? <Card>Sign in to a cloud workspace to use employee attendance.</Card>
@@ -37,7 +38,7 @@ function ClockWorkspace({ orgId, userId, manager, owner, editable }: {
 }) {
   const [month, setMonth] = useState(getBusinessDate().slice(0, 7));
   const [page, setPage] = useState(1);
-  const [team, setTeam] = useState(false);
+  const [team, setTeam] = useState(portalEntry() === 'manager');
   const [location, setLocation] = useState('');
   const [summary, setSummary] = useState('');
   const client = useQueryClient();

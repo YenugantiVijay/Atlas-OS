@@ -1,3 +1,4 @@
+import { portalEntry } from '@/lib/portal-entry';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -75,8 +76,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // may flash results while effects/timers for the new identity are settling.
   const cacheIdentity = JSON.stringify([orgId, currentUser?.id, isAuthenticated]);
   const searchKey = JSON.stringify([cacheIdentity, currentRole, isMockAuth, isOpen, query.trim()]);
-  const financeAllowed = tool?.id !== 'school' && !isMockAuth && hasPermission(currentRole, 'reports:financial');
-  const dataAllowed = tool?.id !== 'school' && hasPermission(currentRole, 'data:read');
+  const financeAllowed = ['workspace','owner'].includes(portalEntry()) && tool?.id !== 'school' && !isMockAuth && hasPermission(currentRole, 'reports:financial');
+  const dataAllowed = ['workspace','owner'].includes(portalEntry()) && tool?.id !== 'school' && hasPermission(currentRole, 'data:read');
   const financialResults = financeAllowed && financeResponse.key === searchKey ? financeResponse.rows : [];
   const operationalResults = dataAllowed && operationsResponse.key === searchKey ? operationsResponse.rows : [];
 
@@ -266,7 +267,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'New Quotation', type: 'quotation', action: 'quotations:create' as Action },
     { label: toolQuickOrder(tool).label, type: 'order', action: 'orders:create' as Action },
     { label: 'Record Payment', type: 'payment', action: 'payments:record' as Action },
-  ].filter((item) => (tool?.id !== 'school' || item.type === 'order') && checkActionPermission(item.action).allowed &&
+  ].filter((item) => (['workspace','owner','school_admin'].includes(portalEntry())) && (tool?.id !== 'school' || item.type === 'order') && checkActionPermission(item.action).allowed &&
     item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
   const filteredNav = navigationItems.filter((item) =>

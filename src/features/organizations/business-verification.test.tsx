@@ -16,6 +16,10 @@ import { ToastProvider } from '@/components/ui/Toast';
 
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // These tests exercise onboarding/recovery with an already-authorized workspace.
+  const context = vi.mocked(OrgContextModule.useOrg).getMockImplementation()?.();
+  queryClient.setQueryDefaults(['portal-access'], { staleTime: Infinity });
+  if(context?.currentOrg) queryClient.setQueryData(['portal-access', context.currentOrg.id, context.currentUser?.id, undefined, 'workspace'], { product: 'electrical', portals: ['workspace','owner'], allowed: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>

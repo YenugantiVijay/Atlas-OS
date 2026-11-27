@@ -1,0 +1,19 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/common/Container.astro';
+import { INDUSTRY_TOOLS, industryLaunch } from '../data/industry-downloads';
+const labels = { owner:'Owner / Admin', workspace:'Workspace', manager:'Manager / HR', employee:'Employee', admissions:'Admissions', school_admin:'School Admin', teacher:'Teacher', school_accounts:'School Accounts', parent:'Parent', student:'Student' };
+---
+<BaseLayout title="Product and Portal Sign In | Atlas OS" description="Choose your Atlas OS product and role portal. Each workspace subscription covers its bound product; role and student links are granted by the workspace owner.">
+ <Container size="wide" class="space-y-8 py-12">
+  <header class="max-w-3xl space-y-4"><h1 class="font-heading text-4xl font-bold">Choose your Atlas OS portal</h1><p>Choose the product your organization uses, then sign in with your own account. Each workspace has its own product subscription and member permissions.</p><p class="text-sm text-content-secondary">Opening another industry link does not unlock it or copy a previous workspace. Parent and student portals show only records explicitly linked by the school owner. Never share administrator credentials.</p></header>
+  <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{Object.entries(INDUSTRY_TOOLS).map(([id,tool])=>{
+   const launch=industryLaunch(id as keyof typeof INDUSTRY_TOOLS);
+   const portals=id==='school'?['school_admin','admissions','teacher','school_accounts','parent','student','manager','employee']:['owner','workspace','manager','employee'];
+   return <section class="space-y-4 rounded-2xl border border-border bg-white p-5"><h2 class="font-heading text-xl font-bold">{tool.name}</h2><p class="text-sm text-content-secondary">{tool.description}</p><div class="flex flex-wrap gap-2">{portals.map(portal=>{
+    const url=launch?new URL(launch.url):undefined;if(url){url.searchParams.set('portal',portal);url.hash=portal==='manager'||portal==='employee'?'/attendance/my':id==='school'?'/school':'/';}
+    return url?<a class="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50" href={url.href}>{labels[portal as keyof typeof labels]} sign in</a>:<span class="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600">{labels[portal as keyof typeof labels]} · request access</span>;
+   })}</div>{!launch&&<a href="/request-demo" class="text-sm font-semibold text-brand-700 underline">Request portal access</a>}</section>;
+  })}</div>
+ </Container>
+</BaseLayout>

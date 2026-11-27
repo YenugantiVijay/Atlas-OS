@@ -1,3 +1,4 @@
+import { runPortalAcceptance } from './portal_acceptance.mjs';
 /**
  * Atlas OS — Master Security, Database & Lifecycle Acceptance Test Runner
  *
@@ -1452,6 +1453,7 @@ async function runAcceptance() {
       orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId,
     });
     await runStaffClockAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId });
+    await runPortalAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, ownerAId: userAId, salesAId: ledgerSalesId, ownerBId: userBId });
     await runSchoolAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId });
 
 
