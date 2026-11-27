@@ -186,7 +186,7 @@ const faqs = [
     const typingDuration = 560;
     topics.classList.add('is-typing');
     const type = (now: number) => {
-      const elapsed = now - start;
+      const elapsed = Math.max(0, now - start);
       if (motion.matches || elapsed >= interval * phrases.length) {
         output.textContent = phrases[0];
         topics.classList.remove('is-typing');
