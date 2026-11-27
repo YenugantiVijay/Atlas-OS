@@ -4,6 +4,7 @@
  * Generates review-required Tally-oriented XML and BUSY-oriented CSV drafts.
  */
 
+import { splitGstPaise, UTGST_STATE_CODES } from '@/lib/gst-components';
 import { fromPaise, toPaise } from '@/lib/money';
 import { Organization, Customer, Invoice } from '@/types';
 
@@ -90,8 +91,10 @@ export const accountingExportService = {
           <AMOUNT>${fromPaise(taxPaise).toFixed(2)}</AMOUNT>
         </LEDGERENTRIES.LIST>`;
       } else {
-        const cgstCents = Math.floor(taxPaise / 2);
-        const sgstCents = taxPaise - cgstCents;
+        const useUtgst = UTGST_STATE_CODES.has(inv.gstJurisdiction?.sellerStateCode ?? '');
+        const components = splitGstPaise(taxPaise, useUtgst ? 'territory' : 'state');
+        const cgstCents = components.cgst;
+        const sgstCents = components.sgst + components.utgst;
         const cgstAmount = (cgstCents / 100).toFixed(2);
         const sgstAmount = (sgstCents / 100).toFixed(2);
         taxLedgersXml += `
@@ -101,7 +104,7 @@ export const accountingExportService = {
           <AMOUNT>${cgstAmount}</AMOUNT>
         </LEDGERENTRIES.LIST>
         <LEDGERENTRIES.LIST>
-          <LEDGERNAME>Output SGST</LEDGERNAME>
+          <LEDGERNAME>Output ${useUtgst ? 'UTGST' : 'SGST'}</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
           <AMOUNT>${sgstAmount}</AMOUNT>
         </LEDGERENTRIES.LIST>`;

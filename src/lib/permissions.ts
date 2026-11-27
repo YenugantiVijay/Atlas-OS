@@ -396,8 +396,8 @@ export function evaluateActionPermission(
     return {
       allowed: false,
       reason: 'subscription_restricted',
-      title: 'Atlas Trade required',
-      message: 'Your Atlas Counter edition can view existing procurement records. Recording or updating them requires Atlas Trade.',
+      title: 'Atlas Stride required',
+      message: 'Your Atlas Sprout edition can view existing procurement records. Recording or updating them requires Atlas Stride.',
       actionRoute: '/settings',
       actionLabel: 'View Business Status',
     };

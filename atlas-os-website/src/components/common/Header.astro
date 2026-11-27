@@ -4,6 +4,7 @@ import Button from './Button.astro';
 import Container from './Container.astro';
 import IndustryLinks from './IndustryLinks.astro';
 import ResourceMenu from './ResourceMenu.astro';
+import ProductMenu from './ProductMenu.astro';
 import { GST_GROUPS, RESOURCE_GROUPS } from '../../data/resource-links';
 import { MAIN_NAVIGATION } from '../../data/navigation';
 
@@ -27,12 +28,13 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
         <nav class="hidden h-full items-center gap-1 lg:flex lg:justify-self-center xl:gap-4" aria-label="Main Navigation">
           {
             MAIN_NAVIGATION.map((item) => {
-              if (item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
+              if (item.href === '/product' || item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
+                const isProducts = item.href === '/product';
                 const isGst = item.href === '/gst-calculator';
                 const isResources = item.href === '/resources';
-                const key = isResources ? 'resources' : isGst ? 'gst' : 'industries';
+                const key = isProducts ? 'products' : isResources ? 'resources' : isGst ? 'gst' : 'industries';
                 const groups = isResources ? RESOURCE_GROUPS : isGst ? GST_GROUPS : null;
-                const active = isResources ? /^\/(resources|calculators|invoice-formats)(\/|$)/.test(currentPath)
+                const active = isProducts ? currentPath.replace(/\/$/, '') === '/product' : isResources ? /^\/(resources|calculators|invoice-formats)(\/|$)/.test(currentPath)
                   : isGst ? (currentPath.replace(/\/$/, '') === item.href || currentPath.replace(/\/$/, '') === '/gst-documents') : onSolutions;
                 return (
                   <div id={key + '-nav'} data-mega-nav class="flex h-full items-center">
@@ -48,7 +50,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                     </button>
                     <div id={key + '-panel'} data-mega-panel hidden
                       class="mega-panel site-nav-surface absolute inset-x-0 top-full overflow-y-auto overscroll-contain border-y border-border shadow-xl">
-                      {groups ? <Container size="wide" class="py-7"><ResourceMenu groups={groups} /></Container> : <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
+                      {isProducts ? <Container size="wide" class="py-7"><div class="mb-4 flex items-center justify-between"><h2 class="text-sm font-semibold">Atlas OS products & plans</h2><a href="/product" class="text-sm font-semibold text-brand-700">Product overview</a></div><ProductMenu /></Container> : groups ? <Container size="wide" class="py-7"><ResourceMenu groups={groups} /></Container> : <Container size="wide" class="grid gap-7 py-7 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
                         <div class="border-r border-border pr-5">
                           <h2 class="mb-3 text-sm font-semibold text-content-primary">Explore Atlas OS</h2>
                           <div class="grid gap-1 text-sm text-content-secondary">
@@ -59,7 +61,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                         </div>
                         <div class="min-w-0">
                           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                            <h2 class="text-sm font-semibold text-content-primary">Recommended industries</h2>
+                            <h2 class="text-sm font-semibold text-content-primary">Industry solutions</h2>
                             <a href="/solutions" class="rounded text-sm font-semibold text-brand-700 hover:underline">View all industries</a>
                           </div>
                           <IndustryLinks />
@@ -177,7 +179,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
     <div class="flex flex-col space-y-1">
       {
         MAIN_NAVIGATION.map((item) => {
-          if (item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
+          if (item.href === '/product' || item.href === '/solutions' || item.href === '/gst-calculator' || item.href === '/resources') {
             const groups = item.href === '/resources' ? RESOURCE_GROUPS : item.href === '/gst-calculator' ? GST_GROUPS : null;
             return (
               <details class="group border-b border-border/50 py-1.5">
@@ -187,7 +189,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
                     <path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </summary>
-                {groups ? <ResourceMenu groups={groups} /> : <>
+                {item.href === '/product' ? <><a href="/product" class="my-2 block text-sm font-semibold text-brand-700">Product overview</a><ProductMenu /></> : groups ? <ResourceMenu groups={groups} /> : <>
                 <IndustryLinks />
                 <a href="/solutions" class="mt-1 block py-2 text-sm font-semibold text-brand-700 hover:underline">View all industries</a>
                 </>}
@@ -228,7 +230,7 @@ const onSolutions = currentPath === '/solutions' || currentPath.startsWith('/sol
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" x2="12" y1="15" y2="3"/>
         </svg>
-        <span>Download Desktop App</span>
+        <span>Install or Open Atlas OS</span>
       </Button>
       <Button href="/request-demo" variant="primary" size="md" class="w-full justify-center">
         <span>Request Guided Demonstration</span>

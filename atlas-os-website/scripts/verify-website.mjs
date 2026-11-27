@@ -153,7 +153,7 @@ if (fakeInstallerRegex.test(downloadHtml)) {
 
 // 6. Verify the public edition presentation is readable and truthful.
 const pricingHtml = fs.readFileSync(path.join(distDir, 'pricing/index.html'), 'utf8');
-for (const detail of ['Atlas Counter', 'Atlas Trade', 'Atlas Network', '₹999', '₹2,499', 'Planned', 'Proposed launch pricing in INR']) {
+for (const detail of ['Atlas Sprout', 'Atlas Stride', 'Atlas Summit', '₹499', '₹999', '₹1,999', '₹4,990', '₹9,990', 'Planned', 'Proposed quotations in INR']) {
   if (!pricingHtml.includes(detail)) {
     console.error(`[FAIL] Pricing page missing plan detail: ${detail}`);
     failedChecks++;

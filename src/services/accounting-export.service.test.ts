@@ -184,4 +184,14 @@ describe('Area 6: India Ecosystem — Accounting Software Export (Tally Prime & 
     expect(() => accountingExportService.exportSalesToTallyXml(testOrg, [invalidInvoice], [invalidCustomer]))
       .toThrow(/invalid buyer GSTIN/i);
   });
+  it('labels a confirmed Chandigarh local export as UTGST, not SGST', () => {
+    const org = {...testOrg, gstin:'04AAAAA0000A1Z5', state:'Chandigarh'};
+    const buyer = {...customers[0], gstin:'04BBBBB1111B1Z6'};
+    const invoice = {...invoices[0], gstJurisdiction:{sellerStateCode:'04',placeOfSupplyCode:'04'}};
+    const xml = accountingExportService.exportSalesToTallyXml(org,[invoice],[buyer]);
+    expect(xml).toContain('<LEDGERNAME>Output CGST</LEDGERNAME>');
+    expect(xml).toContain('<LEDGERNAME>Output UTGST</LEDGERNAME>');
+    expect(xml).not.toContain('<LEDGERNAME>Output SGST</LEDGERNAME>');
+    expect(xml).toContain('<AMOUNT>450.00</AMOUNT>');
+  });
 });

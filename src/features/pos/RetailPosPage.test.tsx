@@ -80,7 +80,7 @@ describe('Retail Counter — safe draft order workflow', () => {
     });
     vi.stubGlobal('crypto', { randomUUID: () => '93a54640-11bb-4390-84ad-1084d4bc52a3' });
     vi.mocked(useOrg).mockReturnValue({
-      currentOrg: { id: orgId, name: 'Atlas Counter' }, currentUser: { id: 'u1' },
+      currentOrg: { id: orgId, name: 'Atlas Sprout' }, currentUser: { id: 'u1' },
       currentRole: 'owner', isMockAuth: false,
     } as any);
     check.mockReturnValue({ allowed: true });

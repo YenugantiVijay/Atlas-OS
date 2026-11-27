@@ -74,14 +74,14 @@ export default function FaqAccordion() {
         {filteredFaqs.length === 0 ? (
           <div className="p-8 text-center rounded-2xl border border-border bg-surface-secondary text-content-secondary text-xs">
             No frequently asked questions match your search query "{searchQuery}
-            ". Please email{" "}
+            ". For assistance, use{" "}
             <a
-              href="mailto:support@atlasos.business"
+              href="/contact#contact-form"
               className="text-brand-600 font-semibold underline"
             >
-              support@atlasos.business
+              Send a support enquiry
             </a>{" "}
-            for assistance.
+            to contact the team.
           </div>
         ) : (
           filteredFaqs.map((faq) => {

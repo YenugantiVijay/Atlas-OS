@@ -23,8 +23,8 @@ const controls = [
 const starter = PRICING_TIERS.find(plan => plan.id === 'starter')!;
 const faqs = [
   ['What is Atlas OS?', 'It’s a workspace for shops, wholesalers, and distributors. You can receive stock, prepare orders, create invoices, and record payments from the same workspace.'],
-  ['Can I start with one shop?', 'Yes. Atlas Counter covers the everyday stock, sales, and collections workflow, including a branded customer receipt.'],
-  ['What happens when a supplier changes a price?', 'Atlas Trade includes supplier price history and a review queue for affected quotes. Your team decides which quotes need updating.'],
+  ['Can I start with one shop?', 'Yes. Atlas Sprout covers the everyday stock, sales, and collections workflow, including a branded customer receipt.'],
+  ['What happens when a supplier changes a price?', 'Atlas Stride includes supplier price history and a review queue for affected quotes. Your team decides which quotes need updating.'],
   ['How can I try it?', 'Use the interactive preview on this page, or request a guided demo and bring a sample sale or stock delivery to walk through.'],
 ];
 ---
@@ -131,7 +131,7 @@ const faqs = [
   <section class="pb-14 sm:pb-20">
     <Container size="default">
       <div class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-6 sm:p-9" data-reveal>
-        <div><h2 class="home-heading">A plan for the way you work</h2><p class="home-description">Proposed Atlas Counter pricing is {starter.priceDisplay}{starter.billingPeriod.replace(' ', '')}. Compare plans for your shop, counter, or distribution team.</p></div>
+        <div><h2 class="home-heading">A plan for the way you work</h2><p class="home-description">Proposed Atlas Sprout pricing is {starter.priceDisplay}{starter.billingPeriod.replace(' ', '')}. Compare plans for your shop, counter, or distribution team.</p></div>
         <Button href="/pricing" variant="primary" class="!bg-brand-700 hover:!bg-brand-800">Compare plans <ArrowRight size={17} aria-hidden="true" /></Button>
       </div>
     </Container>

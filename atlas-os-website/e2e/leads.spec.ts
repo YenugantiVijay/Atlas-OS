@@ -28,7 +28,7 @@ test.beforeAll(async () => {
     res.setHeader('Content-Type', mime[path.extname(file)] || 'application/octet-stream');
     fs.createReadStream(file).pipe(res);
   });
-  await new Promise<void>((resolve) => server.listen(4321, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(Number(process.env.ATLAS_WEBSITE_TEST_PORT || '14321'), '127.0.0.1', resolve));
 });
 
 test.afterAll(async () => {
@@ -50,7 +50,7 @@ test('Contact form submits to server and only reports success after acknowledgem
     const body = route.request().postDataJSON();
     requests.push(body);
     await route.fulfill({ status: 200, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+      headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}` },
       body: JSON.stringify({ ok: true, reference: 'receipt-51' }) });
   });
   await page.goto('/contact');
@@ -71,7 +71,7 @@ test('Contact form submits to server and only reports success after acknowledgem
 test('Contact form reports server failure without false success or localStorage fallback', async ({ page }) => {
   await page.route('https://api.example.test/**', async (route) =>
     route.fulfill({ status: 503, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+      headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}` },
       body: JSON.stringify({ ok: false, error: 'Enquiry service is temporarily unavailable.' }) }));
   await page.goto('/contact');
   await page.locator('#contact_name').fill('Ravi Kumar');
@@ -88,7 +88,7 @@ test('Demo Request only confirms genuine server acknowledgement', async ({ page 
   await page.route('https://api.example.test/**', async (route) => {
     requests.push(route.request().postDataJSON());
     await route.fulfill({ status: 200, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+      headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}` },
       body: JSON.stringify({ ok: true, reference: 'receipt-52' }) });
   });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -114,7 +114,7 @@ test('Demo Request only confirms genuine server acknowledgement', async ({ page 
   expect(requests).toHaveLength(1);
   expect(requests[0].kind).toBe('demo');
   expect(requests[0].data.industry).toBe('agricultural_inputs');
-  expect(requests[0].data.additionalMessage).toContain('Atlas Trade');
+  expect(requests[0].data.additionalMessage).toContain('Atlas Stride');
   expect(requests[0].data.additionalMessage).toContain('Walk through receiving stock.');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
   expect(await page.evaluate(() => localStorage.getItem('atlas_saved_enquiries'))).toBeNull();
@@ -125,7 +125,7 @@ test('Desktop release signup requires an actual server acknowledgement', async (
   await page.route('https://api.example.test/**', async (route) => {
     kind = route.request().postDataJSON().kind;
     await route.fulfill({ status: 200, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4321' },
+      headers: { 'Access-Control-Allow-Origin': `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}` },
       body: JSON.stringify({ ok: true, reference: 'receipt-53' }) });
   });
   await page.goto('/download');

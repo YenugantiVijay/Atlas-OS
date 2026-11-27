@@ -9,7 +9,7 @@ const httpsUrl = (href: string | undefined): href is string =>
   typeof href === 'string' && URL.canParse(href) && new URL(href).protocol === 'https:';
 const configuredLinkedIn = import.meta.env.PUBLIC_LINKEDIN_URL;
 const linkedInProfile = httpsUrl(configuredLinkedIn) ? configuredLinkedIn : undefined;
-const officialSite = Astro.site?.origin ?? 'https://atlasos.business';
+const officialSite = Astro.site?.origin ?? 'https://atlas-os-8328y.web.app';
 const socialLinks = [
   { label: 'Atlas OS on GitHub', href: APP_CONFIG.githubUrl, Icon: Github },
   { label: linkedInProfile ? 'Atlas OS on LinkedIn' : 'Share Atlas OS on LinkedIn',
@@ -54,14 +54,14 @@ const socialLinks = [
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5">
       <div>
         <p class="font-semibold">Need help with Atlas OS?</p>
-        <a class="mt-1 inline-flex items-center gap-2 text-sm text-brand-700 hover:underline" href={'mailto:' + APP_CONFIG.supportEmail}>
-          <Mail size={16} aria-hidden="true" />{APP_CONFIG.supportEmail}
+        <a class="mt-1 inline-flex items-center gap-2 text-sm text-brand-700 hover:underline" href={APP_CONFIG.supportEmail ? 'mailto:' + APP_CONFIG.supportEmail : '/contact#contact-form'}>
+          <Mail size={16} aria-hidden="true" />{APP_CONFIG.supportEmail || 'Contact Atlas OS'}
         </a>
       </div>
       <a href="/support" class="rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">Visit Help Center</a>
     </div>
     <div class="flex flex-wrap items-center gap-x-6 gap-y-3 pb-8 pr-16 pt-5 text-xs sm:pb-0 text-content-secondary">
-      <p>© {new Date().getFullYear()} Atlas OS Technologies. All rights reserved.</p>
+      <p>© {new Date().getFullYear()} Atlas OS. All rights reserved.</p>
       <nav aria-label="Atlas OS social links" class="flex flex-wrap justify-center gap-2">
         {socialLinks.map(({ label, href, Icon }) => (
           <a href={href} aria-label={label} title={label}

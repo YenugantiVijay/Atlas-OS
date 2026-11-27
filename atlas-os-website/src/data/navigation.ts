@@ -52,16 +52,17 @@ export const FEATURED_INDUSTRIES = [
 ] as const;
 
 export const INDUSTRY_NAVIGATION = [
-  ...FEATURED_INDUSTRIES,
-  { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs'), description: 'Receive stock by bag and track supplier rates and credit customers.' },
-  { icon: 'printer', label: 'Banner & Print Studio', href: industryHref('banner-print-studio'), description: 'Manage quotes, proof approvals and print deadlines.' },
-  { icon: 'icecreamcone', label: 'Ice Cream Stalls', href: industryHref('ice-cream-stalls'), description: 'Serve packaged items and scoops, then reconcile the stall.' },
-  { icon: 'snowflake', label: 'Ice Cream Distribution', href: industryHref('ice-cream-distribution'), description: 'Track bulk cases from factory receipt to return.' },
+  FEATURED_INDUSTRIES[2], FEATURED_INDUSTRIES[4], FEATURED_INDUSTRIES[3], FEATURED_INDUSTRIES[0],
+  { icon: 'agriculture', label: 'Fertilizers & Agri Inputs', href: industryHref('agricultural-inputs'), description: 'Receive stock by bag and review supplier rates and customer balances.' },
+  { ...FEATURED_INDUSTRIES[5], label: 'E-commerce' }, { ...FEATURED_INDUSTRIES[1], label: 'Small Shops' },
+  { icon: 'printer', label: 'Banner & Print Studio', href: industryHref('banner-print-studio'), description: 'Record quotes, artwork references and job stages.' },
+  { icon: 'icecreamcone', label: 'Ice Cream Stalls', href: industryHref('ice-cream-stalls'), description: 'Record packaged items, estimated scoops and daily stall cash.' },
+  { icon: 'snowflake', label: 'Ice Cream Distribution', href: industryHref('ice-cream-distribution'), description: 'Record bulk cases, dispatch commitments, returns and batch expiry.' },
 ] as const;
 
 export const MAIN_NAVIGATION = [
   {
-    label: 'Product',
+    label: 'Products',
     href: '/product',
   },
   { label: 'Industries', href: '/solutions' },
@@ -77,12 +78,12 @@ export const MAIN_NAVIGATION = [
       {
         label: 'Commercial Invoicing',
         href: '/features#invoicing',
-        description: 'Authoritative GST calculations and interstate tax logic.',
+        description: 'Decimal-safe tax totals with supply classification requiring review.',
       },
       {
         label: 'Customer Receivables',
         href: '/features#customers',
-        description: 'Real-time contractor credit limits and aging balances.',
+        description: 'Recorded contractor credit limits and aging balances.',
       },
       {
         label: 'Payment Allocations',
@@ -93,7 +94,7 @@ export const MAIN_NAVIGATION = [
       {
         label: 'Excel Reporting Engine',
         href: '/features#reports',
-        description: 'Audit-ready multi-tab .xlsx workbooks in one click.',
+        description: 'Review-ready multi-tab .xlsx workbooks in one click.',
       },
       {
         label: 'Multi-Tenant Security',

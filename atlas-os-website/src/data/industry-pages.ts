@@ -31,7 +31,7 @@ export const INDUSTRY_PAGES = {
     audience: 'Fertilizer and agri-input dealers', accent: 'Track stock by bag and supplier rate.',
     demoIndustry: 'agricultural_inputs', benefits: ['Catalog by bag or unit', 'Supplier receiving', 'Collections and receipts'],
     topics: ['Fertilizer dealers', 'Seed retailers', 'Agri-input stockists', 'Rural trade counters'],
-    faq: ['Does Atlas cover batch expiry and fertilizer licensing?', 'Agri-input setup covers catalog, receiving, supplier rates, sales, and collections. Batch and expiry tracking and fertilizer licensing workflows require separate tools today.'],
+    faq: ['Does Atlas cover batch expiry and fertilizer licensing?', 'Agri-input setup covers catalog, receiving, supplier rates, sales, and collections. Batch/expiry support is limited to the implemented receiving, opening-stock and count workflows. Fertilizer licensing and regulatory registry integrations are not included.'],
     comparison: ['Delivery costs', 'Record supplier rate changes in notes or separate spreadsheets.', 'Record the quantity and supplier rate as you receive stock, then review the purchase-rate history.'],
   },
   ecommerce: {
@@ -45,7 +45,7 @@ export const INDUSTRY_PAGES = {
     audience: 'Small shops and general trade', accent: 'Run stock, billing, and receipts together.',
     demoIndustry: 'general_retail', benefits: ['Everyday tools', 'SKU and stock search', 'Receipts and totals'],
     topics: ['Kirana and general stores', 'Stationery shops', 'Home supplies shops', 'Local retail and wholesale shops'],
-    faq: ['What can a small shop do with Starter?', 'Set up a product catalog, search by SKU, issue invoices, record collections, and print a customer receipt. Compare plans for more receipt and workspace options.'],
+    faq: ['What can a small shop do with Atlas Sprout?', 'Set up a product catalog, search by SKU, issue invoices, record collections, and print a customer receipt. Compare plans for more receipt and workspace options.'],
     comparison: ['Daily records', 'Search separate notebooks for stock, invoices, and payments.', 'Open catalog, billing, and collections from the Shop essentials area.'],
   },
   "banner-print-studio": {"audience": "Banner & Print Studio", "accent": "Manage quotes, proof approvals and print deadlines.", "demoIndustry": "banner_print_studio", "benefits": ["Prepare a quote", "Approve artwork", "Schedule production"], "topics": ["Print studios", "Flex banner makers", "Signage shops"], "faq": ["Can one job include different pricing units?", "Yes. Add a quote line for each item and choose piece or square foot for that line."], "comparison": ["Approve artwork", "Check paper notes and separate spreadsheets.", "Record the latest artwork reference before approving proof."]},

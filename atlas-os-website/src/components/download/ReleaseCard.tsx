@@ -84,7 +84,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
         <div className="p-5 rounded-2xl bg-brand-50/70 border border-brand-200 space-y-2">
           <div className="flex items-center gap-2 text-brand-900 font-bold text-sm">
             <Clock className="w-4 h-4 text-brand-600 shrink-0" />
-            <span>Standalone Windows Desktop Package In Active Development</span>
+            <span>Native Windows package planned; no installer released</span>
           </div>
           <p className="text-xs text-brand-800 leading-relaxed">
             The installer, publisher signature, and checksum will appear on this page once a verified package is published.
@@ -108,12 +108,12 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">Digital Signature:</span>
                 <span className="text-content-secondary flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5 text-content-muted" /> In Verification Pipeline
+                  <Shield className="w-3.5 h-3.5 text-content-muted" /> Not available — no release
                 </span>
               </div>
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">Installer Architecture:</span>
-                <span className="font-mono text-content-primary">Native x64 Desktop Wrapper</span>
+                <span className="font-mono text-content-primary">Not yet specified</span>
               </div>
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">SHA-256 Checksum:</span>
@@ -125,24 +125,24 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
           {/* Minimum Requirements */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-content-secondary font-display">
-              Minimum System Requirements
+              Native Requirements Not Yet Defined
             </h3>
             <div className="rounded-xl border border-border bg-surface-secondary divide-y divide-border text-xs">
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">Operating System:</span>
-                <span className="font-medium text-content-primary">{release.minimumRequirements.os}</span>
+                <span className="font-medium text-content-primary">{release.status === 'available' ? release.minimumRequirements.os : 'Not established'}</span>
               </div>
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">Processor & Architecture:</span>
-                <span className="font-medium text-content-primary">{release.minimumRequirements.processor}</span>
+                <span className="font-medium text-content-primary">{release.status === 'available' ? release.minimumRequirements.processor : 'Not established'}</span>
               </div>
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">System Memory (RAM):</span>
-                <span className="font-medium text-content-primary">{release.minimumRequirements.ram}</span>
+                <span className="font-medium text-content-primary">{release.status === 'available' ? release.minimumRequirements.ram : 'Not established'}</span>
               </div>
               <div className="px-4 py-2.5 flex items-center justify-between">
                 <span className="text-content-secondary">Display Resolution:</span>
-                <span className="font-medium text-content-primary">{release.minimumRequirements.display}</span>
+                <span className="font-medium text-content-primary">{release.status === 'available' ? release.minimumRequirements.display : 'Not established'}</span>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function ReleaseCard({ release, webAppUrl }: ReleaseCardProps) {
         {/* Release Notes */}
         <div className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-content-secondary font-display">
-            Desktop Packaging Capabilities Under Preparation
+            Native Desktop Roadmap
           </h3>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {release.releaseNotes.map((note, idx) => (

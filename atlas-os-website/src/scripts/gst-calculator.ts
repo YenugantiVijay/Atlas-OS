@@ -1,3 +1,4 @@
+import { splitGstPaise } from '../../../src/lib/gst-components';
 import { readDecimalHundredths } from './decimal-input';
 
 type Supply = 'state' | 'territory' | 'interstate';
@@ -11,13 +12,13 @@ export function calculateGst(amount: string, rate: string, mode: Mode, supply: S
   const denominator = mode === 'remove' ? 10000 + basisPoints : 10000;
   const numerator = paise * basisPoints;
   const tax = Math.floor((numerator + denominator / 2) / denominator);
-  const central = supply === 'interstate' ? 0 : Math.floor(tax / 2);
+  const components = splitGstPaise(tax, supply);
   return {
     base: mode === 'remove' ? paise - tax : paise,
     tax,
     total: mode === 'remove' ? paise : paise + tax,
-    central,
-    regional: supply === 'interstate' ? 0 : tax - central,
-    integrated: supply === 'interstate' ? tax : 0,
+    central: components.cgst,
+    regional: components.sgst + components.utgst,
+    integrated: components.igst,
   };
 }

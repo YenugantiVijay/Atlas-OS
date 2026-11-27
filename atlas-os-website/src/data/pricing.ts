@@ -1,29 +1,7 @@
 import type { PricingTier } from '../types';
-
+/** Proposed quotations only; existing server subscription IDs remain unchanged. */
 export const PRICING_TIERS: PricingTier[] = [
-  {
-    id: 'starter',
-    name: 'Atlas Counter',
-    description: 'For shops that bill customers at a counter and reconcile collections at shift close.',
-    priceDisplay: '₹999',
-    billingPeriod: '/ month',
-    features: ['Counter billing with stock and selling price lookup', 'Cash and UPI collections', 'Drawer closing and daily reconciliation', 'Branded customer receipt and daily totals'],
-  },
-  {
-    id: 'professional',
-    name: 'Atlas Trade',
-    description: 'For wholesalers and distributors managing incoming stock, supplier rates and customer balances.',
-    priceDisplay: '₹2,499',
-    billingPeriod: '/ month',
-    isFeatured: true,
-    features: ['Counter billing and collections', 'Notebook-style bulk goods receiving', 'Purchase orders and supplier price history', 'Quotations, outstanding invoices and payments', 'Customer and counter receipts on one sheet'],
-  },
-  {
-    id: 'enterprise-network',
-    name: 'Atlas Network',
-    description: 'Planned for businesses that need to coordinate stock and approvals across branches.',
-    priceDisplay: 'Planned',
-    billingPeriod: '',
-    features: ['Planned branch stock transfers', 'Planned branch-wise reports and approvals'],
-  },
+ { id:'starter', name:'Atlas Sprout', description:'Everyday shop sales, stock and collections.', priceDisplay:'₹499', billingPeriod:'/ organization / month', features:['Product and customer records','Retail counter, orders, invoices and payment records','Cash/UPI recording and drawer reconciliation','Branded customer receipts and daily totals','Browser printing and installable PWA access','Proposed annual quotation: ₹4,990'] },
+ { id:'professional', name:'Atlas Stride', description:'Purchasing and supplier workflows for growing trade businesses.', priceDisplay:'₹999', billingPeriod:'/ organization / month', isFeatured:true, features:['Sprout workflows, plus purchasing and goods receiving','Supplier quotes and rate history','Quotations, receivables and sales/receipts exports','Customer and counter receipts on one sheet','Specialty workspaces subject to rollout review','Proposed annual quotation: ₹9,990'] },
+ { id:'enterprise-network', name:'Atlas Summit', description:'Planned multi-branch coordination; not currently available for purchase.', priceDisplay:'₹1,999', billingPeriod:'/ month · indicative future budget', features:['Planned branch transfers and approvals','Planned consolidated branch reporting','Scope and commercial terms require a separate quotation','No current entitlement to unimplemented features','Indicative annual budget: ₹19,990'] },
 ];

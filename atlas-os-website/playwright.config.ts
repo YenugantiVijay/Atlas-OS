@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   timeout: 30_000,
   use: {
-    baseURL: 'http://127.0.0.1:4321',
+    baseURL: `http://127.0.0.1:${process.env.ATLAS_WEBSITE_TEST_PORT || '14321'}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

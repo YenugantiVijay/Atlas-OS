@@ -5,14 +5,14 @@ import type { ReleaseManifest } from '../types';
  * 
  * Truthful Architecture:
  * No fake .exe or .msi installers are fabricated. 
- * Atlas OS Desktop is currently in packaging development.
+ * Atlas OS Desktop is planned; no packaged release is available.
  * This manifest drives the Download Center with 100% transparency.
  */
 export const OFFICIAL_RELEASES: ReleaseManifest[] = [
   {
     platform: 'Windows',
     platformLabel: 'Windows 11 / 10 (64-bit)',
-    version: 'v0.2.0 (Desktop Package Preview)',
+    version: 'Planned — no released version',
     releaseDate: null, // Unreleased desktop binary
     status: 'coming_soon',
     fileSize: null,
@@ -28,13 +28,7 @@ export const OFFICIAL_RELEASES: ReleaseManifest[] = [
       display: '1366 x 768 minimum resolution (1920 x 1080 recommended)',
       architecture: '64-bit Windows Desktop',
     },
-    releaseNotes: [
-      'Packaging Atlas OS into a standalone high-performance Windows desktop application.',
-      'Native local hardware integration for thermal receipt printers and barcode scanners.',
-      'Automated background updates and secure offline session resilience.',
-      'One-click Excel export streaming without browser memory limits.',
-      'Multi-monitor dashboard and POS billing terminal layout support.',
-    ],
+    releaseNotes: ['Native packaging and hardware integrations are planned, not released features.'],
   },
   {
     platform: 'macOS',
@@ -54,9 +48,7 @@ export const OFFICIAL_RELEASES: ReleaseManifest[] = [
       display: 'Retina display recommended',
       architecture: 'Universal Binary (ARM64 & x86_64)',
     },
-    releaseNotes: [
-      'Scheduled following the primary Windows desktop distribution release.',
-    ],
+    releaseNotes: ['Native packaging and hardware integrations are planned, not released features.'],
   },
 ];
 
@@ -66,10 +58,10 @@ export const OFFICIAL_RELEASES: ReleaseManifest[] = [
 export const APP_CONFIG = {
   // Configurable URL for web application (can be overridden via PUBLIC_APP_URL)
   webAppUrl: import.meta.env.PUBLIC_APP_URL || '',
-  companyName: 'Atlas OS Technologies',
-  officialDomain: 'atlasos.business',
-  supportEmail: 'support@atlasos.business',
-  salesEmail: 'sales@atlasos.business',
+  companyName: 'Atlas OS',
+  officialDomain: 'atlas-os-8328y.web.app',
+  supportEmail: import.meta.env.PUBLIC_SUPPORT_EMAIL || '',
+  salesEmail: import.meta.env.PUBLIC_SALES_EMAIL || '',
   headquarters: 'India',
   githubUrl: 'https://github.com/YenugantiVijay/Atlas-OS',
 };
