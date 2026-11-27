@@ -629,3 +629,15 @@ test('all industry cards open matching workspaces, installation and shortcut exp
     expect(shortcut).toBe('[InternetShortcut]\r\nURL=' + await start.getAttribute('href') + '\r\n');
   }
 });
+
+
+test('school solution describes student workflows and defaults to a school enquiry', async ({ page }) => {
+  await page.goto('/solutions/school/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('school administrators');
+  await expect(page.locator('#comparison').getByText('Student register', {exact: true})).toBeVisible();
+  await expect(page.getByText('Stock lookup', {exact: true})).toHaveCount(0);
+  await expect(page.locator('select[name="industry"], #industry')).toHaveValue('school');
+  await expect(page.locator('select[name="primaryRequirement"], #primaryRequirement')).toHaveValue('school_management');
+  await page.getByText('Are exams and parent portals included?', {exact: true}).click();
+  await expect(page.getByText('Timetables, homework, examinations, report cards and parent/student portals are future phases.', {exact: false})).toBeVisible();
+});
