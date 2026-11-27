@@ -12,6 +12,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { getBusinessDate } from '@/lib/dates';
 import { staffPayService } from '@/services/staff-pay.service';
 import { staffClockService, type ClockAction, type StaffClockSession } from '@/services/staff-clock.service';
+import { SchoolStaffPanel } from '@/features/school/SchoolStaff';
 import { EmployeeAccountLinks } from './StaffEmployeeAccounts';
 
 const time = (value: string | null) => value ? new Intl.DateTimeFormat('en-IN', {
@@ -20,7 +21,7 @@ const time = (value: string | null) => value ? new Intl.DateTimeFormat('en-IN', 
 const duration = (minutes: number | null) => minutes === null ? 'In progress' : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
 export function StaffClockPage() {
-  const { currentOrg, currentUser, currentRole, isAuthenticated, isDemoMode, canWriteOperations } = useOrg();
+  const { currentOrg, currentUser, currentRole, isAuthenticated, isDemoMode, canWriteOperations, eligibility } = useOrg();
   const access = useAttendanceAccess();
   return <div className="space-y-5">
     <header><h1 className="text-2xl font-bold">{portalEntry() === 'manager' ? 'Manager / HR Portal' : portalEntry() === 'employee' ? 'Employee Portal' : 'Employee Attendance'}</h1>
@@ -28,13 +29,13 @@ export function StaffClockPage() {
     {!isAuthenticated || isDemoMode || !currentOrg || !currentUser
       ? <Card>Sign in to a cloud workspace to use employee attendance.</Card>
       : <ClockWorkspace key={currentOrg.id + ':' + currentUser.id + ':' + currentRole}
-        orgId={currentOrg.id} userId={currentUser.id} manager={access.data === true}
+        school={eligibility?.businessCategory === 'school'} orgId={currentOrg.id} userId={currentUser.id} manager={access.data === true}
         owner={currentRole === 'owner'} editable={canWriteOperations} />}
   </div>;
 }
 
-function ClockWorkspace({ orgId, userId, manager, owner, editable }: {
-  orgId: string; userId: string; manager: boolean; owner: boolean; editable: boolean;
+function ClockWorkspace({ orgId, userId, manager, owner, editable, school }: {
+  orgId: string; userId: string; manager: boolean; owner: boolean; editable: boolean; school: boolean;
 }) {
   const [month, setMonth] = useState(getBusinessDate().slice(0, 7));
   const [page, setPage] = useState(1);
@@ -128,7 +129,8 @@ function ClockWorkspace({ orgId, userId, manager, owner, editable }: {
           totalPages={Math.ceil(history.data.count / 25)} onPageChange={setPage} />}
       </>}
     </Card>
-    {owner && <EmployeeAccountLinks orgId={orgId} userId={userId} editable={editable} />}
+    {school && <SchoolStaffPanel orgId={orgId} userId={userId} editable={editable} owner={owner} />}
+    {!school && owner && <EmployeeAccountLinks orgId={orgId} userId={userId} editable={editable} />}
     <p className="text-xs text-content-secondary">Check-in and check-out use server timestamps. Completed work time excludes recorded breaks. Attendance does not automatically change pay, approve overtime or determine leave. No automatic checkout or email reminders are enabled.</p>
   </>;
 }
