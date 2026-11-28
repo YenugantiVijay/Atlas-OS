@@ -102,9 +102,11 @@ function SpecialtyWorkspaceBody() {
         icon={<Icon size={16} />}
       />
       <Button variant="outline" disabled={busy} onClick={()=>setRefresh(v=>v+1)}>Refresh workspace records</Button>
-      {id!=='banner-print-studio'&&!isMockAuth&&['owner','admin'].includes(currentRole??'')&&<HandoverReport orgId={org} tool={toolId}/>}
-      {id!=='banner-print-studio'&&!isMockAuth&&['owner','admin'].includes(currentRole??'')&&<LocationAccess orgId={org} tool={toolId} editable={canWrite}/>}
+      {id!=='banner-print-studio'&&!isMockAuth&&(['owner','admin'].includes(currentRole??'')||(id==='ice-cream-distribution'&&currentRole==='accounts'))&&<details className="rounded-lg border border-border bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700">Reports & administration</summary><div className="space-y-4 p-4 pt-0">
+      {['owner','admin'].includes(currentRole??'')&&<HandoverReport orgId={org} tool={toolId}/>}
+      {['owner','admin'].includes(currentRole??'')&&<LocationAccess orgId={org} tool={toolId} editable={canWrite}/>}
       {id==='ice-cream-distribution'&&!isMockAuth&&['owner','admin','accounts'].includes(currentRole??'')&&<InvoiceReviews orgId={org} editable={canWrite&&!uncertain} refreshKey={refresh}/>}
+      </div></details>}
       {snapshot?.location_restricted&&<p role="status" className="rounded-xl border border-border bg-white p-3 text-sm">{snapshot.assigned_locations?.length?'Assigned locations: '+snapshot.assigned_locations.join(', '):'No location is assigned to your account. Ask the owner or administrator to grant access.'}</p>}
       {uncertain&&<section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p>A previous save has not been confirmed. Its original request is preserved for this account and workspace. Retry it unchanged to prevent duplicate stock or cash entries.</p><Button disabled={busy||!canWrite} onClick={()=>void save(uncertain.command)}>Retry unchanged operation</Button><Button variant="outline" disabled={busy} onClick={async()=>{
         setBusy(true);try{const recorded=await resolveOperation(org,toolId,uncertain.id,uncertain.command);localStorage.removeItem(storageKey);pending.current=undefined;setUncertain(null);setFormVersion(v=>v+1);setError('');setStatus(recorded?'The original operation was saved. No duplicate was created.':'The unsaved request was cancelled. You can enter a new operation.');setRefresh(v=>v+1);}catch(e){setError(e instanceof Error?e.message:'Could not resolve request');}finally{setBusy(false);}
@@ -135,7 +137,7 @@ function SpecialtyWorkspaceBody() {
       )}
       {snapshot && chart ? (
         <>
-          <section className={panel} aria-labelledby="operations-graph">
+          <details className="rounded-lg border border-border bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700">Activity overview</summary><section className={panel} aria-labelledby="operations-graph">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -194,7 +196,7 @@ function SpecialtyWorkspaceBody() {
               ))}
             </div>
             <p className="mt-3 text-xs text-content-secondary">{chart.legend.join(' · ')}</p>
-          </section>
+          </section></details>
           {!canWrite && (
             <p className="rounded-xl border border-border bg-white p-3 text-sm">
               This workspace is available in read-only mode.

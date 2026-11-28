@@ -60,7 +60,7 @@ function SchoolWorkspace({ scope }: { scope: SchoolScope }) {
       <Link className="font-semibold text-teal-800 hover:underline" to="/attendance/my">Staff check-in &amp; attendance</Link>
     </div>
     {!scope.editable && <p role="status" className="text-sm text-amber-800">School records are read-only while workspace writes are unavailable.</p>}
-    <nav aria-label="School modules" className="flex flex-wrap gap-2">{sections.map(({ id, label, Icon }) => <Button key={id} size="sm" variant={id === section ? 'primary' : 'outline'}
+    <div className="sm:hidden"><Select label="School section" value={section} options={sections.map(row=>({value:row.id,label:row.label}))} onChange={event=>{const next=new URLSearchParams(params);next.set('section',event.target.value);setParams(next);}}/></div><nav aria-label="School modules" className="hidden gap-1 overflow-x-auto border-b border-border pb-2 sm:flex">{sections.map(({ id, label, Icon }) => <Button key={id} size="sm" className="shrink-0" variant={id === section ? 'primary' : 'ghost'}
       aria-current={id === section ? 'page' : undefined} onClick={() => { const next = new URLSearchParams(params); next.set('section', id); setParams(next); }}><Icon size={16} />{label}</Button>)}</nav>
     {!ready && !['setup','staff'].includes(section) && <SchoolPanel title="Start with school setup">
       <p className="text-sm">{permission.setup ? 'Save the school profile, add an academic year, then create classes and sections.' : 'Ask the school owner or principal to finish academic setup.'}</p>

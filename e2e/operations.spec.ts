@@ -1,3 +1,4 @@
+import {openNavigationGroup} from './navigation';
 import { test as unseededTest } from '@playwright/test';
 import { test, expect } from './workspace-fixture';
 
@@ -29,6 +30,7 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
       await expect(dialog).toContainText('No saved actions to review for this workspace.');
       await expect(dialog).toContainText('Automatic synchronization is not implemented.');
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      await openNavigationGroup(page,'Inventory');
       await page.getByRole('link', { name: 'Products & SKUs' }).click();
       await expect(page.getByRole('heading', { name: 'This page couldn’t load' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Products & SKUs' })).toBeVisible();
@@ -41,6 +43,7 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('navigates to products catalog and filters by category', async ({ page }) => {
+    await openNavigationGroup(page,'Inventory');
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);
     await expect(page.getByText('Products & Catalog')).toBeVisible();
@@ -56,12 +59,14 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
   });
 
   test('navigates to sales orders and verifies order lifecycle', async ({ page }) => {
+    await openNavigationGroup(page,'Sales');
     await page.getByRole('link', { name: 'Sales Orders' }).click();
     await expect(page).toHaveURL(/.*#\/orders/);
     await expect(page.getByText('SO-2026-0001')).toBeVisible();
   });
 
   test('navigates to tax invoices and views commercial GST snapshot', async ({ page }) => {
+    await openNavigationGroup(page,'Sales');
     await page.getByRole('link', { name: 'Tax Invoices' }).click();
     await expect(page).toHaveURL(/.*#\/invoices/);
     await expect(page.getByText('ATL/25-26/0001')).toBeVisible();
@@ -96,6 +101,7 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
     await expect(page.getByText('Top Brands by Stock Valuation')).toBeVisible();
 
     // 2. Products pagination controls
+    await openNavigationGroup(page,'Inventory');
     await page.getByRole('link', { name: 'Products & SKUs' }).click();
     await expect(page).toHaveURL(/.*#\/products/);
     const pagination = page.getByTestId('pagination-control');
@@ -107,6 +113,7 @@ test.describe('ATLAS OS — Electrical Distribution E2E Operational Workflows', 
 
   test('verifies end-to-end payment workflow and balance settlement', async ({ page }) => {
     // 1. Navigate to Payments page and verify KPI summary metrics
+    await openNavigationGroup(page,'Finance');
     await page.getByRole('link', { name: 'Payments & Ledger' }).click();
     await expect(page).toHaveURL(/.*#\/payments/);
     await expect(page.getByText('Payments & Receivables Ledger')).toBeVisible();
@@ -144,6 +151,7 @@ unseededTest('an unseeded browser opens an empty local workspace', async ({ page
   await page.getByRole('button', { name: 'Explore Demo Sandbox' }).click();
   await expect(page.getByRole('heading', { name: 'Local workspace', exact: true })).toBeVisible();
   await expect(page.getByText('Sri Lakshmi Electrical Distributors')).toHaveCount(0);
+  await openNavigationGroup(page,'Inventory');
   await page.getByRole('link', { name: 'Products & SKUs' }).click();
   await expect(page.getByText('Products & Catalog')).toBeVisible();
   await expect(page.getByText('POL-W-2.5-RD')).toHaveCount(0);

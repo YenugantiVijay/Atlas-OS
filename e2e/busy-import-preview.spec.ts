@@ -1,9 +1,11 @@
+import {openNavigationGroup} from './navigation';
 import { test, expect } from './workspace-fixture';
 import ExcelJS from 'exceljs';
 
 test('previews a BUSY workbook with editable mappings and keeps records local', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Explore Demo Sandbox' }).click();
+  await openNavigationGroup(page,'Inventory');
   await page.getByRole('link', { name: 'Products & SKUs' }).click();
   await page.getByRole('link', { name: 'BUSY import preview' }).click();
   await expect(page.getByRole('heading', { name: 'BUSY import preview' })).toBeVisible();

@@ -1,3 +1,4 @@
+import {openNavigationGroup} from './navigation';
 import { expect, test } from './workspace-fixture';
 import { INDUSTRY_TOOLS, isSpecialtyToolId } from '../src/lib/industry-tools';
 
@@ -14,12 +15,14 @@ test('each industry link opens its own dashboard and keeps specialised modules i
     }
     await expect(page.getByRole('heading', { name: tool.headline })).toBeVisible();
     if (isSpecialtyToolId(id)) {
+      await page.getByText('Activity overview',{exact:true}).click();
       await expect(page.getByRole('region', {name: /open print jobs by due date|stock received and sold|committed and dispatched/i})).toBeVisible();
     } else {
       const workflows = page.getByRole('region', { name: id === 'small-business' ? 'Shop essentials' : 'Daily workflows' });
       for (const task of tool.tasks) await expect(workflows.getByRole('button', { name: new RegExp('^' + task.label, 'i') })).toBeVisible();
     }
     const sidebar = page.getByRole('complementary');
+    await openNavigationGroup(page,'Sales');
     if (id === 'ice-cream-stalls' || id === 'ice-cream-distribution')
       await expect(sidebar.getByRole('link', { name: 'Customers', exact: true })).toHaveCount(id === 'ice-cream-stalls' ? 0 : 1);
     await expect(sidebar.getByRole('link', { name: 'Counter Shift' })).toHaveCount(id === 'retail-wholesale' ? 1 : 0);
@@ -55,6 +58,7 @@ test('the electrical workspace fits a phone and closes navigation after a link i
   await expect(navigation).toBeHidden();
   await openMenu.click();
   await expect(navigation.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+  await openNavigationGroup(page,'Sales');
   await navigation.getByRole('link', { name: 'Quotations', exact: true }).click();
   await expect(page).toHaveURL(/#\/quotations$/);
   await expect(navigation).toBeHidden();

@@ -28,6 +28,9 @@ describe('School workspace permissions and explicit attendance', () => {
     open(); expect(await screen.findByRole('button',{name:'School permissions'})).toBeVisible();
     for(const name of ['School setup','Admissions','Fees & receipts','Student attendance']) expect(screen.getByRole('button',{name})).toBeVisible();
   });
+  it('switches school sections through the phone selector',async()=>{
+    const user=userEvent.setup();open();const selector=await screen.findByLabelText('School section');await user.selectOptions(selector,'setup');expect(await screen.findByRole('heading',{name:'School profile and receipt settings'})).toBeVisible();expect(selector).toHaveValue('setup');
+  });
   it('shows teachers only school students and attendance, keeping unmarked rows unsaved until selected', async () => {
     vi.mocked(schoolService.bootstrap).mockResolvedValue({...bootstrap,role:'teacher'});
     vi.mocked(schoolService.read).mockImplementation(async (_org,area) => (area==='attendance' ? {rows:[{enrolment_id:'enrol-a',name:'Asha Student',admission_no:'S-1',status:null,revision:null,reason:null,recorded_at:null}],count:1} : {rows:[],count:0}) as never);

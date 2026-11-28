@@ -11,15 +11,11 @@ interface WorkspaceBannerProps {
 
 export function WorkspaceBanner({ name, title, description, status, icon, actions }: WorkspaceBannerProps) {
   return (
-    <header className="relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-[#f6f5ff] to-atlas-100/80 px-5 py-5 shadow-sm sm:px-7 sm:py-7">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-16 -top-36 -z-10 h-80 w-80 rounded-full border border-atlas-300/50 ring-[28px] ring-atlas-200/25"
-      />
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+    <header className="border-b border-slate-200 pb-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span className="inline-flex items-center gap-2 rounded-lg border border-atlas-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-atlas-800">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-atlas-800">
               <span className="inline-flex shrink-0" aria-hidden="true">{icon}</span>
               {name}
             </span>
@@ -30,8 +26,8 @@ export function WorkspaceBanner({ name, title, description, status, icon, action
               </span>
             )}
           </div>
-          <h1 className="max-w-3xl text-2xl font-extrabold leading-tight tracking-tight text-navy-800 sm:text-3xl">{title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-base">{description}</p>
+          <h1 className="max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-navy-800">{title}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">{description}</p>
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2.5 xl:shrink-0">{actions}</div>}
       </div>

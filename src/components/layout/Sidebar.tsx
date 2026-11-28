@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   GraduationCap,
@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   Building2,
   CalendarCheck,
+  ChevronDown,
+  Search,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
@@ -150,6 +152,8 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
 }) => {
   const { currentOrg, currentRole } = useOrg();
   const supabaseStatus = getSupabaseStatus();
+  const {pathname}=useLocation();
+  const [search,setSearch]=useState('');
   const tool = useIndustryTool();
   const toolId = tool?.id;
   const iconOnly = collapsed && !isMobileOpen;
@@ -180,7 +184,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
 
       {/* Main Sidebar Container */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex max-w-full select-none flex-col border-r border-slate-200 bg-[#f4f5fb] transition-[transform,width] duration-200 motion-reduce:transition-none ${
+        className={`fixed inset-y-0 left-0 z-40 flex max-w-full select-none flex-col border-r border-slate-200 bg-slate-50 transition-[transform,width] duration-200 motion-reduce:transition-none ${
           // Mobile: drawer that translates in/out
           isMobileOpen ? 'visible w-72 translate-x-0 shadow-xl lg:shadow-none' : 'invisible -translate-x-full lg:visible lg:translate-x-0'
         } ${
@@ -219,7 +223,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
 
         {/* Tenant Indicator */}
         {!iconOnly && currentOrg && (
-          <div className="mx-3 mt-3 shrink-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mx-3 mt-3 shrink-0 border-b border-slate-200 px-2 pb-3">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="truncate text-sm font-bold text-navy-800">
                 {currentOrg.name}
@@ -229,21 +233,15 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
               </Badge>
             </div>
             {tool && <p className="mb-1 text-xs font-semibold text-atlas-800">{tool.name}</p>}
-            <div className="truncate text-xs text-slate-600">
-              {[currentOrg.city, currentOrg.state].filter(Boolean).join(', ') || 'Location not set'}
-            </div>
+
           </div>
         )}
 
+        {!iconOnly && <div className="relative mx-3 mt-3"><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 text-slate-500"/><input aria-label="Find a module" type="search" placeholder="Find a module…" value={search} onChange={event=>setSearch(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-atlas-600 focus:ring-1 focus:ring-atlas-600"/></div>}
         {/* Navigation list */}
-        <nav aria-label="Workspace navigation" className={`min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain py-3 ${iconOnly ? 'px-2' : 'px-3'}`}>
-          {authorizedGroups.map((group) => (
-            <div key={group.title} className="space-y-1">
-              {!iconOnly && group.showHeading !== false && (
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  {group.title}
-                </p>
-              )}
+        <nav aria-label="Workspace navigation" className={`min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain py-3 ${iconOnly ? 'px-2' : 'px-3'}`}>
+          {authorizedGroups.map(group=>({...group,items:group.items.filter(item=>!search.trim()||[group.title,item.label].some(text=>text.toLowerCase().includes(search.trim().toLowerCase())))})).filter(group=>group.items.length>0).map((group) => (
+            <NavigationSection key={[currentOrg?.id,currentRole,toolId,group.title].join(':')} title={group.title} collapsible={group.showHeading!==false&&!iconOnly} active={group.items.some(item=>item.path!=='/'&&(pathname===item.path||pathname.startsWith(item.path+'/')))} searching={!!search.trim()} icon={group.items[0].icon}>
 
               <ul className="space-y-1">
                 {group.items.map((item) => (
@@ -252,6 +250,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                       to={item.path}
                       end={item.path === '/'}
                       onClick={() => {
+                        setSearch('');
                         if (isMobileOpen && onCloseMobile) {
                           onCloseMobile();
                         }
@@ -259,7 +258,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                       title={iconOnly ? item.label : undefined}
                       aria-label={iconOnly ? item.label : undefined}
                       className={({ isActive }) =>
-                        `group relative flex min-h-10 items-center gap-2.5 rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700 ${
+                        `group relative flex min-h-11 items-center gap-2.5 rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700 ${
                           isActive
                             ? 'border-atlas-200 bg-atlas-100/70 font-semibold text-atlas-900 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r-full before:bg-atlas-700 before:content-[""]'
                             : 'border-transparent font-medium text-slate-700 hover:bg-slate-200/70 hover:text-navy-800'
@@ -283,8 +282,9 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
                   </li>
                 ))}
               </ul>
-            </div>
+            </NavigationSection>
           ))}
+          {search.trim()&&!authorizedGroups.some(group=>group.items.some(item=>[group.title,item.label].some(text=>text.toLowerCase().includes(search.trim().toLowerCase()))))&&<p className="px-3 py-4 text-sm text-slate-600">No matching modules.</p>}
         </nav>
 
         {/* Bottom status */}
@@ -299,7 +299,7 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
               />
               {!iconOnly && (
                 <span className="max-w-[140px] truncate text-xs font-medium text-slate-700">
-                  {supabaseStatus.configured ? 'Supabase Connected' : 'Local Deterministic'}
+                  {supabaseStatus.configured ? 'Cloud configured' : 'Local demo'}
                 </span>
               )}
             </div>
@@ -312,3 +312,10 @@ const SidebarNavigation: React.FC<SidebarProps & { showAttendance?: boolean }> =
     </>
   );
 };
+
+function NavigationSection({title,collapsible,active,searching,icon,children}:{title:string;collapsible:boolean;active:boolean;searching:boolean;icon:React.ReactNode;children:React.ReactNode}){
+ const [expanded,setExpanded]=useState(active);const id=useId();
+ useEffect(()=>{if(active)setExpanded(true);},[active]);
+ const open=expanded||searching;
+ return <div className="space-y-1">{collapsible&&<button type="button" aria-expanded={open} aria-controls={id} onClick={()=>setExpanded(value=>!value)} className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700"><span aria-hidden="true" className="text-slate-500">{icon}</span><span className="flex-1">{title}</span><ChevronDown size={15} aria-hidden="true" className={open?'rotate-180':''}/></button>}<div id={id} hidden={collapsible&&!open} className={collapsible?'ml-3 border-l border-slate-200 pl-1':''}>{children}</div></div>;
+}

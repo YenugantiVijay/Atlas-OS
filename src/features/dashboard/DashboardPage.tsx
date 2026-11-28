@@ -166,7 +166,7 @@ export const DashboardPage: React.FC = () => {
           <div className="grid gap-3 sm:grid-cols-3">
             {dailyTasks.map(task => (
               <button key={task.path} type="button" onClick={() => navigate(task.path)}
-                className="group flex min-h-28 items-start justify-between gap-3 rounded-xl border border-border bg-surface-card p-4 text-left transition-colors hover:border-atlas-400 hover:bg-atlas-50">
+                className="group flex min-h-20 items-start justify-between gap-3 rounded-xl border border-border bg-surface-card p-4 text-left transition-colors hover:border-atlas-400 hover:bg-atlas-50">
                 <span><span className="block font-semibold">{task.label}</span>
                   <span className="mt-1 block text-sm text-content-secondary">{task.detail}</span></span>
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-atlas-700" aria-hidden="true" />
@@ -176,7 +176,7 @@ export const DashboardPage: React.FC = () => {
         </section>
       )}
 
-      <QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} />
+      <details className="rounded-lg border border-border bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700">Getting started & data import</summary><div className="p-4 pt-0"><QuickStartGuide onOpenImportModal={() => navigate('/import-preview')} /></div></details>
 
       {/* Actionable Alerts (Low Stock Warning Banner) */}
       {metrics.lowStockItemsCount > 0 && (
@@ -205,6 +205,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
+      <details className="rounded-lg border border-border bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-atlas-700">Balance checks & reconciliation</summary><div className="p-4 pt-0">
       {/* Trust & Reconciliation Engine */}
       {currentOrg && (
         <ReconciliationCard
@@ -215,6 +216,7 @@ export const DashboardPage: React.FC = () => {
         />
       )}
 
+      </div></details>
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Metric 1: Today's Sales */}

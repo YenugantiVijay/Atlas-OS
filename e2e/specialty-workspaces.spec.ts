@@ -19,6 +19,7 @@ test('studio records mixed-unit work and updates its due-date chart', async ({ p
   await page.getByRole('button', { name: 'Save print job' }).click();
   const board = page.getByRole('region', { name: 'Print job board' });
   await expect(board).toContainText('₹550');
+  await page.getByText('Activity overview',{exact:true}).click();
   const chart = page.getByRole('region', { name: 'Open print jobs by due date' });
   await expect(chart.locator('[aria-label="Open jobs: 1"]')).toHaveCount(1);
   await board.getByRole('button', { name: 'Record artwork version' }).click();
@@ -87,6 +88,7 @@ test('a manager opens two stall forms and saves each closing amount separately o
   await page.getByLabel('Quantity', { exact: true }).fill('3');
   await page.getByLabel('Amount collected (₹)').fill('90');
   await page.getByRole('button', { name: 'Save sale' }).click();
+  await page.getByText('Activity overview',{exact:true}).click();
   await page.getByLabel('Graph unit').selectOption('scoop');
   const chart = page.getByRole('region', { name: 'Stock received and sold over 7 days' });
   await expect(chart.locator('[aria-label="Received: 20"]')).toHaveCount(1);
@@ -139,6 +141,7 @@ test('distribution handles a partial dispatch of a bulk case commitment', async 
   await page.getByLabel('Customer order reference').fill('OUTLET-10');
   await page.getByRole('button', { name: 'Save dispatch' }).click();
   await expect(page.getByText(/2200 of 3200 dispatched · 1000 open/)).toBeVisible();
+  await page.getByText('Activity overview',{exact:true}).click();
   const chart = page.getByRole('region', { name: 'Committed and dispatched cases over 7 days' });
   await expect(chart.locator('[aria-label="Committed: 3200"]')).toHaveCount(1);
   await expect(chart.locator('[aria-label="Dispatched: 2200"]')).toHaveCount(1);
