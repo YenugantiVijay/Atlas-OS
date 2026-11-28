@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { toPaise } from '@/lib/money';
 import { Button } from '@/components/ui/Button';
 import type { IceInput, Snapshot } from './operations';
@@ -8,7 +8,10 @@ import { StallCashDesk } from './StallCashDesk';
 const eventLabels = {
   receive: 'Receive stock',
   sale: 'Record sale',
-  waste: 'Waste (history)',
+  waste: 'Write off stock',
+  transfer: 'Transfer stock',
+  transfer_in: 'Transfer received',
+  transfer_out: 'Transfer sent',
   open: 'Open stall',
   close_day: 'Close stall',
   count: 'Count closing stock',
@@ -16,8 +19,10 @@ const eventLabels = {
   promise: 'Commit cases',
   dispatch: 'Dispatch cases',
   return: 'Record return or credit',
-} satisfies Record<IceInput['kind'] | 'close' | 'waste', string>;
+} satisfies Record<IceInput['kind'] | 'close' | 'transfer_in' | 'transfer_out', string>;
 const submitLabels = {
+  waste: 'Save write-off',
+  transfer: 'Save transfer',
   receive: 'Save receipt',
   sale: 'Save sale',
   count: 'Save stock count',
@@ -29,8 +34,8 @@ type StockAction = Exclude<IceInput['kind'], 'open' | 'close_day'>;
 
 const choicesFor = (distribution: boolean): StockAction[] =>
   distribution
-    ? ['receive', 'promise', 'dispatch', 'return']
-    : ['receive', 'sale', 'count'];
+    ? ['receive', 'promise', 'dispatch', 'return','waste','transfer']
+    : ['receive', 'sale', 'count','waste','transfer'];
 
 export function IceDesk({
   snapshot,
@@ -51,19 +56,25 @@ export function IceDesk({
   const choices = choicesFor(distribution).filter(
     (kind) =>
       managesStalls ||
-      (role === 'inventory' && ['receive', 'count'].includes(kind)) ||
+      (role === 'inventory' && ['receive', 'count','waste','transfer'].includes(kind)) ||
       (role === 'sales' && ['sale', 'promise', 'dispatch'].includes(kind)) ||
       (role === 'accounts' && kind === 'return'),
   );
   const [selected, setSelected] = useState<StockAction>('receive');
+  const [formEpoch,setFormEpoch]=useState(0);
+  const countBasis=useRef<{key:string;quantity:number}|null>(null);
+  const [countMessage,setCountMessage]=useState('');
   const [site, setSite] = useState('');
   const [sku, setSku] = useState('');
   const [unit, setUnit] = useState('piece');
   const kind = choices.includes(selected) ? selected : choices[0];
   const stock = snapshot.stock ?? [];
+  const countKey=JSON.stringify([site.trim().toUpperCase(),sku.trim().toUpperCase(),unit]);
+  const currentQuantity=stock.find(row=>row.site===site.trim().toUpperCase()&&row.sku===sku.trim().toUpperCase()&&row.unit===unit&&row.batch==='')?.quantity??0;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!kind || !sku.trim() || !site.trim()) return;
+    if(kind==='count'&&countBasis.current?.key!==countKey){setCountMessage('Start a fresh count after choosing the location and product.');return;}
     const form = event.currentTarget;
     const fields = new FormData(form);
     if (
@@ -79,9 +90,11 @@ export function IceDesk({
         detail: text(fields, 'detail'),
         method: text(fields, 'method'),
         expiry: text(fields, 'expiry'),
+        destination: text(fields,'destination'),
+        expected_quantity: kind==='count' ? countBasis.current?.quantity : undefined,
       })
     )
-      form.reset();
+      {form.reset();countBasis.current=null;setCountMessage('');}
   }
 
   return (
@@ -111,7 +124,7 @@ export function IceDesk({
                 variant={kind === choice ? 'primary' : 'outline'}
                 disabled={busy}
                 aria-pressed={kind === choice}
-                onClick={() => setSelected(choice)}
+                onClick={() => {setSelected(choice);countBasis.current=null;setCountMessage('');}}
               >
                 {eventLabels[choice]}
               </Button>
@@ -144,13 +157,15 @@ export function IceDesk({
               </div>
             </div>
           )}
-          <form key={kind} onSubmit={submit} className="mt-4">
+          {snapshot.location_restricted&&<datalist id="ice-assigned-sites">{snapshot.assigned_locations?.map(s=><option key={s} value={s}/>)}</datalist>}
+          <form key={kind+':'+formEpoch} onSubmit={submit} className="mt-4">
             <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label={distribution ? 'Freezer or depot' : 'Stall name'}>
                 <input
                   className={inputClass}
+                  list={snapshot.location_restricted?'ice-assigned-sites':undefined}
                   value={site}
-                  onChange={(event) => setSite(event.target.value)}
+                  onChange={(event) => {setSite(event.target.value);countBasis.current=null;}}
                   maxLength={60}
                   required
                 />
@@ -159,7 +174,7 @@ export function IceDesk({
                 <input
                   className={inputClass}
                   value={sku}
-                  onChange={(event) => setSku(event.target.value)}
+                  onChange={(event) => {setSku(event.target.value);countBasis.current=null;}}
                   maxLength={80}
                   required
                 />
@@ -171,7 +186,7 @@ export function IceDesk({
                   <select
                     className={inputClass}
                     value={unit}
-                    onChange={(event) => setUnit(event.target.value)}
+                    onChange={(event) => {setUnit(event.target.value);countBasis.current=null;}}
                   >
                     <option value="piece">Packaged piece</option>
                     <option value="scoop">Estimated scoop</option>
@@ -179,6 +194,7 @@ export function IceDesk({
                 </Field>
               )}
               <NumberField
+                onFocus={()=>{if(kind==='count'&&countBasis.current?.key!==countKey)countBasis.current={key:countKey,quantity:currentQuantity};}}
                 name="quantity"
                 label={kind === 'count' ? 'Counted quantity' : distribution ? 'Cases' : 'Quantity'}
                 min={kind === 'count' ? 0 : 1}
@@ -204,9 +220,11 @@ export function IceDesk({
                   required={false}
                 />
               )}
-              {distribution && kind !== 'receive' && (
+              {distribution && ['promise','dispatch','return'].includes(kind) && (
                 <Text name="reference" label="Customer order reference" maxLength={80} />
               )}
+              {kind==='transfer'&&<Text name="destination" label="Destination location" maxLength={60}/>}
+              {['waste','transfer','count'].includes(kind)&&<Text name="detail" label="Stock adjustment reason (at least 5 characters)"/>}
               {kind === 'promise' && <Text name="detail" label="Customer or outlet" />}
               {kind === 'sale' && (
                 <>
@@ -244,6 +262,7 @@ export function IceDesk({
                 />
               )}
             </fieldset>
+            {kind==='count'&&<div className="mt-3 text-sm"><p>Counts use the balance captured when you start entering the quantity. If stock changed, refresh and recount.</p><Button type="button" variant="outline" disabled={busy} onClick={()=>{setFormEpoch(v=>v+1);countBasis.current=null;setCountMessage('Enter the new physical count after reviewing refreshed stock.');}}>Start a fresh count</Button>{countMessage&&<p role="status">{countMessage}</p>}</div>}
             <Button type="submit" className="mt-4" disabled={busy}>
               {submitLabels[kind]}
             </Button>
@@ -252,6 +271,7 @@ export function IceDesk({
       )}
       <div className={distribution ? 'grid gap-4 xl:grid-cols-2' : undefined}>
         <section className={panel}>
+          <p className="mb-3 text-sm text-content-secondary">Transfers move stock between locations atomically. Write-offs record melted, expired or damaged stock without changing cash or issuing a customer credit.</p>
           <h2 className="text-lg font-bold">
             {distribution ? 'Stock by freezer and batch' : 'Stock by stall'}
           </h2>

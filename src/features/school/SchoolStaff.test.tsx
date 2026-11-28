@@ -5,6 +5,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,describe,it,expect,vi} from 'vitest';
 import {SchoolStaffPanel} from './SchoolStaff';
 import {schoolStaffService} from '@/services/school-staff.service';
+vi.mock('./timetable.service',()=>({timetableService:{read:vi.fn().mockResolvedValue({current:null,history:[],latest_id:null,can_publish:false})}}));
 const person={staff_id:'staff-a',school_id:'T-001',position:'teacher',revision:2,display_name:'Teacher X',joining_on:'2026-01-01',user_id:'user-a',is_active:true};
 function open(){return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><MemoryRouter><SchoolStaffPanel orgId="school-a" userId="user-a" editable/></MemoryRouter></QueryClientProvider>);}
 describe('School staff identity and leave',()=>{

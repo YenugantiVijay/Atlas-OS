@@ -99,8 +99,8 @@ export async function runIndustryWorkspaceAcceptance({
       method: 'upi',
       detail: 'Cup',
     });
-    await assert.rejects(save(stalls, { ...entry, kind: 'waste', quantity: 1, detail: 'Melted' }), /unknown stall operation/i);
-    await save(stalls, { ...entry, kind: 'count', quantity: 13 });
+    await save(stalls, { ...entry, kind: 'waste', quantity: 1, detail: 'Melted stock' });
+    await save(stalls, { ...entry, kind: 'count', quantity: 13,expected_quantity:14,detail:'Physical closing count' });
     await assert.rejects(save(stalls, { site: entry.site, kind: 'close', amount_paise: 8800 }), /refresh atlas os/i);
     await save(stalls, { site: entry.site, kind: 'close_day', amount_paise: 58800 });
     await assert.rejects(save(stalls, { ...entry, kind: 'receive', quantity: 1 }), /already closed/i);

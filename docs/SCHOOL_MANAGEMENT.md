@@ -44,4 +44,4 @@ Apply migrations in order, including `20261127065313_school_management_foundatio
 
 ## Later phases
 
-Timetables, homework, examinations, report cards, parent/student portals, library, transport, biometric devices, automated messaging and payment gateway integrations are not part of these two phases. No government identifier or student document upload is collected. Staff self-service attendance remains available through the existing Employee Attendance module.
+Staff identity/leave, parent/student portals and personal Excel timetables have since been added; see SCHOOL_STAFF.md, PRODUCT_PORTALS.md and STAFF_TIMETABLES.md. Homework, examinations, report cards, library, transport, biometric devices, automated messaging and payment gateway integrations remain later work. No government identifier or student document upload is collected. Staff self-service attendance remains available through the existing Employee Attendance module.

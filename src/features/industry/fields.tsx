@@ -45,6 +45,7 @@ export function NumberField({
   name,
   label,
   min = 0,
+  onFocus,
   step = 'any',
   max,
 }: {
@@ -52,11 +53,12 @@ export function NumberField({
   label: string;
   min?: number;
   step?: string;
+  onFocus?: () => void;
   max: number;
 }) {
   return (
     <Field label={label}>
-      <input className={inputClass} type="number" name={name} min={min} step={step} max={max} required />
+      <input className={inputClass} onFocus={onFocus} type="number" name={name} min={min} step={step} max={max} required />
     </Field>
   );
 }

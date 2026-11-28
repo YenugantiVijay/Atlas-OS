@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { schoolStaffService,schoolPositions,type SchoolStaff,type SchoolLeave } from '@/services/school-staff.service';
 import { EmployeeAccountLinks } from '@/features/team/StaffEmployeeAccounts';
 import { AttendanceManagers } from '@/features/team/AttendanceManagers';
+import { SchoolTimetable } from './SchoolTimetable';
 import { getBusinessDate } from '@/lib/dates';
 
 export function SchoolStaffPanel({orgId,userId,editable,owner=false}:{orgId:string;userId:string;editable:boolean;owner?:boolean}) {
@@ -39,6 +40,7 @@ export function SchoolStaffPanel({orgId,userId,editable,owner=false}:{orgId:stri
    {directory.isSuccess&&!directory.data.rows.length&&<p className="text-sm">No school staff IDs available. Ask the school administrator to register and link your staff profile.</p>}
    <div className="flex gap-2"><Button variant="outline" disabled={page===1||directory.isFetching} onClick={()=>setPage(page-1)}>Previous staff</Button><Button variant="outline" disabled={directory.isFetching||directory.data?.rows.length!==25} onClick={()=>setPage(page+1)}>Next staff</Button></div>
   </Card>
+  {directory.isSuccess&&<SchoolTimetable orgId={orgId} userId={userId} staff={directory.data.rows} authority={directory.data.can_register===true} editable={editable}/>}
   {directory.data?.can_register&&<Card className="space-y-3"><h2 className="font-semibold">{editing?'Update staff position':'Register school staff'}</h2>
    <p className="text-sm">To preserve an existing employee's attendance, choose their existing profile before assigning a school ID.</p>
    {!editing&&<><Select label="Existing staff profile (optional)" value={existing.data?.rows.some(r=>r.staff_id===staffId)?staffId:''} disabled={busy||existing.isPending||existing.isError} onChange={e=>{const row=existing.data?.rows.find(r=>r.staff_id===e.target.value);setStaffId(row?.staff_id??crypto.randomUUID());setName(row?.display_name??'');setJoining(row?.joining_on??getBusinessDate());}} options={[{value:'',label:'Create a new staff profile'},...(existing.data?.rows??[]).map(r=>({value:r.staff_id,label:r.display_name}))]}/>

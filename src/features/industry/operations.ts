@@ -17,8 +17,8 @@ export type Job = {
   stage: Stage;
   proof_history: string[];
 };
-type IceKind = 'receive' | 'sale' | 'count' | 'open' | 'close_day' | 'promise' | 'dispatch' | 'return';
-type StoredIceKind = Exclude<IceKind, 'close_day'> | 'close' | 'waste';
+type IceKind = 'receive' | 'sale' | 'count' | 'open' | 'close_day' | 'promise' | 'dispatch' | 'return' | 'waste' | 'transfer';
+type StoredIceKind = Exclude<IceKind, 'close_day'> | 'close' | 'transfer_out' | 'transfer_in';
 export type IceInput = {
   kind: IceKind;
   site: string;
@@ -31,6 +31,8 @@ export type IceInput = {
   amount_paise: number;
   method: string;
   expiry: string;
+  destination?: string;
+  expected_quantity?: number;
 };
 export type Command =
   | IceInput
@@ -73,6 +75,8 @@ export type Commitment = {
 };
 export type Snapshot = {
   today: string;
+  location_restricted?: boolean;
+  assigned_locations?: string[];
   jobs?: Job[];
   stock?: Stock[];
   events?: IceEvent[];
@@ -240,6 +244,10 @@ export function addLocalOperation(
     }
   } else {
     const { kind, quantity, detail } = command;
+    if (!Number.isSafeInteger(quantity) || quantity<0 || quantity>100000000 || !Number.isSafeInteger(command.amount_paise) || command.amount_paise<0 || command.amount_paise>10000000000) throw new Error('Use valid whole quantities and exact cash amounts');
+    if (['waste','transfer','count'].includes(kind) && (detail.trim().length<5 || detail.length>120)) throw new Error('Enter a stock adjustment reason (5–120 characters)');
+    const destination=normalize(command.destination??'');
+    if (kind==='transfer' && (!destination || destination===normalize(command.site))) throw new Error('Choose a different destination location');
     const event: IceEvent = {
       ...command,
       kind: kind === 'close_day' ? 'close' : kind,
@@ -252,7 +260,7 @@ export function addLocalOperation(
       delta: 0,
     };
     if (tool === 'ice-cream-stalls') {
-      const todayAtStall = data.events.filter((row) => row.day === today && row.site === event.site);
+      const todayAtStall = data.events.filter((row) => row.day === today && (row.site === event.site || (kind==='transfer' && row.site===destination)));
       const opened = todayAtStall.some((row) => row.kind === 'open');
       if (todayAtStall.some((row) => row.kind === 'close'))
         throw new Error('This stall is already closed for today');
@@ -270,8 +278,8 @@ export function addLocalOperation(
     const bin = stockByBin(data.events).get(iceKey(event));
     const available = bin?.quantity ?? 0;
     if (kind === 'receive' || (kind === 'return' && detail === 'Restock')) event.delta = quantity;
-    if (['sale', 'dispatch'].includes(kind)) event.delta = -quantity;
-    if (kind === 'count') event.delta = quantity - available;
+    if (['sale', 'dispatch','waste','transfer'].includes(kind)) event.delta = -quantity;
+    if (kind === 'count') { if(command.expected_quantity!==available) throw new Error('Stock changed since this count was prepared; refresh and recount'); event.delta = quantity - available; }
     if (available + event.delta < 0)
       throw new Error('Quantity exceeds stock available at this location');
     if (tool === 'ice-cream-distribution') {
@@ -287,8 +295,10 @@ export function addLocalOperation(
       ) {
         throw new Error('Reuse the same customer for this order reference');
       }
+      if (kind === 'receive' && data.events.some(row=>row.sku===event.sku&&row.batch===event.batch&&row.expiry&&row.expiry!==event.expiry)) throw new Error('Factory batch expiry must match across all freezer locations');
       if (kind === 'receive' && (event.expiry < today || (bin?.expiry && bin.expiry !== event.expiry)))
         throw new Error('Batch expiry is past or conflicts with the existing batch');
+      if (kind==='transfer' && (!bin?.expiry || bin.expiry<today)) throw new Error('Expired stock must be written off, not transferred');
       if (kind === 'dispatch') {
         if (!bin?.expiry || bin.expiry < today)
           throw new Error('Only stock within its recorded expiry date can be dispatched');
@@ -303,7 +313,10 @@ export function addLocalOperation(
           throw new Error('Restock only at a freezer with the same unexpired batch on record');
       }
     }
-    data.events.push(event);
+    if(kind==='transfer') {
+      event.kind='transfer_out';event.expiry=bin?.expiry??'';event.reference=id;
+      data.events.push(event,{...event,id:id+'-in',kind:'transfer_in',site:destination,delta:quantity});
+    } else data.events.push(event);
   }
   data.operations[id] = encoded;
 }
@@ -327,6 +340,13 @@ export async function readOperations(
   return data as Snapshot;
 }
 
+export async function resolveOperation(org:string,tool:SpecialtyToolId,id:string,command:Command):Promise<boolean> {
+ const {data,error}=await getSupabaseClient().rpc('resolve_industry_operation',{p_org:org,p_tool:tool,p_id:id,p_command:command});
+ if(error||typeof data!=='boolean')throw new Error('The request could not be resolved. Keep it unchanged and retry when connected.');
+ return data;
+}
+export class OperationUnconfirmedError extends Error {}
+
 export async function saveOperation(
   org: string,
   tool: SpecialtyToolId,
@@ -335,12 +355,13 @@ export async function saveOperation(
   id: string,
 ) {
   if (!demo) {
-    const { error } = await getSupabaseClient().rpc('apply_industry_operation', {
+    const { error } = await Promise.resolve(getSupabaseClient().rpc('apply_industry_operation', {
       p_org: org,
       p_tool: tool,
       p_id: id,
       p_command: command,
-    });
+    })).catch(()=>{throw new OperationUnconfirmedError('The save was not confirmed. Retry the unchanged operation before entering anything else.');});
+    if(error && !/^[0-9A-Z]{5}$/.test(error.code??'')) throw new OperationUnconfirmedError('The save was not confirmed. Retry the unchanged operation before entering anything else.');
     if (error) throw new Error(error.message);
     return;
   }
