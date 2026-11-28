@@ -133,6 +133,9 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
       // Verify "Activity Feed" is completely removed
       expect(screen.queryByText('Activity Feed')).toBeNull();
 
+      // Open the authorized group before accessing its links.
+      expect(screen.queryByRole('link', { name: /audit trail/i })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
       // Verify "Audit Trail" is present
       const auditTrailLinks = screen.getAllByRole('link', { name: /audit trail/i });
       expect(auditTrailLinks).toHaveLength(1);
@@ -278,64 +281,56 @@ describe('Atlas OS Navigation, Identity Fallbacks & Role-Based Access', () => {
   // 3. ORGANIZATION LOCATION & NEUTRAL FALLBACKS
   // =========================================================================
   describe('Organization Location Presentation & Neutral Fallbacks', () => {
-    it('displays organization city and state when both are available', () => {
+    it('displays in the organization menu: organization city and state when both are available', () => {
       vi.spyOn(OrgContextModule, 'useOrg').mockReturnValue({
         ...baseOrgContext,
         currentOrg: mockOrgWithLocation,
+        organizations: [mockOrgWithLocation],
       });
 
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <Sidebar collapsed={false} onToggle={() => {}} />
-        </MemoryRouter>
-      );
+      renderWithProviders(<Header collapsed={false} onOpenCommandPalette={()=>{}} onOpenQuickCreate={()=>{}} onOpenNewOrgModal={()=>{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Switch organization:/ }));
 
       expect(screen.getByText('Bengaluru, Karnataka')).toBeInTheDocument();
     });
 
-    it('displays only city when state is missing', () => {
+    it('displays in the organization menu: only city when state is missing', () => {
       vi.spyOn(OrgContextModule, 'useOrg').mockReturnValue({
         ...baseOrgContext,
         currentOrg: mockOrgCityOnly,
+        organizations: [mockOrgCityOnly],
       });
 
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <Sidebar collapsed={false} onToggle={() => {}} />
-        </MemoryRouter>
-      );
+      renderWithProviders(<Header collapsed={false} onOpenCommandPalette={()=>{}} onOpenQuickCreate={()=>{}} onOpenNewOrgModal={()=>{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Switch organization:/ }));
 
       expect(screen.getByText('Mumbai')).toBeInTheDocument();
       expect(screen.queryByText(/Karnataka/i)).toBeNull();
     });
 
-    it('displays only state when city is missing', () => {
+    it('displays in the organization menu: only state when city is missing', () => {
       vi.spyOn(OrgContextModule, 'useOrg').mockReturnValue({
         ...baseOrgContext,
         currentOrg: mockOrgStateOnly,
+        organizations: [mockOrgStateOnly],
       });
 
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <Sidebar collapsed={false} onToggle={() => {}} />
-        </MemoryRouter>
-      );
+      renderWithProviders(<Header collapsed={false} onOpenCommandPalette={()=>{}} onOpenQuickCreate={()=>{}} onOpenNewOrgModal={()=>{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Switch organization:/ }));
 
       expect(screen.getByText('Goa')).toBeInTheDocument();
       expect(screen.queryByText(/Karnataka/i)).toBeNull();
     });
 
-    it('displays neutral "Location not set" when city and state are missing, never hardcoded Karnataka', () => {
+    it('displays in the organization menu: neutral "Location not set" when city and state are missing, never hardcoded Karnataka', () => {
       vi.spyOn(OrgContextModule, 'useOrg').mockReturnValue({
         ...baseOrgContext,
         currentOrg: mockOrgNoLocation,
+        organizations: [mockOrgNoLocation],
       });
 
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <Sidebar collapsed={false} onToggle={() => {}} />
-        </MemoryRouter>
-      );
+      renderWithProviders(<Header collapsed={false} onOpenCommandPalette={()=>{}} onOpenQuickCreate={()=>{}} onOpenNewOrgModal={()=>{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Switch organization:/ }));
 
       // Must display "Location not set"
       expect(screen.getByText('Location not set')).toBeInTheDocument();
