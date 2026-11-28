@@ -7,13 +7,18 @@ import { WorkspaceBanner } from '@/components/layout/WorkspaceBanner';
 import { Button } from '@/components/ui/Button';
 import { formatChartLabel, operationChart } from './charts';
 import { Field, inputClass, panel } from './fields';
-import { readOperations, saveOperation, type Command, type Snapshot } from './operations';
+import { portalStorageKey } from '@/lib/portal-entry';
+import { readOperations, saveOperation, resolveOperation, OperationUnconfirmedError, type Command, type Snapshot } from './operations';
 import { Studio } from './Studio';
 import { IceDesk } from './IceDesk';
 
 export default function SpecialtyWorkspace() {
+  const {currentOrg,currentUser,isMockAuth}=useOrg();const tool=useIndustryTool();
+  return <SpecialtyWorkspaceBody key={[currentOrg?.id,currentUser?.id,tool?.id,isMockAuth].join(':')}/>;
+}
+function SpecialtyWorkspaceBody() {
   const tool = useIndustryTool();
-  const { currentOrg, currentRole, isMockAuth, canWriteOperations } = useOrg();
+  const { currentOrg, currentUser, currentRole, isMockAuth, canWriteOperations } = useOrg();
   const id = tool?.id;
   const org = currentOrg?.id;
   const [snapshot, setSnapshot] = useState<Snapshot>();
@@ -22,7 +27,13 @@ export default function SpecialtyWorkspace() {
   const [status, setStatus] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [chartUnit, setChartUnit] = useState('piece');
-  const pending = useRef<{ signature: string; id: string }>();
+  const storageKey=portalStorageKey('industry-pending:'+org+':'+currentUser?.id+':'+id);
+  const [uncertain,setUncertain]=useState<{signature:string;id:string;command:Command}|null>(()=>{
+    if(isMockAuth)return null;
+    try{const raw=localStorage.getItem(storageKey);if(!raw)return null;const saved=JSON.parse(raw);return saved&&typeof saved.id==='string'&&saved.command&&saved.signature===JSON.stringify(saved.command)?saved:null;}catch{return null;}
+  });
+  const [formVersion,setFormVersion]=useState(0);
+  const pending = useRef<{ signature: string; id: string;command:Command }|undefined>(uncertain??undefined);
   const sending = useRef(false);
   useEffect(() => {
     if (!org || !isSpecialtyToolId(id)) return;
@@ -51,18 +62,24 @@ export default function SpecialtyWorkspace() {
     setError('');
     setStatus('');
     const signature = JSON.stringify(command);
+    if(uncertain&&uncertain.signature!==signature){sending.current=false;setBusy(false);return false;}
     const request =
       pending.current?.signature === signature
         ? pending.current
-        : { signature, id: crypto.randomUUID() };
+        : { signature, id: crypto.randomUUID(),command };
     pending.current = request;
     try {
+      if(!isMockAuth)localStorage.setItem(storageKey,JSON.stringify(request));
       await saveOperation(org, toolId, isMockAuth, command, request.id);
       pending.current = undefined;
+      if(!isMockAuth)localStorage.removeItem(storageKey);
+      if(uncertain)setFormVersion(v=>v+1);setUncertain(null);
       setStatus('Operation saved.');
       setRefresh((value) => value + 1);
       return true;
     } catch (failure) {
+      if(failure instanceof OperationUnconfirmedError||uncertain)setUncertain(request);
+      else if(!isMockAuth)localStorage.removeItem(storageKey);
       setError(failure instanceof Error ? failure.message : 'Could not save the operation.');
       return false;
     } finally {
@@ -81,6 +98,9 @@ export default function SpecialtyWorkspace() {
         status={isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
         icon={<Icon size={16} />}
       />
+      {uncertain&&<section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p>A previous save has not been confirmed. Its original request is preserved for this account and workspace. Retry it unchanged to prevent duplicate stock or cash entries.</p><Button disabled={busy||!canWrite} onClick={()=>void save(uncertain.command)}>Retry unchanged operation</Button><Button variant="outline" disabled={busy} onClick={async()=>{
+        setBusy(true);try{const recorded=await resolveOperation(org,toolId,uncertain.id,uncertain.command);localStorage.removeItem(storageKey);pending.current=undefined;setUncertain(null);setFormVersion(v=>v+1);setError('');setStatus(recorded?'The original operation was saved. No duplicate was created.':'The unsaved request was cancelled. You can enter a new operation.');setRefresh(v=>v+1);}catch(e){setError(e instanceof Error?e.message:'Could not resolve request');}finally{setBusy(false);}
+      }}>Check status / cancel if unsaved</Button></section>}
       {error && (
         <div
           role="alert"
@@ -173,12 +193,12 @@ export default function SpecialtyWorkspace() {
             </p>
           )}
           {id === 'banner-print-studio' ? (
-            <Studio snapshot={snapshot} save={save} canWrite={canWrite} busy={busy} role={currentRole} />
+            <Studio key={formVersion} snapshot={snapshot} save={save} canWrite={canWrite&&!uncertain} busy={busy} role={currentRole} />
           ) : (
-            <IceDesk
+            <IceDesk key={formVersion}
               snapshot={snapshot}
               save={save}
-              canWrite={canWrite}
+              canWrite={canWrite&&!uncertain}
               busy={busy}
               role={currentRole}
               distribution={id === 'ice-cream-distribution'}

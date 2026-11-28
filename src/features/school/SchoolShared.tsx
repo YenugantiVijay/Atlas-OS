@@ -48,7 +48,7 @@ export function CommandForm({ scope, title, action, fields, initial = {}, transf
       try {
         const data = transform ? transform(values) : values;
         pending.current = true;
-        const result = await save.mutateAsync({ action, data }); onSaved?.(result);
+        const result = await save.mutateAsync({ action, data }); setValues(initial); onSaved?.(result);
       } catch (error) { setValidation(error instanceof Error ? error.message : 'The change could not be saved.'); }
       finally { pending.current = false; }
     }}>
