@@ -1,3 +1,4 @@
+import { runTimetableAcceptance } from './timetable_acceptance.mjs';
 import { runSchoolStaffAcceptance } from './school_staff_acceptance.mjs';
 import { runPortalAcceptance } from './portal_acceptance.mjs';
 /**
@@ -1455,6 +1456,7 @@ async function runAcceptance() {
     });
     await runStaffClockAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId });
     await runPortalAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, ownerAId: userAId, salesAId: ledgerSalesId, ownerBId: userBId });
+    await runTimetableAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, ownerAId: userAId, salesAId: ledgerSalesId, ownerBId: userBId });
     await runSchoolStaffAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, ownerAId: userAId, salesAId: ledgerSalesId, ownerBId: userBId });
     await runSchoolAcceptance({ client: testClient, withRoleContext, recordTest, orgAId, orgBId, ownerAId: userAId, ownerBId: userBId, salesAId: ledgerSalesId });
 

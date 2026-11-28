@@ -177,7 +177,7 @@ async function verifyWorkbookArchive(buffer: ArrayBuffer) {
   if (offset !== end) throw new Error('The workbook archive layout is inconsistent.');
 }
 
-export async function readImportFile(file: Pick<File, 'name' | 'size' | 'arrayBuffer'>, options?: { calendarDates?: boolean }): Promise<SourceSheet[]> {
+export async function readImportFile(file: Pick<File, 'name' | 'size' | 'arrayBuffer'>, options?: { calendarDates?: boolean; clockTimes?: boolean; singleVisibleSheet?: boolean }): Promise<SourceSheet[]> {
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension !== 'xlsx' && extension !== 'csv') {
     throw new Error('Choose an .xlsx or .csv file. For older .xls files, use Save As in Excel.');
@@ -206,6 +206,7 @@ export async function readImportFile(file: Pick<File, 'name' | 'size' | 'arrayBu
     throw new Error('This workbook could not be read. Export it again as an unprotected .xlsx file.');
   }
 
+  if (options?.singleVisibleSheet && (workbook.worksheets.length !== 1 || workbook.worksheets[0].state !== 'visible')) throw new Error('Use exactly one visible worksheet with no hidden sheets.');
   let totalRows = 0;
   const sheets: SourceSheet[] = [];
   for (const sheet of workbook.worksheets) {
@@ -225,7 +226,9 @@ export async function readImportFile(file: Pick<File, 'name' | 'size' | 'arrayBu
           return;
         }
         const format = cell.numFmt?.replace(/"[^"]*"|\\./g, '') ?? '';
-        if (options?.calendarDates && value instanceof Date && Number.isFinite(value.getTime())) {
+        if (options?.clockTimes && value instanceof Date && Number.isFinite(value.getTime()) && /h/i.test(format) && !/[yd]/i.test(format)) {
+          cells[index] = value.getUTCSeconds() || value.getUTCMilliseconds() ? 'Use whole minutes' : String(value.getUTCHours()).padStart(2,'0')+':'+String(value.getUTCMinutes()).padStart(2,'0');
+        } else if (options?.calendarDates && value instanceof Date && Number.isFinite(value.getTime())) {
           // Keep month-only expiry values incomplete even when Excel stores a hidden day.
           const dateOnly = value.toISOString().split('T')[0];
           const hasDay = /(?:^|[^d])d{1,2}(?!d)/i.test(format);
