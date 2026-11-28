@@ -75,6 +75,8 @@ export type Commitment = {
 };
 export type Snapshot = {
   today: string;
+  location_restricted?: boolean;
+  assigned_locations?: string[];
   jobs?: Job[];
   stock?: Stock[];
   events?: IceEvent[];

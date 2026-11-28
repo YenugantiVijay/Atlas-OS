@@ -6,7 +6,7 @@ import type { SchoolPageData } from './school.types';
 
 export function SchoolSetup({ scope }: { scope: SchoolScope }) {
   const school = scope.bootstrap.settings;
-  return <div className="space-y-5">
+  return <div className="space-y-5"><a href="/templates/Atlas-Client-Handover-Templates.xlsx" download className="text-sm font-semibold text-teal-800 underline">Download client setup and school fee verification workbook</a>
     <CommandForm scope={scope} title="School profile and receipt settings" action="settings" submitLabel="Save school settings"
       initial={school ? { ...school } : { receipt_prefix: 'SCH' }} fields={[
         { name: 'name', label: 'School name' }, { name: 'address', label: 'School address', type: 'textarea' },
@@ -55,7 +55,7 @@ export function SchoolPermissions({ scope }: { scope: SchoolScope }) {
   const [member, setMember] = useState(''); const [role, setRole] = useState('teacher'); const [classes, setClasses] = useState<string[]>([]);
   const save = useSchoolCommand(scope);
   const audit = useSchoolRead<SchoolPageData<{ id: number; actor: string; action: string; recorded_at: string }>>(scope, 'audit');
-  return <div className="space-y-5"><SchoolPanel title="School responsibilities">
+  return <div className="space-y-5"><a href="/templates/Atlas-Client-Handover-Templates.xlsx" download className="text-sm font-semibold text-teal-800 underline">Download client setup and school fee verification workbook</a><SchoolPanel title="School responsibilities">
     <p className="text-sm text-content-secondary">Invite staff through Team &amp; Access first. School roles are separate from business finance privileges. Teachers access only assigned classes; principal/owner approval is required for concessions and refunds.</p>
     <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (member && (role !== 'teacher' || classes.length)) save.mutate({ action: 'role', data: { user_id: member, role, class_ids: classes } }); }}>
       <Select label="School team member" value={member} disabled={!scope.editable || save.isPending} onChange={event => setMember(event.target.value)}

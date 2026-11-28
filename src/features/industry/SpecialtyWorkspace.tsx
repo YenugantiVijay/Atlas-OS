@@ -10,11 +10,14 @@ import { Field, inputClass, panel } from './fields';
 import { portalStorageKey } from '@/lib/portal-entry';
 import { readOperations, saveOperation, resolveOperation, OperationUnconfirmedError, type Command, type Snapshot } from './operations';
 import { Studio } from './Studio';
+import { HandoverReport } from './HandoverReport';
+import { InvoiceReviews } from './InvoiceReviews';
+import { LocationAccess } from './LocationAccess';
 import { IceDesk } from './IceDesk';
 
 export default function SpecialtyWorkspace() {
-  const {currentOrg,currentUser,isMockAuth}=useOrg();const tool=useIndustryTool();
-  return <SpecialtyWorkspaceBody key={[currentOrg?.id,currentUser?.id,tool?.id,isMockAuth].join(':')}/>;
+  const {currentOrg,currentUser,currentRole,isMockAuth}=useOrg();const tool=useIndustryTool();
+  return <SpecialtyWorkspaceBody key={[currentOrg?.id,currentUser?.id,currentRole,tool?.id,isMockAuth].join(':')}/>;
 }
 function SpecialtyWorkspaceBody() {
   const tool = useIndustryTool();
@@ -98,6 +101,11 @@ function SpecialtyWorkspaceBody() {
         status={isMockAuth ? 'Demo Workspace' : 'Cloud Workspace'}
         icon={<Icon size={16} />}
       />
+      <Button variant="outline" disabled={busy} onClick={()=>setRefresh(v=>v+1)}>Refresh workspace records</Button>
+      {id!=='banner-print-studio'&&!isMockAuth&&['owner','admin'].includes(currentRole??'')&&<HandoverReport orgId={org} tool={toolId}/>}
+      {id!=='banner-print-studio'&&!isMockAuth&&['owner','admin'].includes(currentRole??'')&&<LocationAccess orgId={org} tool={toolId} editable={canWrite}/>}
+      {id==='ice-cream-distribution'&&!isMockAuth&&['owner','admin','accounts'].includes(currentRole??'')&&<InvoiceReviews orgId={org} editable={canWrite&&!uncertain} refreshKey={refresh}/>}
+      {snapshot?.location_restricted&&<p role="status" className="rounded-xl border border-border bg-white p-3 text-sm">{snapshot.assigned_locations?.length?'Assigned locations: '+snapshot.assigned_locations.join(', '):'No location is assigned to your account. Ask the owner or administrator to grant access.'}</p>}
       {uncertain&&<section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p>A previous save has not been confirmed. Its original request is preserved for this account and workspace. Retry it unchanged to prevent duplicate stock or cash entries.</p><Button disabled={busy||!canWrite} onClick={()=>void save(uncertain.command)}>Retry unchanged operation</Button><Button variant="outline" disabled={busy} onClick={async()=>{
         setBusy(true);try{const recorded=await resolveOperation(org,toolId,uncertain.id,uncertain.command);localStorage.removeItem(storageKey);pending.current=undefined;setUncertain(null);setFormVersion(v=>v+1);setError('');setStatus(recorded?'The original operation was saved. No duplicate was created.':'The unsaved request was cancelled. You can enter a new operation.');setRefresh(v=>v+1);}catch(e){setError(e instanceof Error?e.message:'Could not resolve request');}finally{setBusy(false);}
       }}>Check status / cancel if unsaved</Button></section>}
@@ -193,7 +201,7 @@ function SpecialtyWorkspaceBody() {
             </p>
           )}
           {id === 'banner-print-studio' ? (
-            <Studio key={formVersion} snapshot={snapshot} save={save} canWrite={canWrite&&!uncertain} busy={busy} role={currentRole} />
+            <Studio key={formVersion} snapshot={snapshot} save={save} canWrite={canWrite&&!uncertain&&(!snapshot.location_restricted||!!snapshot.assigned_locations?.length)} busy={busy} role={currentRole} />
           ) : (
             <IceDesk key={formVersion}
               snapshot={snapshot}

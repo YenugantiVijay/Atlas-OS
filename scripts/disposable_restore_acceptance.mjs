@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 const measuredTables = [
+  'atlas_private.ice_invoice_reviews','atlas_private.ice_invoice_review_operations',
+  'atlas_private.ice_location_members','atlas_private.ice_location_access_history',
   'atlas_private.industry_cancellations',
   'atlas_private.ice_events','atlas_private.industry_operations',
   'atlas_school.staff_identity','atlas_school.staff_identity_history','atlas_school.staff_leave','atlas_school.staff_timetables',

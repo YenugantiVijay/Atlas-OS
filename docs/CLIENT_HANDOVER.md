@@ -34,4 +34,4 @@ Applied migration 20261128025709 to production Supabase project hrxjgbupjtikokqx
 
 The new cancellation table intentionally denies direct client access and uses guarded RPCs. Production confirms anonymous recovery execution is denied and authenticated users cannot bypass the new wrapper through the private base function. Security advisor warnings for legacy functions and leaked-password protection remain unchanged from DEPLOYMENT_2026_11_27.md. Private-table informational no-policy notices increase to 29 as expected.
 
-Staff permissions in the specialty workspace are currently workspace-wide, not restricted per named stall. Establish the intended cashier access policy before issuing staff accounts. This release does not add temperature sensors, payment gateways or automatic statutory filing.
+Staff location restrictions and server-backed daily reconciliation are now available. See HANDOVER_COMPLETION.md for assignment, fill-in workbook and dispatch invoice-review instructions. Generic ERP permissions still follow the team role. This release does not add temperature sensors, payment gateways or automatic statutory filing.

@@ -157,11 +157,13 @@ export function IceDesk({
               </div>
             </div>
           )}
+          {snapshot.location_restricted&&<datalist id="ice-assigned-sites">{snapshot.assigned_locations?.map(s=><option key={s} value={s}/>)}</datalist>}
           <form key={kind+':'+formEpoch} onSubmit={submit} className="mt-4">
             <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label={distribution ? 'Freezer or depot' : 'Stall name'}>
                 <input
                   className={inputClass}
+                  list={snapshot.location_restricted?'ice-assigned-sites':undefined}
                   value={site}
                   onChange={(event) => {setSite(event.target.value);countBasis.current=null;}}
                   maxLength={60}
