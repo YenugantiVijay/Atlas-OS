@@ -1,3 +1,4 @@
+import {openNavigationGroup} from './navigation';
 import { test, expect } from './workspace-fixture';
 
 test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
@@ -52,13 +53,16 @@ test.describe('ATLAS OS — PR #48: Premium UI Refinement Verification', () => {
     await expect(aside.getByText('Simple View')).toHaveCount(0);
     await expect(aside.getByText('Full Navigation')).toHaveCount(0);
 
-    // Static section headings exist without dropdown toggle buttons
+    // Modules stay grouped until the user opens them.
     await expect(aside.getByText('Sales', { exact: true })).toBeVisible();
     await expect(aside.getByText('Inventory', { exact: true })).toBeVisible();
     await expect(aside.getByText('Finance', { exact: true })).toBeVisible();
-    await expect(aside.getByRole('button', { name: 'Sales' })).toHaveCount(0);
-    await expect(aside.getByRole('button', { name: 'Inventory' })).toHaveCount(0);
-    await expect(aside.getByRole('button', { name: 'Finance' })).toHaveCount(0);
+    await expect(aside.getByRole('button', { name: 'Sales',exact:true })).toHaveAttribute('aria-expanded','false');
+    await openNavigationGroup(page,'Sales');
+    await expect(aside.getByRole('button', { name: 'Inventory',exact:true })).toHaveAttribute('aria-expanded','false');
+    await openNavigationGroup(page,'Inventory');
+    await expect(aside.getByRole('button', { name: 'Finance',exact:true })).toHaveAttribute('aria-expanded','false');
+    await openNavigationGroup(page,'Finance');
     await expect(aside.getByRole('link', { name: 'Sales Orders' })).toBeVisible();
     await expect(aside.getByRole('link', { name: 'Products & SKUs' })).toBeVisible();
     await expect(aside.getByRole('link', { name: 'Payments & Ledger' })).toBeVisible();

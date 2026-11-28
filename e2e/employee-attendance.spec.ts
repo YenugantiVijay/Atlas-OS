@@ -1,8 +1,10 @@
+import {openNavigationGroup} from './navigation';
 import { test, expect } from './workspace-fixture';
 
 test('employee attendance is reachable and never fabricates cloud punches in demo', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('atlas_auth_mode_v2', 'demo'));
   await page.goto('/');
+  await openNavigationGroup(page,'People');
   await page.getByRole('link', { name: 'Employee Attendance', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Employee Attendance' })).toBeVisible();
   await expect(page.getByText('Sign in to a cloud workspace to use employee attendance.')).toBeVisible();
